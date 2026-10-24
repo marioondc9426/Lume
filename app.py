@@ -22,6 +22,12 @@ import hmac
 import secrets
 import socket
 import ssl
+import importlib
+import importlib.util
+import ctypes
+import ast
+import shutil
+from ctypes import wintypes
 import struct
 import uuid
 import zlib
@@ -45,7 +51,7 @@ except Exception: tls = None
 CERTS_DIR = os.path.join(BASE_DIR, "certs")
 HTTPS_PORT = 8443
 # Versao: "1.2" = versao nova com novidades (o numero depois do ponto sobe); "1.2.01", "1.2.02"... = correcoes (patches) dessa versao.
-VERSION = "1.4"
+VERSION = "1.5"
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")     # chaves de API, pasta de trabalho, uso
 HISTORY_FILE = os.path.join(BASE_DIR, "history.json")   # chats
 STATE_FILE = os.path.join(BASE_DIR, "state.json")       # preferencias da interface + memorias
@@ -253,9 +259,23 @@ def record_event(ev):
     except Exception as e:
         log("STATS", f"Nao consegui gravar estatistica: {e}", COLOR_RED)
 
+def is_ollama_cloud(model): return bool(re.search(r"(:|-)cloud$", model or ""))
+
 def build_stats(days=30):
     now = time.time()
-    evs = [e for e in _read_json(STATS_FILE, {"events": []}).get("events", []) if e.get("ts", 0) >= now - days * 86400]
+    allev = _read_json(STATS_FILE, {"events": []}).get("events", [])
+    evs = [e for e in allev if e.get("ts", 0) >= now - days * 86400]
+    # Ollama: a conta so mede o uso da nuvem por tempo de GPU em janelas de 5 h e 7 dias; aqui e a soma do que passou por este app
+    oll = {"h5": {"requests": 0, "seconds": 0.0, "tokens": 0}, "d7": {"requests": 0, "seconds": 0.0, "tokens": 0}, "month": {}, "local": {"requests": 0, "seconds": 0.0, "tokens": 0}}
+    for e in allev:
+        if e.get("type") != "chat" or str(e.get("model", "")).startswith("groq") or e.get("ts", 0) < now - 30 * 86400: continue
+        sec, tk, age = e.get("seconds", 0.0), e.get("tokens", 0), now - e["ts"]
+        if is_ollama_cloud(e.get("model")):
+            if age <= 5 * 3600: oll["h5"]["requests"] += 1; oll["h5"]["seconds"] += sec; oll["h5"]["tokens"] += tk
+            if age <= 7 * 86400: oll["d7"]["requests"] += 1; oll["d7"]["seconds"] += sec; oll["d7"]["tokens"] += tk
+            mm = oll["month"].setdefault(e["model"], {"requests": 0, "seconds": 0.0, "tokens": 0}); mm["requests"] += 1; mm["seconds"] += sec; mm["tokens"] += tk
+        elif age <= days * 86400:
+            oll["local"]["requests"] += 1; oll["local"]["seconds"] += sec; oll["local"]["tokens"] += tk
     models, daily = {}, {}
     exa = {"searches": 0, "reads": 0, "cost": 0.0}
     tot = {"requests": 0, "tokens": 0, "seconds": 0.0}
@@ -276,7 +296,96 @@ def build_stats(days=30):
     for i in range(min(days, 14) - 1, -1, -1):
         day = time.strftime("%Y-%m-%d", time.localtime(now - i * 86400))
         series.append({"day": day, **daily.get(day, {"requests": 0, "tokens": 0, "exa_cost": 0.0})})
-    return {"days": days, "totals": tot, "models": models, "exa": exa, "series": series, "since": min((e["ts"] for e in evs), default=None)}
+    return {"days": days, "totals": tot, "models": models, "exa": exa, "series": series, "since": min((e["ts"] for e in evs), default=None), "ollama": oll}
+
+# ---------------------------------------------------------------- rodar codigo dos blocos
+RUN_DIR = os.path.join(BASE_DIR, "code_runs")          # os scripts que voce mandou rodar
+PKG_DIR = os.path.join(BASE_DIR, "code_packages")      # bibliotecas instaladas para esses scripts (nao mexe no Python do app)
+RUN_TIMEOUT = 60
+PIP_NAMES = {"cv2": "opencv-python", "PIL": "pillow", "sklearn": "scikit-learn", "yaml": "pyyaml", "bs4": "beautifulsoup4", "skimage": "scikit-image", "dateutil": "python-dateutil",
+             "dotenv": "python-dotenv", "serial": "pyserial", "Crypto": "pycryptodome", "OpenSSL": "pyopenssl", "jwt": "pyjwt", "discord": "discord.py", "telegram": "python-telegram-bot",
+             "docx": "python-docx", "pptx": "python-pptx", "fitz": "pymupdf", "usb": "pyusb", "win32api": "pywin32", "win32com": "pywin32", "win32gui": "pywin32", "attr": "attrs",
+             "magic": "python-magic", "git": "gitpython", "mpl_toolkits": "matplotlib", "pynput": "pynput", "PyQt5": "PyQt5", "PyQt6": "PyQt6", "PySide6": "PySide6", "wx": "wxPython",
+             "speech_recognition": "SpeechRecognition", "pyaudio": "PyAudio", "Xlib": "python-xlib", "google": "google-api-python-client", "sounddevice": "sounddevice", "bson": "pymongo"}
+GUI_MODULES = {"tkinter", "turtle", "pygame", "PyQt5", "PyQt6", "PySide2", "PySide6", "kivy", "wx", "pyglet", "arcade", "customtkinter", "ursina", "vpython", "pyglet", "dearpygui", "ttkbootstrap", "tkinterdnd2"}
+RUN_LANGS = {"python": ".py", "javascript": ".js", "powershell": ".ps1", "bat": ".bat", "bash": ".sh"}
+PIP_SPEC_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.\-]*$")
+
+def py_imports(code):
+    """Nomes dos modulos importados no topo do codigo (ast; se o codigo tem erro de sintaxe, uma busca por texto)."""
+    mods = set()
+    try:
+        for node in ast.walk(ast.parse(code)):
+            if isinstance(node, ast.Import): mods.update(a.name.split(".")[0] for a in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module: mods.add(node.module.split(".")[0])
+    except SyntaxError:
+        for m in re.finditer(r"^\s*(?:from\s+([\w.]+)\s+import|import\s+([\w., ]+))", code, re.M):
+            if m.group(1): mods.add(m.group(1).split(".")[0])
+            else: mods.update(x.strip().split(" as ")[0].split(".")[0] for x in m.group(2).split(","))
+    return {m for m in mods if m}
+
+def missing_python_packages(code):
+    """(pacotes pip que faltam, usa janela/GUI?)"""
+    mods = py_imports(code); std = getattr(sys, "stdlib_module_names", set()); missing = []
+    if PKG_DIR not in sys.path: sys.path.insert(0, PKG_DIR)
+    importlib.invalidate_caches()
+    for m in sorted(mods):
+        if m in std or m == "__future__": continue
+        try:
+            if importlib.util.find_spec(m) is not None: continue
+        except (ImportError, ValueError, AttributeError): pass
+        if os.path.exists(os.path.join(RUN_DIR, m + ".py")): continue
+        pkg = PIP_NAMES.get(m, m.replace("_", "-"))
+        if PIP_SPEC_RE.match(pkg) and pkg not in missing: missing.append(pkg)
+    return missing, bool(mods & GUI_MODULES)
+
+def run_code(lang, code, analyze=False, install=False):
+    lang = (lang or "").lower()
+    if lang not in RUN_LANGS: return {"error": "Linguagem sem botao de rodar."}
+    if not isinstance(code, str) or not code.strip() or len(code) > 200000: return {"error": "Codigo vazio ou grande demais."}
+    exe, args, missing, gui = None, [], [], False
+    if lang == "python": exe, (missing, gui) = sys.executable, missing_python_packages(code)
+    elif lang == "javascript": exe = shutil.which("node")
+    elif lang == "powershell": exe = shutil.which("powershell")
+    elif lang == "bat": exe = shutil.which("cmd")
+    elif lang == "bash": exe = shutil.which("bash")
+    if not exe: return {"error": {"javascript": "Node.js nao encontrado neste PC (instale em nodejs.org).", "bash": "Bash nao encontrado neste PC (instale o Git for Windows)."}.get(lang, "Interpretador nao encontrado.")}
+    if analyze: return {"ok": True, "missing": missing, "gui": gui}
+    os.makedirs(RUN_DIR, exist_ok=True)
+    for f in os.listdir(RUN_DIR):   # apaga scripts com mais de 1 dia
+        fp = os.path.join(RUN_DIR, f)
+        try:
+            if os.path.isfile(fp) and time.time() - os.path.getmtime(fp) > 86400: os.remove(fp)
+        except OSError: pass
+    out_install = ""
+    if install and missing:
+        os.makedirs(PKG_DIR, exist_ok=True)
+        log("CODIGO", "Instalando: " + ", ".join(missing), COLOR_YELLOW)
+        try:
+            r = subprocess.run([sys.executable, "-m", "pip", "install", "--disable-pip-version-check", "--target", PKG_DIR, *missing], capture_output=True, text=True, timeout=600, creationflags=NOWIN, encoding="utf-8", errors="replace")
+        except subprocess.TimeoutExpired: return {"error": "A instalacao demorou demais (mais de 10 minutos)."}
+        if r.returncode != 0: return {"ok": False, "exit": r.returncode, "output": "Falha ao instalar " + ", ".join(missing) + ":\n" + (r.stderr or r.stdout)[-3000:], "seconds": 0, "installed": []}
+        out_install = "Instalado: " + ", ".join(missing) + "\n\n"
+    script = os.path.join(RUN_DIR, uuid.uuid4().hex[:8] + RUN_LANGS[lang])
+    with open(script, "w", encoding="utf-8", newline="\n" if lang != "bat" else None) as f: f.write(code)
+    cmd = {"python": [exe, "-X", "utf8", script], "javascript": [exe, script], "powershell": [exe, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script], "bat": [exe, "/c", script], "bash": [exe, script]}[lang]
+    env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1", PYTHONPATH=os.pathsep.join(p for p in (PKG_DIR, os.environ.get("PYTHONPATH", "")) if p))
+    log("CODIGO", f"Rodando {lang}: {os.path.basename(script)}", COLOR_CYAN)
+    t0 = time.time()
+    if gui:   # programas com janela: roda solto e so espera uns segundos para pegar erro logo de cara
+        p = subprocess.Popen(cmd, cwd=RUN_DIR, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, creationflags=NOWIN)
+        try:
+            outb, _ = p.communicate(timeout=3)
+            return {"ok": p.returncode == 0, "exit": p.returncode, "output": out_install + outb.decode("utf-8", "replace")[-20000:], "seconds": round(time.time() - t0, 2)}
+        except subprocess.TimeoutExpired:
+            return {"ok": True, "detached": True, "output": out_install + "O programa abriu uma janela e continua rodando. Feche a janela dele quando terminar.", "seconds": 3}
+    try:
+        r = subprocess.run(cmd, cwd=RUN_DIR, env=env, stdin=subprocess.DEVNULL, capture_output=True, timeout=RUN_TIMEOUT, creationflags=NOWIN)
+        out = (r.stdout.decode("utf-8", "replace") + (("\n" if r.stdout else "") + r.stderr.decode("utf-8", "replace") if r.stderr else "")).strip()
+        return {"ok": r.returncode == 0, "exit": r.returncode, "output": out_install + out[-20000:], "seconds": round(time.time() - t0, 2)}
+    except subprocess.TimeoutExpired as e:
+        partial = ((e.stdout or b"").decode("utf-8", "replace") + (e.stderr or b"").decode("utf-8", "replace")).strip()
+        return {"ok": False, "exit": None, "timeout": True, "output": out_install + partial[-20000:] + f"\n\n(parado: passou de {RUN_TIMEOUT} s)", "seconds": RUN_TIMEOUT}
 
 # ---------------------------------------------------------------- desfazer (backup antes de a IA sobrescrever um arquivo)
 def save_undo(path, existed, old_bytes):
@@ -883,7 +992,7 @@ LOCAL_HOSTS = ("127.0.0.1", "localhost")
 STATIC_PAGES = ("/", "/index.html")
 # So o proprio PC (janela do app) pode usar estas rotas
 LOCAL_ONLY_POST = ("/api/save_config", "/api/save_key", "/api/server_config", "/api/perf_interval",
-                   "/api/custom_theme", "/api/custom_theme_delete", "/api/resolve_pending", "/api/export", "/api/ios_profile_save", "/api/undo", "/api/stats_clear", "/api/open_url", "/api/update_apply", "/api/restart_app")
+                   "/api/custom_theme", "/api/custom_theme_delete", "/api/resolve_pending", "/api/export", "/api/ios_profile_save", "/api/undo", "/api/stats_clear", "/api/open_url", "/api/update_apply", "/api/restart_app", "/api/run_code")
 PUBLIC_POST = ("/api/auth/login", "/api/auth/logout")
 LOGIN_MAX_FAILS, LOGIN_LOCK_SECONDS = 5, 60
 login_failures = {}   # ip -> [falhas, inicio]
@@ -1349,6 +1458,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             try: return self.send_json({"ok": True, "message": do_undo(str(data.get("id", "")))})
             except Exception as e: return self.send_json({"error": str(e)}, 400)
 
+        if p == '/api/run_code':
+            return self.send_json(run_code(data.get("lang"), data.get("code"), bool(data.get("analyze")), bool(data.get("install"))))
         if p == '/api/update_apply':
             return self.send_json(apply_update())
         if p == '/api/restart_app':
@@ -1732,6 +1843,8 @@ def restart_server():
         threading.Thread(target=start_server, daemon=True).start()
     threading.Thread(target=work, daemon=True).start()
 
+WINDOW_TITLE = 'AI Website Thingmabobber'
+
 class WindowApi:
     """Botoes da barra de titulo propria (a janela nao tem a borda do Windows)."""
     def __init__(self):
@@ -1744,8 +1857,31 @@ class WindowApi:
         if (int(w), int(h)) != (win.width, win.height): win.resize(int(w), int(h))
         if (int(x), int(y)) != (win.x, win.y): win.move(int(x), int(y))
     def toggle_maximize(self):
-        if self._maximized: self._window.restore()
-        else: self._window.maximize()
+        """Maximiza na area de trabalho (sem cobrir a barra de tarefas) e anima a troca de tamanho."""
+        try:
+            u = ctypes.windll.user32
+            hwnd = u.FindWindowW(None, WINDOW_TITLE)
+            if not hwnd: raise OSError("janela nao encontrada")
+            r = wintypes.RECT(); u.GetWindowRect(hwnd, ctypes.byref(r))
+            cur = (r.left, r.top, r.right - r.left, r.bottom - r.top)
+            if not self._maximized:
+                self._restore = cur
+                class MI(ctypes.Structure): _fields_ = [("cbSize", wintypes.DWORD), ("rcMonitor", wintypes.RECT), ("rcWork", wintypes.RECT), ("dwFlags", wintypes.DWORD)]
+                mi = MI(); mi.cbSize = ctypes.sizeof(mi)
+                u.GetMonitorInfoW(u.MonitorFromWindow(hwnd, 2), ctypes.byref(mi))   # 2 = monitor mais proximo
+                w = mi.rcWork; target = (w.left, w.top, w.right - w.left, w.bottom - w.top)
+            else:
+                target = getattr(self, "_restore", (cur[0] + 60, cur[1] + 40, 1100, 800))
+            steps = 14
+            for i in range(1, steps + 1):
+                k = 1 - (1 - i / steps) ** 3   # comeca rapido e freia no fim
+                x, y, wd, ht = (round(cur[j] + (target[j] - cur[j]) * k) for j in range(4))
+                u.SetWindowPos(hwnd, 0, x, y, wd, ht, 0x0014)   # SWP_NOZORDER | SWP_NOACTIVATE
+                time.sleep(0.011)
+        except Exception as e:
+            log("JANELA", f"Maximizar com animacao falhou ({e}); usando o modo padrao.", COLOR_YELLOW)
+            if self._maximized: self._window.restore()
+            else: self._window.maximize()
         self._maximized = not self._maximized
         return self._maximized
     def close(self): self._window.destroy()
@@ -1761,7 +1897,7 @@ if __name__ == '__main__':
     time.sleep(1)
     log("INICIO", "Abrindo janela...", COLOR_BLUE)
     api = WindowApi()
-    api._window = webview.create_window('AI Website Thingmabobber', f'http://127.0.0.1:{PORT}/index.html', width=1100, height=800, min_size=(800, 520), frameless=True, easy_drag=False, js_api=api)
+    api._window = webview.create_window(WINDOW_TITLE, f'http://127.0.0.1:{PORT}/index.html', width=1100, height=800, min_size=(800, 520), frameless=True, easy_drag=False, js_api=api)
     # private_mode=False: sem isso o localStorage some toda vez que o app fecha
     window_api = api
     webview.start(private_mode=False, storage_path=os.path.join(BASE_DIR, "webview_data"), icon=custom_icon_ico())

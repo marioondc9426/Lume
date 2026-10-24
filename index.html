@@ -108,6 +108,12 @@
         .md-quote { margin: 8px 0; padding: 4px 12px; border-left: 3px solid var(--accent); color: var(--text-muted); background: rgba(128,128,128,0.08); border-radius: 0 6px 6px 0; }
         .md-table-wrap { overflow-x: auto; margin: 8px 0; white-space: normal; } .md-table { border-collapse: collapse; font-size: 0.92em; } .md-table th, .md-table td { border: 1px solid var(--border-color); padding: 5px 10px; text-align: left; } .md-table th { background: rgba(128,128,128,0.14); }
         .md-link { color: var(--accent); text-decoration: underline; cursor: pointer; }
+        .code-run { background: var(--accent); border: 1px solid var(--accent); color: #fff; border-radius: 6px; padding: 2px 10px; font-size: 1em; cursor: pointer; margin-right: 6px; } .code-run:disabled { opacity: .5; cursor: wait; }
+        .cb-head > :nth-child(2) { margin-left: auto; }
+        .code-out { margin: -4px 0 10px; border: 1px solid var(--border-color); border-radius: 0 0 10px 10px; background: rgba(0,0,0,0.22); white-space: normal; overflow: hidden; }
+        .co-head { padding: 5px 10px; font-size: 0.75em; color: var(--text-muted); display: flex; align-items: center; gap: 6px; } .co-head.ok { color: #3fb950; } .co-head.err { color: #f85149; }
+        .code-out pre { margin: 0; padding: 8px 12px; font-family: Consolas, 'Cascadia Mono', monospace; font-size: 0.84em; white-space: pre-wrap; word-break: break-word; max-height: 300px; overflow: auto; border-top: 1px solid var(--border-color); }
+        .co-empty { padding: 4px 12px 8px; font-size: 0.8em; color: var(--text-muted); }
         code.inline { font-family: Consolas, 'Cascadia Mono', monospace; background: rgba(128,128,128,0.22); padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
         .tk-c { color: #7f8a96; font-style: italic; } .tk-s { color: #6aab73; } .tk-n { color: #e0955a; } .tk-k { color: #b57edc; } .tk-f { color: #5aa9f5; } .tk-t { color: #e5736f; }
         .tk-add { color: #3fb950; background: rgba(63,185,80,0.12); display: inline-block; width: 100%; } .tk-del { color: #f85149; background: rgba(248,81,73,0.12); display: inline-block; width: 100%; }
@@ -772,6 +778,8 @@
             <button class="btn btn-secondary host-only" onclick="clearStats()">Limpar</button>
         </div>
         <div id="stats-cards" class="stats-cards"></div>
+        <div class="section-title">Ollama</div>
+        <div id="stats-ollama"></div>
         <div class="section-title">Por modelo</div>
         <div id="stats-models"></div>
         <div class="section-title">Tokens por dia</div>
@@ -896,7 +904,10 @@
             'Overlay de desempenho': 'Performance overlay', 'Mostrar overlay no canto superior direito': 'Show overlay in the top-right corner', 'Estilo': 'Style',
             'Padrão (colorido)': 'Default (colored)', 'Cinza (discreto)': 'Gray (subtle)', 'Atualização:': 'Refresh:',
             'A GPU em si só atualiza o uso a cada ~100–1000 ms; valores menores que isso não deixam o número mais preciso.': 'The GPU itself only updates its usage every ~100–1000 ms; lower values do not make the number more precise.',
-            'Salvar Tudo': 'Save all', 'Apagar os modelos baixados (liberar espaço)': 'Delete downloaded models (free space)', 'Apagar os modelos baixados?': 'Delete downloaded models?', 'Isso libera o espaço que os modelos do celular ocupam. Para usar de novo, é preciso baixar outra vez.': 'This frees the space used by the phone models. To use them again you have to download them again.', 'Apagar': 'Delete', 'Modelos apagados do celular.': 'Models deleted from the phone.', 'Espaço usado por este site no celular: {mb} MB (os modelos baixados ficam aqui).': 'Space used by this site on the phone: {mb} MB (downloaded models are stored here).', 'Modelos neste celular': 'Models on this phone', 'Rodar os modelos locais neste celular (em vez de no PC)': 'Run local models on this phone (instead of on the PC)',
+            'Salvar Tudo': 'Save all', 'Nuvem: últimas 5 h (respostas · GPU)': 'Cloud: last 5 h (answers · GPU)', 'Nuvem: últimos 7 dias (respostas · GPU)': 'Cloud: last 7 days (answers · GPU)', 'Local no PC (período escolhido)': 'Local on PC (chosen period)', 'Modelo da nuvem (30 dias)': 'Cloud model (30 days)', 'Tempo de GPU': 'GPU time', 'Nenhuma resposta de modelo da nuvem do Ollama registrada ainda.': 'No Ollama cloud answers recorded yet.', 'Ver o uso na conta do Ollama': 'See usage on the Ollama account', 'O Ollama mede o plano grátis por tempo de GPU (janelas de 5 horas e 7 dias) e não oferece uma forma de o app ler a % usada. Os números acima são só o que passou por este app.': 'Ollama measures the free plan by GPU time (5-hour and 7-day windows) and offers no way for the app to read the % used. The numbers above are only what went through this app.', 'Rodar': 'Run', 'Rodar este código?': 'Run this code?', 'Instalar bibliotecas e rodar?': 'Install libraries and run?', 'Instalar e rodar': 'Install and run', 'Não perguntar de novo': 'Do not ask again', 'Rodando...': 'Running...', 'Programa aberto': 'Program opened', 'Parado por tempo': 'Stopped (time limit)', 'Terminou ✓': 'Finished ✓', 'Erro (código {n})': 'Error (code {n})', '(sem saída)': '(no output)',
+            'Espere a resposta terminar para rodar o código.': 'Wait for the answer to finish before running the code.',
+            'Este código usa bibliotecas que não estão instaladas: {list}.\nElas serão instaladas com o pip numa pasta do app (code_packages) e depois o código roda no seu PC.': 'This code uses libraries that are not installed: {list}.\nThey will be installed with pip into an app folder (code_packages) and then the code runs on your PC.',
+            'O código vai rodar no seu PC ({lang}), dentro da pasta code_runs do app, com o seu usuário. Só rode o que você entendeu.': 'The code will run on your PC ({lang}), inside the app code_runs folder, as your user. Only run what you understand.', 'Apagar os modelos baixados (liberar espaço)': 'Delete downloaded models (free space)', 'Apagar os modelos baixados?': 'Delete downloaded models?', 'Isso libera o espaço que os modelos do celular ocupam. Para usar de novo, é preciso baixar outra vez.': 'This frees the space used by the phone models. To use them again you have to download them again.', 'Apagar': 'Delete', 'Modelos apagados do celular.': 'Models deleted from the phone.', 'Espaço usado por este site no celular: {mb} MB (os modelos baixados ficam aqui).': 'Space used by this site on the phone: {mb} MB (downloaded models are stored here).', 'Modelos neste celular': 'Models on this phone', 'Rodar os modelos locais neste celular (em vez de no PC)': 'Run local models on this phone (instead of on the PC)',
             'Roda dentro do navegador, na placa gráfica do celular (WebGPU). Os modelos são baixados uma vez (centenas de MB), então use o Wi-Fi. A aba Code e a pesquisa na web só funcionam nos modelos do PC. Os modelos da nuvem continuam passando pelo PC: o Ollama não aceita chamadas diretas de uma página web.': 'Runs inside the browser, on the phone GPU (WebGPU). Models are downloaded once (hundreds of MB), so use Wi-Fi. The Code tab and web search only work with PC models. Cloud models still go through the PC: Ollama does not accept direct calls from a web page.',
             'Testar o celular (benchmark)': 'Test this phone (benchmark)', 'Ativar o HTTPS (uma vez só)': 'Turn on HTTPS (one time only)', 'Baixar certificado': 'Download certificate', 'Abrir versão segura (https)': 'Open secure version (https)',
             '1. Toque em "Baixar certificado" e depois em Permitir.<br>2. Abra Ajustes → "Perfil baixado" → Instalar.<br>3. Ajustes → Geral → Sobre → Ajustes de Confiança de Certificado → ligue "Thingmabobber Local CA".<br>4. Toque em "Abrir versão segura" e conecte de novo com a senha.': '1. Tap "Download certificate", then Allow.<br>2. Open Settings → "Profile Downloaded" → Install.<br>3. Settings → General → About → Certificate Trust Settings → turn on "Thingmabobber Local CA".<br>4. Tap "Open secure version" and connect again with the password.',
@@ -1844,11 +1855,13 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
         document.addEventListener('click', e => { const a = e.target.closest('.md-link'); if (!a) return; e.preventDefault(); openExternal(a.dataset.url); });
         const FENCE_RE = /```([^\n`]*)\n?([\s\S]*?)(?:```|$)/g;
         const textHtml = t => t ? mdBlock(t).replace(NOTE_RE, '<span class="tool-note">[$1]</span>') : '';
+        const RUN_NAMES = { python: 'Python', javascript: 'JavaScript (Node)', powershell: 'PowerShell', bat: 'Batch (cmd)', bash: 'Bash' };
+        const runLang = c => (RUN_NAMES[c] ? c : '');
         function codeBlockHtml(info, code) {
             const lang = (info.trim().split(/\s+/)[0] || '').toLowerCase(), canon = lang in LANG_ALIAS ? LANG_ALIAS[lang] : lang;
             const label = LANG_NAMES[canon] || (canon ? canon : tr('Código'));
             code = code.replace(/\n$/, '');
-            return `<div class="codeblock"><div class="cb-head"><span class="cb-lang">${esc(label)}</span><button class="code-copy" type="button">${esc(tr('Copiar'))}</button></div><pre><code>${highlight(code, lang)}</code></pre></div>`;
+            return `<div class="codeblock"><div class="cb-head"><span class="cb-lang">${esc(label)}</span>${runLang(canon) && auth.local ? `<button class="code-run" type="button" data-run="${runLang(canon)}">▶ ${esc(tr('Rodar'))}</button>` : ''}<button class="code-copy" type="button">${esc(tr('Copiar'))}</button></div><pre><code>${highlight(code, lang)}</code></pre></div>`;
         }
         const richPart = seg => {
             seg = seg.replace(/^\n+|\n+$/g, ''); if (!seg) return '';
@@ -1861,6 +1874,29 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             }
             return out + textHtml(seg.slice(last).replace(/^\n+|\n+$/g, ''));
         };
+        async function runApi(body) { const r = await fetch(API + '/api/run_code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); return r.json(); }
+        async function runCodeBlock(btn) {   // so roda quando voce clica e confirma; roda no PC onde o app esta aberto
+            if (busy) { showInfo('Espere a resposta terminar para rodar o código.'); return; }
+            const box = btn.closest('.codeblock'), code = box.querySelector('code').textContent, lang = btn.dataset.run;
+            let an; try { an = await runApi({ lang, code, analyze: true }); } catch (e) { showInfo('Servidor não respondeu.'); return; }
+            if (an.error) { showInfo(an.error, 9000); return; }
+            const miss = an.missing || [];
+            if (miss.length || !config.runNoAsk) {
+                const r = await ask({ title: miss.length ? 'Instalar bibliotecas e rodar?' : 'Rodar este código?',
+                    body: miss.length ? tr('Este código usa bibliotecas que não estão instaladas: {list}.\nElas serão instaladas com o pip numa pasta do app (code_packages) e depois o código roda no seu PC.', { list: miss.join(', ') }) : tr('O código vai rodar no seu PC ({lang}), dentro da pasta code_runs do app, com o seu usuário. Só rode o que você entendeu.', { lang: RUN_NAMES[lang] }),
+                    buttons: [miss.length ? 'Instalar e rodar' : 'Rodar', 'Cancelar'], toggle: miss.length ? undefined : 'Não perguntar de novo' });
+                if (r.index !== 0) return;
+                if (r.checked && !miss.length) { config.runNoAsk = true; saveState(); }
+            }
+            let out = box.nextElementSibling; if (!out || !out.classList.contains('code-out')) { out = document.createElement('div'); out.className = 'code-out'; box.after(out); }
+            out.innerHTML = `<div class="co-head"><span class="pulse"></span> ${esc(tr('Rodando...'))}</div>`; btn.disabled = true;
+            let res; try { res = await runApi({ lang, code, install: true }); } catch (e) { res = { error: 'Servidor não respondeu.' }; }
+            btn.disabled = false;
+            if (res.error) { out.innerHTML = `<div class="co-head err">${esc(tr(res.error))}</div>`; return; }
+            const head = res.detached ? tr('Programa aberto') : res.timeout ? tr('Parado por tempo') : res.ok ? tr('Terminou ✓') : tr('Erro (código {n})', { n: res.exit });
+            out.innerHTML = `<div class="co-head ${res.ok ? 'ok' : 'err'}">${esc(head)} · ${res.seconds}s</div>` + (res.output ? `<pre>${esc(res.output)}</pre>` : `<div class="co-empty">${esc(tr('(sem saída)'))}</div>`);
+        }
+        document.addEventListener('click', e => { const b = e.target.closest('.code-run'); if (b) runCodeBlock(b); });
         document.addEventListener('click', e => {   // botao "Copiar" de cada bloco de codigo
             const b = e.target.closest('.code-copy'); if (!b) return;
             copyText(b.closest('.codeblock').querySelector('code').textContent);
@@ -2358,6 +2394,11 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             const card = (v, l) => `<div class="stat-card"><div class="v">${esc(String(v))}</div><div class="l">${esc(tr(l))}</div></div>`;
             $('stats-cards').innerHTML = card(nfmt(st.totals.requests), 'Respostas') + card(nfmt(st.totals.tokens), 'Tokens gerados') + card(fmtDur(st.totals.seconds), 'Tempo gerando') +
                 card('US$ ' + st.exa.cost.toFixed(3), 'Exa: ' + st.exa.searches + ' ' + tr('buscas') + ' · ' + st.exa.reads + ' ' + tr('leituras'));
+            const o = st.ollama, oc = (v, l) => `<div class="stat-card"><div class="v">${esc(String(v))}</div><div class="l">${esc(tr(l))}</div></div>`;
+            const om = Object.entries(o.month).sort((a, b) => b[1].requests - a[1].requests);
+            $('stats-ollama').innerHTML = `<div class="stats-cards">${oc(o.h5.requests + ' · ' + fmtDur(o.h5.seconds), 'Nuvem: últimas 5 h (respostas · GPU)')}${oc(o.d7.requests + ' · ' + fmtDur(o.d7.seconds), 'Nuvem: últimos 7 dias (respostas · GPU)')}${oc(o.local.requests + ' · ' + fmtDur(o.local.seconds), 'Local no PC (período escolhido)')}</div>` +
+                (om.length ? `<table class="stats-table"><tr><th>${esc(tr('Modelo da nuvem (30 dias)'))}</th><th>${esc(tr('Respostas'))}</th><th>${esc(tr('Tokens'))}</th><th>${esc(tr('Tempo de GPU'))}</th></tr>` + om.map(([n, m]) => { const mod = modelById(n); return `<tr><td>${esc(mod ? mod.label : n)}</td><td>${nfmt(m.requests)}</td><td>${nfmt(m.tokens)}</td><td>${fmtDur(m.seconds)}</td></tr>`; }).join('') + '</table>' : `<span class="hint">${esc(tr('Nenhuma resposta de modelo da nuvem do Ollama registrada ainda.'))}</span>`) +
+                `<div class="srv-actions" style="margin-top:8px;"><button class="btn btn-secondary" onclick="openExternal('https://ollama.com/settings')">${esc(tr('Ver o uso na conta do Ollama'))}</button></div><span class="hint">${esc(tr('O Ollama mede o plano grátis por tempo de GPU (janelas de 5 horas e 7 dias) e não oferece uma forma de o app ler a % usada. Os números acima são só o que passou por este app.'))}</span>`;
             const rows = Object.entries(st.models).sort((a, b) => b[1].requests - a[1].requests);
             $('stats-models').innerHTML = rows.length ? `<table class="stats-table"><tr><th>${esc(tr('Modelo'))}</th><th>${esc(tr('Respostas'))}</th><th>${esc(tr('Tokens'))}</th><th>${esc(tr('Média tok/s'))}</th><th>${esc(tr('Melhor tok/s'))}</th></tr>` +
                 rows.map(([name, m]) => { const mod = modelById(name), tilde = m.cloud ? '~' : ''; return `<tr><td>${esc(mod ? mod.label : name)}${m.cloud ? ' ☁' : ''}</td><td>${nfmt(m.requests)}</td><td>${tilde}${nfmt(m.tokens)}</td><td>${tilde}${m.avg_tps.toFixed(1)}</td><td>${tilde}${m.best_tps.toFixed(1)}</td></tr>`; }).join('') + '</table>'
