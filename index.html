@@ -92,6 +92,22 @@
         .msg-actions { position: absolute; bottom: 6px; right: 8px; display: flex; gap: 4px; opacity: 0; transition: opacity .2s; }
         .msg:hover .msg-actions { opacity: 1; }
         .msg.user { padding-bottom: 28px; }
+        .msg.user.queued { opacity: .65; border: 1px dashed var(--border-color); animation: none; }
+        .msg.user.queued .msg-actions { opacity: 1; }
+        .q-tag { display: block; font-size: 0.72em; color: var(--text-muted); margin-bottom: 4px; }
+        .copy-btn .glyph { font-size: 13px; line-height: 14px; width: 14px; text-align: center; }
+        .var-nav { position: absolute; bottom: 6px; left: 12px; display: flex; align-items: center; gap: 2px; font-size: 0.75em; color: var(--text-muted); }
+        .var-nav button { background: none; border: none; color: inherit; cursor: pointer; padding: 0 5px; font-size: 1.3em; line-height: 1; }
+        .var-nav button:disabled { opacity: .3; cursor: default; } .var-nav button:not(:disabled):hover { color: var(--text-main); }
+        .edit-ta { width: 100%; min-height: 70px; resize: vertical; box-sizing: border-box; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); font: inherit; }
+        .edit-row { display: flex; gap: 8px; margin-top: 8px; justify-content: flex-end; } .edit-row .btn { margin: 0; padding: 5px 12px; }
+        .think[data-label]::before { content: attr(data-label); display: block; font-style: normal; font-weight: 600; font-size: 0.85em; opacity: .7; margin-bottom: 2px; }
+        .think + .think { margin-top: -2px; }
+        .regen-menu { position: fixed; z-index: 3500; width: 260px; max-height: 320px; overflow-y: auto; padding: 6px; border-radius: 12px; border: 1px solid var(--border-color); background: var(--bg-sidebar); box-shadow: 0 12px 40px rgba(0,0,0,0.45); animation: modalIn .18s ease both; }
+        .regen-menu button { display: block; width: 100%; text-align: left; padding: 8px 10px; border: none; border-radius: 8px; background: none; color: var(--text-main); cursor: pointer; font: inherit; font-size: 0.88em; }
+        .regen-menu button:hover { background: rgba(128,128,128,0.2); } .regen-menu .rm-head { padding: 6px 10px 2px; font-size: 0.75em; color: var(--text-muted); }
+        .chat-item.running .title::after, .chat-item.unread .title::after { content: ''; display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-left: 8px; vertical-align: middle; background: var(--accent); }
+        .chat-item.running .title::after { animation: pulse 1s ease-in-out infinite; } .chat-item.unread .title::after { background: #3fb950; }
         .copy-btn { background: var(--bg-main); border: 1px solid var(--border-color); padding: 4px; border-radius: 6px; cursor: pointer; display: flex; transition: opacity .2s, border-color .2s, background .2s; }
         .copy-btn .ic { margin: 0; width: 14px; height: 14px; }
         .copy-btn:hover { background: rgba(128,128,128,0.25); }
@@ -583,7 +599,7 @@
             <div id="attach-strip"></div>
             <div class="controls" id="controls">
                 <button class="btn btn-secondary attach-btn" onclick="$('file-input').click()" title="Anexar arquivo ou imagem (ou arraste / cole)"><img class="ic" src="icons/plus.png"></button>
-                <input type="file" id="file-input" accept="image/*,.txt,.md,.markdown,.json,.csv,.tsv,.log,.py,.js,.ts,.jsx,.tsx,.html,.htm,.css,.xml,.yml,.yaml,.ini,.toml,.cfg,.conf,.bat,.ps1,.sh,.c,.cpp,.h,.hpp,.java,.cs,.go,.rs,.rb,.php,.sql,.r,.lua,.kt,.swift,.tex,.rst,.pdf" multiple style="display:none" onchange="addFiles(this.files); this.value = ''">
+                <input type="file" id="file-input" multiple style="display:none" onchange="addFiles(this.files); this.value = ''">
                 <div class="custom-select" id="model-select">
                     <div class="select-trigger" onclick="toggleCustomSelect()">
                         <img class="ic" id="model-trigger-icon" src="icons/zap.png">
@@ -1011,7 +1027,15 @@
             'Iniciar com o Windows': 'Start with Windows', 'Abre o Qwen sozinho quando você entra no Windows. Só no Qwen.exe.': 'Opens Qwen by itself when you sign in to Windows. Qwen.exe only.',
             'Pesquisar na web nas respostas': 'Search the web in answers', 'A IA pesquisa na internet quando a pergunta pede dados atuais.': 'The AI searches the internet when the question needs current data.',
             'Verificar atualizações ao abrir': 'Check for updates on startup', 'Avisa quando há uma versão nova.': 'Tells you when there is a new version.', 'Animações': 'Animations', 'Desligue se a interface pesar na placa de vídeo.': 'Turn off if the interface is heavy on the graphics card.',
-            'Painel de desempenho': 'Performance panel', 'Mostra a VRAM e a velocidade no canto da tela.': 'Shows VRAM and speed in the corner of the screen.', 'Acesso pela rede (celular e amigos)': 'Network access (phone and friends)', 'Deixa outros aparelhos entrarem. A senha continua exigida pela internet.': 'Lets other devices in. The password is still required over the internet.', 'Bem-vindo!': 'Welcome!', 'Seu chat de IA local: rápido, privado e do seu jeito.': 'Your local AI chat: fast, private and yours.', 'Começar': 'Get started', 'Rever a tela de boas-vindas': 'See the welcome screen again',
+            'Painel de desempenho': 'Performance panel', 'Mostra a VRAM e a velocidade no canto da tela.': 'Shows VRAM and speed in the corner of the screen.', 'Acesso pela rede (celular e amigos)': 'Network access (phone and friends)', 'Deixa outros aparelhos entrarem. A senha continua exigida pela internet.': 'Lets other devices in. The password is still required over the internet.', 'Bem-vindo!': 'Welcome!', 'Adicionar à fila': 'Add to queue', 'Na fila: a IA ainda não viu esta mensagem': 'Queued: the AI has not seen this message yet', 'Tirar da fila': 'Remove from queue',
+            'Espere a resposta terminar (ou pare) para limpar o chat.': 'Wait for the answer to finish (or stop it) to clear the chat.', 'Espere a outra conversa terminar: sua conta responde uma de cada vez.': 'Wait for the other chat to finish: your account answers one at a time.',
+            'A fila foi cancelada por causa do erro. O texto das mensagens voltou para a caixa de digitação.': 'The queue was cancelled because of the error. The message text went back to the input box.',
+            'Editar e reenviar': 'Edit and resend', 'Regenerar a resposta': 'Regenerate the answer', 'Apagar esta mensagem': 'Delete this message', 'Salvar e reenviar': 'Save and resend', 'Cancelar': 'Cancel',
+            'Espere a resposta terminar (ou pare) para trocar de versão.': 'Wait for the answer to finish (or stop it) to switch versions.', 'Espere a resposta terminar (ou pare) para editar.': 'Wait for the answer to finish (or stop it) to edit.',
+            'Espere a resposta terminar (ou pare) para regenerar.': 'Wait for the answer to finish (or stop it) to regenerate.', 'Espere a resposta terminar (ou pare) para apagar.': 'Wait for the answer to finish (or stop it) to delete.',
+            'Tentar de novo com {m}': 'Try again with {m}', 'Ou responder com outro modelo:': 'Or answer with another model:', 'Apagar mensagem?': 'Delete message?',
+            'Esta mensagem e todas as suas versões serão apagadas. O resto da conversa continua.': 'This message and all its versions will be deleted. The rest of the conversation stays.', 'Só esta mensagem será apagada. O resto da conversa continua.': 'Only this message will be deleted. The rest of the conversation stays.',
+            'Cancelado: nada foi gerado, a versão anterior continua.': 'Cancelled: nothing was generated, the previous version stays.', 'Pensamento {n}': 'Thought {n}', '"{t}" terminou de responder.': '"{t}" finished answering.', 'Seu chat de IA local: rápido, privado e do seu jeito.': 'Your local AI chat: fast, private and yours.', 'Começar': 'Get started', 'Rever a tela de boas-vindas': 'See the welcome screen again',
             'Modelos locais e na nuvem': 'Local and cloud models', 'Rode no seu PC com o Ollama ou use modelos da nuvem quando precisar.': 'Run on your PC with Ollama or use cloud models when you need them.',
             'Pesquisa, arquivos e imagens': 'Search, files and images', 'A IA pesquisa na web, lê PDFs e textos e entende imagens.': 'The AI searches the web, reads PDFs and text, and understands images.',
             'Aba Code': 'Code tab', 'Ela escreve, roda e corrige código no seu PC, sempre pedindo a sua aprovação.': 'It writes, runs and fixes code on your PC, always asking for your approval.',
@@ -1694,7 +1718,8 @@
             if (m.cloud || m.phone) return true;
             let st; try { st = await (await fetch(API + '/api/models_status')).json(); } catch (e) { return true; }
             if (!st.running || !st.vram_total || st.loaded.some(x => x.name === m.id)) return true;
-            const others = st.loaded.filter(x => x.name !== m.id);
+            const inUse = new Set(Object.values(gens).map(g => g.model));   // outro chat esta respondendo com este modelo: nao da para desligar
+            const others = st.loaded.filter(x => x.name !== m.id && !inUse.has(x.name));
             if (!others.length) return true;
             const loadedGB = others.reduce((a, x) => a + x.size, 0) / 1e9, needGB = m.gb * OVERFLOW_OVERHEAD, totalGB = st.vram_total / 1024;
             if (loadedGB + needGB <= totalGB * OVERFLOW_LIMIT) return true;
@@ -1720,7 +1745,7 @@
         }
         function chatItem(id, newId, snippet) {
             const c = chats[id], item = document.createElement('div');
-            item.className = 'chat-item' + (id === currentChatId ? ' active' : '') + (id === newId ? ' new-chat' : '');
+            item.className = 'chat-item' + (id === currentChatId ? ' active' : '') + (id === newId ? ' new-chat' : '') + (gens[id] ? ' running' : '') + (unread.has(id) ? ' unread' : '');
             const col = document.createElement('span'); col.className = 'col';
             const title = document.createElement('span'); title.className = 'title';
             if (c.pinned) { const pm = document.createElement('img'); pm.className = 'ic pin-mark'; pm.src = 'icons/pin.svg'; title.appendChild(pm); }
@@ -1778,7 +1803,8 @@
             event.stopPropagation();
             const r = await ask({ title: 'Apagar chat?', body: tr('"{title}" será apagado para sempre.', { title: dispTitle(chats[id].title) }), buttons: ['Apagar', 'Cancelar'], danger: true });
             if (r.index !== 0) return;
-            delete chats[id]; saveToStorage();
+            if (gens[id]) stopJob(id);
+            delete chats[id]; delete queues[id]; saveToStorage();
             if (id !== currentChatId) { renderSidebar(); return; }
             const ids = Object.keys(chats).filter(i => tabOf(i) === currentTab);
             if (ids.length) loadChat(ids[ids.length - 1]); else createNewChat();
@@ -1794,15 +1820,18 @@
             promptInput.focus();
         }
         function loadChat(id, isNew = false) {
-            currentChatId = id;
+            currentChatId = id; unread.delete(id);
             renderSidebar(isNew ? id : null);
             chatBox.innerHTML = '';
             if (chats[id].welcome === undefined) { chats[id].welcome = Math.floor(Math.random() * 5); saveToStorage(); }
             addMessageToUI('ai', WELCOMES[curLang()][chats[id].welcome], { welcome: true, animate: false });
             stickBottom = true;
-            chats[id].messages.forEach(m => addMessageToUI(m.role, m.content, { animate: false, images: m.images, files: m.files, sources: m.sources, count: m.count, model: m.role === 'ai' ? m.model : undefined, tps: m.tps }));
+            const g = gens[id];   // se este chat esta gerando em segundo plano, volta a mostrar a resposta que chega
+            (g && g.view ? g.view : chats[id].messages).forEach((m, i) => addMessageToUI(m.role, m.content, { animate: false, index: i, vars: m.vars, vi: m.vi, images: m.images, files: m.files, sources: m.sources, count: m.count, model: m.role === 'ai' ? m.model : undefined, tps: m.tps }));
+            if (g) { g.aiDiv.classList.add('noanim'); chatBox.appendChild(g.aiDiv); }
+            renderQueued(id);
             chatBox.scrollTop = chatBox.scrollHeight;
-            updateCtxBar();
+            syncBusy(); updateCtxBar();
             if (isNew) { chatBox.classList.remove('fresh'); void chatBox.offsetWidth; chatBox.classList.add('fresh'); }
         }
 
@@ -1858,6 +1887,7 @@
             if (role === 'ai') div.appendChild(think);
             div.appendChild(span);
             div._raw = opts.html ? null : text;
+            if (opts.index !== undefined) div.dataset.idx = opts.index;
             if (opts.sources && opts.sources.length) div.appendChild(sourcesEl(opts.sources));
             if ((role === 'ai' && !opts.welcome) || role === 'user') {
                 const bar = document.createElement('div'); bar.className = 'msg-actions';
@@ -1869,8 +1899,14 @@
                 };
                 if (role === 'ai') { mk('clipboard-copy.png', 'Copiar resposta', () => copyPayload(div, span)); mk('copy.png', 'Copiar pergunta e resposta', () => qaPayload(div, span)); }
                 else mk('clipboard-copy.png', 'Copiar mensagem', () => div._raw || span.innerText);
+                const act = (icon, glyph, title, fn) => { const btn = document.createElement('button'); btn.className = 'copy-btn'; btn.type = 'button'; btn.title = tr(title); btn.innerHTML = glyph ? `<span class="glyph">${glyph}</span>` : `<img class="ic" src="icons/${icon}">`; btn.onclick = () => fn(btn); bar.appendChild(btn); };
+                if (role === 'user') act('pen-line.png', '', 'Editar e reenviar', () => startEdit(div));
+                if (role === 'ai') act(null, '↻', 'Regenerar a resposta', btn => regenMenu(div, btn));
+                act('trash.png', '', 'Apagar esta mensagem', () => deleteMessage(div));
                 div.appendChild(bar);
+                if (opts.vars && opts.vars.length > 1) div.appendChild(varNav(div, opts.vars.length, opts.vi || 0));
             }
+            if (opts.detached) return div;
             chatBox.appendChild(div);
             if (opts.animate !== false) { if (role === 'user') stickBottom = true; followBottom(); }
             return div;
@@ -2181,7 +2217,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             promptInput.style.overflowY = promptInput.scrollHeight > max ? 'auto' : 'hidden';
         }
         promptInput.addEventListener('input', function () {
-            autosize();
+            autosize(); updateSendBtn();
             $('controls').classList.toggle('typing', this.value.length > 0);
             commandMenu.style.display = this.value === '/' ? 'flex' : 'none';
         });
@@ -2230,7 +2266,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
         }
         function renderAttachments() {
             const strip = $('attach-strip'); strip.innerHTML = '';
-            strip.style.display = attachCount() ? 'flex' : 'none';
+            strip.style.display = attachCount() ? 'flex' : 'none'; updateSendBtn();
             pendingImages.forEach((src, i) => {
                 const t = document.createElement('div'); t.className = 'thumb';
                 const im = document.createElement('img'); im.src = src;
@@ -2259,8 +2295,8 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
 
         // texto dos arquivos anexados entra na mensagem do usuario; se nao couber no contexto, corta/omite os mais antigos
         const fileBlock = f => tr('[Arquivo anexado: {name}]', { name: f.name }) + (f.truncated ? ' ' + tr('(cortado)') : '') + '\n' + f.text + '\n' + tr('[Fim do arquivo]');
-        function buildApiMessages(chat, model, sys) {
-            const msgs = chat.messages.filter(m => m.role !== 'summary');
+        function buildApiMessages(chat, model, sys, all) {
+            const msgs = (all || chat.messages).filter(m => m.role !== 'summary');
             let budget = Math.floor(ctxMax() * 2.6) - sys.length - msgs.reduce((a, m) => a + m.content.length, 0);   // caracteres que sobram para arquivos
             const blocks = new Map(); let omitted = 0;
             for (let i = msgs.length - 1; i >= 0; i--) {
@@ -2279,25 +2315,70 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 return o;
             })];
         }
-        function setBusy(on) {
-            busy = on;
-            const b = $('send-btn'); b.classList.toggle('stop', on); b.title = tr(on ? 'Parar' : 'Enviar');
-            $('send-icon').src = on ? 'icons/circle-stop.png' : 'icons/send-horizontal.png';
+        // ---------- varias conversas ao mesmo tempo: cada chat tem a sua geracao (gens) e a sua fila de mensagens (queues) ----------
+        const gens = {}, queues = {}, unread = new Set();
+        let compacting = false;
+        const newRid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+        const thinkingNow = () => $('use-thinking').checked && !blockedFeature('think');
+        function updateSendBtn() {   // ocupado + caixa vazia = parar; ocupado + texto = entra na fila
+            const b = $('send-btn'), stop = busy && !promptInput.value.trim() && !attachCount();
+            b.classList.toggle('stop', stop); b.title = tr(stop ? 'Parar' : busy ? 'Adicionar à fila' : 'Enviar');
+            $('send-icon').src = stop ? 'icons/circle-stop.png' : 'icons/send-horizontal.png';
         }
-        function onSendClick() { if (busy) stopGeneration(); else sendMessage(); }
-        function stopGeneration() {
-            if (modelById(selectedModel).phone) { if (phoneEngine) phoneEngine.interruptGenerate(); } else fetch(API + '/api/stop', { method: 'POST' });
-            setOverlayStatus('Parando');
+        function setBusy(on) { busy = on; updateSendBtn(); }
+        function syncBusy() { setBusy(!!gens[currentChatId] || compacting); }
+        function onSendClick() { if (busy && !promptInput.value.trim() && !attachCount()) stopGeneration(); else sendMessage(); }
+        function stopJob(id) {
+            const g = gens[id]; if (!g) return;
+            g.stopped = true;
+            if (g.phone) { if (phoneEngine) phoneEngine.interruptGenerate(); }
+            else fetch(API + '/api/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rid: g.rid }) }).catch(() => {});
+        }
+        function stopGeneration() { if (gens[currentChatId]) { stopJob(currentChatId); setOverlayStatus('Parando'); } }
+
+        // ---- fila: mensagens enviadas enquanto a IA responde esperam a vez (aparecem pontilhadas e podem ser apagadas antes de a IA ver)
+        function queuedBubble(chatId, item) {
+            const div = document.createElement('div'); div.className = 'msg user queued noanim'; div.dataset.q = item.id;
+            const tag = document.createElement('span'); tag.className = 'q-tag'; tag.textContent = '⏳ ' + tr('Na fila: a IA ainda não viu esta mensagem');
+            const span = document.createElement('span'); span.className = 'final-text'; span.innerHTML = fmt((attachNote(item) + item.text).trim());
+            const bar = document.createElement('div'); bar.className = 'msg-actions';
+            const del = document.createElement('button'); del.className = 'copy-btn'; del.type = 'button'; del.title = tr('Tirar da fila'); del.innerHTML = '<img class="ic" src="icons/trash.png">'; del.onclick = () => removeQueued(chatId, item.id);
+            bar.appendChild(del); div.append(tag, span, bar); return div;
+        }
+        function renderQueued(chatId) {   // as mensagens da fila ficam sempre no fim do chat, depois da resposta em andamento
+            chatBox.querySelectorAll('.msg.queued').forEach(e => e.remove());
+            if (chatId !== currentChatId) return;
+            (queues[chatId] || []).forEach(it => chatBox.appendChild(queuedBubble(chatId, it)));
+            followBottom();
+        }
+        function removeQueued(chatId, id) {
+            queues[chatId] = (queues[chatId] || []).filter(x => x.id !== id); if (!queues[chatId].length) delete queues[chatId];
+            chatBox.querySelectorAll('.msg.queued').forEach(e => { if (e.dataset.q === id) e.remove(); });
+        }
+        function runNext(chatId) {
+            const q = queues[chatId]; if (!q || !q.length || !chats[chatId]) return;
+            const item = q.shift(); if (!q.length) delete queues[chatId];
+            startTurn(chatId, item);
+        }
+        function restoreQueue(chatId) {   // deu erro: devolve o que estava na fila para a caixa de texto em vez de perder
+            const q = queues[chatId]; if (!q || !q.length) return;
+            delete queues[chatId]; chatBox.querySelectorAll('.msg.queued').forEach(e => e.remove());
+            if (chatId === currentChatId && !promptInput.value.trim()) { promptInput.value = q.map(x => x.text).join('\n\n'); promptInput.dispatchEvent(new Event('input')); }
+            showInfo('A fila foi cancelada por causa do erro. O texto das mensagens voltou para a caixa de digitação.', 9000);
         }
 
         async function sendMessage() {
             let text = promptInput.value.trim();
-            if ((!text && !attachCount()) || !currentChatId || busy) return;
-            const chat = chats[currentChatId];
-            if (text === '/clear') { chat.messages = []; saveToStorage(); loadChat(currentChatId); clearPrompt(); return; }
+            if ((!text && !attachCount()) || !currentChatId || compacting) return;
+            const chatId = currentChatId, chat = chats[chatId];
+            if (text === '/clear') {
+                if (gens[chatId]) { showInfo('Espere a resposta terminar (ou pare) para limpar o chat.'); return; }
+                chat.messages = []; delete queues[chatId]; saveToStorage(); loadChat(chatId); clearPrompt(); return;
+            }
             if (text.startsWith('/rename ')) { const n = text.slice(8).trim(); if (n) { chat.title = n; saveToStorage(); renderSidebar(); } clearPrompt(); return; }
+            if (isGuest() && Object.keys(gens).some(id => id !== chatId)) { showInfo('Espere a outra conversa terminar: sua conta responde uma de cada vez.'); return; }   // o servidor so deixa 1 por amigo
 
-            let imgs = pendingImages.slice(); const files = pendingFiles.slice();
+            const imgs = pendingImages.slice(), files = pendingFiles.slice();
             if (!modelById(selectedModel).vision && (imgs.length || chat.messages.some(m => m.images && m.images.length))) {   // so avisa: as imagens ficam no chat, mas o modelo nao as recebe
                 showInfo(tr('{label} não lê imagens: as imagens foram ignoradas e só o texto foi enviado. Troque para um modelo com o selo "visão" para analisá-las.', { label: modelById(selectedModel).label }), 9000);
                 if (!text && !files.length) return;
@@ -2307,19 +2388,126 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             if (!(await handleOverflow(model))) return;
 
             if (!text && files.length) text = tr('Leia o(s) arquivo(s) anexado(s) e faça um resumo.'); else if (!text && imgs.length) text = tr('Descreva esta imagem.');
-            if (chat.messages.length === 0) { chat.title = text.substring(0, 30) + (text.length > 30 ? '...' : ''); renderSidebar(); }
-            const um = { role: 'user', content: text }; if (imgs.length) um.images = imgs; if (files.length) um.files = files;
-            addMessageToUI('user', text, { images: imgs, files }); chat.messages.push(um); saveToStorage();
-            clearPrompt(); pendingImages = []; pendingFiles = []; renderAttachments(); updateCtxBar();
+            clearPrompt(); pendingImages = []; pendingFiles = []; renderAttachments();
+            const item = { id: newRid(), text, images: imgs, files, model: selectedModel, think: thinkingNow() };
+            if (gens[chatId]) { (queues[chatId] = queues[chatId] || []).push(item); renderQueued(chatId); stickBottom = true; followBottom(); return; }
+            startTurn(chatId, item);
+        }
+        function startTurn(chatId, item) {   // coloca a mensagem do usuario no chat e comeca a resposta
+            const chat = chats[chatId];
+            if (chat.messages.length === 0) { chat.title = item.text.substring(0, 30) + (item.text.length > 30 ? '...' : ''); renderSidebar(); }
+            const um = { role: 'user', content: item.text }; if (item.images.length) um.images = item.images; if (item.files.length) um.files = item.files;
+            chat.messages.push(um); saveToStorage();
+            if (chatId === currentChatId) { addMessageToUI('user', item.text, { images: item.images, files: item.files, index: chat.messages.length - 1 }); updateCtxBar(); }
+            return runTurn(chatId, { model: item.model, think: item.think });
+        }
 
-            const aiDiv = addMessageToUI('ai', `<span class="loading-dots">${tr('Iniciando')}</span>`, { html: true, model: selectedModel });
-            const textSpan = aiDiv.querySelector('.final-text'), thinkDiv = aiDiv.querySelector('.think');
+        // ---- editar / regenerar: uma mensagem pode ter varias versoes (vars); cada versao guarda o que veio depois dela (tail) e da para alternar com ‹ ›
+        const snapMsg = m => { const { vars, vi, ...rest } = m; return rest; };
+        function forkAt(chat, i, newMsg) {   // guarda a versao atual de messages[i] com o que vem depois, e poe newMsg no lugar (sem nada depois)
+            const cur = chat.messages[i], tail = chat.messages.slice(i + 1), vi = cur.vi ?? 0;
+            const vars = cur.vars ? cur.vars : [{ msg: snapMsg(cur), tail: [] }];
+            vars[vi] = { msg: snapMsg(cur), tail };
+            vars.push({ msg: snapMsg(newMsg), tail: [] });
+            chat.messages = chat.messages.slice(0, i).concat([{ ...snapMsg(newMsg), vars, vi: vars.length - 1 }]);
+        }
+        function switchVar(chat, i, k) {
+            const cur = chat.messages[i], vars = cur.vars, vi = cur.vi ?? 0; if (!vars || k === vi || !vars[k]) return;
+            vars[vi] = { msg: snapMsg(cur), tail: chat.messages.slice(i + 1) };
+            chat.messages = chat.messages.slice(0, i).concat([{ ...vars[k].msg, vars, vi: k }], vars[k].tail);
+        }
+        function varNav(div, n, vi) {
+            const nav = document.createElement('span'); nav.className = 'var-nav';
+            const b = (t, d) => { const x = document.createElement('button'); x.type = 'button'; x.textContent = t; x.disabled = vi + d < 0 || vi + d >= n; x.onclick = () => gotoVar(div, vi + d); return x; };
+            const lab = document.createElement('span'); lab.textContent = `${vi + 1}/${n}`;
+            nav.append(b('‹', -1), lab, b('›', 1)); return nav;
+        }
+        function gotoVar(div, k) {
+            const chatId = currentChatId; if (gens[chatId] || compacting) { showInfo('Espere a resposta terminar (ou pare) para trocar de versão.'); return; }
+            const i = +div.dataset.idx; if (Number.isNaN(i)) return;
+            switchVar(chats[chatId], i, k); chats[chatId].ctxReal = null; saveToStorage(); loadChat(chatId);
+        }
+        function startEdit(div) {
+            const chatId = currentChatId, chat = chats[chatId];
+            if (gens[chatId] || compacting) { showInfo('Espere a resposta terminar (ou pare) para editar.'); return; }
+            const i = +div.dataset.idx, m = chat.messages[i]; if (Number.isNaN(i) || !m || m.role !== 'user') return;
+            const span = div.querySelector('.final-text'), bar = div.querySelector('.msg-actions');
+            const ta = document.createElement('textarea'); ta.className = 'edit-ta'; ta.value = m.content;
+            const row = document.createElement('div'); row.className = 'edit-row';
+            const cancel = document.createElement('button'); cancel.className = 'btn btn-secondary'; cancel.textContent = tr('Cancelar');
+            const save = document.createElement('button'); save.className = 'btn btn-primary'; save.textContent = tr('Salvar e reenviar');
+            const close = () => { ta.remove(); row.remove(); span.style.display = ''; bar.style.display = ''; };
+            cancel.onclick = close;
+            save.onclick = () => { const text = ta.value.trim(); if (!text) return; close(); editAndResend(i, text); };
+            ta.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) save.onclick(); if (e.key === 'Escape') close(); });
+            row.append(cancel, save); span.style.display = 'none'; bar.style.display = 'none'; div.append(ta, row); ta.focus();
+        }
+        async function editAndResend(i, text) {
+            const chatId = currentChatId, chat = chats[chatId], old = chat.messages[i];
+            const model = modelById(selectedModel);
+            if (model.groq && !(await hasGroqKey())) { await noKeyDialog(); return; }
+            if (!(await handleOverflow(model))) return;
+            const nm = { role: 'user', content: text }; if (old.images) nm.images = old.images; if (old.files) nm.files = old.files;
+            runTurn(chatId, { model: selectedModel, think: thinkingNow(), fork: { kind: 'edit', i, userMsg: nm } });
+        }
+        async function regenerate(i, mid) {
+            const chatId = currentChatId, chat = chats[chatId]; if (!chat.messages[i] || chat.messages[i].role !== 'ai') return;
+            const model = modelById(mid); if (!model) return;
+            if (model.groq && !(await hasGroqKey())) { await noKeyDialog(); return; }
+            if (!(await handleOverflow(model))) return;
+            runTurn(chatId, { model: mid, think: thinkingNow(), fork: { kind: 'regen', i } });
+        }
+        function regenMenu(div, btn) {
+            document.querySelectorAll('.regen-menu').forEach(e => e.remove());
+            const chatId = currentChatId; if (gens[chatId] || compacting) { showInfo('Espere a resposta terminar (ou pare) para regenerar.'); return; }
+            const i = +div.dataset.idx; if (Number.isNaN(i)) return;
+            const cur = chats[chatId].messages[i].model || selectedModel, menu = document.createElement('div'); menu.className = 'regen-menu';
+            const item = (label, id) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.onclick = () => { menu.remove(); regenerate(i, id); }; menu.appendChild(b); };
+            if (modelById(cur) && isAvail(modelById(cur))) item('↻ ' + tr('Tentar de novo com {m}', { m: modelById(cur).label }), cur);
+            const head = document.createElement('div'); head.className = 'rm-head'; head.textContent = tr('Ou responder com outro modelo:'); menu.appendChild(head);
+            availIn(tabOf(chatId)).filter(m => m.id !== cur).forEach(m => item(m.label, m.id));
+            document.body.appendChild(menu);
+            const r = btn.getBoundingClientRect(), h = menu.offsetHeight;
+            menu.style.left = Math.max(8, Math.min(r.left, innerWidth - 268)) + 'px'; menu.style.top = (r.top - h - 6 > 8 ? r.top - h - 6 : Math.min(r.bottom + 6, innerHeight - h - 8)) + 'px';
+            setTimeout(() => document.addEventListener('click', function f(e) { if (!menu.contains(e.target)) { menu.remove(); document.removeEventListener('click', f); } }), 0);
+        }
+        async function deleteMessage(div) {
+            const chatId = currentChatId, chat = chats[chatId];
+            if (gens[chatId] || compacting) { showInfo('Espere a resposta terminar (ou pare) para apagar.'); return; }
+            const i = +div.dataset.idx; if (Number.isNaN(i) || !chat.messages[i]) return;
+            const many = chat.messages[i].vars && chat.messages[i].vars.length > 1;
+            const r = await ask({ title: 'Apagar mensagem?', body: tr(many ? 'Esta mensagem e todas as suas versões serão apagadas. O resto da conversa continua.' : 'Só esta mensagem será apagada. O resto da conversa continua.'), buttons: ['Apagar', 'Cancelar'], danger: true });
+            if (r.index !== 0) return;
+            chat.messages.splice(i, 1); chat.ctxReal = null; saveToStorage(); loadChat(chatId);
+        }
+
+        // ---- a geracao em si (roda em segundo plano mesmo se voce abrir outro chat)
+        async function runTurn(chatId, opts) {
+            const chat = chats[chatId], model = modelById(opts.model), fork = opts.fork || null;
+            const isCode = tabOf(chatId) === 'code', isCur = () => chatId === currentChatId;
+            const aiDiv = addMessageToUI('ai', `<span class="loading-dots">${tr('Iniciando')}</span>`, { html: true, model: opts.model, detached: true });
+            const textSpan = aiDiv.querySelector('.final-text'), firstThink = aiDiv.querySelector('.think');
             const stLine = document.createElement('div'); stLine.className = 'msg-status';
             stLine.innerHTML = '<span class="pulse"></span><span class="st-text"></span>'; aiDiv.insertBefore(stLine, aiDiv.querySelector('.msg-actions'));
-            setBusy(true);
-            const isCode = currentTab === 'code';
-            let fullResponse = '', gotText = false, chars = 0, lastStats = null; const msgSources = []; let srcEl = null;
-            const status = s => { setOverlayStatus(s); const t = trStatus(s); stLine.querySelector('.st-text').textContent = t; if (!gotText) textSpan.innerHTML = `<span class="loading-dots">${esc(t)}</span>`; };
+            const job = gens[chatId] = { rid: newRid(), model: opts.model, phone: !!model.phone, aiDiv, stopped: false, fork,
+                view: fork ? (fork.kind === 'edit' ? chat.messages.slice(0, fork.i).concat([fork.userMsg]) : chat.messages.slice(0, fork.i)) : null };
+            if (isCur()) {
+                if (fork) loadChat(chatId); else { chatBox.appendChild(aiDiv); renderQueued(chatId); stickBottom = true; followBottom(); }
+                syncBusy(); showPerfStreaming();
+            }
+            renderSidebar();
+            let fullResponse = '', gotText = false, chars = 0, lastStats = null, failed = false, applied = false; const msgSources = []; let srcEl = null;
+            let curThink = null, thinkLast = null, thinkN = 0;   // um bloco de pensamento por rodada: a IA pode pensar de novo depois de usar uma ferramenta ou pesquisar
+            const thinkBox = () => {
+                if (!curThink) {
+                    if (!thinkN) curThink = firstThink; else { curThink = document.createElement('div'); curThink.className = 'think'; thinkLast.after(curThink); }
+                    thinkN++; thinkLast = curThink; curThink.style.display = 'block';
+                    if (thinkN === 2) firstThink.dataset.label = tr('Pensamento {n}', { n: 1 });
+                    if (thinkN >= 2) curThink.dataset.label = tr('Pensamento {n}', { n: thinkN });
+                }
+                return curThink;
+            };
+            const status = s => { if (isCur()) setOverlayStatus(s); const t = trStatus(s); stLine.querySelector('.st-text').textContent = t; if (!gotText) textSpan.innerHTML = `<span class="loading-dots">${esc(t)}</span>`; };
 
             try {
                 let sys = sysPrompt(isCode);
@@ -2327,14 +2515,14 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 if (summaries.length) sys += tr('\n\nRESUMO DA CONVERSA ANTERIOR (as mensagens antigas foram compactadas):\n') + summaries.join('\n') + '\n';
                 if (globalMemories.length > 0) sys += tr('\n\nFATOS QUE VOCÊ DEVE LEMBRAR:\n') + globalMemories.map(m => `- ${m}`).join('\n') + '\n';
                 if (!model.phone) sys += tr('\n\nFORMATAÇÃO: responda em Markdown. Para emojis escreva o código entre dois-pontos, como :fire: ou :skull: (nunca só a palavra). Para setas e símbolos use o caractere Unicode direto (→ ≈ ✓ ≠), sem LaTeX.');
-                const apiMessages = buildApiMessages(chat, model, sys);
+                const apiMessages = buildApiMessages(chat, model, sys, job.view);
 
-                status('Iniciando'); showPerfStreaming();
+                status('Iniciando');
                 let reader = null, decoder = null, buf = '';
                 if (!model.phone) {
                     const response = await fetch(API + '/api/chat', {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ model: selectedModel, messages: apiMessages, stream: true, think: $('use-thinking').checked && !blockedFeature('think'), search_web: !isCode && config.webSearch && !blockedFeature('web'), agent: isCode && !isGuest(), lang: curLang(), num_ctx: model.cloud ? undefined : effCtx(model) })
+                        body: JSON.stringify({ model: opts.model, rid: job.rid, messages: apiMessages, stream: true, think: opts.think, search_web: !isCode && config.webSearch && !blockedFeature('web'), agent: isCode && !isGuest(), lang: curLang(), num_ctx: model.cloud ? undefined : effCtx(model) })
                     });
                     if (!response.ok) { let err = {}; try { err = await response.json(); } catch (e) {} throw new Error(err.error || ('HTTP ' + response.status)); }
                     reader = response.body.getReader(); decoder = new TextDecoder();
@@ -2342,18 +2530,19 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 const handle = line => {
                     if (!line.trim()) return;
                     let data; try { data = JSON.parse(line); } catch (e) { return; }
-                    if (data.stats) { lastStats = data.stats; showRealPerf(data.stats); return; }
+                    if (data.stats) { lastStats = data.stats; if (isCur()) showRealPerf(data.stats); return; }
                     if (data.status) { status(data.status); return; }
+                    if (data.step !== undefined) { curThink = null; return; }   // comecou outra rodada: o proximo pensamento vai para um bloco novo
                     if (data.sources) { data.sources.forEach(x => { if (x.url && !msgSources.some(y => y.url === x.url)) msgSources.push(x); }); if (!srcEl) { srcEl = sourcesEl([]); textSpan.after(srcEl); } fillSources(srcEl, msgSources); return; }
                     const msg = data.message || {};
-                    if (msg.thinking) { thinkDiv.style.display = 'block'; thinkDiv.textContent += msg.thinking; thinkDiv.scrollTop = thinkDiv.scrollHeight; status('Pensando'); }
+                    if (msg.thinking) { const tb = thinkBox(); tb.textContent += msg.thinking; tb.scrollTop = tb.scrollHeight; status('Pensando'); }
                     if (msg.content) {
                         if (!gotText) { textSpan.textContent = ''; gotText = true; }
                         status('Escrevendo');
                         fullResponse += msg.content; textSpan.innerHTML = renderRich(fullResponse); aiDiv._raw = fullResponse;
-                        chars += msg.content.length; updateStreamingPerf(chars);
+                        chars += msg.content.length; if (isCur()) updateStreamingPerf(chars);
                     }
-                    followBottom();
+                    if (isCur()) followBottom();
                 };
                 if (model.phone) {
                     await phoneStream(model, apiMessages, handle, (p, text) => {   // p: 0..100 enquanto baixa/carrega; -1 quando comeca a gerar
@@ -2371,17 +2560,31 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 if (!gotText) textSpan.textContent = tr('(sem resposta)');
                 const tps = lastStats && lastStats.seconds ? lastStats.tokens / lastStats.seconds : 0;
                 const tg = aiDiv.querySelector('.msg-tag'); if (tg) setTagTps(tg, tps);
-                chat.messages.push({ role: 'ai', content: fullResponse, model: selectedModel, ...(tps ? { tps: +tps.toFixed(1) } : {}), ...(msgSources.length ? { sources: msgSources } : {}) });
-                if (lastStats) chat.ctxReal = { tokens: lastStats.prompt_tokens + lastStats.tokens, count: chat.messages.length };
-                saveToStorage();
+                if (chats[chatId]) {   // o chat pode ter sido apagado enquanto a IA respondia
+                    const aiMsg = { role: 'ai', content: fullResponse, model: opts.model, ...(tps ? { tps: +tps.toFixed(1) } : {}), ...(msgSources.length ? { sources: msgSources } : {}) };
+                    if (!fork) { chat.messages.push(aiMsg); aiDiv.dataset.idx = chat.messages.length - 1; applied = true; }
+                    else if (fullResponse.trim()) {   // editar/regenerar: a versao nova entra ao lado da antiga
+                        if (fork.kind === 'edit') { forkAt(chat, fork.i, fork.userMsg); chat.messages.push(aiMsg); } else forkAt(chat, fork.i, aiMsg);
+                        applied = true;
+                    } else if (isCur()) showInfo('Cancelado: nada foi gerado, a versão anterior continua.');
+                    if (lastStats) chat.ctxReal = { tokens: lastStats.prompt_tokens + lastStats.tokens, count: chat.messages.length };
+                    saveToStorage();
+                }
                 fetch(API + '/api/usage').then(r => r.json()).then(updateUsageBadge).catch(() => {});
             } catch (error) {
+                failed = true;
                 aiDiv.className = 'msg error';
-                textSpan.textContent = tr(GUEST_MSG[error.message] ? GUEST_MSG[error.message] : error.message === 'remote_code_disabled' ? 'A aba Code está desligada para aparelhos remotos. Ligue no PC em Configurações > Servidor.' : error.message === 'unauthorized' ? 'Não conectado ao servidor. Use Configurações > Servidor > Conectar.' : 'Erro de conexão com o servidor.');
-                setOverlayStatus('Erro');
+                const em = tr(GUEST_MSG[error.message] ? GUEST_MSG[error.message] : error.message === 'remote_code_disabled' ? 'A aba Code está desligada para aparelhos remotos. Ligue no PC em Configurações > Servidor.' : error.message === 'unauthorized' ? 'Não conectado ao servidor. Use Configurações > Servidor > Conectar.' : 'Erro de conexão com o servidor.');
+                textSpan.textContent = em;
+                if (isCur()) setOverlayStatus('Erro'); else showInfo(em);
             } finally {
-                stLine.remove(); setBusy(false); updateCtxBar(); promptInput.focus(); hidePerfStreaming();
-                if (curStatus !== 'Erro') setOverlayStatus('Ocioso');
+                stLine.remove(); delete gens[chatId];
+                if (isCur()) { syncBusy(); updateCtxBar(); promptInput.focus(); if (fork && !failed) loadChat(chatId); }   // recarrega para mostrar o seletor de versoes
+                else if (chats[chatId] && !failed) { unread.add(chatId); showInfo(tr('"{t}" terminou de responder.', { t: dispTitle(chat.title) })); }
+                if (!Object.keys(gens).length) hidePerfStreaming();
+                if (isCur() && curStatus !== 'Erro') setOverlayStatus('Ocioso');
+                renderSidebar();
+                if (failed) restoreQueue(chatId); else runNext(chatId);
             }
         }
         function setOverlayStatus(s) { curStatus = s; $('mon-status').textContent = tr('Status: {s}', { s: trStatus(s) }); }
@@ -3209,7 +3412,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             const before = ctxInfo(chat).used;
             let transcript = old.map(m => m.role === 'summary' ? tr('Resumo anterior: ') + m.content : `${whoOf(m)}: ${attachNote(m)}${plain(m.content)}`).join('\n\n');
             const maxChars = ctxMax() * 3; if (transcript.length > maxChars) transcript = transcript.slice(-maxChars);
-            setBusy(true); setOverlayStatus('Compactando'); $('ctx-compact').textContent = tr('Compactando...'); $('ctx-compact').disabled = true;
+            compacting = true; syncBusy(); setOverlayStatus('Compactando'); $('ctx-compact').textContent = tr('Compactando...'); $('ctx-compact').disabled = true;
             try {
                 const text = (await collectChat({
                     model: selectedModel, stream: true, think: false, search_web: false, agent: false, lang: curLang(), num_ctx: model.cloud ? undefined : ctxMax(),
@@ -3225,7 +3428,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 chat.ctxReal = null; saveToStorage(); loadChat(currentChatId);
                 showInfo(tr('Compactado: {n} mensagens viraram um resumo. Contexto {a} → {b}.', { n: replaced, a: fmtK(before), b: fmtK(ctxInfo(chat).used) }), 8000);
             } catch (e) { showInfo('Não consegui compactar a conversa.'); }
-            finally { setBusy(false); setOverlayStatus('Ocioso'); $('ctx-compact').textContent = tr('Compactar'); updateCtxBar(); }
+            finally { compacting = false; syncBusy(); setOverlayStatus('Ocioso'); $('ctx-compact').textContent = tr('Compactar'); updateCtxBar(); }
         }
 
         // ---------- editor de temas ----------
