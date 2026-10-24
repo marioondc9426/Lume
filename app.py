@@ -72,7 +72,7 @@ guest_recent = {}       # id do amigo -> horarios das ultimas respostas (limite 
 guest_lock = threading.Lock()
 login_recent_fails = []  # horarios das senhas erradas de qualquer IP (trava global contra tentativas pela internet)
 # Versao: "1.2" = versao nova com novidades (o numero depois do ponto sobe); "1.2.01", "1.2.02"... = correcoes (patches) dessa versao.
-VERSION = "1.8.01"
+VERSION = "1.8.02"
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")     # chaves de API, pasta de trabalho, uso
 HISTORY_FILE = os.path.join(BASE_DIR, "history.json")   # chats
 STATE_FILE = os.path.join(BASE_DIR, "state.json")       # preferencias da interface + memorias
@@ -168,7 +168,7 @@ def get_gpu_metrics():
 # ---------------------------------------------------------------- arquivos de dados
 def _read_json(path, default):
     try:
-        with open(path, 'r', encoding='utf-8') as f: return json.load(f)
+        with open(path, 'r', encoding='utf-8-sig') as f: return json.load(f)   # utf-8-sig: aceita arquivos salvos com BOM (Bloco de Notas, PowerShell)
     except Exception:
         return default
 
@@ -190,7 +190,7 @@ def load_config():
     cfg = {}
     if mtime is not None:
         try:
-            with open(CONFIG_FILE, 'r', encoding='utf-8') as f: cfg = json.load(f)
+            with open(CONFIG_FILE, 'r', encoding='utf-8-sig') as f: cfg = json.load(f)
         except Exception as e:
             log("CONFIG", f"config.json invalido ({e}). Usando padrao.", COLOR_RED)
     else:

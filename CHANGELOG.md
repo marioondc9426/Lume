@@ -6,6 +6,9 @@ Como numerar:
 - O número fica em `VERSION` no topo do `app.py` e aparece em Configurações > Atualizações.
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
+## v1.8.02
+- `config.json` e os outros arquivos de dados abrem mesmo se foram salvos com BOM (acontece ao editar no Bloco de Notas ou no PowerShell).
+
 ## v1.8.01
 - O `.exe` sempre grava o log em `qwen.log` (antes dependia de como o programa era aberto).
 
