@@ -198,9 +198,9 @@
         .wordmark.bare { padding: 0; height: 30px; }
         #model-trigger-icon.wordmark, #model-trigger-icon.logo-img { height: 24px; } #model-trigger-icon.wordmark.bare { height: 26px; }
         .brand-img { height: 24px; width: auto; margin-right: 6px; vertical-align: middle; flex-shrink: 0; }
-        .brand-mono { display: inline-block; width: 22px; height: 22px; margin-right: 6px; vertical-align: middle; flex-shrink: 0; background: var(--text-main); -webkit-mask: var(--m) center / contain no-repeat; mask: var(--m) center / contain no-repeat; }
-        #model-trigger-icon.brand-img { height: 22px; } #model-trigger-mono { width: 20px; height: 20px; }
-        .msg-tag .brand-img { height: 16px; margin-right: 5px; } .msg-tag .brand-mono { width: 15px; height: 15px; margin-right: 5px; }
+        .brand-mono { display: inline-block; height: 22px; width: auto; aspect-ratio: 1; margin-right: 6px; vertical-align: middle; flex-shrink: 0; background: var(--text-main); -webkit-mask: var(--m) center / contain no-repeat; mask: var(--m) center / contain no-repeat; }
+        #model-trigger-icon.brand-img { height: 22px; } #model-trigger-mono { height: 20px; } .brand-mono.wm { height: 22px; }
+        .msg-tag .brand-img { height: 16px; margin-right: 5px; } .msg-tag .brand-mono { height: 15px; margin-right: 5px; } .msg-tag .brand-mono.wm { height: 16px; }
         .logo-img { height: 28px; width: auto; background: #fff; border-radius: 6px; padding: 3px 8px; margin-right: 6px; vertical-align: middle; flex-shrink: 0; }   /* fundo branco: o texto do logo da NVIDIA e preto */
         #sidebar h2.brand { display: flex; align-items: center; margin: 0 0 6px; }
         .brand-mark { height: 38px; width: auto; }
@@ -1410,7 +1410,11 @@
         const isAvail = m => guestBlocks(m) ? false : m.phone ? phoneMode() : (phoneMode() && !m.cloud ? false : (m.groq || installed === null || installed.has(m.id)));   // no modo celular os locais do PC saem da lista
         const availIn = tab => MODELS.filter(m => m.tabs.includes(tab) && isAvail(m));
         const pickDefault = list => list.find(m => m.rec && !m.cloud) || list.find(m => !m.cloud && !m.heavy) || list.find(m => !m.cloud) || list[0];
-        function familiesIn(tab) { const map = new Map(); availIn(tab).forEach(m => { if (!map.has(m.fam)) map.set(m.fam, []); map.get(m.fam).push(m); }); return map; }
+        function familiesIn(tab) {   // familias com algum modelo local primeiro, depois as so da nuvem; cada grupo em ordem alfabetica
+            const map = new Map(); availIn(tab).forEach(m => { if (!map.has(m.fam)) map.set(m.fam, []); map.get(m.fam).push(m); });
+            const key = ([, ms]) => (ms.some(m => !m.cloud) ? '0' : '1') + ms[0].famName.toLowerCase();
+            return new Map([...map.entries()].sort((a, b) => key(a).localeCompare(key(b), 'pt', { numeric: true })));
+        }
         function ensureSelected() {
             const avail = availIn(currentTab); if (!avail.length) return;
             const cur = modelById(selectedModel);
@@ -1617,9 +1621,9 @@
         // marcas: a logo da marca aparece ao lado do nome do modelo. A marca e detectada pelo nome (familia/id), entao modelos novos ja saem com a logo certa.
         // wordmark = a imagem ja tem o nome (Qwen, DeepSeek, Beam), entao vai sozinha; chip = fundo branco (logo escuro); mono = logo de uma cor so, pintado com a cor do texto do tema
         const BRANDS = [
-            { re: /qwen/i, pick: s => /qwen\s*-?2\.5/i.test(s) ? 'qwen2.5.png' : /qwen\s*-?3\.5/i.test(s) ? 'qwen3.5.png' : null, wordmark: true, chip: true },
+            { re: /qwen/i, pick: s => /qwen\s*-?2\.5/i.test(s) ? 'qwen2.5.png' : /qwen\s*-?3\.5/i.test(s) ? 'qwen3.5.png' : null, wordmark: true },
             { re: /deepseek/i, img: 'DeepSeek.png', wordmark: true },
-            { re: /beam/i, img: 'beam.png', wordmark: true, chip: true },
+            { re: /beam/i, img: 'beam.png', wordmark: true, mono: true, ratio: 3.52 },
             { re: /gemma|gemini/i, img: 'Google.png' },
             { re: /gpt|openai|chatgpt/i, img: 'chatgpt.png', mono: true },
             { re: /nemotron|nvidia/i, img: 'nvidia.png' },
@@ -1629,7 +1633,7 @@
         const brandFile = (b, rec) => b.pick ? b.pick(`${rec.famName} ${rec.id}`) : b.img;
         function brandEl(b, rec) {
             let el;
-            if (b.mono) { el = document.createElement('span'); el.className = 'brand-mono'; el.style.setProperty('--m', `url("icons/${brandFile(b, rec)}")`); }
+            if (b.mono) { el = document.createElement('span'); el.className = 'brand-mono' + (b.wordmark ? ' wm' : ''); el.style.aspectRatio = b.ratio || 1; el.style.setProperty('--m', `url("icons/${brandFile(b, rec)}")`); }
             else { el = document.createElement('img'); el.src = 'icons/' + brandFile(b, rec); el.alt = rec.famName; el.onerror = () => { el.style.display = 'none'; }; el.className = b.wordmark ? 'wordmark' + (b.chip ? '' : ' bare') : 'brand-img'; }
             el.title = rec.famName; return el;
         }
@@ -1703,7 +1707,7 @@
                 fillSizeInfo(cur);
             }
             const br = brandOf(cur), ti = $('model-trigger-icon'), tm = $('model-trigger-mono');
-            tm.style.display = br && br.mono ? '' : 'none'; if (br && br.mono) tm.style.setProperty('--m', `url("icons/${brandFile(br, cur)}")`);
+            tm.style.display = br && br.mono ? '' : 'none'; if (br && br.mono) tm.style.aspectRatio = br.ratio || 1; tm.className = 'brand-mono' + (br && br.wordmark ? ' wm' : ''); if (br && br.mono) tm.style.setProperty('--m', `url("icons/${brandFile(br, cur)}")`);
             ti.style.display = br && br.mono ? 'none' : ''; ti.className = br ? (br.wordmark ? 'wordmark' + (br.chip ? '' : ' bare') : 'brand-img') : 'ic';
             ti.src = br ? 'icons/' + brandFile(br, cur) : `icons/${cur.icon === 'triangle-alert' ? 'zap' : cur.icon}.png`; ti.onerror = br ? () => { ti.style.display = 'none'; } : null;
             $('model-trigger-text').textContent = (br && br.wordmark ? '' : cur.famName + ' ') + cur.params;
@@ -1718,6 +1722,17 @@
         }
         async function pickSize(id) { await selectModel(id); renderModelOptions(); }
         const HIDDEN_MODELS = /^(clef|deepseek-v4\.1-flash)\b/i;   // instalados no Ollama, mas fora do seletor
+        async function detectVision() {   // o Ollama informa as capacidades de cada modelo instalado; a etiqueta "visao" segue isso (corrige modelos que aceitam imagem e estavam sem a etiqueta)
+            if (!installed) return; let changed = false;
+            await Promise.all(MODELS.filter(m => !m.phone && !m.groq && installed.has(m.id) && !m._capsDone).map(async m => {
+                m._capsDone = true;
+                try {
+                    const inf = await (await fetch(API + '/api/model_info?name=' + encodeURIComponent(m.id))).json();
+                    if (inf && Array.isArray(inf.caps) && inf.caps.length) { modelInfo[m.id] = modelInfo[m.id] || inf; const v = inf.caps.includes('vision'); if (!!m.vision !== v) { m.vision = v; changed = true; } }
+                } catch (e) {}
+            }));
+            if (changed) renderModelOptions();
+        }
         function registerCustomModels() {   // modelos que voce baixou (pelo gerenciador ou pelo terminal) e nao estao na lista fixa tambem aparecem no seletor
             if (!installed) return;
             installed.forEach(name => {
@@ -1734,7 +1749,7 @@
                 loadedModels = {}; st.loaded.forEach(m => loadedModels[m.name] = m);
                 if (phoneLoadedId) loadedModels[phoneLoadedId] = { name: phoneLoadedId, size: 0 };
                 if (st.vram_total) vramTotalMB = st.vram_total;
-                if (Array.isArray(st.installed)) { installed = new Set(st.installed); installedSize = st.installed_sizes || {}; registerCustomModels(); }
+                if (Array.isArray(st.installed)) { installed = new Set(st.installed); installedSize = st.installed_sizes || {}; registerCustomModels(); detectVision(); }
             } catch (e) {}
         }
         let openTimer = null;
