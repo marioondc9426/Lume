@@ -72,11 +72,11 @@ def version_file(version):
 
 
 def build():
-    ensure([("PyInstaller", "pyinstaller"), ("PIL", "pillow")])
+    ensure([("PyInstaller", "pyinstaller"), ("PIL", "pillow"), ("pystray", "pystray")])
     version = app_version(); ico = make_icon(); vfile = version_file(version)
     cmd = [sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--onefile", "--windowed", "--name", "Qwen",
            "--icon", ico, "--version-file", vfile, "--distpath", DIST, "--workpath", os.path.join(BUILD, "work"), "--specpath", BUILD,
-           "--collect-all", "webview", "--hidden-import", "clr", "--hidden-import", "clr_loader", "--hidden-import", "tls", "--hidden-import", "guests",
+           "--collect-all", "webview", "--hidden-import", "clr", "--hidden-import", "clr_loader", "--hidden-import", "tls", "--hidden-import", "guests", "--hidden-import", "pystray._win32",
            "--exclude-module", "tkinter", "--exclude-module", "matplotlib", "--exclude-module", "numpy"]
     for item in DATA:
         src = os.path.join(ROOT, item)

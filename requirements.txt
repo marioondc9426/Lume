@@ -2,3 +2,4 @@ pywebview
 groq
 pypdf
 cryptography
+pystray

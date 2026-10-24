@@ -588,13 +588,24 @@ def extract_file_text(filename, data):
     else: raise Exception("Arquivo binario nao suportado (use texto, codigo, PDF, Word, Excel ou PowerPoint).")
     return text[:MAX_FILE_CHARS], len(text) > MAX_FILE_CHARS, pages
 
+def suggest_ext(kind, data):
+    """Extensao certa para o tipo reconhecido pelo conteudo (usada quando o arquivo veio com uma extensao que ninguem conhece)."""
+    if kind == "image":
+        h = data[:12]
+        return ".png" if h.startswith(b"\x89PNG") else ".jpg" if h[:3] == b"\xff\xd8\xff" else ".gif" if h[:4] == b"GIF8" else ".webp" if h[:4] == b"RIFF" else ".bmp"
+    if kind == "odf":
+        try: mt = zipfile.ZipFile(io.BytesIO(data)).read("mimetype").decode("ascii", "ignore")
+        except Exception: mt = ""
+        return ".ods" if "spreadsheet" in mt else ".odp" if "presentation" in mt else ".odt"
+    return {"text": ".txt", "pdf": ".pdf", "docx": ".docx", "xlsx": ".xlsx", "pptx": ".pptx"}.get(kind, "")
+
 def extract_api(data):
     """Corpo e status HTTP de /api/extract_text. Com "sniff", um arquivo de extensao desconhecida e identificado pelo conteudo."""
     try:
         raw = base64.b64decode(data.get("b64", "")); kind = sniff_kind(raw)
-        if kind == "image" and data.get("sniff"): return {"kind": "image"}, 200
+        if kind == "image" and data.get("sniff"): return {"kind": "image", "ext": suggest_ext(kind, raw)}, 200
         text, truncated, pages = extract_file_text(str(data.get("filename", "")), raw)
-        return {"text": text, "truncated": truncated, "chars": len(text), "pages": pages, "kind": kind}, 200
+        return {"text": text, "truncated": truncated, "chars": len(text), "pages": pages, "kind": kind, "ext": suggest_ext(kind, raw)}, 200
     except Exception as e:
         return {"error": str(e)}, 400
 
