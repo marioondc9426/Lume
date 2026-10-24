@@ -51,7 +51,7 @@ except Exception: tls = None
 CERTS_DIR = os.path.join(BASE_DIR, "certs")
 HTTPS_PORT = 8443
 # Versao: "1.2" = versao nova com novidades (o numero depois do ponto sobe); "1.2.01", "1.2.02"... = correcoes (patches) dessa versao.
-VERSION = "1.5"
+VERSION = "1.5.01"
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")     # chaves de API, pasta de trabalho, uso
 HISTORY_FILE = os.path.join(BASE_DIR, "history.json")   # chats
 STATE_FILE = os.path.join(BASE_DIR, "state.json")       # preferencias da interface + memorias
@@ -1142,6 +1142,20 @@ def localize_error(msg, lang):
 class ThreadingServer(socketserver.ThreadingTCPServer):
     allow_reuse_address = True
     daemon_threads = True
+    sniff_context = None   # se definido, a mesma porta atende HTTP e HTTPS (o navegador as vezes sobe "http://ip:8000" para "https://ip:8000" sozinho)
+
+    def finish_request(self, request, client_address):
+        ctx = self.sniff_context
+        if ctx is not None:
+            try:
+                request.settimeout(10)
+                first = request.recv(1, socket.MSG_PEEK)   # sem consumir: 0x16 = inicio de um aperto de mao TLS
+                request.settimeout(None)
+                if first == b"":
+                    request.settimeout(10); request = ctx.wrap_socket(request, server_side=True); request.settimeout(None)
+            except (ssl.SSLError, OSError):
+                return
+        super().finish_request(request, client_address)
 
 class TLSServer(ThreadingServer):
     """Mesmo servidor, mas com TLS. O aperto de mao e feito na thread de cada conexao (um cliente travado nao trava os outros)."""
@@ -1735,6 +1749,9 @@ def start_server():
                 return
             time.sleep(0.5)
     httpd = srv
+    if host == "0.0.0.0" and tls is not None and tls.HAS_CRYPTO:
+        try: srv.sniff_context = tls.server_context(CERTS_DIR, lan_ips())
+        except Exception as e: log("HTTPS", f"A porta {PORT} ficou so em HTTP: {e}", COLOR_YELLOW)
     if host == "0.0.0.0": threading.Thread(target=start_https_server, daemon=True).start()
     if host == "0.0.0.0":
         log("SERVIDOR", f"ACESSO REMOTO LIGADO na porta {PORT}. Enderecos: " + ", ".join(f"http://{ip}:{PORT}" for ip in lan_ips()), COLOR_YELLOW)

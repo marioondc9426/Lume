@@ -6,6 +6,9 @@ Como numerar:
 - O número fica em `VERSION` no topo do `app.py` e aparece em Configurações > Atualizações.
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
+## v1.5.01
+- A porta 8000 passa a aceitar também HTTPS: se o navegador trocar `http://ip:8000` por `https://ip:8000` sozinho, a página abre em vez de dar "conexão segura".
+
 ## v1.5
 - Botão ▶ Rodar nos blocos de código (Python, JavaScript/Node, PowerShell, Batch, Bash). Python detecta as bibliotecas que faltam pelo `import`, pergunta e instala com pip numa pasta do app (`code_packages`); programas com janela (tkinter, pygame...) abrem soltos.
 - Estatísticas: seção do Ollama com o uso da nuvem nas últimas 5 h e 7 dias (respostas e tempo de GPU) e por modelo.
