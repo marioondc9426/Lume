@@ -6,6 +6,13 @@ Como numerar:
 - O número fica em `VERSION` no topo do `app.py` e aparece em Configurações > Atualizações.
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
+## v1.2
+- Markdown completo nas respostas: títulos (#, ##, ###), linhas ---, citações, tabelas, itálico, riscado, links e `código`.
+- LaTeX vira Unicode ($ightarrow$, $\sum$, $x^2$, frações, raiz, letras gregas...) e emojis em `:nome:` (:fire:); a IA é instruída a usar esse formato.
+- A rolagem não é mais puxada para baixo enquanto a resposta chega (botão ↓ para voltar ao fim).
+- Fontes da pesquisa mostram só os logos dos sites, com "Mostrar mais" para abrir os cartões.
+- Botão de copiar também nas mensagens do usuário, e outro para copiar pergunta + resposta.
+
 ## v1.1
 - Aviso fixo no topo quando a versão em uso está desatualizada (com botão Atualizar agora e Depois). Checa ao abrir o app e a cada 6 horas.
 

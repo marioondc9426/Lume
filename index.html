@@ -79,18 +79,23 @@
         #main { flex: 1; display: flex; flex-direction: column; z-index: 10; min-width: 0; }
         #chat-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 20px; border-bottom: 1px solid var(--border-color); font-size: 0.9em; color: var(--text-muted); min-height: 42px; }
         #chat-header-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        #chat { flex: 1; padding: 20px 40px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
+        #chat-wrap { flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column; }
+        #to-bottom { position: absolute; right: 22px; bottom: 12px; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--border-color); background: var(--bg-main); color: var(--text-main); font-size: 18px; cursor: pointer; display: none; box-shadow: 0 4px 14px rgba(0,0,0,0.4); z-index: 20; }
+        #to-bottom:hover { background: var(--accent); color: #fff; }
+        #chat { flex: 1; min-height: 0; padding: 20px 40px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
         .msg { max-width: 80%; padding: 14px 20px; border-radius: 12px; font-size: 0.95em; animation: slideUp 0.3s ease-out forwards; opacity: 0; position: relative; }
         .final-text { white-space: pre-wrap; word-break: break-word; }
         .think { display: none; white-space: pre-wrap; color: var(--text-muted); font-style: italic; font-size: 0.85em; border-left: 2px solid var(--border-color); padding-left: 10px; margin-bottom: 8px; max-height: 120px; overflow-y: auto; }
         .msg-status { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 0.75em; color: var(--text-muted); }
         .pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); animation: pulse 1s ease-in-out infinite; }
         @keyframes pulse { 0%, 100% { opacity: .3; transform: scale(.8); } 50% { opacity: 1; transform: scale(1.1); } }
-        .copy-btn { position: absolute; bottom: 6px; right: 8px; opacity: 0; background: var(--bg-main); border: 1px solid var(--border-color); padding: 4px; border-radius: 6px; cursor: pointer; display: flex; transition: opacity .2s, border-color .2s, background .2s; }
+        .msg-actions { position: absolute; bottom: 6px; right: 8px; display: flex; gap: 4px; opacity: 0; transition: opacity .2s; }
+        .msg:hover .msg-actions { opacity: 1; }
+        .msg.user { padding-bottom: 28px; }
+        .copy-btn { background: var(--bg-main); border: 1px solid var(--border-color); padding: 4px; border-radius: 6px; cursor: pointer; display: flex; transition: opacity .2s, border-color .2s, background .2s; }
         .copy-btn .ic { margin: 0; width: 14px; height: 14px; }
         .copy-btn:hover { background: rgba(128,128,128,0.25); }
         .copy-btn.done { border-color: #3fb950; background: rgba(63,185,80,0.25); }
-        .msg.ai:hover .copy-btn { opacity: 1; }
         .msg.ai { padding-bottom: 20px; }
         .codeblock { margin: 10px 0; border: 1px solid var(--border-color); border-radius: 10px; overflow: hidden; background: rgba(0,0,0,0.28); white-space: normal; }
         .cb-head { display: flex; align-items: center; justify-content: space-between; padding: 5px 10px; font-size: 0.75em; color: var(--text-muted); background: rgba(128,128,128,0.14); border-bottom: 1px solid var(--border-color); }
@@ -98,6 +103,11 @@
         .code-copy:hover { color: var(--text-main); background: rgba(128,128,128,0.2); }
         .codeblock pre { margin: 0; padding: 10px 12px; overflow-x: auto; white-space: pre; font-size: 0.86em; line-height: 1.45; }
         .codeblock code { font-family: Consolas, 'Cascadia Mono', 'Courier New', monospace; color: var(--text-main); }
+        .md-h { font-weight: 700; line-height: 1.3; margin: 12px 0 6px; white-space: normal; } .md-h1 { font-size: 1.4em; } .md-h2 { font-size: 1.22em; } .md-h3 { font-size: 1.1em; } .md-h4, .md-h5, .md-h6 { font-size: 1em; color: var(--text-muted); }
+        .md-hr { border: none; border-top: 1px solid var(--border-color); margin: 12px 0; }
+        .md-quote { margin: 8px 0; padding: 4px 12px; border-left: 3px solid var(--accent); color: var(--text-muted); background: rgba(128,128,128,0.08); border-radius: 0 6px 6px 0; }
+        .md-table-wrap { overflow-x: auto; margin: 8px 0; white-space: normal; } .md-table { border-collapse: collapse; font-size: 0.92em; } .md-table th, .md-table td { border: 1px solid var(--border-color); padding: 5px 10px; text-align: left; } .md-table th { background: rgba(128,128,128,0.14); }
+        .md-link { color: var(--accent); text-decoration: underline; cursor: pointer; }
         code.inline { font-family: Consolas, 'Cascadia Mono', monospace; background: rgba(128,128,128,0.22); padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
         .tk-c { color: #7f8a96; font-style: italic; } .tk-s { color: #6aab73; } .tk-n { color: #e0955a; } .tk-k { color: #b57edc; } .tk-f { color: #5aa9f5; } .tk-t { color: #e5736f; }
         .tk-add { color: #3fb950; background: rgba(63,185,80,0.12); display: inline-block; width: 100%; } .tk-del { color: #f85149; background: rgba(248,81,73,0.12); display: inline-block; width: 100%; }
@@ -268,7 +278,7 @@
         body.remote .host-only { display: none !important; }
         body.remote #titlebar { display: none; }
         body.remote #settings-modal, body.remote #memory-modal, body.remote #export-modal, body.remote #stats-modal, body.remote #dialog-overlay, body.remote #drop-overlay { inset: 0; }
-        @media (hover: none) { .chat-actions { opacity: 1; } .copy-btn { opacity: .75; } }
+        @media (hover: none) { .chat-actions { opacity: 1; } .msg-actions { opacity: .75; } }
         @media (max-width: 760px) {
             #sidebar { position: fixed; top: 0; bottom: 0; left: 0; width: 82vw; max-width: 320px; transform: translateX(-100%); transition: transform .25s ease; z-index: 900; padding-top: env(safe-area-inset-top); }
             body.drawer-open #sidebar { transform: none; box-shadow: 0 0 40px rgba(0,0,0,0.6); }
@@ -331,6 +341,13 @@
 
         /* Fontes (cartoes clicaveis) */
         .sources { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; align-items: stretch; }
+        .src-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .src-chip { width: 26px; height: 26px; border-radius: 8px; border: 1px solid var(--border-color); background: #fff; display: flex; align-items: center; justify-content: center; overflow: hidden; font-size: 0.8em; font-weight: bold; color: #333; text-decoration: none; }
+        .src-chip img { width: 16px; height: 16px; }
+        .src-chip:hover { border-color: var(--accent); }
+        .src-more-n { font-size: 0.75em; color: var(--text-muted); }
+        .src-toggle { background: none; border: none; color: var(--accent); font-size: 0.75em; cursor: pointer; padding: 2px 6px; margin-left: 4px; }
+        .src-toggle:hover { text-decoration: underline; }
         .src-label { width: 100%; font-size: 0.7em; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
         .src-card { display: flex; align-items: center; gap: 8px; max-width: 250px; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--border-color); background: rgba(128,128,128,0.08); text-decoration: none; color: var(--text-main); font-size: 0.78em; transition: border-color .15s, background .15s; }
         .src-card:hover { border-color: var(--accent); background: rgba(128,128,128,0.16); }
@@ -467,7 +484,7 @@
                 </div>
                 <button class="icon-btn" onclick="openExport()" title="Copiar / exportar chat"><img class="ic" src="icons/copy.png" style="width:16px;height:16px;"></button>
             </div>
-            <div id="chat"></div>
+            <div id="chat-wrap"><div id="chat"></div><button id="to-bottom" type="button" onclick="scrollToEnd()" title="Ir para o fim">↓</button></div>
 
             <div id="command-menu">
                 <div class="command-item" onclick="insertCommand('/rename ')"><b>/rename</b> - Renomeia o chat</div>
@@ -859,7 +876,7 @@
             'Overlay de desempenho': 'Performance overlay', 'Mostrar overlay no canto superior direito': 'Show overlay in the top-right corner', 'Estilo': 'Style',
             'Padrão (colorido)': 'Default (colored)', 'Cinza (discreto)': 'Gray (subtle)', 'Atualização:': 'Refresh:',
             'A GPU em si só atualiza o uso a cada ~100–1000 ms; valores menores que isso não deixam o número mais preciso.': 'The GPU itself only updates its usage every ~100–1000 ms; lower values do not make the number more precise.',
-            'Salvar Tudo': 'Save all', 'Versão desatualizada: você usa a v{a} e já existe a v{b}.': 'Outdated version: you are on v{a} and v{b} is available.', 'Versão desatualizada: há {n} atualização(ões) nova(s).': 'Outdated version: {n} new update(s) available.', 'Depois': 'Later', 'Esconder os avisos de VRAM na janela (continuam aparecendo no terminal)': 'Hide VRAM warnings in the window (they still show in the terminal)', 'Roda na nuvem (precisa de internet)': 'Runs in the cloud (needs internet)', 'Funciona sem internet': 'Works offline', 'Roda no seu PC': 'Runs on your PC',
+            'Salvar Tudo': 'Save all', 'Copiar mensagem': 'Copy message', 'Copiar pergunta e resposta': 'Copy question and answer', 'Usuário': 'User', 'Resposta': 'Answer', 'Mostrar mais': 'Show more', 'Mostrar menos': 'Show less', '\n\nFORMATAÇÃO: responda em Markdown. Para emojis escreva o código entre dois-pontos, como :fire: ou :skull: (nunca só a palavra). Para setas e símbolos use o caractere Unicode direto (→ ≈ ✓ ≠), sem LaTeX.': '\n\nFORMATTING: answer in Markdown. For emojis write the code between colons, like :fire: or :skull: (never just the word). For arrows and symbols use the Unicode character directly (→ ≈ ✓ ≠), no LaTeX.', 'Versão desatualizada: você usa a v{a} e já existe a v{b}.': 'Outdated version: you are on v{a} and v{b} is available.', 'Versão desatualizada: há {n} atualização(ões) nova(s).': 'Outdated version: {n} new update(s) available.', 'Depois': 'Later', 'Esconder os avisos de VRAM na janela (continuam aparecendo no terminal)': 'Hide VRAM warnings in the window (they still show in the terminal)', 'Roda na nuvem (precisa de internet)': 'Runs in the cloud (needs internet)', 'Funciona sem internet': 'Works offline', 'Roda no seu PC': 'Runs on your PC',
             'Usar o contexto máximo de cada modelo': 'Use the maximum context of each model', 'Código': 'Code', 'Copiar': 'Copy', 'Copiado ✓': 'Copied ✓',
             'Com isso ligado, cada modelo usa tudo o que suporta (ex.: 256K) e o valor acima é ignorado. Cuidado: contextos enormes ocupam MUITA VRAM e deixam tudo mais lento.': 'When on, each model uses everything it supports (e.g. 256K) and the value above is ignored. Careful: huge contexts take A LOT of VRAM and slow everything down.', 'Salvar': 'Save', 'Atualizações': 'Updates', 'Verificar atualizações': 'Check for updates', 'Atualizar agora': 'Update now',
             'Avisar quando houver versão nova ao abrir o app': 'Notify me when a new version is available at startup', 'Verificando...': 'Checking...', 'Atualizando...': 'Updating...',
@@ -1083,6 +1100,11 @@
         let loadedModels = {}, pendingModel = {};   // nome -> info do Ollama / 'carregando'|'desligando'
 
         const chatBox = $('chat'), promptInput = $('prompt'), commandMenu = $('command-menu');
+        let stickBottom = true;   // so acompanha o texto novo enquanto voce esta no fim do chat; ao rolar para cima, para de puxar
+        const atBottom = () => chatBox.scrollHeight - chatBox.scrollTop - chatBox.clientHeight < 70;
+        chatBox.addEventListener('scroll', () => { stickBottom = atBottom(); $('to-bottom').style.display = stickBottom ? 'none' : 'block'; });
+        function scrollToEnd() { stickBottom = true; chatBox.scrollTop = chatBox.scrollHeight; $('to-bottom').style.display = 'none'; }
+        function followBottom() { if (stickBottom) chatBox.scrollTop = chatBox.scrollHeight; }
         const modelById = id => MODELS.find(m => m.id === id);
         // so aparece o que esta instalado no Ollama (nuvem sempre aparece); installed = null enquanto nao sabemos
         let installed = null, installedSize = {}, vramTotalMB = 0, modelInfo = {};
@@ -1519,6 +1541,7 @@
             chatBox.innerHTML = '';
             if (chats[id].welcome === undefined) { chats[id].welcome = Math.floor(Math.random() * 5); saveToStorage(); }
             addMessageToUI('ai', WELCOMES[curLang()][chats[id].welcome], { welcome: true, animate: false });
+            stickBottom = true;
             chats[id].messages.forEach(m => addMessageToUI(m.role, m.content, { animate: false, images: m.images, files: m.files, sources: m.sources, count: m.count, model: m.role === 'ai' ? m.model : undefined, tps: m.tps }));
             chatBox.scrollTop = chatBox.scrollHeight;
             updateCtxBar();
@@ -1550,6 +1573,11 @@
             const m = modelById(mid), tps = tag && tag._tps;
             return raw.replace(/\s+$/, '') + `\n\n— ${m.famName} ${m.params}` + (tps ? ` · ${tps.toFixed(1)} t/s` : '');
         }
+        function qaPayload(div, span) {   // a pergunta do usuario + a resposta da IA
+            let p = div.previousElementSibling; while (p && !p.classList.contains('user')) p = p.previousElementSibling;
+            const q = p ? (p._raw || p.querySelector('.final-text').innerText) : '';
+            return `${tr('Usuário')}:\n${q}\n\n${tr('Resposta')}:\n${copyPayload(div, span)}`;
+        }
         function addMessageToUI(role, text, opts = {}) {
             const div = document.createElement('div');
             div.className = `msg ${role}` + (opts.welcome ? ' welcome' : '') + (opts.animate === false ? ' noanim' : '');
@@ -1573,14 +1601,20 @@
             div.appendChild(span);
             div._raw = opts.html ? null : text;
             if (opts.sources && opts.sources.length) div.appendChild(sourcesEl(opts.sources));
-            if (role === 'ai' && !opts.welcome) {
-                const btn = document.createElement('button'); btn.className = 'copy-btn'; btn.title = tr('Copiar resposta');
-                btn.innerHTML = '<img class="ic" src="icons/clipboard-copy.png">';
-                btn.onclick = () => { copyText(copyPayload(div, span)); btn.classList.add('done'); setTimeout(() => btn.classList.remove('done'), 1200); };
-                div.appendChild(btn);
+            if ((role === 'ai' && !opts.welcome) || role === 'user') {
+                const bar = document.createElement('div'); bar.className = 'msg-actions';
+                const mk = (icon, title, getText) => {
+                    const btn = document.createElement('button'); btn.className = 'copy-btn'; btn.type = 'button'; btn.title = tr(title);
+                    btn.innerHTML = `<img class="ic" src="icons/${icon}">`;
+                    btn.onclick = () => { copyText(getText()); btn.classList.add('done'); setTimeout(() => btn.classList.remove('done'), 1200); };
+                    bar.appendChild(btn);
+                };
+                if (role === 'ai') { mk('clipboard-copy.png', 'Copiar resposta', () => copyPayload(div, span)); mk('copy.png', 'Copiar pergunta e resposta', () => qaPayload(div, span)); }
+                else mk('clipboard-copy.png', 'Copiar mensagem', () => div._raw || span.innerText);
+                div.appendChild(bar);
             }
             chatBox.appendChild(div);
-            if (opts.animate !== false) chatBox.scrollTop = chatBox.scrollHeight;
+            if (opts.animate !== false) { if (role === 'user') stickBottom = true; followBottom(); }
             return div;
         }
         function addNote(text) { return addMessageToUI('note', text); }
@@ -1701,9 +1735,77 @@
             }
             return out + esc(code.slice(last));
         }
+
+        // ---------- markdown leve: titulos, listas, citacao, tabela, links, LaTeX -> Unicode, emojis :nome: ----------
+        const LATEX = Object.fromEntries(`leftarrow←|gets←|rightarrow→|to→|uparrow↑|downarrow↓|leftrightarrow↔|updownarrow↕|Leftarrow⇐|Rightarrow⇒|implies⟹|Uparrow⇑|Downarrow⇓|Leftrightarrow⇔|iff⟺|Updownarrow⇕|longrightarrow⟶|longleftarrow⟵|longleftrightarrow⟷|Longrightarrow⟹|Longleftarrow⟸|Longleftrightarrow⟺|mapsto↦|longmapsto⟼|nearrow↗|searrow↘|swarrow↙|nwarrow↖|hookrightarrow↪|hookleftarrow↩|rightleftharpoons⇌|leadsto⇝|circlearrowleft↺|circlearrowright↻|twoheadrightarrow↠|rightsquigarrow⇝|
+alpha α|beta β|gamma γ|delta δ|epsilon ε|varepsilon ε|zeta ζ|eta η|theta θ|vartheta ϑ|iota ι|kappa κ|lambda λ|mu μ|nu ν|xi ξ|omicron ο|pi π|varpi ϖ|rho ρ|varrho ϱ|sigma σ|varsigma ς|tau τ|upsilon υ|phi φ|varphi ϕ|chi χ|psi ψ|omega ω|Gamma Γ|Delta Δ|Theta Θ|Lambda Λ|Xi Ξ|Pi Π|Sigma Σ|Upsilon Υ|Phi Φ|Psi Ψ|Omega Ω|
+sum ∑|prod ∏|coprod ∐|int ∫|iint ∬|iiint ∭|oint ∮|partial ∂|nabla ∇|infty ∞|pm ±|mp ∓|times ×|div ÷|cdot ·|ast ∗|star ⋆|circ ∘|bullet •|oplus ⊕|ominus ⊖|otimes ⊗|oslash ⊘|odot ⊙|dagger †|ddagger ‡|surd √|angle ∠|measuredangle ∡|forall ∀|exists ∃|nexists ∄|emptyset ∅|varnothing ∅|neg ¬|lnot ¬|land ∧|wedge ∧|lor ∨|vee ∨|top ⊤|bot ⊥|vdash ⊢|models ⊨|therefore ∴|because ∵|
+neq ≠|ne ≠|approx ≈|sim ∼|simeq ≃|cong ≅|equiv ≡|propto ∝|leq ≤|le ≤|geq ≥|ge ≥|ll ≪|gg ≫|prec ≺|succ ≻|subset ⊂|supset ⊃|subseteq ⊆|supseteq ⊇|in ∈|notin ∉|ni ∋|cup ∪|cap ∩|setminus ∖|bigcup ⋃|bigcap ⋂|parallel ∥|perp ⊥|mid ∣|
+square □|Box □|blacksquare ■|triangle △|blacktriangle ▲|triangledown ▽|blacktriangledown ▼|bigcirc ◯|diamond ◇|Diamond ◇|lozenge ◊|blacklozenge ⧫|bigstar ★|checkmark ✓|cross ✗|maltese ✠|heartsuit ♡|spadesuit ♠|clubsuit ♣|diamondsuit ♢|
+copyright ©|textregistered ®|registered ®|texttrademark ™|trademark ™|ldots …|dots …|cdots ⋯|vdots ⋮|ddots ⋱|hbar ℏ|ell ℓ|Re ℜ|Im ℑ|aleph ℵ|wp ℘|degree °|textdegree °|prime ′|S §|P ¶|pounds £|euro €|yen ¥|cent ¢|lbrace {|rbrace }|langle ⟨|rangle ⟩|lceil ⌈|rceil ⌉|lfloor ⌊|rfloor ⌋|minus −|quad  |qquad   |
+mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x => { x = x.trim(); const i = x.search(/\s|[^\x00-\x7f]/); return [x.slice(0, i), x.slice(i).trim() || ' ']; }));
+        const SUP = { '0': '⁰', '1': '¹', '2': '²', '3': '³', '4': '⁴', '5': '⁵', '6': '⁶', '7': '⁷', '8': '⁸', '9': '⁹', '+': '⁺', '-': '⁻', '=': '⁼', '(': '⁽', ')': '⁾', n: 'ⁿ', i: 'ⁱ', a: 'ᵃ', b: 'ᵇ', c: 'ᶜ', d: 'ᵈ', e: 'ᵉ', f: 'ᶠ', g: 'ᵍ', h: 'ʰ', j: 'ʲ', k: 'ᵏ', l: 'ˡ', m: 'ᵐ', o: 'ᵒ', p: 'ᵖ', r: 'ʳ', s: 'ˢ', t: 'ᵗ', u: 'ᵘ', v: 'ᵛ', w: 'ʷ', x: 'ˣ', y: 'ʸ', z: 'ᶻ' };
+        const SUB = { '0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄', '5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉', '+': '₊', '-': '₋', '=': '₌', '(': '₍', ')': '₎', a: 'ₐ', e: 'ₑ', h: 'ₕ', i: 'ᵢ', j: 'ⱼ', k: 'ₖ', l: 'ₗ', m: 'ₘ', n: 'ₙ', o: 'ₒ', p: 'ₚ', r: 'ᵣ', s: 'ₛ', t: 'ₜ', u: 'ᵤ', v: 'ᵥ', x: 'ₓ' };
+        const mapAll = (str, M) => { let o = ''; for (const ch of str) { if (!(ch in M)) return null; o += M[ch]; } return o; };
+        function latexToText(src) {
+            let x = src.replace(/\\\\/g, '\n').replace(/\\mathbb\s*\{\s*([RNZQC])\s*\}/g, (m, c) => LATEX['mathbb' + c]);
+            x = x.replace(/\\(?:left|right|big|Big|bigg|Bigg)(?![A-Za-z])\s*/g, '').replace(/\\[,;:]/g, ' ').replace(/\\[! ]/g, '');
+            x = x.replace(/\\([A-Za-z]+)/g, (m, n) => (n in LATEX ? LATEX[n] : m));   // simbolos primeiro; comandos com chaves ficam para as passadas abaixo
+            const wrap = a => (/^[\w.]+$/.test(a.trim()) ? a.trim() : '(' + a.trim() + ')');
+            for (let i = 0; i < 6; i++) {   // de dentro para fora
+                const before = x;
+                x = x.replace(/\\[dt]?frac\s*\{([^{}]*)\}\s*\{([^{}]*)\}/g, (m, a, b) => wrap(a) + '/' + wrap(b))
+                    .replace(/\\sqrt\s*\[([^\]]*)\]\s*\{([^{}]*)\}/g, (m, n, a) => (SUP[n] || '^' + n) + '√' + wrap(a))
+                    .replace(/\\sqrt\s*\{([^{}]*)\}/g, (m, a) => '√' + wrap(a)).replace(/\\sqrt\s*(\w)/g, '√$1')
+                    .replace(/\\(?:text|textbf|textit|mathrm|mathbf|mathit|mathcal|mathsf|mathtt|operatorname|boldsymbol|bm|mbox|overline|underline|widehat|widetilde|hat|tilde|bar)\s*\{([^{}]*)\}/g, '$1')
+                    .replace(/\\vec\s*\{([^{}]*)\}/g, '$1⃗');
+                if (x === before) break;
+            }
+            x = x.replace(/\^\s*\{([^{}]*)\}|\^\s*([A-Za-z0-9+\-])/g, (m, a, b) => { const v = (a !== undefined ? a : b).trim(); return mapAll(v, SUP) ?? '^(' + v + ')'; })
+                .replace(/_\s*\{([^{}]*)\}|_\s*([A-Za-z0-9+\-])/g, (m, a, b) => { const v = (a !== undefined ? a : b).trim(); return mapAll(v, SUB) ?? '_(' + v + ')'; });
+            return x.replace(/\\([A-Za-z]+)/g, '$1').replace(/\\(.)/g, '$1').replace(/[{}]/g, '').replace(/[ \t]{2,}/g, ' ').trim();
+        }
+        function mathify(t) {   // $...$, $$...$$, \(...\), \[...\] que parecem LaTeX viram texto Unicode; "$5 e $10" fica como esta
+            const looksMath = c => /\\[A-Za-z]+|[\^_{}]/.test(c);
+            return t.replace(/\$\$([\s\S]+?)\$\$/g, (m, c) => (looksMath(c) ? '\n' + latexToText(c) + '\n' : m))
+                .replace(/\\\[([\s\S]+?)\\\]/g, (m, c) => (looksMath(c) ? '\n' + latexToText(c) + '\n' : m))
+                .replace(/\\\(([\s\S]+?)\\\)/g, (m, c) => (looksMath(c) ? latexToText(c) : m))
+                .replace(/(?<![\\$\w])\$(?![\s$])([^$\n]+?)(?<![\s\\])\$(?![\w$])/g, (m, c) => (looksMath(c) ? latexToText(c) : m));
+        }
+        const EMOJI = Object.fromEntries(`smile😄|smiley😃|grinning😀|grin😁|joy😂|rofl🤣|sweat_smile😅|laughing😆|wink😉|blush😊|innocent😇|heart_eyes😍|star_struck🤩|kissing_heart😘|yum😋|stuck_out_tongue😛|stuck_out_tongue_winking_eye😜|zany_face🤪|sunglasses😎|nerd_face🤓|thinking🤔|thinking_face🤔|face_with_monocle🧐|neutral_face😐|expressionless😑|unamused😒|rolling_eyes🙄|smirk😏|grimacing😬|relieved😌|pensive😔|sleepy😪|sleeping😴|mask😷|dizzy_face😵|exploding_head🤯|cowboy_hat_face🤠|partying_face🥳|confused😕|worried😟|slightly_frowning_face🙁|frowning☹️|open_mouth😮|hushed😯|astonished😲|flushed😳|pleading_face🥺|cry😢|sob😭|scream😱|fearful😨|cold_sweat😰|disappointed😞|sweat😓|weary😩|tired_face😫|triumph😤|rage😡|angry😠|cursing_face🤬|skull💀|skull_and_crossbones☠️|ghost👻|alien👽|robot🤖|poop💩|clown_face🤡|smiling_imp😈|imp👿|see_no_evil🙈|hear_no_evil🙉|speak_no_evil🙊|heart❤️|red_heart❤️|orange_heart🧡|yellow_heart💛|green_heart💚|blue_heart💙|purple_heart💜|black_heart🖤|white_heart🤍|broken_heart💔|sparkling_heart💖|two_hearts💕|100💯|boom💥|collision💥|sparkles✨|star⭐|star2🌟|dizzy💫|fire🔥|flame🔥|zap⚡|sunny☀️|cloud☁️|snowflake❄️|rainbow🌈|droplet💧|ocean🌊|+1👍|thumbsup👍|-1👎|thumbsdown👎|ok_hand👌|v✌️|crossed_fingers🤞|metal🤘|call_me_hand🤙|point_up☝️|point_down👇|point_left👈|point_right👉|raised_hand✋|wave👋|clap👏|raised_hands🙌|open_hands👐|pray🙏|handshake🤝|muscle💪|fist✊|punch👊|writing_hand✍️|eyes👀|eye👁️|brain🧠|ear👂|nose👃|tongue👅|lips👄|baby👶|man👨|woman👩|person🧑|ninja🥷|detective🕵️|zombie🧟|rocket🚀|airplane✈️|car🚗|bike🚲|ship🚢|train🚆|hourglass⌛|watch⌚|alarm_clock⏰|stopwatch⏱️|calendar📅|date📆|bell🔔|no_bell🔕|mega📣|loudspeaker📢|speech_balloon💬|thought_balloon💭|bulb💡|flashlight🔦|battery🔋|electric_plug🔌|computer💻|desktop_computer🖥️|keyboard⌨️|mouse🖱️|printer🖨️|floppy_disk💾|cd💿|dvd📀|iphone📱|phone☎️|tv📺|camera📷|video_camera📹|movie_camera🎥|microphone🎤|headphones🎧|radio📻|satellite🛰️|gear⚙️|wrench🔧|hammer🔨|hammer_and_wrench🛠️|toolbox🧰|nut_and_bolt🔩|link🔗|chains⛓️|paperclip📎|pushpin📌|scissors✂️|lock🔒|unlock🔓|key🔑|closed_lock_with_key🔐|shield🛡️|mag🔍|mag_right🔎|microscope🔬|telescope🔭|test_tube🧪|dna🧬|pill💊|syringe💉|memo📝|pencil✏️|pencil2✏️|pen🖊️|book📖|books📚|notebook📓|clipboard📋|bookmark🔖|label🏷️|file_folder📁|open_file_folder📂|page_facing_up📄|newspaper📰|package📦|mailbox📫|email📧|envelope✉️|inbox_tray📥|outbox_tray📤|chart_with_upwards_trend📈|chart_with_downwards_trend📉|bar_chart📊|money_with_wings💸|moneybag💰|dollar💵|credit_card💳|gem💎|trophy🏆|medal🏅|first_place_medal🥇|dart🎯|video_game🎮|joystick🕹️|game_die🎲|jigsaw🧩|art🎨|musical_note🎵|notes🎶|guitar🎸|drum🥁|tada🎉|confetti_ball🎊|balloon🎈|gift🎁|crown👑|ring💍|beer🍺|beers🍻|wine_glass🍷|coffee☕|tea🍵|pizza🍕|hamburger🍔|fries🍟|taco🌮|cake🍰|birthday🎂|cookie🍪|apple🍎|banana🍌|watermelon🍉|strawberry🍓|avocado🥑|egg🥚|dog🐶|cat🐱|mouse_face🐭|rabbit🐰|fox_face🦊|bear🐻|panda_face🐼|koala🐨|tiger🐯|lion🦁|cow🐮|pig🐷|frog🐸|monkey🐵|chicken🐔|penguin🐧|bird🐦|eagle🦅|owl🦉|bat🦇|wolf🐺|horse🐴|unicorn🦄|bee🐝|bug🐛|butterfly🦋|snail🐌|ant🐜|spider🕷️|turtle🐢|snake🐍|dragon🐉|whale🐳|dolphin🐬|fish🐟|octopus🐙|shark🦈|crab🦀|tree🌳|evergreen_tree🌲|palm_tree🌴|cactus🌵|herb🌿|four_leaf_clover🍀|maple_leaf🍁|mushroom🍄|rose🌹|sunflower🌻|tulip🌷|earth_americas🌎|earth_africa🌍|globe_with_meridians🌐|full_moon🌕|crescent_moon🌙|sun_with_face🌞|house🏠|office🏢|school🏫|hospital🏥|bank🏦|checkered_flag🏁|triangular_flag_on_post🚩|flag_brazil🇧🇷|flag_us🇺🇸|white_check_mark✅|check✔️|heavy_check_mark✔️|ballot_box_with_check☑️|x❌|negative_squared_cross_mark❎|heavy_multiplication_x✖️|o⭕|warning⚠️|no_entry⛔|no_entry_sign🚫|stop_sign🛑|construction🚧|rotating_light🚨|question❓|grey_question❔|exclamation❗|grey_exclamation❕|bangbang‼️|interrobang⁉️|information_source ℹ️|arrow_right➡️|arrow_left⬅️|arrow_up⬆️|arrow_down⬇️|arrow_upper_right↗️|arrow_lower_right↘️|arrow_forward▶️|arrow_backward◀️|repeat🔁|repeat_one🔂|arrows_counterclockwise🔄|leftwards_arrow_with_hook↩️|back🔙|end🔚|soon🔜|top🔝|new🆕|free🆓|ok🆗|cool🆒|sos🆘|up🆙|plus➕|heavy_plus_sign➕|heavy_minus_sign➖|heavy_division_sign➗|infinity♾️|recycle♻️|copyright©️|registered®️|tm™️|red_circle🔴|orange_circle🟠|yellow_circle🟡|green_circle🟢|large_blue_circle🔵|purple_circle🟣|black_circle⚫|white_circle⚪|red_square🟥|green_square🟩|blue_square🟦|black_large_square⬛|white_large_square⬜|small_blue_diamond🔹|large_orange_diamond🔶|diamonds♦️|hearts♥️|spades♠️|clubs♣️|musical_keyboard🎹|shrug🤷|facepalm🤦|raising_hand🙋|bow🙇|ok_woman🙆|no_good🙅|dancer💃|man_dancing🕺|runner🏃|walking🚶|sleeping_face😴|hugs🤗|hand_over_mouth🤭|shushing_face🤫|lying_face🤥|vomiting_face🤮|sneezing_face🤧|hot_face🥵|cold_face🥶|woozy_face🥴|yawning_face🥱|smiling_face_with_tear🥲|salute🫡|melting_face🫠|handshake🤝|pinching_hand🤏|index_pointing_at_the_viewer🫵|heart_hands🫶|fingers_crossed🤞|vulcan_salute🖖|middle_finger🖕|rock🪨|wood🪵|coin🪙|boomerang🪃|magic_wand🪄|mirror🪞|ladder🪜|hook🪝|puzzle_piece🧩|teddy_bear🧸|abacus🧮|nazar_amulet🧿|dna🧬|petri_dish🧫|test_tube🧪|compass🧭|magnet🧲|bricks🧱|safety_pin🧷|broom🧹|basket🧺|roll_of_paper🧻|soap🧼|sponge🧽|fire_extinguisher🧯|shopping_cart🛒`.split('|').map(x => { const i = x.search(/[^\x00-\x7f]/); return [x.slice(0, i).trim(), x.slice(i).trim()]; }));
+        const emojify = h => h.replace(/:([a-z0-9_+-]{2,40}):/gi, (m, n) => EMOJI[n.toLowerCase()] || m);
+        function inlineText(p) {
+            let h = esc(bullets(mathify(p)));
+            h = h.replace(/\*\*([^*\n]+?)\*\*/g, '<b>$1</b>').replace(/__([^_\n]+?)__/g, '<b>$1</b>')
+                .replace(/(^|[\s(])\*([^*\s][^*\n]*?)\*(?=[\s).,;:!?]|$)/g, '$1<i>$2</i>').replace(/(^|[\s(])_([^_\s][^_\n]*?)_(?=[\s).,;:!?]|$)/g, '$1<i>$2</i>')
+                .replace(/~~([^~\n]+?)~~/g, '<s>$1</s>')
+                .replace(/\[([^\]\n]+)\]\((https?:\/\/[^\s)"'<>]+)\)/g, (m, tx, u) => `<a class="md-link" href="${u}" data-url="${u}">${tx}</a>`);
+            return emojify(h);
+        }
+        function inline(t) { return t.split(/(`[^`\n]+`)/).map((p, i) => (i % 2 ? `<code class="inline">${esc(p.slice(1, -1))}</code>` : inlineText(p))).join(''); }
+        const trimNl = x => x.replace(/^\n+|\n+$/g, '');
+        function mdBlock(text) {
+            const lines = text.split('\n'), out = []; let buf = [], i = 0;
+            const flush = () => { if (buf.length) { const j = trimNl(buf.join('\n')); if (j) out.push(inline(j)); buf = []; } };
+            const isSep = l => /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(l || '') && (l || '').includes('-');
+            const cells = l => l.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+            while (i < lines.length) {
+                const l = lines[i]; let m;
+                if ((m = /^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$/.exec(l))) { flush(); out.push(`<div class="md-h md-h${m[1].length}">${inline(m[2])}</div>`); i++; }
+                else if (/^\s{0,3}([-*_])(\s*\1){2,}\s*$/.test(l)) { flush(); out.push('<hr class="md-hr">'); i++; }
+                else if (/^\s{0,3}>/.test(l)) { flush(); const q = []; while (i < lines.length && /^\s{0,3}>/.test(lines[i])) q.push(lines[i++].replace(/^\s{0,3}>\s?/, '')); out.push(`<blockquote class="md-quote">${inline(q.join('\n'))}</blockquote>`); }
+                else if (l.includes('|') && isSep(lines[i + 1])) {
+                    flush(); const head = cells(l); i += 2; const rows = [];
+                    while (i < lines.length && lines[i].includes('|') && lines[i].trim()) rows.push(cells(lines[i++]));
+                    out.push('<div class="md-table-wrap"><table class="md-table"><thead><tr>' + head.map(c => `<th>${inline(c)}</th>`).join('') + '</tr></thead><tbody>' + rows.map(r => '<tr>' + head.map((_, k) => `<td>${inline(r[k] || '')}</td>`).join('') + '</tr>').join('') + '</tbody></table></div>');
+                }
+                else { buf.push(l); i++; }
+            }
+            flush(); return out.join('');
+        }
+        document.addEventListener('click', e => { const a = e.target.closest('.md-link'); if (!a) return; e.preventDefault(); openExternal(a.dataset.url); });
         const FENCE_RE = /```([^\n`]*)\n?([\s\S]*?)(?:```|$)/g;
-        const inlineCode = h => h.replace(/`([^`\n]+)`/g, '<code class="inline">$1</code>');
-        const textHtml = t => t ? inlineCode(fmt(t).replace(NOTE_RE, '<span class="tool-note">[$1]</span>')) : '';
+        const textHtml = t => t ? mdBlock(t).replace(NOTE_RE, '<span class="tool-note">[$1]</span>') : '';
         function codeBlockHtml(info, code) {
             const lang = (info.trim().split(/\s+/)[0] || '').toLowerCase(), canon = lang in LANG_ALIAS ? LANG_ALIAS[lang] : lang;
             const label = LANG_NAMES[canon] || (canon ? canon : tr('Código'));
@@ -1757,16 +1859,33 @@
         // ---------- fontes (cartoes clicaveis) ----------
         function openExternal(url) { if (auth.local) fetch(API + '/api/open_url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) }).catch(() => {}); else window.open(url, '_blank', 'noopener'); }
         const domainOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return u; } };
+        function favIcon(x) {   // logo do site (servico de icones do DuckDuckGo); se nao carregar, mostra a inicial
+            const dom = domainOf(x.url), wrap = document.createElement('a');
+            wrap.className = 'src-chip'; wrap.href = x.url; wrap.title = (x.title ? x.title + ' - ' : '') + dom; wrap.onclick = ev => { ev.preventDefault(); openExternal(x.url); };
+            const im = document.createElement('img'); im.src = 'https://icons.duckduckgo.com/ip3/' + encodeURIComponent(dom) + '.ico'; im.alt = '';
+            im.onerror = () => { im.remove(); wrap.textContent = (dom[0] || '?').toUpperCase(); };
+            wrap.appendChild(im); return wrap;
+        }
         function fillSources(box, list) {
             box.innerHTML = ''; box.style.display = list.length ? '' : 'none';
             if (!list.length) return;
+            const open = box.dataset.open === '1', MAXC = 7;
             const lab = document.createElement('span'); lab.className = 'src-label'; lab.textContent = tr('Fontes'); box.appendChild(lab);
-            list.forEach((x, i) => {
+            if (!open) {
+                const row = document.createElement('div'); row.className = 'src-row';
+                const seen = new Set(); list.forEach(x => { const d = domainOf(x.url); if (seen.has(d) || seen.size >= MAXC) return; seen.add(d); row.appendChild(favIcon(x)); });
+                const rest = new Set(list.map(x => domainOf(x.url))).size - seen.size;
+                if (rest > 0) { const m = document.createElement('span'); m.className = 'src-more-n'; m.textContent = '+' + rest; row.appendChild(m); }
+                box.appendChild(row);
+            } else list.forEach((x, i) => {
                 const a = document.createElement('a'); a.className = 'src-card'; a.href = x.url; a.title = x.url; a.onclick = ev => { ev.preventDefault(); openExternal(x.url); };
                 a.innerHTML = '<span class="src-n"></span><span class="src-body"><span class="src-dom"></span><span class="src-title"></span></span>';
                 a.querySelector('.src-n').textContent = i + 1; a.querySelector('.src-dom').textContent = domainOf(x.url); a.querySelector('.src-title').textContent = x.title || x.url;
                 box.appendChild(a);
             });
+            const tg = document.createElement('button'); tg.type = 'button'; tg.className = 'src-toggle'; tg.textContent = tr(open ? 'Mostrar menos' : 'Mostrar mais');
+            tg.onclick = () => { box.dataset.open = open ? '0' : '1'; fillSources(box, list); };
+            box.appendChild(tg);
         }
         function sourcesEl(list) { const box = document.createElement('div'); box.className = 'sources'; fillSources(box, list); return box; }
 
@@ -1908,7 +2027,7 @@
             const aiDiv = addMessageToUI('ai', `<span class="loading-dots">${tr('Iniciando')}</span>`, { html: true, model: selectedModel });
             const textSpan = aiDiv.querySelector('.final-text'), thinkDiv = aiDiv.querySelector('.think');
             const stLine = document.createElement('div'); stLine.className = 'msg-status';
-            stLine.innerHTML = '<span class="pulse"></span><span class="st-text"></span>'; aiDiv.insertBefore(stLine, aiDiv.querySelector('.copy-btn'));
+            stLine.innerHTML = '<span class="pulse"></span><span class="st-text"></span>'; aiDiv.insertBefore(stLine, aiDiv.querySelector('.msg-actions'));
             setBusy(true);
             const isCode = currentTab === 'code';
             let fullResponse = '', gotText = false, chars = 0, lastStats = null; const msgSources = []; let srcEl = null;
@@ -1919,6 +2038,7 @@
                 const summaries = chat.messages.filter(m => m.role === 'summary').map(m => m.content);
                 if (summaries.length) sys += tr('\n\nRESUMO DA CONVERSA ANTERIOR (as mensagens antigas foram compactadas):\n') + summaries.join('\n') + '\n';
                 if (globalMemories.length > 0) sys += tr('\n\nFATOS QUE VOCÊ DEVE LEMBRAR:\n') + globalMemories.map(m => `- ${m}`).join('\n') + '\n';
+                sys += tr('\n\nFORMATAÇÃO: responda em Markdown. Para emojis escreva o código entre dois-pontos, como :fire: ou :skull: (nunca só a palavra). Para setas e símbolos use o caractere Unicode direto (→ ≈ ✓ ≠), sem LaTeX.');
                 const apiMessages = buildApiMessages(chat, model, sys);
 
                 status('Iniciando'); showPerfStreaming();
@@ -1943,7 +2063,7 @@
                         fullResponse += msg.content; textSpan.innerHTML = renderRich(fullResponse); aiDiv._raw = fullResponse;
                         chars += msg.content.length; updateStreamingPerf(chars);
                     }
-                    chatBox.scrollTop = chatBox.scrollHeight;
+                    followBottom();
                 };
                 while (true) {
                     const { done, value } = await reader.read();
