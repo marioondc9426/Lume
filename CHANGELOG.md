@@ -6,6 +6,9 @@ Como numerar:
 - O número fica em `VERSION` no topo do `app.py` e aparece em Configurações > Atualizações.
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
+## v1.7.02
+- Pela internet, `/api/ping` não entrega mais o nome do PC e `/api/auth/status` mostra a regra de senha da internet (não a da rede de casa).
+
 ## v1.7.01
 - Botão "Baixar cloudflared (sem administrador)": baixa o programa do túnel para a pasta `tools` do app e confere a assinatura digital da Cloudflare. Não precisa de admin (o `winget` precisava).
 

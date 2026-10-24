@@ -59,7 +59,7 @@ guest_recent = {}       # id do amigo -> horarios das ultimas respostas (limite 
 guest_lock = threading.Lock()
 login_recent_fails = []  # horarios das senhas erradas de qualquer IP (trava global contra tentativas pela internet)
 # Versao: "1.2" = versao nova com novidades (o numero depois do ponto sobe); "1.2.01", "1.2.02"... = correcoes (patches) dessa versao.
-VERSION = "1.7.01"
+VERSION = "1.7.02"
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")     # chaves de API, pasta de trabalho, uso
 HISTORY_FILE = os.path.join(BASE_DIR, "history.json")   # chats
 STATE_FILE = os.path.join(BASE_DIR, "state.json")       # preferencias da interface + memorias
@@ -1344,6 +1344,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Content-Disposition', 'attachment; filename="' + APP_NAME + '-Certificado.mobileconfig"'); self.end_headers(); self.wfile.write(body); return
         if p == '/api/ping':   # publico: so diz que isto e o app e se pede senha
             cfg = load_config()
+            if self.is_proxied(): return self.send_json({"app": "ai-thing"})   # pela internet nao entrega o nome do PC nem as configuracoes da rede de casa
             return self.send_json({"app": "ai-thing", "name": socket.gethostname(), "password_required": cfg.get("password_required", True)})
         if p == '/api/discover':   # publico: lista de servidores por perto (nomes e enderecos da propria rede)
             if not self.on_private_network(): return self.send_json({"error": "forbidden"}, 403)
@@ -1351,7 +1352,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         if p == '/api/auth/status':
             cfg = load_config(); lvl, gu = self.auth_level()
             info = {"local": local, "root": self.is_root(), "authed": lvl is not None, "role": lvl, "remote_enabled": cfg["remote_enabled"], "allow_remote_code": cfg["allow_remote_code"],
-                    "password_required": cfg.get("password_required", True), "version": VERSION, "app_name": APP_NAME,
+                    "password_required": cfg.get("internet_password_required", True) if self.is_proxied() else cfg.get("password_required", True), "version": VERSION, "app_name": APP_NAME,
                     "https_port": int(cfg.get("https_port", HTTPS_PORT)) if https_httpd is not None else 0, "secure": self.is_secure_conn(),
                     "share_open": bool(guests.settings["open"]), "invite_required": bool(guests.settings["invite_code"])}
             if lvl == 'guest': info["guest"] = self.guest_info(*gu)
