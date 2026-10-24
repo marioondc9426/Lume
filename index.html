@@ -720,6 +720,7 @@
                 <div id="tun-status" class="hint"></div>
                 <div class="srv-actions">
                     <button class="btn btn-primary" id="tun-start" onclick="tunnelStart()">Abrir túnel (Cloudflare)</button>
+                    <button class="btn btn-secondary" id="tun-install" onclick="tunnelInstall()" style="display:none;">Baixar cloudflared (sem administrador)</button>
                     <button class="btn btn-secondary" id="tun-stop" onclick="tunnelStop()" style="display:none;">Fechar túnel</button>
                     <button class="btn btn-secondary" onclick="openExternal(location.origin + '/dashboard')">Abrir o painel (/dashboard)</button>
                 </div>
@@ -938,7 +939,8 @@
             'Overlay de desempenho': 'Performance overlay', 'Mostrar overlay no canto superior direito': 'Show overlay in the top-right corner', 'Estilo': 'Style',
             'Padrão (colorido)': 'Default (colored)', 'Cinza (discreto)': 'Gray (subtle)', 'Atualização:': 'Refresh:',
             'A GPU em si só atualiza o uso a cada ~100–1000 ms; valores menores que isso não deixam o número mais preciso.': 'The GPU itself only updates its usage every ~100–1000 ms; lower values do not make the number more precise.',
-            'Salvar Tudo': 'Save all', 'Exigir senha na rede de casa / Wi-Fi (desligado: qualquer aparelho do seu Wi-Fi entra sem senha)': 'Require a password on the home network / Wi-Fi (off: any device on your Wi-Fi gets in without one)',
+            'Salvar Tudo': 'Save all', 'Baixar cloudflared (sem administrador)': 'Download cloudflared (no administrator)', 'Baixando...': 'Downloading...', 'cloudflared instalado. Agora clique em Abrir túnel.': 'cloudflared installed. Now click Open tunnel.',
+            'O túnel grátis do Cloudflare precisa do programa cloudflared. Clique em "Baixar cloudflared (sem administrador)": ele é baixado para a pasta do app e conferido pela assinatura digital da Cloudflare.': 'The free Cloudflare tunnel needs the cloudflared program. Click "Download cloudflared (no administrator)": it is downloaded to the app folder and checked against Cloudflare’s digital signature.', 'Exigir senha na rede de casa / Wi-Fi (desligado: qualquer aparelho do seu Wi-Fi entra sem senha)': 'Require a password on the home network / Wi-Fi (off: any device on your Wi-Fi gets in without one)',
             'Exigir senha pela internet (túnel) (desligado: quem tiver o endereço do túnel entra como dono, sem senha)': 'Require a password over the internet (tunnel) (off: anyone with the tunnel address gets in as the owner, without one)',
             'Ligar uma senha que estava desligada desconecta todos os aparelhos na hora.': 'Turning a password back on disconnects all devices immediately.', 'Acesso root pelo link secreto': 'Root access through the secret link',
             'Ligar o link secreto /owner-': 'Turn on the secret /owner- link', 'Salvar código': 'Save code', 'Gerar aleatório': 'Generate random', '🔓 Acesso root (link secreto)': '🔓 Root access (secret link)',
@@ -2867,7 +2869,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             let t; try { t = await (await fetch(API + '/api/tunnel')).json(); } catch (e) { return; }
             if (t.error) return;
             $('tun-start').style.display = t.running ? 'none' : ''; $('tun-stop').style.display = t.running ? '' : 'none';
-            $('tun-start').disabled = !t.cloudflared;
+            $('tun-start').disabled = !t.cloudflared; $('tun-install').style.display = t.cloudflared || t.running ? 'none' : '';
             $('tun-status').textContent = t.running ? (t.url ? tr('Túnel aberto. O endereço muda toda vez que o túnel é aberto.') : tr('Abrindo o túnel...')) : (t.error ? tr('Túnel encerrado: {e}', { e: t.error }) : '');
             window.__tunUrl = t.url || ''; renderOwnerLinks();
             const box = $('tun-links'); box.innerHTML = '';
@@ -2876,11 +2878,18 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 const tag = document.createElement('span'); tag.className = 'badge'; tag.textContent = lab;
                 const b = document.createElement('button'); b.className = 'btn btn-secondary'; b.textContent = tr('Copiar'); b.onclick = () => copyText(u); row.append(code, tag, b); box.appendChild(row);
             });
-            $('tun-help').innerHTML = (t.cloudflared ? '' : esc(tr('O túnel grátis do Cloudflare precisa do programa cloudflared. Instale no PowerShell com:')) + ' <code>winget install Cloudflare.cloudflared</code> ' + esc(tr('e abra o app de novo.')) + '<br>') +
+            $('tun-help').innerHTML = (t.cloudflared ? '' : esc(tr('O túnel grátis do Cloudflare precisa do programa cloudflared. Clique em "Baixar cloudflared (sem administrador)": ele é baixado para a pasta do app e conferido pela assinatura digital da Cloudflare.')) + '<br>') +
                 esc(tr('Quer um endereço fixo (que não muda)? Use o Tailscale Funnel: instale o Tailscale, entre na sua conta e rode')) + ' <code>tailscale funnel --bg ' + t.port + '</code>. ' + (t.tailscale ? esc(tr('O Tailscale já está instalado neste PC.')) : '');
             clearTimeout(tunTimer); if (t.running && !t.url) tunTimer = setTimeout(refreshTunnel, 1500);
         }
         async function tunnelStart() { const r = await (await fetch(API + '/api/tunnel_start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).json(); if (!r.ok) showInfo(r.error, 9000); refreshTunnel(); }
+        async function tunnelInstall() {
+            const b = $('tun-install'); b.disabled = true; b.textContent = tr('Baixando...');
+            const r = await (await fetch(API + '/api/tunnel_install', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).json();
+            b.disabled = false; b.textContent = tr('Baixar cloudflared (sem administrador)');
+            if (!r.ok) showInfo(r.error, 9000); else showInfo('cloudflared instalado. Agora clique em Abrir túnel.', 6000);
+            refreshTunnel();
+        }
         async function tunnelStop() { await fetch(API + '/api/tunnel_stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); refreshTunnel(); }
         async function refreshServerTab() {
             $('srv-host').style.display = auth.local ? '' : 'none';

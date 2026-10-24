@@ -6,6 +6,9 @@ Como numerar:
 - O número fica em `VERSION` no topo do `app.py` e aparece em Configurações > Atualizações.
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
+## v1.7.01
+- Botão "Baixar cloudflared (sem administrador)": baixa o programa do túnel para a pasta `tools` do app e confere a assinatura digital da Cloudflare. Não precisa de admin (o `winget` precisava).
+
 ## v1.7
 - Dois botões de senha independentes: **rede de casa** e **internet (túnel)**. Ligar de novo uma senha que estava desligada desconecta todos os aparelhos na hora.
 - **Link secreto `/owner-CODIGO`** (desligado por padrão): abre uma sessão "root", com os mesmos poderes da janela do `run.bat` no PC (configurações, chaves, aba Code, rodar código, painel), de qualquer aparelho. O código pode ser escolhido ou gerado aleatório; trocar o código ou desligar derruba as sessões root na hora. Tentativas erradas bloqueiam o IP.

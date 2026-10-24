@@ -59,7 +59,7 @@ guest_recent = {}       # id do amigo -> horarios das ultimas respostas (limite 
 guest_lock = threading.Lock()
 login_recent_fails = []  # horarios das senhas erradas de qualquer IP (trava global contra tentativas pela internet)
 # Versao: "1.2" = versao nova com novidades (o numero depois do ponto sobe); "1.2.01", "1.2.02"... = correcoes (patches) dessa versao.
-VERSION = "1.7"
+VERSION = "1.7.01"
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")     # chaves de API, pasta de trabalho, uso
 HISTORY_FILE = os.path.join(BASE_DIR, "history.json")   # chats
 STATE_FILE = os.path.join(BASE_DIR, "state.json")       # preferencias da interface + memorias
@@ -1009,7 +1009,7 @@ STATIC_PAGES = ("/", "/index.html")
 PAGE_ALIAS = {"/share": "/share.html", "/dashboard": "/dashboard.html"}
 # So o proprio PC (janela do app) pode usar estas rotas
 LOCAL_ONLY_POST = ("/api/save_config", "/api/save_key", "/api/server_config", "/api/perf_interval",
-                   "/api/custom_theme", "/api/custom_theme_delete", "/api/resolve_pending", "/api/export", "/api/ios_profile_save", "/api/undo", "/api/stats_clear", "/api/open_url", "/api/update_apply", "/api/restart_app", "/api/run_code", "/api/tunnel_start", "/api/tunnel_stop")
+                   "/api/custom_theme", "/api/custom_theme_delete", "/api/resolve_pending", "/api/export", "/api/ios_profile_save", "/api/undo", "/api/stats_clear", "/api/open_url", "/api/update_apply", "/api/restart_app", "/api/run_code", "/api/tunnel_start", "/api/tunnel_stop", "/api/tunnel_install")
 PUBLIC_POST = ("/api/auth/login", "/api/auth/logout", "/api/guest/register", "/api/guest/code")
 LOGIN_MAX_FAILS, LOGIN_LOCK_SECONDS = 5, 60
 login_failures = {}   # ip -> [falhas, inicio]
@@ -1581,6 +1581,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return self.send_json(run_code(data.get("lang"), data.get("code"), bool(data.get("analyze")), bool(data.get("install"))))
         if p == '/api/update_apply':
             return self.send_json(apply_update())
+        if p == '/api/tunnel_install': return self.send_json(install_cloudflared())
         if p == '/api/tunnel_start': return self.send_json(start_tunnel())
         if p == '/api/tunnel_stop': stop_tunnel(); return self.send_json({"ok": True})
         if p == '/api/restart_app':
@@ -2184,6 +2185,25 @@ _tunnel_proc = None
 def find_cloudflared():
     return shutil.which("cloudflared") or next((p for p in (os.path.join(BASE_DIR, "tools", "cloudflared.exe"), os.path.join(os.environ.get("ProgramFiles", ""), "cloudflared", "cloudflared.exe")) if os.path.isfile(p)), None)
 
+CLOUDFLARED_URL = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe"
+
+def install_cloudflared(dest=None):
+    """Baixa o cloudflared portatil para a pasta tools (nao precisa de administrador) e confere a assinatura digital da Cloudflare."""
+    dest = dest or os.path.join(BASE_DIR, "tools", "cloudflared.exe"); os.makedirs(os.path.dirname(dest), exist_ok=True)
+    tmp = dest + ".download"
+    try:
+        req = urllib.request.Request(CLOUDFLARED_URL, headers={"User-Agent": "qwen-app"})
+        with urllib.request.urlopen(req, timeout=60) as r, open(tmp, "wb") as f: shutil.copyfileobj(r, f)
+        ps = subprocess.run(["powershell", "-NoProfile", "-Command", f"$s = Get-AuthenticodeSignature -LiteralPath '{tmp}'; Write-Output ($s.Status.ToString() + '|' + $s.SignerCertificate.Subject)"],
+                            capture_output=True, text=True, timeout=60, creationflags=NOWIN).stdout.strip()
+        if not ps.startswith("Valid|") or "Cloudflare, Inc." not in ps: raise Exception("assinatura digital invalida: " + ps[:120])
+        os.replace(tmp, dest); log("TUNEL", "cloudflared instalado em " + dest, COLOR_GREEN)
+        return {"ok": True}
+    except Exception as e:
+        try: os.remove(tmp)
+        except OSError: pass
+        return {"ok": False, "error": f"Nao consegui baixar o cloudflared: {e}"}
+
 def stop_tunnel():
     global _tunnel_proc
     if _tunnel_proc and _tunnel_proc.poll() is None:
@@ -2195,7 +2215,7 @@ def start_tunnel():
     """Abre um tunel do Cloudflare (gratis, sem conta): o endereco https://algo.trycloudflare.com muda toda vez que e aberto."""
     global _tunnel_proc
     exe = find_cloudflared()
-    if not exe: return {"ok": False, "error": "cloudflared nao encontrado. Instale com: winget install Cloudflare.cloudflared"}
+    if not exe: return {"ok": False, "error": "cloudflared nao encontrado. Clique em \"Baixar cloudflared (sem administrador)\"."}
     stop_tunnel(); tunnel_state.update(running=True, url="", error="", tool="cloudflared")
     try:
         _tunnel_proc = subprocess.Popen([exe, "tunnel", "--no-autoupdate", "--url", f"http://127.0.0.1:{PORT}"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", creationflags=NOWIN)
