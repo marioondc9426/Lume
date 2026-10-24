@@ -203,6 +203,7 @@ def load_config():
     else:
         log("CONFIG", "Criando config padrao", COLOR_YELLOW)
     cfg.setdefault("groq_api_key", "")
+    cfg.setdefault("openrouter_api_key", "")     # chave do OpenRouter (so modelos gratis)
     cfg.setdefault("workdir", "")
     cfg.setdefault("usage", {}).setdefault("groq", 0)
     cfg.setdefault("remote_enabled", True)       # aceitar conexoes de outros aparelhos da rede (ligado por padrao; exige senha)
@@ -304,7 +305,7 @@ def build_stats(days=30):
     # Ollama: a conta so mede o uso da nuvem por tempo de GPU em janelas de 5 h e 7 dias; aqui e a soma do que passou por este app
     oll = {"h5": {"requests": 0, "seconds": 0.0, "tokens": 0}, "d7": {"requests": 0, "seconds": 0.0, "tokens": 0}, "month": {}, "local": {"requests": 0, "seconds": 0.0, "tokens": 0}}
     for e in allev:
-        if e.get("type") != "chat" or str(e.get("model", "")).startswith("groq") or e.get("ts", 0) < now - 30 * 86400: continue
+        if e.get("type") != "chat" or str(e.get("model", "")).startswith(("groq", "or:")) or e.get("ts", 0) < now - 30 * 86400: continue
         sec, tk, age = e.get("seconds", 0.0), e.get("tokens", 0), now - e["ts"]
         if is_ollama_cloud(e.get("model")):
             if age <= 5 * 3600: oll["h5"]["requests"] += 1; oll["h5"]["seconds"] += sec; oll["h5"]["tokens"] += tk
@@ -1172,7 +1173,78 @@ def stream_groq(model, messages, cfg):
         if chunk.choices and chunk.choices[0].delta.content:
             yield "content", chunk.choices[0].delta.content
 
+# ---------------------------------------------------------------- OpenRouter (so modelos GRATIS)
+OR_URL = "https://openrouter.ai/api/v1"
+_or_cache = {"t": 0, "models": []}
+
+def openrouter_free_models(force=False):
+    """Modelos de texto 100% gratis (preco 0 na entrada e na saida) do catalogo do OpenRouter; em cache por 1 h."""
+    if not force and _or_cache["models"] and time.time() - _or_cache["t"] < 3600: return _or_cache["models"]
+    with urllib.request.urlopen(urllib.request.Request(OR_URL + "/models", headers={"User-Agent": "lume-app"}), timeout=15) as r: data = json.load(r).get("data", [])
+    out = []
+    for m in data:
+        pr = m.get("pricing") or {}
+        try: free = all(float(pr.get(k) or 0) == 0 for k in ("prompt", "completion", "request", "image")) and pr.get("prompt") is not None
+        except (TypeError, ValueError): free = False
+        arch = m.get("architecture") or {}; outm, inm = arch.get("output_modalities") or ["text"], arch.get("input_modalities") or ["text"]
+        if not free or list(outm) != ["text"] or not m.get("id"): continue   # so os que respondem apenas texto (sai musica, imagem, audio)
+        out.append({"id": m["id"], "name": m.get("name") or m["id"], "ctx": m.get("context_length") or 0, "vision": "image" in inm,
+                    "think": "reasoning" in (m.get("supported_parameters") or [])})
+    out.sort(key=lambda x: x["name"].lower()); _or_cache.update(t=time.time(), models=out)
+    return out
+
+OR_HTTP_ERRORS = {401: "Chave do OpenRouter invalida (401). Confira a chave em Configuracoes.", 402: "O OpenRouter pediu credito (402): este modelo nao e gratis para a sua conta.",
+                  429: "Limite do plano gratis do OpenRouter atingido (429). Espere um pouco ou tente amanha.", 404: "O OpenRouter nao achou esse modelo (404): talvez ele saiu da lista gratis."}
+
+def stream_openrouter(model, messages, think, cfg, max_tokens=None):
+    """Gera ('content'|'thinking'|'stats', valor) pela API compativel com OpenAI do OpenRouter. Recusa qualquer modelo que nao seja gratis."""
+    key = cfg.get("openrouter_api_key") or ""
+    if not key: raise Exception("Chave do OpenRouter nao configurada. Abra Configuracoes e cole sua chave.")
+    slug = model[3:]
+    if not slug.endswith(":free"):
+        try: ok = any(m["id"] == slug for m in openrouter_free_models())
+        except Exception: ok = False
+        if not ok: raise Exception("Este modelo do OpenRouter nao e gratis: o Lume so usa modelos gratis.")
+    msgs = []
+    for m in messages:
+        imgs = m.get("images") or []
+        if imgs and m["role"] == "user": msgs.append({"role": "user", "content": [{"type": "text", "text": m["content"]}] + [{"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + b}} for b in imgs]})
+        else: msgs.append({"role": m["role"], "content": m["content"]})
+    payload = {"model": slug, "messages": msgs, "stream": True, "stream_options": {"include_usage": True}}
+    if max_tokens: payload["max_tokens"] = int(max_tokens)
+    if think: payload["reasoning"] = {"enabled": True}
+    headers = {"Authorization": "Bearer " + key, "Content-Type": "application/json", "HTTP-Referer": "https://github.com/marioondc9426/Lume", "X-Title": "Lume"}
+    t0 = time.time()
+    for attempt in range(2):
+        req = urllib.request.Request(OR_URL + "/chat/completions", data=json.dumps(payload).encode("utf-8"), headers=headers)
+        try: response = urllib.request.urlopen(req, timeout=120)
+        except urllib.error.HTTPError as e:
+            body = e.read().decode("utf-8", "replace")
+            if attempt == 0 and payload.get("reasoning") and e.code == 400: payload.pop("reasoning"); continue   # o modelo nao aceita "pensar": tenta sem
+            raise Exception(OR_HTTP_ERRORS.get(e.code) or f"OpenRouter respondeu {e.code}: {body[:200]}")
+        break
+    first = None; usage = None
+    with response:
+        for raw in response:
+            line = raw.decode("utf-8", "replace").strip()
+            if not line.startswith("data:"): continue   # linhas ": OPENROUTER PROCESSING" sao so para manter a conexao
+            d = line[5:].strip()
+            if d == "[DONE]": break
+            try: j = json.loads(d)
+            except ValueError: continue
+            if j.get("error"): raise Exception(OR_HTTP_ERRORS.get((j["error"] or {}).get("code")) or str((j["error"] or {}).get("message") or j["error"])[:200])
+            if j.get("usage"): usage = j["usage"]
+            for ch in j.get("choices") or []:
+                delta = ch.get("delta") or {}
+                rs = delta.get("reasoning") or delta.get("reasoning_content")
+                if rs: yield "thinking", rs
+                if delta.get("content"): first = first or time.time(); yield "content", delta["content"]
+    if usage and usage.get("completion_tokens"):
+        now = time.time(); gen = max(0.001, now - (first or t0))
+        yield "stats", {"tokens": usage["completion_tokens"], "seconds": gen, "prompt_tokens": usage.get("prompt_tokens", 0), "prompt_seconds": (first - t0) if first else 0, "load_seconds": 0, "total_seconds": now - t0}
+
 def stream_model(model, messages, think, cfg, num_ctx=None, max_tokens=None):
+    if model.startswith("or:"): return stream_openrouter(model, messages, think, cfg, max_tokens)
     return stream_groq(model, messages, cfg) if model.startswith("groq") else stream_ollama(model, messages, think, num_ctx, max_tokens)
 
 # ---------------------------------------------------------------- servidor
@@ -1325,6 +1397,10 @@ def build_ios_profile(url, label=None):
 
 ERR_EN = {
     "Chave do Groq nao configurada": "Groq API key not set. Open Settings and paste your key.",
+    "Chave do OpenRouter nao configurada": "OpenRouter API key not set. Open Settings and paste your key.",
+    "Chave do OpenRouter invalida": "Invalid OpenRouter key (401). Check the key in Settings.", "O OpenRouter pediu credito": "OpenRouter asked for credit (402): this model is not free for your account.",
+    "Limite do plano gratis do OpenRouter": "OpenRouter free plan limit reached (429). Wait a bit or try again tomorrow.", "O OpenRouter nao achou esse modelo": "OpenRouter could not find that model (404): it may have left the free list.",
+    "Este modelo do OpenRouter nao e gratis": "This OpenRouter model is not free: Lume only uses free models.",
     "Biblioteca Groq nao instalada": "Groq library not installed (pip install groq).",
     "Nao consegui iniciar o Ollama": "Could not start Ollama. Is it installed?",
 }
@@ -1560,9 +1636,15 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             try: days = max(1, min(365, int((self.query.get('days') or ['30'])[0])))
             except ValueError: days = 30
             return self.send_json(build_stats(days))
+        if p == '/api/openrouter_models':
+            if not local: return self.send_json({"error": "local_only"}, 403)
+            has = bool(load_config().get("openrouter_api_key"))
+            if not has: return self.send_json({"key_saved": False, "models": []})
+            try: return self.send_json({"key_saved": True, "models": openrouter_free_models()})
+            except Exception as e: return self.send_json({"key_saved": True, "models": [], "error": str(e)[:200]})
         if p == '/api/config_status':
             cfg = load_config()
-            return self.send_json({"groq_key_saved": bool(cfg.get("groq_api_key")), "exa_key_saved": bool(exa_api_key(cfg)), "search_provider": cfg.get("search_provider", "auto"), "exa_type": cfg.get("exa_type", "lite"), "search_results": max_results(), "search_daily_limit": cfg.get("search_daily_limit", 100), "exa_today": exa_searches_today(), "workdir": get_workdir(cfg) if local else "", "default_workdir": BASE_DIR if local else ""})
+            return self.send_json({"groq_key_saved": bool(cfg.get("groq_api_key")), "openrouter_key_saved": bool(cfg.get("openrouter_api_key")), "exa_key_saved": bool(exa_api_key(cfg)), "search_provider": cfg.get("search_provider", "auto"), "exa_type": cfg.get("exa_type", "lite"), "search_results": max_results(), "search_daily_limit": cfg.get("search_daily_limit", 100), "exa_today": exa_searches_today(), "workdir": get_workdir(cfg) if local else "", "default_workdir": BASE_DIR if local else ""})
         if p == '/api/models_status':
             tags = ollama_tags(); running = tags is not None
             used, total, _ = get_gpu_metrics()
@@ -1715,10 +1797,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 if k in data:
                     try: data[k] = max(lo, min(hi, int(data[k])))
                     except (TypeError, ValueError): return self.send_json({"error": "Opcao de pesquisa invalida."}, 400)
-            for k in ("groq_api_key", "exa_api_key", "workdir", "search_provider", "exa_type", "search_results", "search_daily_limit"):
+            for k in ("groq_api_key", "openrouter_api_key", "exa_api_key", "workdir", "search_provider", "exa_type", "search_results", "search_daily_limit"):
                 if k in data: cfg[k] = data[k].strip() if k.endswith("_key") else data[k]
             save_config(cfg)
-            secrets_sent = [k for k in ("groq_api_key", "exa_api_key") if k in data]
+            secrets_sent = [k for k in ("groq_api_key", "openrouter_api_key", "exa_api_key") if k in data]
             log("CONFIG", "Configuracoes salvas (" + ", ".join([k for k in data if k not in secrets_sent] + [f"chave {k.split('_')[0]}" for k in secrets_sent]) + ")", COLOR_GREEN)
             return self.send_json({"ok": True})
 
@@ -1902,7 +1984,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         if p == '/api/models_status':
             tags = ollama_tags(); running = tags is not None
             return self.send_json({"running": running, "loaded": [], "vram_total": 0, "vram_used": 0, "installed": [m["name"] for m in tags] if running else None, "installed_sizes": {m["name"]: m.get("size", 0) for m in tags} if running else {}})
-        if p == '/api/config_status': return self.send_json({"guest": True, "groq_key_saved": False, "exa_key_saved": False})
+        if p == '/api/config_status': return self.send_json({"guest": True, "groq_key_saved": False, "openrouter_key_saved": False, "exa_key_saved": False})
         if p == '/api/model_info':
             name = (self.query.get('name') or [''])[0]
             if not re.fullmatch(r'[\w.:\-/]+', name): return self.send_json({"error": "nome invalido"}, 400)
@@ -2159,14 +2241,14 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
         total_chars = 0
         try:
-            if not model.startswith("groq"):
+            if not model.startswith(("groq", "or:")):
                 if not ollama_is_running():
                     status("Iniciando Ollama")
                     if not start_ollama(): raise Exception("Nao consegui iniciar o Ollama. Ele esta instalado?")
                 if model not in [m["name"] for m in ollama_ps()]:
                     status("Carregando modelo")
             else:
-                status("Conectando ao Groq")
+                status("Conectando ao OpenRouter" if model.startswith("or:") else "Conectando ao Groq")
 
             if not messages or messages[0].get("role") != "system":
                 messages.insert(0, {"role": "system", "content": ""})
@@ -2280,7 +2362,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 cfg = load_config()
                 cfg["usage"]["groq"] += total_chars
                 save_config(cfg)
-            record_event({"type": "chat", **({"user": gid} if gid else {}), "model": model, "cloud": model.startswith("groq"), "tab": "code" if agent else "chat",
+            record_event({"type": "chat", **({"user": gid} if gid else {}), "model": model, "cloud": model.startswith(("groq", "or:")), "tab": "code" if agent else "chat",
                           "tokens": req_tokens or total_chars // 4, "seconds": req_seconds or (time.time() - started), "prompt_tokens": req_prompt, "chars": total_chars})
             u = model_usage.setdefault(model, {"uses": 0, "chars": 0})
             u["uses"] += 1; u["chars"] += total_chars; u["last_used"] = time.time()

@@ -693,6 +693,14 @@
             <span class="hint">Deixe vazio para manter a chave já salva. Chaves gratuitas em console.groq.com/keys</span>
         </div>
         <div class="form-group host-only">
+            <label>OpenRouter API Key <span class="badge" id="or-status">não salva</span></label>
+            <div class="key-input">
+                <input type="password" id="or-key-input" placeholder="sk-or-v1-..." autocomplete="off" spellcheck="false">
+                <button type="button" class="eye" onclick="toggleKey('or-key-input', this)">Mostrar</button>
+            </div>
+            <span class="hint">Com a chave salva, os modelos GRATUITOS do OpenRouter aparecem na lista de modelos (aba Chat). O Lume nunca usa um modelo pago. Chave em openrouter.ai/keys. O plano grátis tem limite de pedidos por minuto e por dia.</span>
+        </div>
+        <div class="form-group host-only">
             <label>Exa API Key <span class="badge" id="exa-status">não salva</span></label>
             <div class="key-input">
                 <input type="password" id="exa-key-input" placeholder="exa-..." autocomplete="off" spellcheck="false">
@@ -1061,7 +1069,8 @@
             'Iniciar com o Windows': 'Start with Windows', 'Abre o Lume sozinho quando você entra no Windows. Só no Lume.exe.': 'Opens Lume by itself when you sign in to Windows. Lume.exe only.',
             'Pesquisar na web nas respostas': 'Search the web in answers', 'A IA pesquisa na internet quando a pergunta pede dados atuais.': 'The AI searches the internet when the question needs current data.',
             'Verificar atualizações ao abrir': 'Check for updates on startup', 'Avisa quando há uma versão nova.': 'Tells you when there is a new version.', 'Animações': 'Animations', 'Desligue se a interface pesar na placa de vídeo.': 'Turn off if the interface is heavy on the graphics card.',
-            'Painel de desempenho': 'Performance panel', 'Mostra a VRAM e a velocidade no canto da tela.': 'Shows VRAM and speed in the corner of the screen.', 'Acesso pela rede (celular e amigos)': 'Network access (phone and friends)', 'Deixa outros aparelhos entrarem. A senha continua exigida pela internet.': 'Lets other devices in. The password is still required over the internet.', 'Bem-vindo!': 'Welcome!', 'Apagar esta memória': 'Delete this memory', 'Lembrar?': 'Remember?', 'Lembrar': 'Remember', 'Não': 'No', 'Guardado na Memória.': 'Saved to Memory.',
+            'Painel de desempenho': 'Performance panel', 'Mostra a VRAM e a velocidade no canto da tela.': 'Shows VRAM and speed in the corner of the screen.', 'Acesso pela rede (celular e amigos)': 'Network access (phone and friends)', 'Deixa outros aparelhos entrarem. A senha continua exigida pela internet.': 'Lets other devices in. The password is still required over the internet.', 'Bem-vindo!': 'Welcome!', 'Conectando ao OpenRouter': 'Connecting to OpenRouter', 'Não consegui carregar a lista do OpenRouter: {e}': 'Could not load the OpenRouter list: {e}',
+            'Com a chave salva, os modelos GRATUITOS do OpenRouter aparecem na lista de modelos (aba Chat). O Lume nunca usa um modelo pago. Chave em openrouter.ai/keys. O plano grátis tem limite de pedidos por minuto e por dia.': 'With the key saved, the FREE OpenRouter models show up in the model list (Chat tab). Lume never uses a paid model. Get a key at openrouter.ai/keys. The free plan has per-minute and per-day request limits.', 'Apagar esta memória': 'Delete this memory', 'Lembrar?': 'Remember?', 'Lembrar': 'Remember', 'Não': 'No', 'Guardado na Memória.': 'Saved to Memory.',
             'Deixar a IA sugerir o que lembrar (aparece "Lembrar?" embaixo da resposta)': 'Let the AI suggest what to remember (a "Remember?" prompt shows under the answer)',
             '\n\nMEMÓRIA: se o usuário contar algo pessoal e duradouro que valha lembrar em outras conversas (nome, profissão, preferência, projeto, jeito que quer as respostas), termine a resposta com uma última linha [[lembrar: fato curto, escrito em terceira pessoa]]. No máximo uma vez, só quando for realmente útil; nunca em pedidos comuns e nunca repita o que já está na lista de fatos.': '\n\nMEMORY: if the user shares something personal and lasting that is worth remembering in other conversations (name, job, preference, project, how they want answers), end your answer with a final line [[remember: short fact, written in the third person]]. At most once, only when really useful; never for ordinary requests and never repeat what is already in the list of facts.', 'Aplicativo': 'App', 'Modelos do Ollama': 'Ollama models', 'Nome do modelo, ex.: qwen3.5:4b': 'Model name, e.g. qwen3.5:4b', 'Baixar': 'Download',
             'Qualquer modelo do ollama.com/library serve: o nome aparece no seletor de modelos assim que terminar de baixar.': 'Any model from ollama.com/library works: its name shows up in the model picker as soon as it finishes downloading.',
@@ -1406,8 +1415,8 @@
         const modelById = id => MODELS.find(m => m.id === id);
         // so aparece o que esta instalado no Ollama (nuvem sempre aparece); installed = null enquanto nao sabemos
         let installed = null, installedSize = {}, vramTotalMB = 0, modelInfo = {};
-        const guestBlocks = m => isGuest() && !!auth.guest && (m.groq || auth.guest.blocked_models.includes(m.id) || (m.cloud && auth.guest.blocked_features.includes('cloud')) || (!m.cloud && !m.phone && auth.guest.blocked_features.includes('local')));
-        const isAvail = m => guestBlocks(m) ? false : m.phone ? phoneMode() : (phoneMode() && !m.cloud ? false : (m.groq || installed === null || installed.has(m.id)));   // no modo celular os locais do PC saem da lista
+        const guestBlocks = m => isGuest() && !!auth.guest && (m.groq || m.or || auth.guest.blocked_models.includes(m.id) || (m.cloud && auth.guest.blocked_features.includes('cloud')) || (!m.cloud && !m.phone && auth.guest.blocked_features.includes('local')));
+        const isAvail = m => guestBlocks(m) ? false : m.phone ? phoneMode() : (phoneMode() && !m.cloud ? false : (m.groq || m.or || installed === null || installed.has(m.id)));   // no modo celular os locais do PC saem da lista
         const availIn = tab => MODELS.filter(m => m.tabs.includes(tab) && isAvail(m));
         const pickDefault = list => list.find(m => m.rec && !m.cloud) || list.find(m => !m.cloud && !m.heavy) || list.find(m => !m.cloud) || list[0];
         function familiesIn(tab) {   // familias com algum modelo local primeiro, depois as so da nuvem; cada grupo em ordem alfabetica
@@ -1508,7 +1517,7 @@
             applyPerf();
             if (auth.local) fetch(API + '/api/perf_interval', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ms: config.perfInterval }) }).catch(() => {});
             if (auth.local || auth.authed) fetch(API + '/api/usage').then(r => r.json()).then(updateUsageBadge).catch(() => {});
-            if (auth.local || auth.authed) await refreshLoaded();   // descobre o que esta instalado
+            if (auth.local || auth.authed) { await refreshLoaded(); loadOpenRouterModels(); }   // descobre o que esta instalado
             switchTab('chat');
             startPolling();
             metricsLoop();
@@ -1721,10 +1730,23 @@
             renderModelOptions();
         }
         async function pickSize(id) { await selectModel(id); renderModelOptions(); }
+        async function loadOpenRouterModels() {   // modelos GRATIS do OpenRouter: so aparecem com a chave salva (a lista vem do catalogo do OpenRouter, filtrada pelo servidor)
+            if (!(auth.local || auth.authed) || isGuest()) return;
+            let d; try { d = await (await fetch(API + '/api/openrouter_models')).json(); } catch (e) { return; }
+            for (let i = MODELS.length - 1; i >= 0; i--) if (MODELS[i].or) MODELS.splice(i, 1);
+            if (d.error && !d.models.length) showInfo(tr('Não consegui carregar a lista do OpenRouter: {e}', { e: d.error }), 7000);
+            (d.models || []).forEach(x => {
+                const nm = String(x.name || x.id).replace(/\s*\((free|grátis)\)\s*$/i, ''), k = nm.indexOf(': ');
+                const prov = k > 0 ? nm.slice(0, k) : x.id.split('/')[0], rest = k > 0 ? nm.slice(k + 2) : nm;
+                MODELS.push({ id: 'or:' + x.id, fam: 'or:' + prov.toLowerCase(), famName: prov, params: rest, label: nm + ' (OpenRouter grátis)', icon: 'cloud', tabs: ['chat'], cloud: true, or: true, vision: !!x.vision, ctx: x.ctx || 32768 });
+            });
+            if (String(config.model).startsWith('or:') && modelById(config.model) && currentTab === 'chat') selectedModel = config.model;   // o modelo escolhido da ultima vez volta
+            renderModelOptions();
+        }
         const HIDDEN_MODELS = /^(clef|deepseek-v4\.1-flash)\b/i;   // instalados no Ollama, mas fora do seletor
         async function detectVision() {   // o Ollama informa as capacidades de cada modelo instalado; a etiqueta "visao" segue isso (corrige modelos que aceitam imagem e estavam sem a etiqueta)
             if (!installed) return; let changed = false;
-            await Promise.all(MODELS.filter(m => !m.phone && !m.groq && installed.has(m.id) && !m._capsDone).map(async m => {
+            await Promise.all(MODELS.filter(m => !m.phone && !m.groq && !m.or && installed.has(m.id) && !m._capsDone).map(async m => {
                 m._capsDone = true;
                 try {
                     const inf = await (await fetch(API + '/api/model_info?name=' + encodeURIComponent(m.id))).json();
@@ -2798,7 +2820,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             if (auth.local) checkUpdates(false);
             $('perf-style').value = config.perfStyle;
             $('perf-interval').value = config.perfInterval; $('perf-int-val').innerText = config.perfInterval;
-            $('groq-key-input').value = ''; $('exa-key-input').value = '';
+            $('groq-key-input').value = ''; $('or-key-input').value = ''; $('exa-key-input').value = '';
             showModal('settings-modal');
             showSettingsTab('general');
             if (auth.local) { renderAppSettings(); refreshModelManager(); }
@@ -2809,6 +2831,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 $('workdir-input').placeholder = st.default_workdir;
                 $('groq-status').textContent = tr(st.groq_key_saved ? 'chave salva ✓' : 'não salva');
                 $('groq-status').classList.toggle('ok', st.groq_key_saved);
+                $('or-status').textContent = tr(st.openrouter_key_saved ? 'chave salva ✓' : 'não salva'); $('or-status').classList.toggle('ok', st.openrouter_key_saved);
                 $('exa-status').textContent = tr(st.exa_key_saved ? 'chave salva ✓' : 'não salva');
                 $('exa-status').classList.toggle('ok', st.exa_key_saved);
                 $('opt-provider').value = st.search_provider || 'auto'; $('opt-exatype').value = st.exa_type || 'lite';
@@ -2883,6 +2906,8 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 if (sr >= 1) body.search_results = sr; if (sl >= 0) body.search_daily_limit = sl;
                 const key = $('groq-key-input').value.trim();
                 if (key) body.groq_api_key = key;
+                const orKey = $('or-key-input').value.trim();
+                if (orKey) body.openrouter_api_key = orKey;
                 const exaKey = $('exa-key-input').value.trim();
                 if (exaKey) body.exa_api_key = exaKey;
                 try {
@@ -2891,6 +2916,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 } catch (e) { alert(tr('Servidor não respondeu.')); return; }
             }
             closeSettings();
+            if (auth.local) loadOpenRouterModels();
             updateCtxBar();
             if (currentChatId) loadChat(currentChatId);   // re-renderiza com as opcoes de formatacao novas
         }
