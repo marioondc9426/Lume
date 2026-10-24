@@ -15,3 +15,6 @@ icons/originals/
 certs/
 code_runs/
 code_packages/
+guests.json
+guest_data/
+tools/

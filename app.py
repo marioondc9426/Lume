@@ -50,8 +50,16 @@ try: import tls   # HTTPS local (precisa do pacote "cryptography")
 except Exception: tls = None
 CERTS_DIR = os.path.join(BASE_DIR, "certs")
 HTTPS_PORT = 8443
+APP_NAME = "Qwen"
+import guests as guests_mod   # contas de amigos (/share) e painel (/dashboard)
+guests = guests_mod.Guests(os.path.join(BASE_DIR, "guests.json"), os.path.join(BASE_DIR, "guest_data"))
+stop_events = {}        # id do amigo -> Event (parar so a geracao dele)
+guest_active = {}       # id do amigo -> geracoes em andamento
+guest_recent = {}       # id do amigo -> horarios das ultimas respostas (limite por minuto)
+guest_lock = threading.Lock()
+login_recent_fails = []  # horarios das senhas erradas de qualquer IP (trava global contra tentativas pela internet)
 # Versao: "1.2" = versao nova com novidades (o numero depois do ponto sobe); "1.2.01", "1.2.02"... = correcoes (patches) dessa versao.
-VERSION = "1.5.01"
+VERSION = "1.6"
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")     # chaves de API, pasta de trabalho, uso
 HISTORY_FILE = os.path.join(BASE_DIR, "history.json")   # chats
 STATE_FILE = os.path.join(BASE_DIR, "state.json")       # preferencias da interface + memorias
@@ -264,7 +272,7 @@ def is_ollama_cloud(model): return bool(re.search(r"(:|-)cloud$", model or ""))
 def build_stats(days=30):
     now = time.time()
     allev = _read_json(STATS_FILE, {"events": []}).get("events", [])
-    evs = [e for e in allev if e.get("ts", 0) >= now - days * 86400]
+    evs = [e for e in allev if e.get("ts", 0) >= now - days * 86400 and not e.get("user")]
     # Ollama: a conta so mede o uso da nuvem por tempo de GPU em janelas de 5 h e 7 dias; aqui e a soma do que passou por este app
     oll = {"h5": {"requests": 0, "seconds": 0.0, "tokens": 0}, "d7": {"requests": 0, "seconds": 0.0, "tokens": 0}, "month": {}, "local": {"requests": 0, "seconds": 0.0, "tokens": 0}}
     for e in allev:
@@ -545,10 +553,11 @@ def needs_web(text):
     if CREATIVE_RE.match(t) and not FRESH_HINT_RE.search(t): return False   # pedido criativo/de transformacao: nao precisa de internet
     return True
 
-def search_web_results(query):
+def search_web_results(query, guest=False):
     """Exa (se houver chave e limite diario), depois DuckDuckGo, depois Wikipedia. Retorna ([(titulo, trecho, link)], fonte) ou ([], None)."""
     cfg = load_config(); key = exa_api_key(cfg); provider = cfg.get("search_provider", "auto")
-    ck = re.sub(r"\s+", " ", (query or "").strip().lower())
+    if guest: key, provider = "", "duckduckgo"   # amigos nunca gastam o Exa
+    ck = ("g:" if guest else "") + re.sub(r"\s+", " ", (query or "").strip().lower())
     hit = _search_cache.get(ck)
     if hit and time.time() - hit[0] < SEARCH_CACHE_TTL:
         log("WEB", "Resultado reaproveitado do cache (busca repetida, sem custo).", COLOR_GRAY)
@@ -879,6 +888,7 @@ def stop_ollama():
 def shutdown_all():
     """Ao fechar o app: para a geracao, descarrega todos os modelos e encerra o que foi iniciado aqui."""
     stop_generation_flag.set()
+    stop_tunnel()
     stop_gpu_stream()
     for m in ollama_ps():
         try:
@@ -942,10 +952,13 @@ def monitor_loop():
         except Exception as e: log("MEMORIA", f"Erro no monitor: {e}", COLOR_RED)
 
 # ---------------------------------------------------------------- modelos
-def stream_ollama(model, messages, think, num_ctx=None):
+def stream_ollama(model, messages, think, num_ctx=None, max_tokens=None):
     """Gera ('content'|'thinking'|'stats', valor)."""
     payload = {"model": model, "messages": messages, "stream": True, "think": bool(think)}
-    if num_ctx: payload["options"] = {"num_ctx": int(num_ctx)}   # tamanho do contexto (o padrao do Ollama e 4096)
+    opts = {}
+    if num_ctx: opts["num_ctx"] = int(num_ctx)   # tamanho do contexto (o padrao do Ollama e 4096)
+    if max_tokens: opts["num_predict"] = int(max_tokens)
+    if opts: payload["options"] = opts
     for attempt in range(2):
         req = urllib.request.Request(f'{OLLAMA_URL}/api/chat', data=json.dumps(payload).encode('utf-8'), headers={'Content-Type': 'application/json'})
         try:
@@ -982,18 +995,19 @@ def stream_groq(model, messages, cfg):
         if chunk.choices and chunk.choices[0].delta.content:
             yield "content", chunk.choices[0].delta.content
 
-def stream_model(model, messages, think, cfg, num_ctx=None):
-    return stream_groq(model, messages, cfg) if model.startswith("groq") else stream_ollama(model, messages, think, num_ctx)
+def stream_model(model, messages, think, cfg, num_ctx=None, max_tokens=None):
+    return stream_groq(model, messages, cfg) if model.startswith("groq") else stream_ollama(model, messages, think, num_ctx, max_tokens)
 
 # ---------------------------------------------------------------- servidor
 LOOPBACK_IPS = ("127.0.0.1", "::1", "::ffff:127.0.0.1")
 LOCAL_HOSTS = ("127.0.0.1", "localhost")
 # So estes arquivos sao servidos (nunca config.json, history.json, app.py...)
 STATIC_PAGES = ("/", "/index.html")
+PAGE_ALIAS = {"/share": "/share.html", "/dashboard": "/dashboard.html"}
 # So o proprio PC (janela do app) pode usar estas rotas
 LOCAL_ONLY_POST = ("/api/save_config", "/api/save_key", "/api/server_config", "/api/perf_interval",
-                   "/api/custom_theme", "/api/custom_theme_delete", "/api/resolve_pending", "/api/export", "/api/ios_profile_save", "/api/undo", "/api/stats_clear", "/api/open_url", "/api/update_apply", "/api/restart_app", "/api/run_code")
-PUBLIC_POST = ("/api/auth/login", "/api/auth/logout")
+                   "/api/custom_theme", "/api/custom_theme_delete", "/api/resolve_pending", "/api/export", "/api/ios_profile_save", "/api/undo", "/api/stats_clear", "/api/open_url", "/api/update_apply", "/api/restart_app", "/api/run_code", "/api/tunnel_start", "/api/tunnel_stop")
+PUBLIC_POST = ("/api/auth/login", "/api/auth/logout", "/api/guest/register", "/api/guest/code")
 LOGIN_MAX_FAILS, LOGIN_LOCK_SECONDS = 5, 60
 login_failures = {}   # ip -> [falhas, inicio]
 httpd = None
@@ -1095,7 +1109,8 @@ def make_icon_png(size=180):
     _icon_cache[size] = png
     return png
 
-def build_ca_profile(der, label="Thingmabobber (certificado)"):
+def build_ca_profile(der, label=None):
+    label = label or f"{APP_NAME} (certificado)"
     """Perfil .mobileconfig que instala a CA local no iPhone (depois e preciso ativar a confianca em Ajustes > Geral > Sobre)."""
     pid, cid = str(uuid.uuid4()).upper(), str(uuid.uuid4()).upper()
     payload = {
@@ -1106,12 +1121,13 @@ def build_ca_profile(der, label="Thingmabobber (certificado)"):
         }],
         "PayloadType": "Configuration", "PayloadVersion": 1, "PayloadUUID": pid,
         "PayloadIdentifier": f"com.thingmabobber.cafile.{pid}", "PayloadDisplayName": label,
-        "PayloadDescription": "Permite abrir o Thingmabobber pelo endereco https (necessario para rodar modelos no celular).",
+        "PayloadDescription": f"Permite abrir o {APP_NAME} pelo endereco https (necessario para rodar modelos no celular).",
         "PayloadOrganization": "Thingmabobber", "PayloadRemovalDisallowed": False,
     }
     return plistlib.dumps(payload, fmt=plistlib.FMT_XML)
 
-def build_ios_profile(url, label="Thingmabobber"):
+def build_ios_profile(url, label=None):
+    label = label or APP_NAME
     """Perfil .mobileconfig com um Web Clip: instala um icone na tela do iPhone que abre so o site."""
     pid, wid = str(uuid.uuid4()).upper(), str(uuid.uuid4()).upper()
     payload = {
@@ -1194,6 +1210,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
     def end_headers(self):
         self.send_header('Cache-Control', 'no-cache')   # o celular nao pode ficar com uma versao antiga da pagina
         self.send_header('X-Content-Type-Options', 'nosniff')
+        self.send_header('X-Frame-Options', 'DENY')
+        self.send_header('Referrer-Policy', 'no-referrer')
         super().end_headers()
 
     def log_message(self, format, *args): pass
@@ -1215,6 +1233,45 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         """Janela do proprio app: conexao vinda do proprio PC E enderecada a 127.0.0.1/localhost (barra DNS rebinding)."""
         return self.client_address[0] in LOOPBACK_IPS and self.host_only() in LOCAL_HOSTS
 
+    def is_proxied(self):
+        """Veio por um tunel/proxy instalado neste PC (cloudflared, tailscale funnel...): a conexao chega de 127.0.0.1, mas o Host e o do site publico."""
+        return self.client_address[0] in LOOPBACK_IPS and self.host_only() not in LOCAL_HOSTS
+
+    def client_ip(self):
+        """IP do cliente para logs e limites. Atras de um proxy local, usa o cabecalho dele (so para isso, nunca para decidir permissao)."""
+        ip = self.client_address[0]
+        if self.is_proxied():
+            for h in ('CF-Connecting-IP', 'X-Forwarded-For'):
+                v = (self.headers.get(h) or '').split(',')[0].strip()
+                if v and re.fullmatch(r'[0-9a-fA-F:.]{3,45}', v): return v
+        return ip
+
+    def is_secure_conn(self):
+        return self.is_tls() or (self.is_proxied() and (self.headers.get('X-Forwarded-Proto') or '').lower() == 'https')
+
+    def on_private_network(self):
+        """Cliente direto da rede de casa (nunca algo que veio da internet por um tunel)."""
+        if self.is_proxied(): return False
+        try: return self.is_local() or ipaddress.ip_address(self.client_address[0]).is_private
+        except ValueError: return False
+
+    def auth_level(self):
+        """('owner', None) = voce; ('guest', (id, conta)) = amigo; (None, None) = sem login."""
+        if getattr(self, '_lvl', None) is not None: return self._lvl
+        lvl = (None, None)
+        if self.is_local(): lvl = ('owner', None)
+        else:
+            tok = self.get_token(); cfg = load_config(); info = cfg["tokens"].get(tok) if tok else None
+            if info:
+                if time.time() - info.get("last", 0) > 300:   # registra o "visto por ultimo" sem gravar a cada requisicao
+                    info["last"] = time.time(); info["ip"] = self.client_ip(); save_config(cfg)
+                lvl = ('owner', None)
+            else:
+                uid, u = guests.by_token(tok)
+                if u: lvl = ('guest', (uid, u))
+                elif not cfg.get("password_required", True) and not self.is_proxied(): lvl = ('owner', None)   # sem senha so vale na rede de casa
+        self._lvl = lvl; return lvl
+
     def get_token(self):
         t = self.headers.get('X-Auth-Token')
         if t: return t
@@ -1224,14 +1281,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         return ''
 
     def is_authed(self):
-        if self.is_local() or not load_config().get("password_required", True): return True
-        tok = self.get_token()
-        if not tok: return False
-        cfg = load_config(); info = cfg["tokens"].get(tok)
-        if not info: return False
-        if time.time() - info.get("last", 0) > 300:   # registra o "visto por ultimo" sem gravar a cada requisicao
-            info["last"] = time.time(); info["ip"] = self.client_address[0]; save_config(cfg)
-        return True
+        return self.auth_level()[0] == "owner"
 
     def do_OPTIONS(self):
         self.send_response(204); self.end_headers()
@@ -1244,6 +1294,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             png = make_icon_png()
             self.send_response(200); self.send_header('Content-Type', 'image/png'); self.send_header('Content-Length', str(len(png))); self.end_headers()
             self.wfile.write(png); return
+        alias = PAGE_ALIAS.get(p.rstrip('/') or '/')
+        if alias:
+            self.path = alias; log("HTTP", f"Pagina {p} aberta" + ("" if self.is_local() else f" por {self.client_ip()}"), COLOR_BLUE); return super().do_GET()
         icon_ok = p.startswith('/icons/') and '/' not in p[len('/icons/'):] and '\\' not in p and '..' not in p
         if p not in STATIC_PAGES and not icon_ok:
             self.send_response(404); self.end_headers(); return
@@ -1257,14 +1310,15 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         if not p.startswith('/api/'):
             return self.serve_static(p)
         local = self.is_local()
+        if p == '/api/tunnel':
+            if not local: return self.send_json({"error": "local_only"}, 403)
+            return self.send_json({**tunnel_state, "cloudflared": bool(find_cloudflared()), "tailscale": bool(shutil.which("tailscale")), "port": PORT})
         if p == '/api/update_check':
             if not local: return self.send_json({"error": "local_only"}, 403)
             return self.send_json(check_update())
         if p in ('/api/ca_profile', '/api/ca_cer'):   # a CA e publica (so o certificado, sem chave); so rede privada
             if tls is None or not tls.HAS_CRYPTO: return self.send_json({"error": "no_crypto"}, 503)
-            try: private = local or ipaddress.ip_address(self.client_address[0]).is_private
-            except ValueError: private = False
-            if not private: return self.send_json({"error": "forbidden"}, 403)
+            if not self.on_private_network(): return self.send_json({"error": "forbidden"}, 403)
             der = tls.ca_der(CERTS_DIR)
             if p == '/api/ca_cer':
                 self.send_response(200); self.send_header('Content-Type', 'application/x-x509-ca-cert'); self.send_header('Content-Length', str(len(der)))
@@ -1272,18 +1326,28 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             body = build_ca_profile(der)
             log("HTTPS", f"Perfil do certificado enviado para {self.client_address[0]}", COLOR_GREEN)
             self.send_response(200); self.send_header('Content-Type', 'application/x-apple-aspen-config'); self.send_header('Content-Length', str(len(body)))
-            self.send_header('Content-Disposition', 'attachment; filename="Thingmabobber-Certificado.mobileconfig"'); self.end_headers(); self.wfile.write(body); return
+            self.send_header('Content-Disposition', 'attachment; filename="' + APP_NAME + '-Certificado.mobileconfig"'); self.end_headers(); self.wfile.write(body); return
         if p == '/api/ping':   # publico: so diz que isto e o app e se pede senha
             cfg = load_config()
             return self.send_json({"app": "ai-thing", "name": socket.gethostname(), "password_required": cfg.get("password_required", True)})
         if p == '/api/discover':   # publico: lista de servidores por perto (nomes e enderecos da propria rede)
-            if not (local or self.client_address[0] in LOOPBACK_IPS or ipaddress.ip_address(self.client_address[0]).is_private): return self.send_json({"error": "forbidden"}, 403)
+            if not self.on_private_network(): return self.send_json({"error": "forbidden"}, 403)
             return self.send_json({"servers": discover_servers()})
         if p == '/api/auth/status':
-            cfg = load_config()
-            return self.send_json({"local": local, "authed": self.is_authed(), "remote_enabled": cfg["remote_enabled"], "allow_remote_code": cfg["allow_remote_code"], "password_required": cfg.get("password_required", True), "version": VERSION, "https_port": int(cfg.get("https_port", HTTPS_PORT)) if https_httpd is not None else 0, "secure": self.is_tls()})
-        if not self.is_authed():
+            cfg = load_config(); lvl, gu = self.auth_level()
+            info = {"local": local, "authed": lvl is not None, "role": lvl, "remote_enabled": cfg["remote_enabled"], "allow_remote_code": cfg["allow_remote_code"],
+                    "password_required": cfg.get("password_required", True), "version": VERSION, "app_name": APP_NAME,
+                    "https_port": int(cfg.get("https_port", HTTPS_PORT)) if https_httpd is not None else 0, "secure": self.is_secure_conn(),
+                    "share_open": bool(guests.settings["open"]), "invite_required": bool(guests.settings["invite_code"])}
+            if lvl == 'guest': info["guest"] = self.guest_info(*gu)
+            return self.send_json(info)
+        lvl, gu = self.auth_level()
+        if lvl is None:
             return self.send_json({"error": "unauthorized"}, 401)
+        if lvl == 'guest':
+            return self.guest_get(p, gu)
+        if p.startswith('/api/admin/'):
+            return self.admin_get(p)
         if p == '/api/usage':
             return self.send_json(load_config().get("usage", {}))
         if p == '/api/check_pending':
@@ -1347,7 +1411,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             body = build_ios_profile(base + "/index.html")
             log("IPHONE", f"Perfil gerado para {base}/index.html", COLOR_GREEN)
             self.send_response(200); self.send_header('Content-Type', 'application/x-apple-aspen-config'); self.send_header('Content-Length', str(len(body)))
-            self.send_header('Content-Disposition', 'attachment; filename="Thingmabobber.mobileconfig"'); self.end_headers()
+            self.send_header('Content-Disposition', 'attachment; filename="' + APP_NAME + '.mobileconfig"'); self.end_headers()
             self.wfile.write(body); return
         self.send_json({"error": "rota desconhecida"}, 404)
 
@@ -1361,8 +1425,11 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             log("SEGURANCA", f"Requisicao bloqueada: origem {origin} diferente do host", COLOR_RED)
             return self.send_json({"error": "origin"}, 403)   # outro site tentando usar o servidor
         local = self.is_local()
-        if p not in PUBLIC_POST and not self.is_authed():
+        lvl, gu = self.auth_level()
+        if p not in PUBLIC_POST and lvl is None:
             return self.send_json({"error": "unauthorized"}, 401)
+        if lvl == 'guest' and p not in PUBLIC_POST:
+            return self.guest_post(p, post_data, gu)
         if p in LOCAL_ONLY_POST and not local:
             log("SEGURANCA", f"Rota {p} recusada para dispositivo remoto {self.client_address[0]}", COLOR_RED)
             return self.send_json({"error": "local_only"}, 403)
@@ -1375,19 +1442,24 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
         if p == '/api/auth/login':
             return self.handle_login(data)
+        if p in ('/api/guest/register', '/api/guest/code'):
+            return self.guest_register(p, data)
+        if p.startswith('/api/admin/'):
+            return self.admin_post(p, data)
 
         if p == '/api/auth/logout':
             cfg = load_config(); tok = self.get_token()
             if tok in cfg["tokens"]: del cfg["tokens"][tok]; save_config(cfg); log("AUTH", "Dispositivo desconectado", COLOR_YELLOW)
+            guests.drop_token(tok)
             return self.send_json({"ok": True}, headers={"Set-Cookie": "thing_token=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax"})
 
         if p == '/api/ios_profile_save':   # salva o perfil na pasta Downloads do PC (para mandar por AirDrop/e-mail)
             host = str(data.get("host") or "")
             if not re.fullmatch(r'[\w.\-]+', host): host = (lan_ips() or ['127.0.0.1'])[0]
             folder = os.path.join(os.path.expanduser("~"), "Downloads"); os.makedirs(folder, exist_ok=True)
-            path = os.path.join(folder, "Thingmabobber-iPhone.mobileconfig"); n = 1
+            path = os.path.join(folder, APP_NAME + "-iPhone.mobileconfig"); n = 1
             while os.path.exists(path):
-                path = os.path.join(folder, f"Thingmabobber-iPhone ({n}).mobileconfig"); n += 1
+                path = os.path.join(folder, f"{APP_NAME}-iPhone ({n}).mobileconfig"); n += 1
             with open(path, 'wb') as f: f.write(build_ios_profile(f"http://{host}:{PORT}/index.html"))
             log("IPHONE", f"Perfil salvo em {path}", COLOR_GREEN)
             return self.send_json({"ok": True, "path": path})
@@ -1476,6 +1548,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return self.send_json(run_code(data.get("lang"), data.get("code"), bool(data.get("analyze")), bool(data.get("install"))))
         if p == '/api/update_apply':
             return self.send_json(apply_update())
+        if p == '/api/tunnel_start': return self.send_json(start_tunnel())
+        if p == '/api/tunnel_stop': stop_tunnel(); return self.send_json({"ok": True})
         if p == '/api/restart_app':
             self.send_json({"ok": True}); threading.Thread(target=restart_app, daemon=True).start(); return
         if p == '/api/stats_clear':
@@ -1548,8 +1622,160 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
         self.send_json({"error": "rota desconhecida"}, 404)
 
+    # ------------------------------------------------------------ amigos (/share) e painel (/dashboard)
+    GUEST_ERRORS = {"closed": ("Os cadastros estao fechados no momento.", 403), "invite": ("Codigo de convite incorreto.", 403), "name": ("Use de 3 a 20 letras, numeros, ponto, hifen ou _.", 400),
+                    "taken": ("Esse nome ja esta em uso.", 409), "full": ("O limite de contas foi atingido.", 403), "rate": ("Muitas contas criadas deste lugar. Tente mais tarde.", 429), "code": ("Codigo invalido ou vencido.", 403)}
+
+    def guest_cookie(self, tok):
+        return {"Set-Cookie": f"thing_token={tok}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax" + ("; Secure" if self.is_secure_conn() else "")}
+
+    def guest_info(self, uid, u):
+        on, why = guests.state(u); pol = guests.policy(u)
+        used = guests_mod.usage_by_user([e for e in _read_json(STATS_FILE, {"events": []}).get("events", []) if e.get("user") == uid], {uid: u})[uid]["today"]
+        return {"name": u["name"], "enabled": on, "reason": why, "blocked_features": sorted(pol["blocked_features"]), "blocked_models": sorted(pol["blocked_models"]),
+                "daily_limit": pol["daily_limit"], "used_today": used, "notice": guests.notice_for(u)}
+
+    def guest_register(self, p, data):
+        ip = self.client_ip(); now = time.time()
+        recent = [t for t in login_recent_fails if now - t < 600]
+        try:
+            if p == '/api/guest/code': uid, tok = guests.login_with_code(data.get("name"), data.get("code"), ip, self.headers.get('User-Agent'))
+            else: uid, tok = guests.register(data.get("name"), ip, self.headers.get('User-Agent'), data.get("invite"))
+        except ValueError as e:
+            msg, code = self.GUEST_ERRORS.get(str(e), ("Nao foi possivel criar a conta.", 400))
+            if str(e) == "code": login_recent_fails.append(now)
+            return self.send_json({"error": str(e), "message": msg}, code)
+        log("AMIGOS", f"Conta {'conectada' if p.endswith('code') else 'criada'}: {guests.data['users'][uid]['name']} ({ip})", COLOR_GREEN)
+        return self.send_json({"ok": True, "name": guests.data["users"][uid]["name"]}, headers=self.guest_cookie(tok))
+
+    def guest_get(self, p, gu):
+        uid, u = gu; on, why = guests.state(u)
+        if not on: return self.send_json({"error": "disabled", "reason": why, "message": u.get("message") or guests.settings.get("shutdown_msg", "")}, 403)
+        if p == '/api/history': return self.send_json(_read_json(guests.history_file(uid), {}))
+        if p == '/api/state': return self.send_json({"memories": _read_json(guests.state_file(uid), {}).get("memories", [])})
+        if p == '/api/models_status':
+            tags = ollama_tags(); running = tags is not None
+            return self.send_json({"running": running, "loaded": [], "vram_total": 0, "vram_used": 0, "installed": [m["name"] for m in tags] if running else None, "installed_sizes": {m["name"]: m.get("size", 0) for m in tags} if running else {}})
+        if p == '/api/config_status': return self.send_json({"guest": True, "groq_key_saved": False, "exa_key_saved": False})
+        if p == '/api/model_info':
+            name = (self.query.get('name') or [''])[0]
+            if not re.fullmatch(r'[\w.:\-/]+', name): return self.send_json({"error": "nome invalido"}, 400)
+            return self.send_json(get_model_info(name))
+        if p == '/api/metrics': return self.send_json({"vram_used": None, "vram_total": None, "vram": None, "gpu": None, "vram_warn": "", "generation_active": False, "alert": {"id": 0}})
+        if p == '/api/usage': return self.send_json({})
+        if p == '/api/check_pending': return self.send_json({"cmd": ""})
+        if p == '/api/custom_themes': return self.send_json([])
+        return self.send_json({"error": "forbidden"}, 403)
+
+    def guest_post(self, p, post_data, gu):
+        uid, u = gu; on, why = guests.state(u)
+        if not on: return self.send_json({"error": "disabled", "reason": why, "message": u.get("message") or guests.settings.get("shutdown_msg", "")}, 403)
+        if p == '/api/auth/logout':
+            guests.drop_token(self.get_token()); return self.send_json({"ok": True}, headers={"Set-Cookie": "thing_token=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax"})
+        try: data = json.loads(post_data or b'{}')
+        except ValueError: return self.send_json({"error": "json invalido"}, 400)
+        pol = guests.policy(u)
+        if p == '/api/chat': return self.handle_chat(data, False, guest=gu)
+        if p == '/api/history':
+            if len(post_data) > 12 * 1024 * 1024: return self.send_json({"error": "Historico grande demais."}, 413)
+            if isinstance(data, dict): _write_json(guests.history_file(uid), data)
+            return self.send_json({"ok": True})
+        if p == '/api/state':
+            mem = data.get("memories", []) if isinstance(data, dict) else []
+            _write_json(guests.state_file(uid), {"memories": [str(m)[:500] for m in mem][:100]}); return self.send_json({"ok": True})
+        if p == '/api/stop':
+            ev = stop_events.get(uid)
+            if ev: ev.set()
+            return self.send_json({"ok": True})
+        if p == '/api/extract_text':
+            if "files" in pol["blocked_features"]: return self.send_json({"error": "Anexar arquivos esta bloqueado na sua conta."}, 403)
+            try: text, truncated, pages = extract_file_text(str(data.get("filename", "")), base64.b64decode(data.get("b64", "")))
+            except Exception as e: return self.send_json({"error": str(e)}, 400)
+            return self.send_json({"text": text, "truncated": truncated, "chars": len(text), "pages": pages})
+        return self.send_json({"error": "forbidden"}, 403)
+
+    def admin_overview(self):
+        now = time.time(); events = _read_json(STATS_FILE, {"events": []}).get("events", [])
+        use = guests_mod.usage_by_user(events, guests.data["users"], now); users = []
+        for uid, u in guests.data["users"].items():
+            on, why = guests.state(u, now); pol = guests.policy(u); o = use[uid]
+            users.append({"id": uid, "name": u["name"], "created": u.get("created", 0), "last": u.get("last", 0), "online": now - u.get("last", 0) < 45, "enabled": on, "reason": why,
+                          "disable_in": max(0, int(u["disable_at"] - now)) if u.get("disable_at") else None, "message": u.get("message", ""), "devices": len(u.get("tokens", {})),
+                          "blocked_models": sorted(pol["blocked_models"]), "blocked_features": sorted(pol["blocked_features"]), "daily_limit": pol["daily_limit"], "own_limit": u.get("daily_limit"),
+                          "active": guest_active.get(uid, 0), "requests": o["requests"], "today": o["today"], "tokens": o["tokens"], "seconds": round(o["seconds"], 1), "models": o["models"], "last_model": o["last_model"], "last_use": o["last_ts"], "note": u.get("note", "")})
+        users.sort(key=lambda x: (-x["online"], -x["last"]))
+        tags = ollama_tags()
+        st = guests.settings
+        return {"now": now, "users": users, "features": guests_mod.FEATURES, "installed": sorted(m["name"] for m in tags) if tags else [],
+                "settings": {k: st[k] for k in ("open", "invite_code", "max_users", "default_blocked_features", "default_blocked_models", "daily_limit", "per_minute", "max_parallel", "ctx_cap", "max_tokens", "banner")},
+                "global": {"off": st["global_off"], "shutdown_in": max(0, int(st["shutdown_at"] - now)) if st["shutdown_at"] else None, "message": st.get("shutdown_msg", "")},
+                "ollama": build_stats(7)["ollama"], "app_name": APP_NAME, "tunnel": dict(tunnel_state)}
+
+    def admin_get(self, p):
+        if p == '/api/admin/overview': return self.send_json(self.admin_overview())
+        return self.send_json({"error": "rota desconhecida"}, 404)
+
+    def admin_post(self, p, data):
+        try: secs = max(0, min(3600, int(data.get("seconds") or 0)))
+        except (TypeError, ValueError): secs = 0
+        msg = str(data.get("message") or "")[:300]
+        if p == '/api/admin/global':
+            a = data.get("action")
+            if a == "shutdown_all": guests.shutdown_all(secs, msg); log("AMIGOS", f"Desligar todos ({'em %d s' % secs if secs else 'agora'})", COLOR_YELLOW)
+            elif a == "enable_all": guests.enable_all(); log("AMIGOS", "Todos ligados", COLOR_GREEN)
+            elif a == "cancel_shutdown":
+                with guests.lock: guests.settings["shutdown_at"] = None; guests.save()
+            else: return self.send_json({"error": "acao desconhecida"}, 400)
+            return self.send_json({"ok": True, **self.admin_overview()})
+        if p == '/api/admin/settings':
+            st = guests.settings
+            with guests.lock:
+                for k, typ, lo, hi in (("max_users", int, 1, 200), ("daily_limit", int, 0, 100000), ("per_minute", int, 1, 120), ("max_parallel", int, 1, 16), ("ctx_cap", int, 1024, 262144), ("max_tokens", int, 64, 32768)):
+                    if k in data:
+                        try: st[k] = max(lo, min(hi, typ(data[k])))
+                        except (TypeError, ValueError): pass
+                if "open" in data: st["open"] = bool(data["open"])
+                if "invite_code" in data: st["invite_code"] = str(data["invite_code"]).strip()[:40]
+                if "banner" in data: st["banner"] = str(data["banner"])[:300]
+                for k in ("default_blocked_features", "default_blocked_models"):
+                    if isinstance(data.get(k), list): st[k] = [str(x)[:80] for x in data[k]][:200]
+                guests.save()
+            return self.send_json({"ok": True, **self.admin_overview()})
+        if p == '/api/admin/user':
+            uid = str(data.get("id") or ""); a = data.get("action")
+            if uid not in guests.data["users"]: return self.send_json({"error": "amigo nao encontrado"}, 404)
+            u = guests.data["users"][uid]
+            if a == "disable": guests.shutdown_user(uid, secs, msg)
+            elif a == "enable": guests.enable_user(uid)
+            elif a == "kick":
+                with guests.lock: u["tokens"] = {}; guests._reindex(); guests.save()
+            elif a == "delete": guests.delete(uid)
+            elif a == "code": return self.send_json({"ok": True, "code": guests.new_code(uid)})
+            elif a == "message":
+                with guests.lock: u["message"] = msg; guests.save()
+            elif a == "set":
+                with guests.lock:
+                    if isinstance(data.get("blocked_features"), list): u["blocked_features"] = [f for f in data["blocked_features"] if f in guests_mod.FEATURES]
+                    if isinstance(data.get("blocked_models"), list): u["blocked_models"] = [str(x)[:80] for x in data["blocked_models"]][:200]
+                    if "daily_limit" in data: u["daily_limit"] = None if data["daily_limit"] in (None, "") else max(0, int(data["daily_limit"]))
+                    if "note" in data: u["note"] = str(data["note"])[:120]
+                    guests.save()
+            else: return self.send_json({"error": "acao desconhecida"}, 400)
+            log("AMIGOS", f"{a}: {u['name']}", COLOR_YELLOW)
+            return self.send_json({"ok": True, **self.admin_overview()})
+        if p == '/api/admin/apply_defaults':   # aplica os bloqueios padrao a todos os amigos
+            with guests.lock:
+                for u in guests.data["users"].values(): u["blocked_features"] = list(guests.settings["default_blocked_features"]); u["blocked_models"] = list(guests.settings["default_blocked_models"])
+                guests.save()
+            return self.send_json({"ok": True, **self.admin_overview()})
+        return self.send_json({"error": "rota desconhecida"}, 404)
+
     def handle_login(self, data):
-        ip, now = self.client_address[0], time.time()
+        ip, now = self.client_ip(), time.time()
+        recent = [t for t in login_recent_fails if now - t < 600]; login_recent_fails[:] = recent
+        if len(recent) >= 30:   # muitas senhas erradas, de qualquer IP, em 10 min: trava tudo por um tempo (protege contra tentativas pela internet)
+            log("AUTH", "Login travado: muitas tentativas no total", COLOR_RED)
+            return self.send_json({"error": "locked", "wait": 300}, 429)
         fails = login_failures.get(ip)
         if fails and fails[0] >= LOGIN_MAX_FAILS and now - fails[1] < LOGIN_LOCK_SECONDS:
             wait = int(LOGIN_LOCK_SECONDS - (now - fails[1]))
@@ -1565,26 +1791,50 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 del cfg["tokens"][min(cfg["tokens"], key=lambda t: cfg["tokens"][t]["last"])]
             save_config(cfg)
             log("AUTH", f"Dispositivo conectado: {cfg['tokens'][tok]['name']} ({ip})", COLOR_GREEN)
-            return self.send_json({"ok": True}, headers={"Set-Cookie": f"thing_token={tok}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax" + ("; Secure" if self.is_tls() else "")})
+            return self.send_json({"ok": True}, headers=self.guest_cookie(tok))
+        login_recent_fails.append(now)
         if not fails or now - fails[1] >= LOGIN_LOCK_SECONDS: fails = login_failures[ip] = [0, now]
         fails[0] += 1
         log("AUTH", f"Senha incorreta de {ip} ({fails[0]}/{LOGIN_MAX_FAILS})", COLOR_RED)
         return self.send_json({"error": "bad_password"}, 401)
 
-    def handle_chat(self, req_json, local=True):
+    def handle_chat(self, req_json, local=True, guest=None):
         global generation_active, active_model
         lang = 'en' if req_json.get('lang') == 'en' else 'pt'
         L = lambda pt, en: en if lang == 'en' else pt
         cfg = load_config()
         agent = bool(req_json.get("agent"))
+        gid, gmax, stop_ev = None, None, stop_generation_flag
+        if guest:   # amigo: sem agente, sem Exa, dentro dos limites que o dono definiu
+            gid, gu = guest; pol = guests.policy(gu); gs = guests.settings; agent = False
+            model0 = req_json.get('model') or ''
+            if not model0: return self.send_json({"error": "modelo ausente"}, 400)
+            why = guests.check_model(gu, model0)
+            if why: return self.send_json({"error": "guest_model", "detail": why}, 403)
+            msgs0 = req_json.get("messages", [])
+            if not isinstance(msgs0, list) or sum(len(str(m.get("content", ""))) for m in msgs0 if isinstance(m, dict)) > 400000: return self.send_json({"error": "Mensagem grande demais."}, 413)
+            if "images" in pol["blocked_features"] and any(isinstance(m, dict) and m.get("images") for m in msgs0): return self.send_json({"error": "guest_blocked", "detail": "images"}, 403)
+            if "think" in pol["blocked_features"]: req_json["think"] = False
+            if "web" in pol["blocked_features"]: req_json["search_web"] = False
+            now = time.time(); today = guests_mod.usage_by_user([e for e in _read_json(STATS_FILE, {"events": []}).get("events", []) if e.get("user") == gid], {gid: gu})[gid]["today"]
+            if pol["daily_limit"] and today >= pol["daily_limit"]: return self.send_json({"error": "guest_daily_limit", "limit": pol["daily_limit"]}, 429)
+            with guest_lock:
+                rec = [t for t in guest_recent.get(gid, []) if now - t < 60]
+                if len(rec) >= gs["per_minute"]: guest_recent[gid] = rec; return self.send_json({"error": "guest_rate"}, 429)
+                if guest_active.get(gid, 0) >= 1 or sum(guest_active.values()) >= gs["max_parallel"]: return self.send_json({"error": "guest_busy"}, 503)
+                rec.append(now); guest_recent[gid] = rec; guest_active[gid] = guest_active.get(gid, 0) + 1
+            stop_ev = stop_events.setdefault(gid, threading.Event())
+            gmax = int(gs["max_tokens"])
+            c = req_json.get("num_ctx")
+            req_json["num_ctx"] = min(int(c), int(gs["ctx_cap"])) if c else None
         if agent and not local and not cfg.get("allow_remote_code"):
             log("SEGURANCA", "Modo agente recusado para dispositivo remoto (desligado nas configuracoes do servidor)", COLOR_RED)
             return self.send_json({"error": "remote_code_disabled"}, 403)
-        stop_generation_flag.clear()
-        generation_active = True
+        stop_ev.clear()
+        if not gid: generation_active = True
         started = time.time()
         model = req_json.get('model', 'qwen3.5:4b')
-        active_model = model
+        if not gid: active_model = model
         messages = req_json.get("messages", [])
         think = bool(req_json.get("think"))
         num_ctx = req_json.get("num_ctx")
@@ -1621,7 +1871,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 if needs_web(query):
                     status("Pesquisando na web")
                     log("WEB", f"Pesquisando: {query}", COLOR_CYAN)
-                    results, source = search_web_results(query)
+                    results, source = search_web_results(query, guest=bool(gid))
                     if results:
                         emit({"sources": [{"title": t, "url": u} for t, _, u in results], "provider": source})
                         messages[0]["content"] += L("\n\n[PESQUISA NA WEB - use se for relevante e cite os links]", "\n\n[WEB SEARCH - use it if relevant and cite the links]") + format_search(results, source)
@@ -1638,10 +1888,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             failed_pending = False   # a ultima tentativa de chamar ferramenta falhou e ainda nao houve uma boa
             for step in range(MAX_AGENT_STEPS if agent else 1):
                 full = ""
-                gen = stream_model(model, messages, think, cfg, num_ctx)
+                gen = stream_model(model, messages, think, cfg, num_ctx, gmax)
                 try:
                     for kind, piece in gen:
-                        if stop_generation_flag.is_set(): break
+                        if stop_ev.is_set(): break
                         if kind == "thinking":
                             send(piece, "thinking"); continue
                         if kind == "stats":
@@ -1655,7 +1905,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 finally:
                     gen.close()
                 total_chars += len(full)
-                if stop_generation_flag.is_set():
+                if stop_ev.is_set():
                     send(L("\n\n[Geracao parada]", "\n\n[Generation stopped]"))
                     break
                 call = find_tool_call(full) if agent else None
@@ -1723,7 +1973,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 cfg = load_config()
                 cfg["usage"]["groq"] += total_chars
                 save_config(cfg)
-            record_event({"type": "chat", "model": model, "cloud": model.startswith("groq"), "tab": "code" if agent else "chat",
+            record_event({"type": "chat", **({"user": gid} if gid else {}), "model": model, "cloud": model.startswith("groq"), "tab": "code" if agent else "chat",
                           "tokens": req_tokens or total_chars // 4, "seconds": req_seconds or (time.time() - started), "prompt_tokens": req_prompt, "chars": total_chars})
             u = model_usage.setdefault(model, {"uses": 0, "chars": 0})
             u["uses"] += 1; u["chars"] += total_chars; u["last_used"] = time.time()
@@ -1733,7 +1983,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             try: send(L(f"\n[Erro: {localize_error(e, lang)}]", f"\n[Error: {localize_error(e, lang)}]"))
             except Exception: pass
         finally:
-            generation_active = False
+            if gid:
+                with guest_lock: guest_active[gid] = max(0, guest_active.get(gid, 1) - 1)
+            else: generation_active = False
 
 def start_server():
     global httpd
@@ -1860,7 +2112,40 @@ def restart_server():
         threading.Thread(target=start_server, daemon=True).start()
     threading.Thread(target=work, daemon=True).start()
 
-WINDOW_TITLE = 'AI Website Thingmabobber'
+WINDOW_TITLE = APP_NAME
+
+# ---------------------------------------------------------------- tunel para acessar de fora de casa
+tunnel_state = {"running": False, "url": "", "error": "", "tool": ""}
+_tunnel_proc = None
+
+def find_cloudflared():
+    return shutil.which("cloudflared") or next((p for p in (os.path.join(BASE_DIR, "tools", "cloudflared.exe"), os.path.join(os.environ.get("ProgramFiles", ""), "cloudflared", "cloudflared.exe")) if os.path.isfile(p)), None)
+
+def stop_tunnel():
+    global _tunnel_proc
+    if _tunnel_proc and _tunnel_proc.poll() is None:
+        try: _tunnel_proc.terminate()
+        except OSError: pass
+    _tunnel_proc = None; tunnel_state.update(running=False, url="", error="")
+
+def start_tunnel():
+    """Abre um tunel do Cloudflare (gratis, sem conta): o endereco https://algo.trycloudflare.com muda toda vez que e aberto."""
+    global _tunnel_proc
+    exe = find_cloudflared()
+    if not exe: return {"ok": False, "error": "cloudflared nao encontrado. Instale com: winget install Cloudflare.cloudflared"}
+    stop_tunnel(); tunnel_state.update(running=True, url="", error="", tool="cloudflared")
+    try:
+        _tunnel_proc = subprocess.Popen([exe, "tunnel", "--no-autoupdate", "--url", f"http://127.0.0.1:{PORT}"], stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", creationflags=NOWIN)
+    except OSError as e:
+        tunnel_state.update(running=False, error=str(e)); return {"ok": False, "error": str(e)}
+    proc = _tunnel_proc
+    def reader():
+        for line in proc.stderr:
+            m = re.search(r"https://[a-z0-9\-]+\.trycloudflare\.com", line)
+            if m and not tunnel_state["url"]: tunnel_state["url"] = m.group(0); log("TUNEL", f"Endereco publico: {m.group(0)}", COLOR_YELLOW)
+        if _tunnel_proc is proc: tunnel_state.update(running=False, url="", error=tunnel_state["error"] or "O tunel foi encerrado.")
+    threading.Thread(target=reader, daemon=True).start()
+    return {"ok": True}
 
 class WindowApi:
     """Botoes da barra de titulo propria (a janela nao tem a borda do Windows)."""

@@ -6,6 +6,13 @@ Como numerar:
 - O número fica em `VERSION` no topo do `app.py` e aparece em Configurações > Atualizações.
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
+## v1.6
+- Nome do app agora é **Qwen**, com o logo do Seeklogo no topo da barra lateral.
+- **Modo amigos** (`/share`): cada amigo cria uma conta só com um nome de usuário; as conversas e memórias ficam separadas por conta. Entram só no Chat (sem aba Code, sem configurações, sem rodar código).
+- **Painel do dono** (`/dashboard`): uso de cada amigo (respostas, tokens, modelos usados), liga/desliga cada um ou todos (com aviso e contagem, ou na hora), bloqueio de recursos e de modelos, limite de respostas por dia/minuto, código de convite, fechar cadastros e código de acesso para o amigo entrar em outro aparelho.
+- Amigos usam sempre o DuckDuckGo na pesquisa (nunca o Exa), têm limite de contexto e de tamanho de resposta, e o uso deles entra na conta do Ollama.
+- **Acesso de fora de casa**: túnel do Cloudflare com um clique (ou Tailscale Funnel). Pela internet a senha é sempre obrigatória, e configurações, comandos e a aba Code continuam só no PC. Limite de tentativas de senha por IP e geral.
+
 ## v1.5.01
 - A porta 8000 passa a aceitar também HTTPS: se o navegador trocar `http://ip:8000` por `https://ip:8000` sozinho, a página abre em vez de dar "conexão segura".
 

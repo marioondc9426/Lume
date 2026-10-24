@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Painel</title>
+<style>
+  :root { --bg:#14161a; --card:#1d2026; --text:#e8eaed; --muted:#9aa0a6; --line:#2e333b; --accent:#2f6fed; --err:#f85149; --ok:#3fb950; --warn:#d29922; }
+  @media (prefers-color-scheme: light) { :root { --bg:#f3f4f6; --card:#fff; --text:#1c1e21; --muted:#5f6368; --line:#d9dce1; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; font-size:14px; }
+  header { display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center; padding:14px 18px; border-bottom:1px solid var(--line); background:var(--card); position:sticky; top:0; z-index:5; }
+  header img { width:28px; height:28px; border-radius:7px; }
+  header h1 { font-size:1.1rem; margin:0; }
+  header .sp { flex:1; }
+  main { padding:16px 18px 60px; max-width:1200px; margin:0 auto; display:grid; gap:16px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  .card h2 { margin:0 0 10px; font-size:.95rem; }
+  .row { display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; }
+  .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap:10px; }
+  .stat { border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  .stat b { display:block; font-size:1.15rem; } .stat span { color:var(--muted); font-size:.75rem; }
+  button, .btn { border:1px solid var(--line); background:transparent; color:var(--text); border-radius:8px; padding:6px 11px; font-size:.82rem; cursor:pointer; }
+  button:hover { background:rgba(128,128,128,.15); }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.danger { color:var(--err); border-color:var(--err); } button.ok { color:var(--ok); border-color:var(--ok); } button.warn { color:var(--warn); border-color:var(--warn); }
+  input[type=text], input[type=number], input[type=password], textarea, select { background:transparent; color:var(--text); border:1px solid var(--line); border-radius:8px; padding:6px 9px; font-size:.85rem; max-width:100%; }
+  input[type=number] { width:90px; } textarea { width:100%; min-height:48px; }
+  table { width:100%; border-collapse:collapse; font-size:.82rem; }
+  th { text-align:left; color:var(--muted); font-weight:500; padding:6px 8px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  td { padding:8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  .scroll { overflow-x:auto; }
+  .dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--muted); margin-right:6px; } .dot.on { background:var(--ok); }
+  .chip { display:inline-block; padding:1px 7px; border:1px solid var(--line); border-radius:99px; margin:1px 3px 1px 0; font-size:.72rem; color:var(--muted); }
+  .chip.bad { color:var(--err); border-color:var(--err); } .chip.good { color:var(--ok); border-color:var(--ok); }
+  .muted { color:var(--muted); } .small { font-size:.75rem; }
+  .actions { display:flex; flex-wrap:wrap; gap:4px; }
+  .banner { padding:10px 14px; border-radius:10px; border:1px solid var(--warn); color:var(--warn); }
+  #login { max-width:340px; margin:80px auto; } #login input { width:100%; margin:10px 0; font-size:16px; }
+  dialog { background:var(--card); color:var(--text); border:1px solid var(--line); border-radius:14px; padding:18px; width:min(560px, 94vw); }
+  dialog::backdrop { background:rgba(0,0,0,.55); }
+  .models { max-height:200px; overflow:auto; border:1px solid var(--line); border-radius:8px; padding:8px; display:grid; gap:4px; }
+  label.ck { display:flex; align-items:center; gap:7px; }
+  .err { color:var(--err); } [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<div id="login" class="card" hidden>
+  <h2>Painel do dono</h2>
+  <p class="muted">Digite a senha do servidor (a mesma de Configurações → Servidor no PC).</p>
+  <input type="password" id="pw" placeholder="XXXXX-XXXXX" autocomplete="current-password">
+  <button class="primary" style="width:100%" onclick="login()">Entrar</button>
+  <div class="err" id="loginErr"></div>
+</div>
+
+<div id="app" hidden>
+  <header>
+    <img src="/apple-touch-icon.png" alt=""><h1 id="appName">Painel</h1><span class="muted small" id="ver"></span>
+    <span class="sp"></span>
+    <span class="small muted" id="share"></span>
+    <button onclick="copyShare()">Copiar link /share</button>
+    <a class="btn" href="/" target="_blank">Abrir o chat</a>
+  </header>
+  <main>
+    <div id="globalBanner" class="banner" hidden></div>
+
+    <section class="card">
+      <h2>Controle geral</h2>
+      <div class="row">
+        <span>Desligar todos os amigos:</span>
+        <label class="small muted">aviso de <input type="number" id="gSecs" value="60" min="0" max="3600"> s</label>
+        <input type="text" id="gMsg" placeholder="Mensagem para eles (opcional)" style="flex:1; min-width:180px">
+        <button class="warn" onclick="shutAll(true)">Desligar com aviso</button>
+        <button class="danger" onclick="shutAll(false)">Desligar agora</button>
+        <button class="ok" onclick="post('/api/admin/global',{action:'enable_all'})">Ligar todos</button>
+        <button id="cancelBtn" hidden onclick="post('/api/admin/global',{action:'cancel_shutdown'})">Cancelar aviso</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Uso do Ollama (nuvem e local, inclui seus amigos)</h2>
+      <div class="grid" id="ollama"></div>
+      <div class="small muted" style="margin-top:8px">O Ollama mede o plano grátis por tempo de GPU (janelas de 5 h e 7 dias); aqui é só o que passou por este app.</div>
+    </section>
+
+    <section class="card">
+      <h2>Amigos <span class="muted small" id="count"></span></h2>
+      <div class="scroll"><table>
+        <thead><tr><th>Amigo</th><th>Status</th><th>Hoje</th><th>Total</th><th>Modelos usados</th><th>Bloqueios</th><th>Visto</th><th>Ações</th></tr></thead>
+        <tbody id="users"></tbody>
+      </table></div>
+      <div class="muted" id="empty" hidden style="padding:14px">Ninguém criou conta ainda. Mande o link /share.</div>
+    </section>
+
+    <section class="card">
+      <h2>Padrões e cadastro</h2>
+      <div class="row" style="margin-bottom:10px">
+        <label class="ck"><input type="checkbox" id="sOpen" onchange="saveSettings()"> Aceitar novos cadastros</label>
+        <label class="small muted">Código de convite <input type="text" id="sInvite" placeholder="(vazio = sem código)" onchange="saveSettings()"></label>
+        <label class="small muted">Máx. de contas <input type="number" id="sMax" min="1" onchange="saveSettings()"></label>
+      </div>
+      <div class="row" style="margin-bottom:10px">
+        <label class="small muted">Respostas por dia <input type="number" id="sDaily" min="0" onchange="saveSettings()"> (0 = sem limite)</label>
+        <label class="small muted">Por minuto <input type="number" id="sMin" min="1" onchange="saveSettings()"></label>
+        <label class="small muted">Ao mesmo tempo <input type="number" id="sPar" min="1" onchange="saveSettings()"></label>
+        <label class="small muted">Contexto máx. <input type="number" id="sCtx" min="1024" step="1024" onchange="saveSettings()"></label>
+        <label class="small muted">Tokens por resposta <input type="number" id="sTok" min="64" step="64" onchange="saveSettings()"></label>
+      </div>
+      <div class="small muted" style="margin-bottom:6px">Bloqueios padrão para contas novas (o botão abaixo aplica a todos os amigos):</div>
+      <div class="row" id="defFeatures" style="margin-bottom:8px"></div>
+      <div class="row">
+        <input type="text" id="sBanner" placeholder="Aviso fixo para todos os amigos (opcional)" style="flex:1; min-width:200px" onchange="saveSettings()">
+        <button onclick="post('/api/admin/apply_defaults',{})">Aplicar bloqueios padrão a todos</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Acesso de fora de casa</h2>
+      <div class="small muted" id="tunnelInfo">Para o /share funcionar fora de casa, o app precisa estar acessível pela internet. Veja a seção "Acesso de fora de casa" em Configurações → Servidor no PC.</div>
+    </section>
+  </main>
+</div>
+
+<dialog id="dlg"></dialog>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  let data = null, timer = null, editing = false;
+  const fmtN = n => Number(n || 0).toLocaleString('pt-BR');
+  const fmtDur = s => s >= 3600 ? (s / 3600).toFixed(1) + ' h' : s >= 60 ? Math.round(s / 60) + ' min' : Math.round(s) + ' s';
+  const ago = ts => { if (!ts) return 'nunca'; const s = Math.max(0, Date.now() / 1000 - ts); return s < 60 ? 'agora' : s < 3600 ? Math.round(s / 60) + ' min' : s < 86400 ? Math.round(s / 3600) + ' h' : Math.round(s / 86400) + ' d'; };
+
+  async function api(path, body) {
+    const r = await fetch(path, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (r.status === 401 || r.status === 403) { showLogin(); throw new Error('auth'); }
+    return r.json();
+  }
+  async function post(path, body) { try { data = await api(path, body); render(); } catch (e) {} }
+  function showLogin() { $('app').hidden = true; $('login').hidden = false; clearInterval(timer); timer = null; }
+  async function login() {
+    $('loginErr').textContent = '';
+    const r = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: $('pw').value }) });
+    if (r.ok) { $('login').hidden = true; start(); return; }
+    const d = await r.json().catch(() => ({}));
+    $('loginErr').textContent = r.status === 429 ? 'Muitas tentativas. Espere um pouco.' : 'Senha incorreta.';
+  }
+  async function refresh() { if (editing) return; try { data = await api('/api/admin/overview'); render(); } catch (e) {} }
+  function start() { $('app').hidden = false; refresh(); if (!timer) timer = setInterval(refresh, 5000); }
+
+  function featChips(u) { return (u.blocked_features || []).map(f => `<span class="chip bad">${esc(data.features[f] || f)}</span>`).join('') + (u.blocked_models || []).map(m => `<span class="chip bad">${esc(m)}</span>`).join('') || '<span class="muted">nenhum</span>'; }
+  function render() {
+    if (!data) return;
+    $('appName').textContent = data.app_name + ' · painel'; document.title = data.app_name + ' · painel';
+    $('share').textContent = location.origin + '/share';
+    const g = data.global, b = $('globalBanner');
+    b.hidden = !(g.off || g.shutdown_in != null);
+    b.textContent = g.off ? 'Todos os amigos estão DESLIGADOS. Clique em "Ligar todos" para liberar.' : g.shutdown_in != null ? `Desligamento geral em ${g.shutdown_in} s${g.message ? ' · ' + g.message : ''}` : '';
+    $('cancelBtn').hidden = g.shutdown_in == null;
+    const o = data.ollama;
+    $('ollama').innerHTML = [['Nuvem · últimas 5 h', o.h5.requests + ' resp. · ' + fmtDur(o.h5.seconds)], ['Nuvem · últimos 7 dias', o.d7.requests + ' resp. · ' + fmtDur(o.d7.seconds)], ['Local · período', o.local.requests + ' resp. · ' + fmtDur(o.local.seconds)]].map(([l, v]) => `<div class="stat"><b>${esc(v)}</b><span>${esc(l)}</span></div>`).join('');
+    $('count').textContent = `(${data.users.length}/${data.settings.max_users})`;
+    $('empty').hidden = data.users.length > 0;
+    $('users').innerHTML = data.users.map(u => {
+      const st = u.enabled ? (u.disable_in != null ? `<span class="chip">desliga em ${u.disable_in}s</span>` : '<span class="chip good">ligado</span>') : `<span class="chip bad">desligado${u.reason === 'global' ? ' (geral)' : ''}</span>`;
+      const models = Object.entries(u.models).sort((a, b) => b[1].requests - a[1].requests).map(([m, v]) => `<span class="chip">${esc(m)} · ${v.requests}</span>`).join('') || '<span class="muted">—</span>';
+      return `<tr><td><span class="dot ${u.online ? 'on' : ''}"></span><b>${esc(u.name)}</b>${u.note ? `<div class="muted small">${esc(u.note)}</div>` : ''}<div class="muted small">${u.devices} aparelho(s)</div></td>
+        <td>${st}${u.active ? '<div class="small muted">gerando…</div>' : ''}</td>
+        <td>${u.today}${u.daily_limit ? ' / ' + u.daily_limit : ''}</td>
+        <td>${fmtN(u.requests)} resp.<div class="muted small">${fmtN(u.tokens)} tokens · ${fmtDur(u.seconds)}</div></td>
+        <td>${models}</td><td>${featChips(u)}</td><td>${ago(u.last)}</td>
+        <td><div class="actions">
+          ${u.enabled ? `<button class="warn" onclick="shutUser('${u.id}', true)">Desligar…</button><button class="danger" onclick="act('${u.id}','disable')">Agora</button>` : `<button class="ok" onclick="act('${u.id}','enable')">Ligar</button>`}
+          <button onclick="editUser('${u.id}')">Bloqueios</button><button onclick="code('${u.id}')">Código</button><button onclick="kick('${u.id}')">Sair dos aparelhos</button><button class="danger" onclick="del('${u.id}','${esc(u.name)}')">Excluir</button>
+        </div></td></tr>`;
+    }).join('');
+    const s = data.settings, set = (id, v) => { const el = $(id); if (el !== document.activeElement) { if (el.type === 'checkbox') el.checked = !!v; else el.value = v; } };
+    set('sOpen', s.open); set('sInvite', s.invite_code); set('sMax', s.max_users); set('sDaily', s.daily_limit); set('sMin', s.per_minute); set('sPar', s.max_parallel); set('sCtx', s.ctx_cap); set('sTok', s.max_tokens); set('sBanner', s.banner);
+    if (!$('defFeatures').dataset.ready || document.activeElement.closest('#defFeatures') == null) {
+      $('defFeatures').innerHTML = Object.entries(data.features).map(([k, l]) => `<label class="ck"><input type="checkbox" data-f="${k}" ${s.default_blocked_features.includes(k) ? 'checked' : ''} onchange="saveSettings()"> bloquear: ${esc(l)}</label>`).join(''); $('defFeatures').dataset.ready = 1;
+    }
+    const t = data.tunnel; $('tunnelInfo').innerHTML = t.running && t.url ? `Túnel aberto: <b>${esc(t.url)}</b> · link dos amigos: <b>${esc(t.url)}/share</b>` : 'Para o /share funcionar fora de casa, o app precisa estar acessível pela internet. Veja a seção "Acesso de fora de casa" em Configurações → Servidor no PC (túnel do Cloudflare ou Tailscale).';
+  }
+  function saveSettings() {
+    const feats = [...document.querySelectorAll('#defFeatures input[data-f]')].filter(x => x.checked).map(x => x.dataset.f);
+    post('/api/admin/settings', { open: $('sOpen').checked, invite_code: $('sInvite').value, max_users: $('sMax').value, daily_limit: $('sDaily').value, per_minute: $('sMin').value, max_parallel: $('sPar').value, ctx_cap: $('sCtx').value, max_tokens: $('sTok').value, banner: $('sBanner').value, default_blocked_features: feats });
+  }
+  function shutAll(withWarn) {
+    const secs = withWarn ? +$('gSecs').value || 60 : 0;
+    if (!confirm(withWarn ? `Desligar TODOS os amigos em ${secs} segundos?` : 'Desligar TODOS os amigos agora, sem aviso?')) return;
+    post('/api/admin/global', { action: 'shutdown_all', seconds: secs, message: $('gMsg').value });
+  }
+  function act(id, action, extra) { post('/api/admin/user', { id, action, ...(extra || {}) }); }
+  function shutUser(id) {
+    const secs = prompt('Desligar com aviso. Em quantos segundos?', '30'); if (secs === null) return;
+    const msg = prompt('Mensagem para o amigo (opcional):', '') || '';
+    act(id, 'disable', { seconds: +secs || 0, message: msg });
+  }
+  async function code(id) { try { const d = await api('/api/admin/user', { id, action: 'code' }); alert(`Código de acesso: ${d.code}\n\nValido por 10 minutos. O amigo abre /share, toca em "Já tenho conta", digita o nome de usuário dele e este código.`); } catch (e) {} }
+  function kick(id) { if (confirm('Desconectar todos os aparelhos deste amigo? Ele precisará de um código para entrar de novo.')) act(id, 'kick'); }
+  function del(id, name) { if (confirm(`Excluir a conta "${name}"? As conversas dele continuam na pasta guest_data.`)) act(id, 'delete'); }
+  function editUser(id) {
+    const u = data.users.find(x => x.id === id); if (!u) return; editing = true;
+    const d = $('dlg'), feats = Object.entries(data.features).map(([k, l]) => `<label class="ck"><input type="checkbox" data-f="${k}" ${u.blocked_features.includes(k) ? 'checked' : ''}> bloquear: ${esc(l)}</label>`).join('');
+    const models = data.installed.map(m => `<label class="ck"><input type="checkbox" data-m="${esc(m)}" ${u.blocked_models.includes(m) ? 'checked' : ''}> ${esc(m)}</label>`).join('') || '<span class="muted">Nenhum modelo instalado encontrado.</span>';
+    d.innerHTML = `<h3 style="margin-top:0">${esc(u.name)}</h3><div style="display:grid;gap:12px">
+      <div>${feats}</div>
+      <div><div class="small muted" style="margin-bottom:4px">Modelos bloqueados</div><div class="models">${models}</div></div>
+      <label class="small muted">Respostas por dia (vazio = padrão ${data.settings.daily_limit}) <input type="number" id="uLimit" min="0" value="${u.own_limit ?? ''}"></label>
+      <label class="small muted">Anotação <input type="text" id="uNote" value="${esc(u.note || '')}" maxlength="120" style="width:100%"></label>
+      <label class="small muted">Recado para ele (aparece na tela dele) <input type="text" id="uMsg" value="${esc(u.message || '')}" maxlength="300" style="width:100%"></label>
+      <div class="row" style="justify-content:flex-end"><button onclick="closeDlg()">Cancelar</button><button class="primary" onclick="saveUser('${id}')">Salvar</button></div></div>`;
+    d.showModal(); d.onclose = () => { editing = false; };
+  }
+  function closeDlg() { $('dlg').close(); }
+  async function saveUser(id) {
+    const f = [...document.querySelectorAll('#dlg [data-f]')].filter(x => x.checked).map(x => x.dataset.f), m = [...document.querySelectorAll('#dlg [data-m]')].filter(x => x.checked).map(x => x.dataset.m);
+    const lim = $('uLimit').value; closeDlg();
+    await post('/api/admin/user', { id, action: 'set', blocked_features: f, blocked_models: m, daily_limit: lim === '' ? null : +lim, note: $('uNote').value });
+    await post('/api/admin/user', { id, action: 'message', message: $('uMsg').value });
+  }
+  function copyShare() { navigator.clipboard.writeText(location.origin + '/share').then(() => alert('Link copiado: ' + location.origin + '/share')).catch(() => prompt('Copie o link:', location.origin + '/share')); }
+  document.addEventListener('keydown', e => { if (e.key === 'Enter' && !$('login').hidden) login(); });
+  api('/api/auth/status').then(s => { if (s.role === 'owner') start(); else showLogin(); }).catch(showLogin);
+</script>
+</body>
+</html>

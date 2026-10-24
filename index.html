@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="Thingmabobber">
+    <meta name="apple-mobile-web-app-title" content="Qwen">
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <meta name="theme-color" content="#111111">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="icon" type="image/png" href="/apple-touch-icon.png">
-    <title>AI Website Thingmabobber</title>
+    <title>Qwen</title>
     <style>
         :root { --bg-main: #1e1e1e; --bg-sidebar: #111; --bg-msg-user: #0056b3; --bg-msg-ai: #2d2d2d; --bg-input: #2d2d2d; --text-main: #e0e0e0; --text-muted: #888; --border-color: #333; --accent: #0056b3; --icon-filter: invert(1); --font: 'Segoe UI', sans-serif; --custom-bg-image: none; --custom-bg-opacity: 0; --warn: #e3a008; --danger: #d64545; }
         [data-theme="claude"] { --bg-main: #262624; --bg-sidebar: #1f1e1d; --bg-msg-user: #c4623f; --bg-msg-ai: #30302e; --bg-input: #30302e; --text-main: #ece9e2; --text-muted: #a09a8e; --border-color: #403e3a; --accent: #d97757; }
@@ -175,6 +175,14 @@
         .wordmark.bare { padding: 0; height: 30px; }
         #model-trigger-icon.wordmark, #model-trigger-icon.logo-img { height: 24px; } #model-trigger-icon.wordmark.bare { height: 26px; }
         .logo-img { height: 28px; width: auto; background: #fff; border-radius: 6px; padding: 3px 8px; margin-right: 6px; vertical-align: middle; flex-shrink: 0; }   /* fundo branco: o texto do logo da NVIDIA e preto */
+        #sidebar h2.brand { display: flex; align-items: center; margin: 0 0 6px; }
+        .brandlogo { height: 38px; margin: 0 !important; padding: 4px 10px !important; }
+        #guest-chip { display: flex; align-items: center; gap: 8px; font-size: 0.8em; padding: 6px 10px; margin-bottom: 8px; border: 1px solid var(--border-color); border-radius: 8px; }
+        #guest-chip button { margin-left: auto; background: none; border: 1px solid var(--border-color); color: var(--text-muted); border-radius: 6px; padding: 2px 8px; cursor: pointer; font-size: 0.95em; }
+        #guest-banner { display: none; align-items: center; justify-content: center; gap: 12px; padding: 8px 14px; background: #9a6700; color: #fff; font-size: 0.9em; z-index: 600; flex-shrink: 0; flex-wrap: wrap; text-align: center; }
+        #guest-off { display: none; position: fixed; inset: 0; z-index: 5000; background: rgba(8,10,14,0.94); color: #fff; align-items: center; justify-content: center; flex-direction: column; gap: 14px; padding: 30px; text-align: center; }
+        #guest-off h2 { margin: 0; } #guest-off p { max-width: 420px; color: #cbd0d6; line-height: 1.5; margin: 0; } #guest-off button { padding: 8px 18px; border-radius: 8px; border: 1px solid #fff; background: transparent; color: #fff; cursor: pointer; }
+        body.guest #set-tab-server, body.guest .tab[data-tab="code"], body.guest #btn-stats { display: none !important; }
         .mo-label { flex: 1; display: flex; align-items: center; min-width: 0; }
         .mo-badge { font-size: 0.75em; padding: 1px 7px; border-radius: 9px; background: rgba(63,185,80,0.2); color: #3fb950; margin-left: 8px; white-space: nowrap; font-weight: normal; }
         .mo-badge.busy { background: rgba(227,160,8,0.2); color: var(--warn); }
@@ -440,7 +448,7 @@
 
     <!-- Barra de titulo propria -->
     <div id="titlebar" class="pywebview-drag-region">
-        <div class="tb-title pywebview-drag-region">AI Website Thingmabobber</div>
+        <div class="tb-title pywebview-drag-region">Qwen</div>
         <div class="tb-btns">
             <button class="tb-btn" id="btn-min" title="Minimizar"><svg viewBox="0 0 12 12"><path d="M1 6h10"/></svg></button>
             <button class="tb-btn" id="btn-max" title="Maximizar"><svg viewBox="0 0 12 12"><rect x="1.5" y="1.5" width="9" height="9"/></svg></button>
@@ -448,6 +456,8 @@
         </div>
     </div>
 
+    <div id="guest-banner"></div>
+    <div id="guest-off"><h2 id="guest-off-title"></h2><p id="guest-off-msg"></p><button type="button" onclick="guestPoll()">Tentar de novo</button></div>
     <div id="update-banner"><span id="update-banner-text"></span><button onclick="applyUpdate()">Atualizar agora</button><button class="later" onclick="dismissUpdateBanner()">Depois</button></div>
     <div id="connect-banner"><span id="connect-banner-text">Não conectado ao servidor.</span><button onclick="connectToServer()">Conectar</button></div>
     <div id="drawer-backdrop" onclick="closeDrawer()"></div>
@@ -467,7 +477,8 @@
         </div>
 
         <div id="sidebar">
-            <h2>Thingmabobber</h2>
+            <h2 class="brand"><img class="wordmark bare-white brandlogo" src="icons/qwen-seeklogo.png" alt="Qwen" title="Qwen"></h2>
+            <div id="guest-chip" style="display:none;"><span id="guest-chip-name"></span><span id="guest-chip-use" class="muted"></span><button type="button" onclick="guestLogout()">Sair</button></div>
             <div class="tabs">
                 <div class="tab active" data-tab="chat" onclick="switchTab('chat')">Chat</div>
                 <div class="tab" data-tab="code" onclick="switchTab('code')">Code</div>
@@ -475,7 +486,7 @@
             <button class="btn btn-primary" onclick="createNewChat()">+ Novo Chat</button>
             <button class="btn btn-secondary" onclick="openSettings()">⚙️ Configurações <span id="upd-dot" title="Atualização disponível" style="display:none; color:#4ade80;">●</span></button>
             <button class="btn btn-secondary" onclick="openMemory()">🧠 Memória</button>
-            <button class="btn btn-secondary" onclick="openStats()">📊 Estatísticas</button>
+            <button class="btn btn-secondary" id="btn-stats" onclick="openStats()">📊 Estatísticas</button>
             <input type="text" id="chat-search" placeholder="Pesquisar nos chats..." autocomplete="off" spellcheck="false">
             <div id="chat-list"></div>
         </div>
@@ -701,6 +712,17 @@
                 <div id="srv-addresses" class="srv-list"></div>
                 <span class="hint">Abra um destes endereços no navegador do outro aparelho (os dois precisam estar na mesma rede Wi-Fi). Na primeira vez o Windows pode pedir permissão no firewall: permita para redes privadas.</span>
 
+                <div class="section-title">Acesso de fora de casa e amigos</div>
+                <span class="hint">Para usar o app fora de casa e deixar amigos entrarem em <b>/share</b>, o PC precisa estar ligado, com o app aberto, e acessível pela internet por um túnel. Pela internet a senha do servidor é sempre obrigatória, mesmo se estiver desligada aqui. Os amigos só conversam (sem a aba Code, sem configurações) e você controla tudo no <b>/dashboard</b>. Configurações, comandos e a aba Code continuam só neste PC.</span>
+                <div id="tun-status" class="hint"></div>
+                <div class="srv-actions">
+                    <button class="btn btn-primary" id="tun-start" onclick="tunnelStart()">Abrir túnel (Cloudflare)</button>
+                    <button class="btn btn-secondary" id="tun-stop" onclick="tunnelStop()" style="display:none;">Fechar túnel</button>
+                    <button class="btn btn-secondary" onclick="openExternal(location.origin + '/dashboard')">Abrir o painel (/dashboard)</button>
+                </div>
+                <div id="tun-links" class="srv-list"></div>
+                <span class="hint" id="tun-help"></span>
+
                 <div class="section-title">Senha de acesso</div>
                 <div class="key-input"><input type="password" id="srv-password" readonly><button type="button" class="eye" onclick="toggleKey('srv-password', this)">Mostrar</button></div>
                 <div class="srv-actions">
@@ -828,7 +850,8 @@
         const _fetch = window.fetch.bind(window);
         window.fetch = async (...args) => {
             const r = await _fetch(...args);
-            if (r.status === 401 && !auth.local) onUnauthorized();
+            if (r.status === 401 && !auth.local && !isGuest()) onUnauthorized();
+            if (r.status === 403 && isGuest()) r.clone().json().then(d => { if (d && d.error === 'disabled') showGuestOff(d.message, d.reason); }).catch(() => {});
             return r;
         };
         const THEMES = ['dark', 'claude', 'kimi'];
@@ -904,7 +927,10 @@
             'Overlay de desempenho': 'Performance overlay', 'Mostrar overlay no canto superior direito': 'Show overlay in the top-right corner', 'Estilo': 'Style',
             'Padrão (colorido)': 'Default (colored)', 'Cinza (discreto)': 'Gray (subtle)', 'Atualização:': 'Refresh:',
             'A GPU em si só atualiza o uso a cada ~100–1000 ms; valores menores que isso não deixam o número mais preciso.': 'The GPU itself only updates its usage every ~100–1000 ms; lower values do not make the number more precise.',
-            'Salvar Tudo': 'Save all', 'Nuvem: últimas 5 h (respostas · GPU)': 'Cloud: last 5 h (answers · GPU)', 'Nuvem: últimos 7 dias (respostas · GPU)': 'Cloud: last 7 days (answers · GPU)', 'Local no PC (período escolhido)': 'Local on PC (chosen period)', 'Modelo da nuvem (30 dias)': 'Cloud model (30 days)', 'Tempo de GPU': 'GPU time', 'Nenhuma resposta de modelo da nuvem do Ollama registrada ainda.': 'No Ollama cloud answers recorded yet.', 'Ver o uso na conta do Ollama': 'See usage on the Ollama account', 'O Ollama mede o plano grátis por tempo de GPU (janelas de 5 horas e 7 dias) e não oferece uma forma de o app ler a % usada. Os números acima são só o que passou por este app.': 'Ollama measures the free plan by GPU time (5-hour and 7-day windows) and offers no way for the app to read the % used. The numbers above are only what went through this app.', 'Rodar': 'Run', 'Rodar este código?': 'Run this code?', 'Instalar bibliotecas e rodar?': 'Install libraries and run?', 'Instalar e rodar': 'Install and run', 'Não perguntar de novo': 'Do not ask again', 'Rodando...': 'Running...', 'Programa aberto': 'Program opened', 'Parado por tempo': 'Stopped (time limit)', 'Terminou ✓': 'Finished ✓', 'Erro (código {n})': 'Error (code {n})', '(sem saída)': '(no output)',
+            'Salvar Tudo': 'Save all', 'Acesso de fora de casa e amigos': 'Access from outside your home and friends', 'Abrir túnel (Cloudflare)': 'Open tunnel (Cloudflare)', 'Fechar túnel': 'Close tunnel', 'Abrir o painel (/dashboard)': 'Open the dashboard (/dashboard)',
+            'Túnel aberto. O endereço muda toda vez que o túnel é aberto.': 'Tunnel open. The address changes every time the tunnel is opened.', 'Abrindo o túnel...': 'Opening the tunnel...', 'Túnel encerrado: {e}': 'Tunnel closed: {e}', 'link para os amigos': 'link for friends', 'seu painel': 'your dashboard',
+            'O túnel grátis do Cloudflare precisa do programa cloudflared. Instale no PowerShell com:': 'The free Cloudflare tunnel needs the cloudflared program. Install it in PowerShell with:', 'e abra o app de novo.': 'and open the app again.', 'Quer um endereço fixo (que não muda)? Use o Tailscale Funnel: instale o Tailscale, entre na sua conta e rode': 'Want a fixed address (that never changes)? Use Tailscale Funnel: install Tailscale, sign in and run', 'O Tailscale já está instalado neste PC.': 'Tailscale is already installed on this PC.', 'hoje': 'today', 'Seu acesso será desligado em {s} s.': 'Your access will be turned off in {s} s.', 'O servidor foi desligado pelo dono': 'The server was turned off by the owner', 'Sua conta foi desativada': 'Your account was disabled', 'Fale com quem te convidou para voltar a usar.': 'Talk to whoever invited you to use it again.', 'Tentar de novo': 'Try again', 'Sair': 'Log out',
+            'Sua conta está desativada.': 'Your account is disabled.', 'Você atingiu o limite de respostas de hoje.': 'You reached today’s answer limit.', 'Calma! Muitas respostas em pouco tempo. Tente de novo em instantes.': 'Easy! Too many answers in a short time. Try again in a moment.', 'O servidor está ocupado agora. Tente de novo em instantes.': 'The server is busy right now. Try again in a moment.', 'Você não tem acesso a este modelo.': 'You do not have access to this model.', 'Este recurso está bloqueado na sua conta.': 'This feature is blocked on your account.', 'Enviar imagens está bloqueado na sua conta.': 'Sending images is blocked on your account.', 'Anexar arquivos está bloqueado na sua conta.': 'Attaching files is blocked on your account.', 'Nuvem: últimas 5 h (respostas · GPU)': 'Cloud: last 5 h (answers · GPU)', 'Nuvem: últimos 7 dias (respostas · GPU)': 'Cloud: last 7 days (answers · GPU)', 'Local no PC (período escolhido)': 'Local on PC (chosen period)', 'Modelo da nuvem (30 dias)': 'Cloud model (30 days)', 'Tempo de GPU': 'GPU time', 'Nenhuma resposta de modelo da nuvem do Ollama registrada ainda.': 'No Ollama cloud answers recorded yet.', 'Ver o uso na conta do Ollama': 'See usage on the Ollama account', 'O Ollama mede o plano grátis por tempo de GPU (janelas de 5 horas e 7 dias) e não oferece uma forma de o app ler a % usada. Os números acima são só o que passou por este app.': 'Ollama measures the free plan by GPU time (5-hour and 7-day windows) and offers no way for the app to read the % used. The numbers above are only what went through this app.', 'Rodar': 'Run', 'Rodar este código?': 'Run this code?', 'Instalar bibliotecas e rodar?': 'Install libraries and run?', 'Instalar e rodar': 'Install and run', 'Não perguntar de novo': 'Do not ask again', 'Rodando...': 'Running...', 'Programa aberto': 'Program opened', 'Parado por tempo': 'Stopped (time limit)', 'Terminou ✓': 'Finished ✓', 'Erro (código {n})': 'Error (code {n})', '(sem saída)': '(no output)',
             'Espere a resposta terminar para rodar o código.': 'Wait for the answer to finish before running the code.',
             'Este código usa bibliotecas que não estão instaladas: {list}.\nElas serão instaladas com o pip numa pasta do app (code_packages) e depois o código roda no seu PC.': 'This code uses libraries that are not installed: {list}.\nThey will be installed with pip into an app folder (code_packages) and then the code runs on your PC.',
             'O código vai rodar no seu PC ({lang}), dentro da pasta code_runs do app, com o seu usuário. Só rode o que você entendeu.': 'The code will run on your PC ({lang}), inside the app code_runs folder, as your user. Only run what you understand.', 'Apagar os modelos baixados (liberar espaço)': 'Delete downloaded models (free space)', 'Apagar os modelos baixados?': 'Delete downloaded models?', 'Isso libera o espaço que os modelos do celular ocupam. Para usar de novo, é preciso baixar outra vez.': 'This frees the space used by the phone models. To use them again you have to download them again.', 'Apagar': 'Delete', 'Modelos apagados do celular.': 'Models deleted from the phone.', 'Espaço usado por este site no celular: {mb} MB (os modelos baixados ficam aqui).': 'Space used by this site on the phone: {mb} MB (downloaded models are stored here).', 'Modelos neste celular': 'Models on this phone', 'Rodar os modelos locais neste celular (em vez de no PC)': 'Run local models on this phone (instead of on the PC)',
@@ -1147,7 +1173,8 @@
         const modelById = id => MODELS.find(m => m.id === id);
         // so aparece o que esta instalado no Ollama (nuvem sempre aparece); installed = null enquanto nao sabemos
         let installed = null, installedSize = {}, vramTotalMB = 0, modelInfo = {};
-        const isAvail = m => m.phone ? phoneMode() : (phoneMode() && !m.cloud ? false : (m.groq || installed === null || installed.has(m.id)));   // no modo celular os locais do PC saem da lista
+        const guestBlocks = m => isGuest() && !!auth.guest && (m.groq || auth.guest.blocked_models.includes(m.id) || (m.cloud && auth.guest.blocked_features.includes('cloud')) || (!m.cloud && !m.phone && auth.guest.blocked_features.includes('local')));
+        const isAvail = m => guestBlocks(m) ? false : m.phone ? phoneMode() : (phoneMode() && !m.cloud ? false : (m.groq || installed === null || installed.has(m.id)));   // no modo celular os locais do PC saem da lista
         const availIn = tab => MODELS.filter(m => m.tabs.includes(tab) && isAvail(m));
         const pickDefault = list => list.find(m => m.rec && !m.cloud) || list.find(m => !m.cloud && !m.heavy) || list.find(m => !m.cloud) || list[0];
         function familiesIn(tab) { const map = new Map(); availIn(tab).forEach(m => { if (!map.has(m.fam)) map.set(m.fam, []); map.get(m.fam).push(m); }); return map; }
@@ -1187,15 +1214,45 @@
             selectedModel = modelById(config.model) ? config.model : 'qwen3.5:4b';
         }
 
+        const isGuest = () => auth.role === 'guest';
+        const blockedFeature = f => isGuest() && !!auth.guest && auth.guest.blocked_features.includes(f);
+        const GUEST_MSG = { disabled: 'Sua conta está desativada.', guest_daily_limit: 'Você atingiu o limite de respostas de hoje.', guest_rate: 'Calma! Muitas respostas em pouco tempo. Tente de novo em instantes.',
+            guest_busy: 'O servidor está ocupado agora. Tente de novo em instantes.', guest_model: 'Você não tem acesso a este modelo.', guest_blocked: 'Este recurso está bloqueado na sua conta.' };
         async function checkAuth() {
             try { auth = await (await _fetch(API + '/api/auth/status')).json(); } catch (e) {}
             document.body.classList.toggle('remote', !auth.local);
+            document.body.classList.toggle('guest', isGuest());
+            if (isGuest()) applyGuestUI();
         }
+        function applyGuestUI() {   // o que muda para quem entrou por /share: so chat, com os bloqueios do dono
+            const g = auth.guest || {};
+            $('guest-chip').style.display = ''; $('guest-chip-name').textContent = '👤 ' + g.name;
+            $('guest-chip-use').textContent = g.daily_limit ? `${g.used_today}/${g.daily_limit} ${tr('hoje')}` : '';
+            const think = $('use-thinking').closest('label'); if (think) think.style.display = blockedFeature('think') ? 'none' : '';
+            $('opt-web').closest('label').style.display = blockedFeature('web') ? 'none' : '';
+            const ab = document.querySelector('.attach-btn'); if (ab) ab.style.display = (blockedFeature('files') && blockedFeature('images')) ? 'none' : '';
+            const n = g.notice || {}, bn = $('guest-banner'); let text = '';
+            if (n.shutdown_in != null) text = tr('Seu acesso será desligado em {s} s.', { s: n.shutdown_in }) + (n.shutdown_msg ? ' ' + n.shutdown_msg : '');
+            else if (n.message) text = n.message; else if (n.banner) text = n.banner;
+            bn.textContent = text; bn.style.display = text ? 'flex' : 'none';
+            if (!g.enabled) showGuestOff(n.message || n.shutdown_msg || '', g.reason);
+            else $('guest-off').style.display = 'none';
+        }
+        function showGuestOff(msg, reason) {
+            $('guest-off-title').textContent = tr(reason === 'global' ? 'O servidor foi desligado pelo dono' : 'Sua conta foi desativada');
+            $('guest-off-msg').textContent = msg || tr('Fale com quem te convidou para voltar a usar.'); $('guest-off').style.display = 'flex';
+        }
+        async function guestPoll() {   // a cada poucos segundos: o dono pode ter ligado, desligado ou avisado
+            if (!isGuest()) return;
+            try { const st = await (await _fetch(API + '/api/auth/status')).json(); if (st.role === 'guest') { auth = st; applyGuestUI(); } else if (!st.authed) location.href = '/share'; } catch (e) {}
+        }
+        async function guestLogout() { try { await _fetch(API + '/api/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); } catch (e) {} location.href = '/share'; }
         function onUnauthorized() { auth.authed = false; showConnectBanner(); }
         function showConnectBanner() { $('connect-banner').style.display = 'flex'; }
         async function init() {
             await checkAuth();
-            if (!auth.local && !auth.allow_remote_code) document.querySelector('.tab[data-tab="code"]').style.display = 'none';
+            if (isGuest() || (!auth.local && !auth.allow_remote_code)) document.querySelector('.tab[data-tab="code"]').style.display = 'none';
+            if (isGuest()) setInterval(guestPoll, 8000);
             if (auth.local || auth.authed) await loadFromServer(); else showConnectBanner();
             await loadCustomThemes();
             applyBaseTheme(config.theme);
@@ -2003,6 +2060,8 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             let rejected = 0;
             for (const f of [...files]) {
                 if (attachCount() >= MAX_ATTACH) { showInfo('Máximo de 6 anexos por mensagem.'); break; }
+                if (f.type.startsWith('image/') && blockedFeature('images')) { showInfo('Enviar imagens está bloqueado na sua conta.'); continue; }
+                if (!f.type.startsWith('image/') && blockedFeature('files')) { showInfo('Anexar arquivos está bloqueado na sua conta.'); continue; }
                 if (f.type.startsWith('image/')) { try { pendingImages.push(await fileToDataUrl(f)); } catch (e) { showInfo('Não consegui ler essa imagem.'); } continue; }
                 if (!(TEXT_EXT.test(f.name) || f.type.startsWith('text/'))) { rejected++; continue; }
                 if (f.size > MAX_FILE_BYTES) { showInfo(tr('{name} passa de 20 MB.', { name: f.name })); continue; }
@@ -2123,7 +2182,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 if (!model.phone) {
                     const response = await fetch(API + '/api/chat', {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ model: selectedModel, messages: apiMessages, stream: true, think: $('use-thinking').checked, search_web: !isCode && config.webSearch, agent: isCode, lang: curLang(), num_ctx: model.cloud ? undefined : effCtx(model) })
+                        body: JSON.stringify({ model: selectedModel, messages: apiMessages, stream: true, think: $('use-thinking').checked && !blockedFeature('think'), search_web: !isCode && config.webSearch && !blockedFeature('web'), agent: isCode && !isGuest(), lang: curLang(), num_ctx: model.cloud ? undefined : effCtx(model) })
                     });
                     if (!response.ok) { let err = {}; try { err = await response.json(); } catch (e) {} throw new Error(err.error || ('HTTP ' + response.status)); }
                     reader = response.body.getReader(); decoder = new TextDecoder();
@@ -2166,7 +2225,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 fetch(API + '/api/usage').then(r => r.json()).then(updateUsageBadge).catch(() => {});
             } catch (error) {
                 aiDiv.className = 'msg error';
-                textSpan.textContent = tr(error.message === 'remote_code_disabled' ? 'A aba Code está desligada para aparelhos remotos. Ligue no PC em Configurações > Servidor.' : error.message === 'unauthorized' ? 'Não conectado ao servidor. Use Configurações > Servidor > Conectar.' : 'Erro de conexão com o servidor.');
+                textSpan.textContent = tr(GUEST_MSG[error.message] ? GUEST_MSG[error.message] : error.message === 'remote_code_disabled' ? 'A aba Code está desligada para aparelhos remotos. Ligue no PC em Configurações > Servidor.' : error.message === 'unauthorized' ? 'Não conectado ao servidor. Use Configurações > Servidor > Conectar.' : 'Erro de conexão com o servidor.');
                 setOverlayStatus('Erro');
             } finally {
                 stLine.remove(); setBusy(false); updateCtxBar(); promptInput.focus(); hidePerfStreaming();
@@ -2786,6 +2845,25 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             showInfo('Copiado!', 2500);
         }
         const ago = ts => { if (!ts) return '—'; const s = Math.max(0, Date.now() / 1000 - ts); return s < 90 ? tr('agora há pouco') : s < 5400 ? tr('há {n} min', { n: Math.round(s / 60) }) : s < 129600 ? tr('há {n} h', { n: Math.round(s / 3600) }) : tr('há {n} dias', { n: Math.round(s / 86400) }); };
+        let tunTimer = null;
+        async function refreshTunnel() {
+            let t; try { t = await (await fetch(API + '/api/tunnel')).json(); } catch (e) { return; }
+            if (t.error) return;
+            $('tun-start').style.display = t.running ? 'none' : ''; $('tun-stop').style.display = t.running ? '' : 'none';
+            $('tun-start').disabled = !t.cloudflared;
+            $('tun-status').textContent = t.running ? (t.url ? tr('Túnel aberto. O endereço muda toda vez que o túnel é aberto.') : tr('Abrindo o túnel...')) : (t.error ? tr('Túnel encerrado: {e}', { e: t.error }) : '');
+            const box = $('tun-links'); box.innerHTML = '';
+            if (t.url) [[t.url, 'chat'], [t.url + '/share', tr('link para os amigos')], [t.url + '/dashboard', tr('seu painel')]].forEach(([u, lab]) => {
+                const row = document.createElement('div'); row.className = 'srv-row'; const code = document.createElement('code'); code.textContent = u;
+                const tag = document.createElement('span'); tag.className = 'badge'; tag.textContent = lab;
+                const b = document.createElement('button'); b.className = 'btn btn-secondary'; b.textContent = tr('Copiar'); b.onclick = () => copyText(u); row.append(code, tag, b); box.appendChild(row);
+            });
+            $('tun-help').innerHTML = (t.cloudflared ? '' : esc(tr('O túnel grátis do Cloudflare precisa do programa cloudflared. Instale no PowerShell com:')) + ' <code>winget install Cloudflare.cloudflared</code> ' + esc(tr('e abra o app de novo.')) + '<br>') +
+                esc(tr('Quer um endereço fixo (que não muda)? Use o Tailscale Funnel: instale o Tailscale, entre na sua conta e rode')) + ' <code>tailscale funnel --bg ' + t.port + '</code>. ' + (t.tailscale ? esc(tr('O Tailscale já está instalado neste PC.')) : '');
+            clearTimeout(tunTimer); if (t.running && !t.url) tunTimer = setTimeout(refreshTunnel, 1500);
+        }
+        async function tunnelStart() { const r = await (await fetch(API + '/api/tunnel_start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).json(); if (!r.ok) showInfo(r.error, 9000); refreshTunnel(); }
+        async function tunnelStop() { await fetch(API + '/api/tunnel_stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); refreshTunnel(); }
         async function refreshServerTab() {
             $('srv-host').style.display = auth.local ? '' : 'none';
             $('srv-client').style.display = auth.local ? 'none' : '';
@@ -2800,7 +2878,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             let i; try { i = await (await fetch(API + '/api/server_info')).json(); } catch (e) { return; }
             $('srv-remote').checked = i.remote_enabled; $('srv-code').checked = i.allow_remote_code; $('srv-pwreq').checked = i.password_required !== false;
             $('srv-listening').textContent = tr(i.remote_enabled ? 'Ouvindo em {addr} (rede local ligada)' : 'Ouvindo em {addr} (somente neste PC)', { addr: i.listening });
-            $('srv-password').value = i.password;
+            $('srv-password').value = i.password; refreshTunnel();
             const addr = $('srv-addresses'); addr.innerHTML = '';
             if (!i.addresses.length) addr.innerHTML = `<span class="hint">${tr('Nenhum endereço de rede encontrado. Conecte este PC ao Wi-Fi ou cabo.')}</span>`;
             i.addresses.forEach(u => {
