@@ -6,6 +6,9 @@ Como numerar:
 - O número fica em `VERSION` no topo do `app.py` e aparece em Configurações > Atualizações.
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
+## v1.7.03
+- Logo do topo da barra lateral sem fundo branco: a estrela roxa e o texto "Qwen" (que acompanha o tema: branco nos escuros, preto no claro) são imagens transparentes separadas.
+
 ## v1.7.02
 - Pela internet, `/api/ping` não entrega mais o nome do PC e `/api/auth/status` mostra a regra de senha da internet (não a da rede de casa).
 
