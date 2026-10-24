@@ -1,0 +1,7 @@
+config.json
+history.json
+state.json
+webview_data/
+__pycache__/
+backup/
+*.pyc
