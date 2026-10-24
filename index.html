@@ -119,7 +119,7 @@
         .select-options { position: absolute; bottom: 100%; left: 0; min-width: 360px; margin-bottom: 6px; background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 10px; z-index: 50; box-shadow: 0 -6px 20px rgba(0,0,0,0.5); overflow: hidden;
             visibility: hidden; opacity: 0; transform: translateY(10px) scale(0.96); transform-origin: bottom left; transition: opacity .18s ease, transform .2s cubic-bezier(.2,.9,.3,1.1), visibility 0s linear .2s; }
         .custom-select.open .select-options { visibility: visible; opacity: 1; transform: none; transition-delay: 0s; }
-        .custom-select.open .select-option { animation: optIn .28s ease both; animation-delay: calc(var(--i, 0) * 35ms); }
+        .select-options.anim .select-option { animation: optIn .28s ease both; animation-delay: calc(var(--i, 0) * 35ms); }
         @keyframes optIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
         .select-option { padding: 8px 10px; font-size: 0.85em; color: var(--text-muted); cursor: pointer; display: flex; align-items: center; gap: 6px; border-bottom: 1px solid rgba(128,128,128,0.1); }
         .select-option:last-child { border-bottom: none; }
@@ -602,7 +602,12 @@
 
         // ---------- dropdown de modelos ----------
         const fmtGB = b => (b / 1e9).toFixed(1) + ' GB';
-        function renderModelOptions() {
+        let lastModelSig = '';
+        function renderModelOptions(onlyIfChanged = false) {
+            // a lista so e reconstruida quando algo mudou (senao a animacao e o hover "reiniciavam" a cada atualizacao)
+            const sig = JSON.stringify([currentTab, selectedModel, Object.entries(loadedModels).map(([k, v]) => [k, v.size]), pendingModel]);
+            if (onlyIfChanged === true && sig === lastModelSig) return;
+            lastModelSig = sig;
             const box = $('model-options'); box.innerHTML = '';
             MODELS.filter(m => m.tabs.includes(currentTab)).forEach((m, i) => {
                 const el = document.createElement('div');
@@ -645,8 +650,10 @@
             sel.classList.toggle('open', opening);
             clearInterval(openTimer);
             if (opening) {
-                refreshLoaded().then(renderModelOptions);
-                openTimer = setInterval(async () => { await refreshLoaded(); renderModelOptions(); }, 2000);
+                const box = $('model-options');
+                box.classList.add('anim'); setTimeout(() => box.classList.remove('anim'), 700);   // animacao de entrada so ao abrir
+                refreshLoaded().then(() => renderModelOptions(true));
+                openTimer = setInterval(async () => { await refreshLoaded(); renderModelOptions(true); }, 2000);
             }
         }
         // mousedown (e nao click): o click acontece depois de renderModelOptions recriar os elementos
