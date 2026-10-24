@@ -95,6 +95,9 @@
         .mm-prog { display: flex; align-items: center; gap: 10px; padding: 6px 4px 2px; font-size: 0.8em; width: 100%; } .mm-prog .hint { flex: 1; min-width: 0; margin: 0; }
         .mm-bar { flex: 0 0 120px; height: 6px; border-radius: 4px; background: rgba(128,128,128,0.25); overflow: hidden; } .mm-bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
         .srv-row.mm-row { flex-wrap: wrap; } .srv-row.mm-row .grow { flex: 1; min-width: 120px; }
+        .mem-suggest { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+        .mem-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 7px 10px; border-radius: 10px; border: 1px dashed var(--border-color); background: rgba(128,128,128,0.08); font-size: 0.85em; }
+        .mem-row .grow { flex: 1; min-width: 140px; } .mem-row .btn { margin: 0; padding: 3px 10px; font-size: 0.9em; }
         .msg.user.queued { opacity: .65; border: 1px dashed var(--border-color); animation: none; }
         .msg.user.queued .msg-actions { opacity: 1; }
         .q-tag { display: block; font-size: 0.72em; color: var(--text-muted); margin-bottom: 4px; }
@@ -938,6 +941,7 @@
             <input type="text" id="new-memory-input" placeholder="Ex: Usuário odeia MSI Center" style="flex: 1;">
             <button class="btn btn-primary" style="margin: 0;" onclick="addMemory()">Add</button>
         </div>
+        <label class="toggle-container"><input type="checkbox" id="mem-suggest" onchange="config.memorySuggest = this.checked; saveState();"><div class="toggle-switch"></div> Deixar a IA sugerir o que lembrar (aparece "Lembrar?" embaixo da resposta)</label>
     </div></div>
 
     <!-- Modal Exportar chat -->
@@ -1053,7 +1057,9 @@
             'Iniciar com o Windows': 'Start with Windows', 'Abre o Lume sozinho quando você entra no Windows. Só no Lume.exe.': 'Opens Lume by itself when you sign in to Windows. Lume.exe only.',
             'Pesquisar na web nas respostas': 'Search the web in answers', 'A IA pesquisa na internet quando a pergunta pede dados atuais.': 'The AI searches the internet when the question needs current data.',
             'Verificar atualizações ao abrir': 'Check for updates on startup', 'Avisa quando há uma versão nova.': 'Tells you when there is a new version.', 'Animações': 'Animations', 'Desligue se a interface pesar na placa de vídeo.': 'Turn off if the interface is heavy on the graphics card.',
-            'Painel de desempenho': 'Performance panel', 'Mostra a VRAM e a velocidade no canto da tela.': 'Shows VRAM and speed in the corner of the screen.', 'Acesso pela rede (celular e amigos)': 'Network access (phone and friends)', 'Deixa outros aparelhos entrarem. A senha continua exigida pela internet.': 'Lets other devices in. The password is still required over the internet.', 'Bem-vindo!': 'Welcome!', 'Aplicativo': 'App', 'Modelos do Ollama': 'Ollama models', 'Nome do modelo, ex.: qwen3.5:4b': 'Model name, e.g. qwen3.5:4b', 'Baixar': 'Download',
+            'Painel de desempenho': 'Performance panel', 'Mostra a VRAM e a velocidade no canto da tela.': 'Shows VRAM and speed in the corner of the screen.', 'Acesso pela rede (celular e amigos)': 'Network access (phone and friends)', 'Deixa outros aparelhos entrarem. A senha continua exigida pela internet.': 'Lets other devices in. The password is still required over the internet.', 'Bem-vindo!': 'Welcome!', 'Lembrar?': 'Remember?', 'Lembrar': 'Remember', 'Não': 'No', 'Guardado na Memória.': 'Saved to Memory.',
+            'Deixar a IA sugerir o que lembrar (aparece "Lembrar?" embaixo da resposta)': 'Let the AI suggest what to remember (a "Remember?" prompt shows under the answer)',
+            '\n\nMEMÓRIA: se o usuário contar algo pessoal e duradouro que valha lembrar em outras conversas (nome, profissão, preferência, projeto, jeito que quer as respostas), termine a resposta com uma última linha [[lembrar: fato curto, escrito em terceira pessoa]]. No máximo uma vez, só quando for realmente útil; nunca em pedidos comuns e nunca repita o que já está na lista de fatos.': '\n\nMEMORY: if the user shares something personal and lasting that is worth remembering in other conversations (name, job, preference, project, how they want answers), end your answer with a final line [[remember: short fact, written in the third person]]. At most once, only when really useful; never for ordinary requests and never repeat what is already in the list of facts.', 'Aplicativo': 'App', 'Modelos do Ollama': 'Ollama models', 'Nome do modelo, ex.: qwen3.5:4b': 'Model name, e.g. qwen3.5:4b', 'Baixar': 'Download',
             'Qualquer modelo do ollama.com/library serve: o nome aparece no seletor de modelos assim que terminar de baixar.': 'Any model from ollama.com/library works: its name shows up in the model picker as soon as it finishes downloading.',
             'Atualizar todos agora': 'Update all now', 'Atualizar os modelos instalados sozinho (uma vez por semana, enquanto o app estiver aberto)': 'Update installed models automatically (once a week, while the app is open)',
             'O Ollama não está rodando.': 'Ollama is not running.', 'Nenhum modelo local instalado ainda: baixe um abaixo.': 'No local model installed yet: download one below.', 'Atualizar': 'Update', 'Apagar': 'Delete',
@@ -1885,7 +1891,7 @@
             addMessageToUI('ai', WELCOMES[curLang()][chats[id].welcome], { welcome: true, animate: false });
             stickBottom = true;
             const g = gens[id];   // se este chat esta gerando em segundo plano, volta a mostrar a resposta que chega
-            (g && g.view ? g.view : chats[id].messages).forEach((m, i) => addMessageToUI(m.role, m.content, { animate: false, index: i, vars: m.vars, vi: m.vi, images: m.images, files: m.files, sources: m.sources, count: m.count, model: m.role === 'ai' ? m.model : undefined, tps: m.tps }));
+            (g && g.view ? g.view : chats[id].messages).forEach((m, i) => addMessageToUI(m.role, m.content, { animate: false, index: i, vars: m.vars, vi: m.vi, images: m.images, files: m.files, sources: m.sources, memSuggest: m.memSuggest, count: m.count, model: m.role === 'ai' ? m.model : undefined, tps: m.tps }));
             if (g) { g.aiDiv.classList.add('noanim'); chatBox.appendChild(g.aiDiv); }
             renderQueued(id);
             chatBox.scrollTop = chatBox.scrollHeight;
@@ -1947,6 +1953,7 @@
             div._raw = opts.html ? null : text;
             if (opts.index !== undefined) div.dataset.idx = opts.index;
             if (opts.sources && opts.sources.length) div.appendChild(sourcesEl(opts.sources));
+            if (role === 'ai' && opts.memSuggest && opts.memSuggest.length) memBar(div, opts.memSuggest);
             if ((role === 'ai' && !opts.welcome) || role === 'user') {
                 const bar = document.createElement('div'); bar.className = 'msg-actions';
                 const mk = (icon, title, getText) => {
@@ -1970,6 +1977,28 @@
             return div;
         }
         function addNote(text) { return addMessageToUI('note', text); }
+
+        // ---------- sugestao de memoria: a IA pode terminar a resposta com [[lembrar: fato]]; a tag some do texto e a interface pergunta se quer guardar ----------
+        const MEM_RE = /\[\[\s*(?:lembrar|remember)\s*:\s*([^\]]{3,300}?)\s*\]\]/gi;
+        const stripMem = t => t.replace(MEM_RE, '').replace(/\[\[\s*(?:l|r)[a-z]*\s*:?[^\]]*$/i, '').replace(/\s+$/, '');   // a segunda parte esconde a tag ainda incompleta enquanto chega
+        function memFacts(t) { const out = []; t.replace(MEM_RE, (m, f) => { f = f.trim(); if (f && !out.includes(f) && !globalMemories.includes(f)) out.push(f); return m; }); return out.slice(0, 2); }
+        function memBar(div, facts) {
+            const box = document.createElement('div'); box.className = 'mem-suggest';
+            const settle = fact => {   // tira a sugestao da mensagem guardada para ela nao voltar a aparecer
+                const m = chats[currentChatId] && chats[currentChatId].messages[+div.dataset.idx];
+                if (m && m.memSuggest) { m.memSuggest = m.memSuggest.filter(x => x !== fact); if (!m.memSuggest.length) delete m.memSuggest; saveToStorage(); }
+            };
+            facts.forEach(f => {
+                const row = document.createElement('div'); row.className = 'mem-row';
+                const txt = document.createElement('span'); txt.className = 'grow'; txt.textContent = '💡 ' + tr('Lembrar?') + ' “' + f + '”';
+                const yes = document.createElement('button'); yes.className = 'btn btn-primary'; yes.type = 'button'; yes.textContent = tr('Lembrar');
+                const no = document.createElement('button'); no.className = 'btn btn-secondary'; no.type = 'button'; no.textContent = tr('Não');
+                yes.onclick = () => { if (!globalMemories.includes(f)) { globalMemories.push(f); saveState(); } row.remove(); settle(f); showInfo('Guardado na Memória.', 2500); };
+                no.onclick = () => { row.remove(); settle(f); };
+                row.append(txt, yes, no); box.appendChild(row);
+            });
+            const ref = div.querySelector('.msg-actions'); if (ref) div.insertBefore(box, ref); else div.appendChild(box);
+        }
 
         // ---------- agente: chamadas e resultados de ferramentas como cartoes (em vez do texto cru) ----------
         const TOOL_RE = '(?:list_files|read_file|write_file|cmd|powershell|search_web|read_url)';
@@ -2586,6 +2615,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 if (summaries.length) sys += tr('\n\nRESUMO DA CONVERSA ANTERIOR (as mensagens antigas foram compactadas):\n') + summaries.join('\n') + '\n';
                 if (globalMemories.length > 0) sys += tr('\n\nFATOS QUE VOCÊ DEVE LEMBRAR:\n') + globalMemories.map(m => `- ${m}`).join('\n') + '\n';
                 if (!model.phone) sys += tr('\n\nFORMATAÇÃO: responda em Markdown. Para emojis escreva o código entre dois-pontos, como :fire: ou :skull: (nunca só a palavra). Para setas e símbolos use o caractere Unicode direto (→ ≈ ✓ ≠), sem LaTeX.');
+                if (!isCode && !model.phone && config.memorySuggest !== false) sys += tr('\n\nMEMÓRIA: se o usuário contar algo pessoal e duradouro que valha lembrar em outras conversas (nome, profissão, preferência, projeto, jeito que quer as respostas), termine a resposta com uma última linha [[lembrar: fato curto, escrito em terceira pessoa]]. No máximo uma vez, só quando for realmente útil; nunca em pedidos comuns e nunca repita o que já está na lista de fatos.');
                 const apiMessages = buildApiMessages(chat, model, sys, job.view);
 
                 status('Iniciando');
@@ -2610,7 +2640,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                     if (msg.content) {
                         if (!gotText) { textSpan.textContent = ''; gotText = true; }
                         status('Escrevendo');
-                        fullResponse += msg.content; textSpan.innerHTML = renderRich(fullResponse); aiDiv._raw = fullResponse;
+                        fullResponse += msg.content; const shown = stripMem(fullResponse); textSpan.innerHTML = renderRich(shown); aiDiv._raw = shown;
                         chars += msg.content.length; if (isCur()) updateStreamingPerf(chars);
                     }
                     if (isCur()) followBottom();
@@ -2632,8 +2662,9 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 const tps = lastStats && lastStats.seconds ? lastStats.tokens / lastStats.seconds : 0;
                 const tg = aiDiv.querySelector('.msg-tag'); if (tg) setTagTps(tg, tps);
                 if (chats[chatId]) {   // o chat pode ter sido apagado enquanto a IA respondia
-                    const aiMsg = { role: 'ai', content: fullResponse, model: opts.model, ...(tps ? { tps: +tps.toFixed(1) } : {}), ...(msgSources.length ? { sources: msgSources } : {}) };
-                    if (!fork) { chat.messages.push(aiMsg); aiDiv.dataset.idx = chat.messages.length - 1; applied = true; }
+                    const facts = !isCode && config.memorySuggest !== false ? memFacts(fullResponse) : [];
+                    const aiMsg = { role: 'ai', content: stripMem(fullResponse), ...(facts.length ? { memSuggest: facts } : {}), model: opts.model, ...(tps ? { tps: +tps.toFixed(1) } : {}), ...(msgSources.length ? { sources: msgSources } : {}) };
+                    if (!fork) { chat.messages.push(aiMsg); aiDiv.dataset.idx = chat.messages.length - 1; applied = true; if (facts.length) memBar(aiDiv, facts); }
                     else if (fullResponse.trim()) {   // editar/regenerar: a versao nova entra ao lado da antiga
                         if (fork.kind === 'edit') { forkAt(chat, fork.i, fork.userMsg); chat.messages.push(aiMsg); } else forkAt(chat, fork.i, aiMsg);
                         applied = true;
@@ -2998,7 +3029,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
         }
 
         // ---------- memoria ----------
-        function openMemory() { renderMemoryList(); showModal('memory-modal'); }
+        function openMemory() { renderMemoryList(); $('mem-suggest').checked = config.memorySuggest !== false; showModal('memory-modal'); }
         function closeMemory() { hideModal('memory-modal'); }
         function renderMemoryList() {
             const list = $('memory-list'); list.innerHTML = '';
