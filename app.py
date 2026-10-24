@@ -2361,7 +2361,7 @@ def model_updater_loop():
         time.sleep(3600)
 
 # ---------------- atualizacoes (GitHub) ----------------
-DEFAULT_REPO = "marioondc9426/ai-thing-idk"
+DEFAULT_REPO = "marioondc9426/Lume"
 NOWIN = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
 def _git(*args, timeout=60):

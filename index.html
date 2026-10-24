@@ -197,6 +197,10 @@
         .wordmark { height: 28px; width: auto; background: #fff; border-radius: 6px; padding: 3px 8px; margin-right: 6px; flex-shrink: 0; vertical-align: middle; }
         .wordmark.bare { padding: 0; height: 30px; }
         #model-trigger-icon.wordmark, #model-trigger-icon.logo-img { height: 24px; } #model-trigger-icon.wordmark.bare { height: 26px; }
+        .brand-img { height: 24px; width: auto; margin-right: 6px; vertical-align: middle; flex-shrink: 0; }
+        .brand-mono { display: inline-block; width: 22px; height: 22px; margin-right: 6px; vertical-align: middle; flex-shrink: 0; background: var(--text-main); -webkit-mask: var(--m) center / contain no-repeat; mask: var(--m) center / contain no-repeat; }
+        #model-trigger-icon.brand-img { height: 22px; } #model-trigger-mono { width: 20px; height: 20px; }
+        .msg-tag .brand-img { height: 16px; margin-right: 5px; } .msg-tag .brand-mono { width: 15px; height: 15px; margin-right: 5px; }
         .logo-img { height: 28px; width: auto; background: #fff; border-radius: 6px; padding: 3px 8px; margin-right: 6px; vertical-align: middle; flex-shrink: 0; }   /* fundo branco: o texto do logo da NVIDIA e preto */
         #sidebar h2.brand { display: flex; align-items: center; margin: 0 0 6px; }
         .brand-mark { height: 38px; width: auto; }
@@ -618,7 +622,7 @@
                 <input type="file" id="file-input" multiple style="display:none" onchange="addFiles(this.files); this.value = ''">
                 <div class="custom-select" id="model-select">
                     <div class="select-trigger" onclick="toggleCustomSelect()">
-                        <img class="ic" id="model-trigger-icon" src="icons/zap.png">
+                        <img class="ic" id="model-trigger-icon" src="icons/zap.png"><span class="brand-mono" id="model-trigger-mono" style="display:none;"></span>
                         <span class="model-text shrinkable" id="model-trigger-text">Qwen 3.5 4B (Local)</span>
                         <div class="select-arrow"></div>
                     </div>
@@ -995,8 +999,8 @@
             { id: 'qwen2.5:1.5b', fam: 'qwen2.5', famName: 'Qwen 2.5', params: '1.5B', rec: true, label: 'Qwen 2.5 1.5B (Ultra leve)', icon: 'zap', tabs: ['chat'], gb: 1.1, ctx: 32768 },
             { id: 'nemotron-3-nano:4b', fam: 'nemotron-3-nano', famName: 'Nemotron 3', params: '4B', rec: true, label: 'Nemotron 3 4B (Local)', icon: 'zap', tabs: ['chat', 'code'], gb: 2.9, ctx: 262144 },
             { id: 'nemotron-3-nano:30b-cloud', fam: 'nemotron-3-nano', famName: 'Nemotron 3', params: '30B', label: 'Nemotron 3 30B (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 1048576 },
+            { id: 'nemotron-3-ultra:cloud', fam: 'nemotron-3-nano', famName: 'Nemotron 3', params: 'Ultra', label: 'Nemotron 3 Ultra (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 1048576 },
             { id: 'nemotron-3-super:cloud', fam: 'nemotron-3-nano', famName: 'Nemotron 3', params: '120B', label: 'Nemotron 3 Super 120B (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 262144 },
-            { id: 'deepseek-v4.1-flash:cloud', fam: 'deepseek-v4', famName: 'DeepSeek V4.1 Flash', params: 'Cloud', rec: true, label: 'DeepSeek V4.1 Flash (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, vision: true, ctx: 1048576 },
             { id: 'gpt-oss:120b-cloud', fam: 'gpt-oss', famName: 'GPT-OSS', params: '120B', rec: true, label: 'GPT-OSS 120B (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 131072 },
             { id: 'gpt-oss:20b-cloud', fam: 'gpt-oss', famName: 'GPT-OSS', params: '20B', label: 'GPT-OSS 20B (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 131072 },
             { id: 'gemma4:cloud', fam: 'gemma4', famName: 'Gemma 4', params: 'Cloud', rec: true, label: 'Gemma 4 (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, vision: true, ctx: 262144 },
@@ -1610,23 +1614,34 @@
                 if (inf && !inf.error) { modelInfo[m.id] = inf; const el2 = $('size-info'); if (el2 && el2.dataset.id === m.id) el2.textContent = sizeInfoText(m); }
             } catch (e) {}
         }
-        // familias com logo: wordmark = imagem com o nome (vai num chip branco); img+text = logo pequeno e o nome ao lado
-        const FAM_LOGO = {
-            'qwen3.5': { img: 'qwen3.5.png', wordmark: true }, 'qwen2.5': { img: 'qwen2.5.png', wordmark: true }, 'gemma3': { img: 'gemma3.png', wordmark: true },
-            'gpt-oss': { img: 'gpt-oss.png', wordmark: true, bare: true }, 'gemma4': { img: 'gemma4.png', wordmark: true }, 'beam': { img: 'beam.png', wordmark: true, bare: true }, 'nemotron-3-nano': { img: 'nvidia.svg', text: 'Nemotron 3' },
-        };
+        // marcas: a logo da marca aparece ao lado do nome do modelo. A marca e detectada pelo nome (familia/id), entao modelos novos ja saem com a logo certa.
+        // wordmark = a imagem ja tem o nome (Qwen, DeepSeek, Beam), entao vai sozinha; chip = fundo branco (logo escuro); mono = logo de uma cor so, pintado com a cor do texto do tema
+        const BRANDS = [
+            { re: /qwen/i, pick: s => /qwen\s*-?2\.5/i.test(s) ? 'qwen2.5.png' : /qwen\s*-?3\.5/i.test(s) ? 'qwen3.5.png' : null, wordmark: true, chip: true },
+            { re: /deepseek/i, img: 'DeepSeek.png', wordmark: true },
+            { re: /beam/i, img: 'beam.png', wordmark: true, chip: true },
+            { re: /gemma|gemini/i, img: 'Google.png' },
+            { re: /gpt|openai|chatgpt/i, img: 'chatgpt.png', mono: true },
+            { re: /nemotron|nvidia/i, img: 'nvidia.png' },
+            { re: /bonsai/i, img: 'bonsai.svg', mono: true },
+        ];
+        const brandOf = rec => { const b = BRANDS.find(x => x.re.test(`${rec.fam} ${rec.famName} ${rec.id}`)); return b && brandFile(b, rec) ? b : null; };
+        const brandFile = (b, rec) => b.pick ? b.pick(`${rec.famName} ${rec.id}`) : b.img;
+        function brandEl(b, rec) {
+            let el;
+            if (b.mono) { el = document.createElement('span'); el.className = 'brand-mono'; el.style.setProperty('--m', `url("icons/${brandFile(b, rec)}")`); }
+            else { el = document.createElement('img'); el.src = 'icons/' + brandFile(b, rec); el.alt = rec.famName; el.onerror = () => { el.style.display = 'none'; }; el.className = b.wordmark ? 'wordmark' + (b.chip ? '' : ' bare') : 'brand-img'; }
+            el.title = rec.famName; return el;
+        }
         function modeIcon(kind) {   // so a imagem: nuvem = precisa de internet; globo cortado = roda sem internet
             const im = document.createElement('img'); im.className = 'ic mode-ic'; im.src = kind === 'cloud' ? 'icons/cloud.png' : 'icons/globe-off.png';
             im.title = tr(kind === 'cloud' ? 'Roda na nuvem (precisa de internet)' : 'Funciona sem internet'); return im;
         }
         function famLabelNodes(rec) {   // [imagem, texto] que identificam a familia
-            const lg = FAM_LOGO[rec.fam], out = [];
-            if (lg) {
-                const im = document.createElement('img'); im.src = 'icons/' + lg.img; im.alt = rec.famName; im.title = rec.famName;
-                im.className = lg.wordmark ? 'wordmark' + (lg.bare ? ' bare' : '') : 'logo-img';
-                im.onerror = () => { im.style.display = 'none'; };   // arquivo ainda nao existe: sobra so o texto
-                out.push(im);
-                if (!lg.wordmark) out.push(document.createTextNode(lg.text || rec.famName));
+            const br = brandOf(rec), out = [];
+            if (br) {
+                out.push(brandEl(br, rec));
+                if (!br.wordmark) out.push(document.createTextNode(rec.famName));
             } else {
                 if (rec.icon !== 'cloud') { const im = document.createElement('img'); im.className = 'ic'; im.src = `icons/${rec.icon === 'triangle-alert' ? 'zap' : rec.icon}.png`; out.push(im); }   // modelos so da nuvem ja mostram o icone de nuvem ao lado
                 out.push(document.createTextNode(rec.famName));
@@ -1687,10 +1702,11 @@
                 box.appendChild(row);
                 fillSizeInfo(cur);
             }
-            const lg = FAM_LOGO[cur.fam], ti = $('model-trigger-icon');
-            ti.style.display = ''; ti.className = lg ? (lg.wordmark ? 'wordmark' + (lg.bare ? ' bare' : '') : 'logo-img') : 'ic';
-            ti.src = lg ? 'icons/' + lg.img : `icons/${cur.icon === 'triangle-alert' ? 'zap' : cur.icon}.png`; ti.onerror = lg ? () => { ti.style.display = 'none'; } : null;
-            $('model-trigger-text').textContent = (lg && lg.wordmark ? '' : (lg ? lg.text : cur.famName) + ' ') + cur.params;
+            const br = brandOf(cur), ti = $('model-trigger-icon'), tm = $('model-trigger-mono');
+            tm.style.display = br && br.mono ? '' : 'none'; if (br && br.mono) tm.style.setProperty('--m', `url("icons/${brandFile(br, cur)}")`);
+            ti.style.display = br && br.mono ? 'none' : ''; ti.className = br ? (br.wordmark ? 'wordmark' + (br.chip ? '' : ' bare') : 'brand-img') : 'ic';
+            ti.src = br ? 'icons/' + brandFile(br, cur) : `icons/${cur.icon === 'triangle-alert' ? 'zap' : cur.icon}.png`; ti.onerror = br ? () => { ti.style.display = 'none'; } : null;
+            $('model-trigger-text').textContent = (br && br.wordmark ? '' : cur.famName + ' ') + cur.params;
             updateCtxBar();
         }
         async function selectFamily(fam) {
@@ -1701,10 +1717,11 @@
             renderModelOptions();
         }
         async function pickSize(id) { await selectModel(id); renderModelOptions(); }
+        const HIDDEN_MODELS = /^(clef|deepseek-v4\.1-flash)\b/i;   // instalados no Ollama, mas fora do seletor
         function registerCustomModels() {   // modelos que voce baixou (pelo gerenciador ou pelo terminal) e nao estao na lista fixa tambem aparecem no seletor
             if (!installed) return;
             installed.forEach(name => {
-                if (MODELS.some(m => m.id === name)) return;
+                if (MODELS.some(m => m.id === name) || HIDDEN_MODELS.test(name)) return;
                 const cloud = /(:|-)cloud$/.test(name), [base, tag] = name.split(':'), gb = (installedSize[name] || 0) / 1e9;
                 const m = { id: name, fam: 'custom:' + base, famName: base, params: (tag || '').replace(/-cloud$/, '') || (cloud ? 'Cloud' : ''), label: name + (cloud ? ' (Nuvem Ollama)' : ''), icon: cloud ? 'cloud' : 'zap', tabs: ['chat', 'code'], gb: cloud ? 0 : (+gb.toFixed(1) || 3), ctx: 32768, cloud, custom: true };
                 MODELS.push(m);
@@ -1910,8 +1927,9 @@
         function modelTag(modelId, tps) {
             const m = modelById(modelId), tag = document.createElement('div'); tag.className = 'msg-tag';
             famLabelNodes(m).forEach(n => tag.appendChild(n));
-            if (m.famName && !FAM_LOGO[m.fam]) tag.lastChild.textContent = m.famName + ' ' + m.params;
-            else tag.appendChild(document.createTextNode(FAM_LOGO[m.fam] && FAM_LOGO[m.fam].wordmark ? m.params : ' ' + m.params));
+            const br = brandOf(m);
+            if (m.famName && !br) tag.lastChild.textContent = m.famName + ' ' + m.params;
+            else tag.appendChild(document.createTextNode(br && br.wordmark ? m.params : ' ' + m.params));
             const sp = document.createElement('span'); sp.className = 'tag-tps'; tag.appendChild(sp); setTagTps(tag, tps);
             return tag;
         }
