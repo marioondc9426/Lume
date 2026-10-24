@@ -31,6 +31,8 @@ import ast
 import shutil
 from ctypes import wintypes
 import struct
+import zipfile
+import xml.etree.ElementTree as ET
 import uuid
 import zlib
 import plistlib
@@ -90,9 +92,9 @@ VRAM_ALERT_EVERY_S = 2.5 # a cada quantos segundos o aviso de VRAM alta (termina
 VRAM_WARN_MB = 7144        # aviso de VRAM alta (7 GB)
 ollama_process = None
 pending_command = {"cmd": "", "resolve": None}
-stop_generation_flag = threading.Event()
-generation_active = False  # True enquanto uma geracao esta em andamento (streaming)
-active_model = ""          # modelo da geracao em andamento
+stop_generation_flag = threading.Event()   # so para as esperas de permissao e o desligamento do app; cada geracao do dono tem o seu proprio "parar"
+gens_active = {}           # id do pedido -> modelo (geracoes do dono em andamento; pode haver varias, uma por chat)
+req_stops = {}             # id do pedido -> Event (parar so aquela geracao)
 model_usage = {}           # modelo -> {"last_used": ts, "uses": n, "chars": n}
 started_at = time.time()
 
@@ -460,11 +462,111 @@ def do_undo(uid):
     return msg
 
 # ---------------------------------------------------------------- arquivos anexados
+def sniff_kind(data):
+    """Descobre o tipo pelo CONTEUDO (nao pela extensao): pdf | image | docx | xlsx | pptx | odf | zip | text | binary."""
+    h = data[:12]
+    if h.startswith(b"%PDF"): return "pdf"
+    if h.startswith(b"\x89PNG") or h[:3] == b"\xff\xd8\xff" or h[:4] == b"GIF8" or (h[:4] == b"RIFF" and data[8:12] == b"WEBP") or h[:2] == b"BM": return "image"
+    if h[:2] == b"PK":
+        try: names = zipfile.ZipFile(io.BytesIO(data)).namelist()
+        except Exception: return "binary"
+        if "word/document.xml" in names: return "docx"
+        if "xl/workbook.xml" in names: return "xlsx"
+        if "ppt/presentation.xml" in names: return "pptx"
+        if "content.xml" in names and "mimetype" in names: return "odf"
+        return "zip"
+    if data[:2] in (b"\xff\xfe", b"\xfe\xff"): return "text"   # UTF-16 com BOM
+    if not data: return "text"
+    sample = data[:8000]
+    if b"\x00" in sample: return "binary"
+    txt = sample.decode("utf-8", "replace")
+    bad = sum(1 for c in txt if (ord(c) < 32 and c not in "\r\n\t\f\b") or c == "\ufffd")
+    return "text" if bad <= max(2, len(txt) // 50) else "binary"
+
+def decode_text(data):
+    if data[:2] in (b"\xff\xfe", b"\xfe\xff"): return data.decode("utf-16", "replace")
+    try: return data.decode("utf-8-sig")
+    except UnicodeDecodeError: return data.decode("latin-1")
+
+def _local(tag): return tag.rsplit("}", 1)[-1]
+
+def _runs_text(el):
+    out = []
+    for n in el.iter():
+        t = _local(n.tag)
+        if t == "t" and n.text: out.append(n.text)
+        elif t == "tab": out.append("\t")
+        elif t in ("br", "cr"): out.append("\n")
+    return "".join(out)
+
+def _zip_xml(z, name, limit=60 * 1048576):
+    if z.getinfo(name).file_size > limit: raise Exception("O arquivo e grande demais para ler.")
+    return ET.fromstring(z.read(name))
+
+def docx_text(z):
+    root = _zip_xml(z, "word/document.xml"); lines = []
+    def walk(parent):
+        for c in parent:
+            t = _local(c.tag)
+            if t == "p": lines.append(_runs_text(c))
+            elif t == "tbl":
+                for tr in c:
+                    if _local(tr.tag) == "tr": lines.append(" | ".join(" ".join(_runs_text(p) for p in tc.iter() if _local(p.tag) == "p") for tc in tr if _local(tc.tag) == "tc"))
+            elif t in ("sdt", "sdtContent"): walk(c)
+    walk(next((c for c in root if _local(c.tag) == "body"), root))
+    return "\n".join(lines)
+
+def _col_index(ref):
+    n = 0
+    for ch in re.match(r"[A-Za-z]*", ref or "").group(0).upper(): n = n * 26 + ord(ch) - 64
+    return max(0, n - 1)
+
+def xlsx_text(z, limit):
+    names = set(z.namelist()); shared = []
+    if "xl/sharedStrings.xml" in names:
+        shared = ["".join(x.text or "" for x in si.iter() if _local(x.tag) == "t") for si in _zip_xml(z, "xl/sharedStrings.xml")]
+    wb = _zip_xml(z, "xl/workbook.xml"); relmap = {}
+    if "xl/_rels/workbook.xml.rels" in names: relmap = {r.get("Id"): r.get("Target", "") for r in _zip_xml(z, "xl/_rels/workbook.xml.rels")}
+    rid_key = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id"
+    sheets = []
+    for sh in wb.iter():
+        if _local(sh.tag) == "sheet":
+            tgt = relmap.get(sh.get(rid_key), ""); path = tgt.lstrip("/") if tgt.startswith("/") else "xl/" + tgt
+            if path in names: sheets.append((sh.get("name") or "?", path))
+    parts, total = [], 0
+    for name, path in sheets:
+        parts.append(f"--- planilha: {name} ---")
+        for row in _zip_xml(z, path).iter():
+            if _local(row.tag) != "row": continue
+            cells = {}
+            for c in row:
+                if _local(c.tag) != "c": continue
+                typ = c.get("t"); v = next((x.text for x in c if _local(x.tag) == "v"), None)
+                if typ == "s": val = shared[int(v)] if v is not None and int(v) < len(shared) else ""
+                elif typ == "inlineStr": val = "".join(x.text or "" for x in c.iter() if _local(x.tag) == "t")
+                elif typ == "b": val = "VERDADEIRO" if v == "1" else "FALSO"
+                else: val = v or ""
+                if val != "": cells[_col_index(c.get("r"))] = val.replace("\n", " ")
+            if cells:
+                line = "\t".join(cells.get(i, "") for i in range(max(cells) + 1)); parts.append(line); total += len(line)
+            if total > limit: return "\n".join(parts)
+    return "\n".join(parts)
+
+def pptx_text(z):
+    slides = sorted((n for n in z.namelist() if re.fullmatch(r"ppt/slides/slide\d+\.xml", n)), key=lambda n: int(re.search(r"(\d+)\.xml", n).group(1)))
+    parts = []
+    for i, n in enumerate(slides, 1):
+        paras = [x for x in (_runs_text(p).strip() for p in _zip_xml(z, n).iter() if _local(p.tag) == "p") if x]
+        parts.append(f"--- slide {i} ---\n" + "\n".join(paras))
+    return "\n\n".join(parts)
+
+def odf_text(z):
+    return "\n".join(x for x in ("".join(e.itertext()).strip() for e in _zip_xml(z, "content.xml").iter() if _local(e.tag) in ("p", "h")) if x)
+
 def extract_file_text(filename, data):
-    """Retorna (texto, cortado?, paginas). Aceita texto/codigo (qualquer codificacao comum) e PDF."""
-    ext = os.path.splitext(filename.lower())[1]
-    pages = None
-    if ext == ".pdf":
+    """Retorna (texto, cortado?, paginas). O tipo vem do CONTEUDO: texto/codigo (qualquer codificacao comum), PDF, Word, Excel, PowerPoint e LibreOffice."""
+    kind = sniff_kind(data); pages = None
+    if kind == "pdf":
         try: from pypdf import PdfReader
         except ImportError: raise Exception("Para ler PDF instale o pypdf: pip install pypdf")
         reader = PdfReader(io.BytesIO(data)); pages = len(reader.pages); parts = []; total = 0
@@ -474,11 +576,27 @@ def extract_file_text(filename, data):
             if total > MAX_FILE_CHARS: break
         text = "\n\n".join(parts)
         if not text.strip(): raise Exception("Este PDF nao tem texto selecionavel (talvez seja escaneado).")
-    else:
-        if b"\x00" in data[:8000]: raise Exception("Arquivo binario nao suportado (use texto, codigo ou PDF).")
-        try: text = data.decode("utf-8-sig")
-        except UnicodeDecodeError: text = data.decode("latin-1")
+    elif kind in ("docx", "xlsx", "pptx", "odf"):
+        try:
+            with zipfile.ZipFile(io.BytesIO(data)) as z:
+                text = docx_text(z) if kind == "docx" else xlsx_text(z, MAX_FILE_CHARS) if kind == "xlsx" else pptx_text(z) if kind == "pptx" else odf_text(z)
+        except zipfile.BadZipFile: raise Exception("O arquivo esta corrompido.")
+        except ET.ParseError: raise Exception("Nao consegui ler o conteudo do arquivo (XML invalido).")
+        if not text.strip(): raise Exception("Nao encontrei texto neste arquivo.")
+    elif kind == "text": text = decode_text(data)
+    elif kind == "image": raise Exception("Este arquivo e uma imagem: anexe como imagem.")
+    else: raise Exception("Arquivo binario nao suportado (use texto, codigo, PDF, Word, Excel ou PowerPoint).")
     return text[:MAX_FILE_CHARS], len(text) > MAX_FILE_CHARS, pages
+
+def extract_api(data):
+    """Corpo e status HTTP de /api/extract_text. Com "sniff", um arquivo de extensao desconhecida e identificado pelo conteudo."""
+    try:
+        raw = base64.b64decode(data.get("b64", "")); kind = sniff_kind(raw)
+        if kind == "image" and data.get("sniff"): return {"kind": "image"}, 200
+        text, truncated, pages = extract_file_text(str(data.get("filename", "")), raw)
+        return {"text": text, "truncated": truncated, "chars": len(text), "pages": pages, "kind": kind}, 200
+    except Exception as e:
+        return {"error": str(e)}, 400
 
 # ---------------------------------------------------------------- ler uma pagina da web
 def _is_public_url(url):
@@ -836,7 +954,7 @@ def native_tool_call(model, messages, num_ctx=None, workdir=None):
     c = find_tool_call(msg.get("content") or "")   # alguns modelos respondem com o formato de texto mesmo assim
     return (c[0], c[1]) if c else None
 
-def ask_permission(description):
+def ask_permission(description, stop_check=None):
     """Bloqueia ate o usuario aprovar/negar no popup (ou parar a geracao)."""
     event = threading.Event()
     result = {"ok": False}
@@ -845,7 +963,7 @@ def ask_permission(description):
     pending_command["resolve"] = resolve
     log("PERMISSAO", f"Aguardando o usuario: {description}", COLOR_YELLOW)
     while not event.wait(1):
-        if stop_generation_flag.is_set(): resolve(False)
+        if stop_generation_flag.is_set() or (stop_check and stop_check()): resolve(False)
     pending_command["cmd"] = ""
     pending_command["resolve"] = None
     return result["ok"]
@@ -927,6 +1045,8 @@ def stop_ollama():
 def shutdown_all():
     """Ao fechar o app: para a geracao, descarrega todos os modelos e encerra o que foi iniciado aqui."""
     stop_generation_flag.set()
+    for ev in list(req_stops.values()): ev.set()
+    tray_stop()
     stop_tunnel()
     try: set_terminal(False)   # fecha o terminal do log, se estiver aberto
     except Exception: pass
@@ -951,7 +1071,7 @@ def rank_models_to_stop(loaded):
     ranked = []
     for m in loaded:
         name = m["name"]
-        if generation_active and name == active_model: continue   # nao sugere desligar quem esta respondendo
+        if name in gens_active.values(): continue   # nao sugere desligar quem esta respondendo
         u = model_usage.get(name, {})
         idle_min = (now - u.get("last_used", started_at)) / 60
         gb = m.get("size", 0) / 1e9
@@ -1047,7 +1167,7 @@ STATIC_PAGES = ("/", "/index.html")
 PAGE_ALIAS = {"/share": "/share.html", "/dashboard": "/dashboard.html"}
 # So o proprio PC (janela do app) pode usar estas rotas
 LOCAL_ONLY_POST = ("/api/save_config", "/api/save_key", "/api/server_config", "/api/perf_interval",
-                   "/api/custom_theme", "/api/custom_theme_delete", "/api/resolve_pending", "/api/export", "/api/ios_profile_save", "/api/undo", "/api/stats_clear", "/api/open_url", "/api/update_apply", "/api/restart_app", "/api/run_code", "/api/tunnel_start", "/api/tunnel_stop", "/api/tunnel_install", "/api/app_options")
+                   "/api/custom_theme", "/api/custom_theme_delete", "/api/resolve_pending", "/api/export", "/api/ios_profile_save", "/api/undo", "/api/stats_clear", "/api/open_url", "/api/update_apply", "/api/restart_app", "/api/run_code", "/api/tunnel_start", "/api/tunnel_stop", "/api/tunnel_install", "/api/app_options", "/api/model_pull", "/api/model_delete", "/api/models_update_now")
 PUBLIC_POST = ("/api/auth/login", "/api/auth/logout", "/api/guest/register", "/api/guest/code")
 LOGIN_MAX_FAILS, LOGIN_LOCK_SECONDS = 5, 60
 login_failures = {}   # ip -> [falhas, inicio]
@@ -1368,7 +1488,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return self.send_json(app_options())
         if p == '/api/tunnel':
             if not local: return self.send_json({"error": "local_only"}, 403)
-            return self.send_json({**tunnel_state, "cloudflared": bool(find_cloudflared()), "tailscale": bool(shutil.which("tailscale")), "port": PORT})
+            return self.send_json({**tunnel_state, "cloudflared": bool(find_cloudflared()), "tailscale": tailscale_status(), "port": PORT})
         if p == '/api/update_check':
             if not local: return self.send_json({"error": "local_only"}, 403)
             return self.send_json(check_update())
@@ -1445,7 +1565,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return self.send_json({
                 "vram_used": vram_used, "vram_total": vram_total, "vram": vram_used,
                 "vram_pct": vram_pct, "gpu": gpu_util, "vram_warn": vram_warn, "vram_warn_mb": VRAM_WARN_MB,
-                "generation_active": generation_active, "alert": alert_state
+                "generation_active": bool(gens_active), "alert": alert_state
             })
         if p == '/api/server_info':
             if not local: return self.send_json({"error": "local_only"}, 403)
@@ -1608,12 +1728,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return self.send_json({"ok": True})
 
         if p == '/api/extract_text':
-            try:
-                text, truncated, pages = extract_file_text(str(data.get("filename", "")), base64.b64decode(data.get("b64", "")))
-            except Exception as e:
-                return self.send_json({"error": str(e)}, 400)
-            log("ARQUIVO", f"{data.get('filename')}: {len(text)} caracteres" + (" (cortado)" if truncated else ""), COLOR_GRAY)
-            return self.send_json({"text": text, "truncated": truncated, "chars": len(text), "pages": pages})
+            obj, code = extract_api(data)
+            if "text" in obj: log("ARQUIVO", f"{data.get('filename')}: {obj['kind']}, {obj['chars']} caracteres" + (" (cortado)" if obj["truncated"] else ""), COLOR_GRAY)
+            return self.send_json(obj, code)
 
         if p == '/api/undo':
             try: return self.send_json({"ok": True, "message": do_undo(str(data.get("id", "")))})
@@ -1628,11 +1745,32 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             cfg = load_config()
             if "start_with_terminal" in data:
                 cfg["start_with_terminal"] = bool(data["start_with_terminal"]); save_config(cfg); set_terminal(cfg["start_with_terminal"])
+            if "auto_update_models" in data:
+                cfg["auto_update_models"] = bool(data["auto_update_models"]); save_config(cfg)
+            if "tray" in data:
+                cfg["tray_enabled"] = bool(data["tray"]); save_config(cfg)
+                if cfg["tray_enabled"] and not tray_start(): cfg["tray_enabled"] = False; save_config(cfg); return self.send_json({"error": "Nao consegui criar o icone da bandeja (falta o pacote pystray)."}, 500)
+                if not cfg["tray_enabled"]: tray_stop()
             if "start_with_windows" in data:
                 try: autostart_set(bool(data["start_with_windows"]))
                 except Exception as e: return self.send_json({"error": f"Nao consegui mudar: {e}"}, 500)
             return self.send_json({"ok": True, **app_options()})
-        if p == '/api/tunnel_start': return self.send_json(start_tunnel())
+        if p == '/api/tunnel_start': return self.send_json(start_tailscale() if data.get("tool") == "tailscale" else start_tunnel())
+        if p == '/api/model_pull': return self.stream_pull(str(data.get("model", "")))
+        if p == '/api/model_delete':
+            name = str(data.get("model", ""))
+            if not re.fullmatch(r'[\w.:\-/]+', name): return self.send_json({"error": "nome invalido"}, 400)
+            try:
+                try: ollama_unload(name)
+                except Exception: pass
+                urllib.request.urlopen(urllib.request.Request(f"{OLLAMA_URL}/api/delete", data=json.dumps({"model": name}).encode(), method="DELETE", headers={'Content-Type': 'application/json'}), timeout=30).read()
+                _model_info_cache.clear(); log("MODELO", f"{name} apagado.", COLOR_YELLOW)
+                return self.send_json({"ok": True})
+            except Exception as e:
+                return self.send_json({"ok": False, "error": str(e)}, 500)
+        if p == '/api/models_update_now':
+            if not model_update_state["running"]: threading.Thread(target=update_all_models, daemon=True).start()
+            return self.send_json({"ok": True})
         if p == '/api/tunnel_stop': stop_tunnel(); return self.send_json({"ok": True})
         if p == '/api/restart_app':
             self.send_json({"ok": True}); threading.Thread(target=restart_app, daemon=True).start(); return
@@ -1653,8 +1791,11 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return self.send_json({"ok": True})
 
         if p == '/api/stop':
-            log("STOP", "Parada solicitada pelo usuario", COLOR_YELLOW)
-            stop_generation_flag.set()
+            rid = str(data.get("rid") or "")
+            log("STOP", "Parada solicitada pelo usuario" + (f" ({rid})" if rid else " (todas)"), COLOR_YELLOW)
+            if rid: ev = req_stops.get(rid); ev and ev.set()   # ja terminou: nada a fazer
+            else:
+                for ev in list(req_stops.values()): ev.set()
             return self.send_json({"ok": True})
 
         if p == '/api/start':
@@ -1676,7 +1817,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
         if p == '/api/model_stop':
             model = data.get("model", "")
-            if generation_active and active_model == model: stop_generation_flag.set()
+            for rid0, m0 in list(gens_active.items()):
+                if m0 == model and rid0 in req_stops: req_stops[rid0].set()
             try:
                 ollama_unload(model)
                 log("MODELO", f"{model} desligado.", COLOR_YELLOW)
@@ -1773,9 +1915,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return self.send_json({"ok": True})
         if p == '/api/extract_text':
             if "files" in pol["blocked_features"]: return self.send_json({"error": "Anexar arquivos esta bloqueado na sua conta."}, 403)
-            try: text, truncated, pages = extract_file_text(str(data.get("filename", "")), base64.b64decode(data.get("b64", "")))
-            except Exception as e: return self.send_json({"error": str(e)}, 400)
-            return self.send_json({"text": text, "truncated": truncated, "chars": len(text), "pages": pages})
+            return self.send_json(*extract_api(data))
         return self.send_json({"error": "forbidden"}, 403)
 
     def admin_overview(self):
@@ -1912,13 +2052,30 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         log("AUTH", f"Senha incorreta de {ip} ({fails[0]}/{LOGIN_MAX_FAILS})", COLOR_RED)
         return self.send_json({"error": "bad_password"}, 401)
 
+    def stream_pull(self, name):
+        """Baixa (ou atualiza) um modelo do Ollama repassando o progresso em linhas JSON."""
+        if not re.fullmatch(r'[\w.:\-/]+', name or ""): return self.send_json({"error": "nome invalido"}, 400)
+        if not start_ollama(): return self.send_json({"error": "O Ollama nao esta rodando."}, 503)
+        self.send_response(200); self.send_header('Content-Type', 'application/x-ndjson'); self.end_headers()
+        log("MODELO", f"Baixando {name}...", COLOR_CYAN)
+        req = urllib.request.Request(f"{OLLAMA_URL}/api/pull", data=json.dumps({"model": name, "stream": True}).encode(), headers={'Content-Type': 'application/json'})
+        try:
+            with urllib.request.urlopen(req, timeout=60) as r:
+                for line in r: self.wfile.write(line); self.wfile.flush()
+            _model_info_cache.clear(); log("MODELO", f"{name} pronto.", COLOR_GREEN)
+        except (BrokenPipeError, ConnectionResetError):
+            log("MODELO", f"Download de {name} cancelado.", COLOR_YELLOW)
+        except Exception as e:
+            try: self.wfile.write((json.dumps({"error": str(e)}) + "\n").encode()); self.wfile.flush()
+            except Exception: pass
+
     def handle_chat(self, req_json, local=True, guest=None):
-        global generation_active, active_model
         lang = 'en' if req_json.get('lang') == 'en' else 'pt'
         L = lambda pt, en: en if lang == 'en' else pt
         cfg = load_config()
         agent = bool(req_json.get("agent"))
-        gid, gmax, stop_ev = None, None, stop_generation_flag
+        gid, gmax, stop_ev = None, None, None
+        rid = str(req_json.get('rid') or '')[:40] or uuid.uuid4().hex[:10]
         if guest:   # amigo: sem agente, sem Exa, dentro dos limites que o dono definiu
             gid, gu = guest; pol = guests.policy(gu); gs = guests.settings; agent = False
             model0 = req_json.get('model') or ''
@@ -1944,11 +2101,12 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         if agent and not local and not cfg.get("allow_remote_code"):
             log("SEGURANCA", "Modo agente recusado para dispositivo remoto (desligado nas configuracoes do servidor)", COLOR_RED)
             return self.send_json({"error": "remote_code_disabled"}, 403)
-        stop_ev.clear()
-        if not gid: generation_active = True
+        if gid: stop_ev.clear()
+        else: stop_ev = req_stops[rid] = threading.Event()
+        stopped = stop_ev.is_set
         started = time.time()
         model = req_json.get('model', 'qwen3.5:4b')
-        if not gid: active_model = model
+        if not gid: gens_active[rid] = model
         messages = req_json.get("messages", [])
         think = bool(req_json.get("think"))
         num_ctx = req_json.get("num_ctx")
@@ -2001,11 +2159,12 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             clean = list(messages)   # conversa sem as tentativas falhas e sem os pedidos de correcao (o plano B usa esta)
             failed_pending = False   # a ultima tentativa de chamar ferramenta falhou e ainda nao houve uma boa
             for step in range(MAX_AGENT_STEPS if agent else 1):
+                if step: emit({"step": step})   # a interface separa o pensamento de cada rodada em um bloco
                 full = ""
                 gen = stream_model(model, messages, think, cfg, num_ctx, gmax)
                 try:
                     for kind, piece in gen:
-                        if stop_ev.is_set(): break
+                        if stopped(): break
                         if kind == "thinking":
                             send(piece, "thinking"); continue
                         if kind == "stats":
@@ -2019,7 +2178,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 finally:
                     gen.close()
                 total_chars += len(full)
-                if stop_ev.is_set():
+                if stopped():
                     send(L("\n\n[Geracao parada]", "\n\n[Generation stopped]"))
                     break
                 call = find_tool_call(full) if agent else None
@@ -2055,7 +2214,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 log("TOOL", f"{tool_name} {tool_args}", COLOR_CYAN)
                 if needs_permission(tool_name):
                     status("Aguardando permissão")
-                    if not ask_permission(describe_tool(tool_name, tool_args)):
+                    if not ask_permission(describe_tool(tool_name, tool_args), stopped):
                         send(L("\n\n[Acao negada pelo usuario]", "\n\n[Action denied by the user]"))
                         break
                 status(f"Executando: {tool_name}")
@@ -2099,7 +2258,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         finally:
             if gid:
                 with guest_lock: guest_active[gid] = max(0, guest_active.get(gid, 1) - 1)
-            else: generation_active = False
+            else: gens_active.pop(rid, None); req_stops.pop(rid, None)
 
 def start_server():
     global httpd
@@ -2141,6 +2300,47 @@ def custom_icon_ico():
         return out
     except Exception as e:
         log("ICONE", f"Nao consegui usar icons/qwen.png: {e}", COLOR_YELLOW); return None
+
+# ---------------- atualizar os modelos instalados (ollama pull) ----------------
+model_update_state = {"running": False, "current": "", "done": 0, "total": 0, "updated": [], "error": ""}
+
+def update_all_models():
+    """Roda o pull em cada modelo local instalado: se nada mudou so confere o manifesto (rapido); se saiu versao nova, baixa."""
+    if model_update_state["running"]: return
+    tags = ollama_tags()
+    if tags is None: model_update_state.update(error="O Ollama nao esta rodando."); return
+    names = [m["name"] for m in tags if not m["name"].endswith("cloud")]
+    model_update_state.update(running=True, current="", done=0, total=len(names), updated=[], error="")
+    log("MODELO", f"Conferindo atualizacoes de {len(names)} modelo(s)...", COLOR_CYAN)
+    try:
+        for n in names:
+            model_update_state["current"] = n; downloaded = False
+            try:
+                req = urllib.request.Request(f"{OLLAMA_URL}/api/pull", data=json.dumps({"model": n, "stream": True}).encode(), headers={'Content-Type': 'application/json'})
+                with urllib.request.urlopen(req, timeout=60) as r:
+                    for line in r:
+                        try: d = json.loads(line)
+                        except ValueError: continue
+                        if d.get("error"): raise Exception(d["error"])
+                        if d.get("total") and (d.get("completed") or 0) < d["total"]: downloaded = True
+                if downloaded: model_update_state["updated"].append(n); log("MODELO", f"{n} atualizado.", COLOR_GREEN)
+            except Exception as e:
+                model_update_state["error"] = f"{n}: {e}"; log("MODELO", f"Nao consegui atualizar {n}: {e}", COLOR_YELLOW)
+            model_update_state["done"] += 1
+        _model_info_cache.clear()
+        cfg = load_config(); cfg["models_updated_at"] = time.time(); save_config(cfg)
+    finally:
+        model_update_state.update(running=False, current="")
+
+def model_updater_loop():
+    time.sleep(120)
+    while True:
+        try:
+            cfg = load_config()
+            if cfg.get("auto_update_models") and time.time() - cfg.get("models_updated_at", 0) > 7 * 86400 and not gens_active: update_all_models()
+        except Exception as e:
+            log("MODELO", f"Atualizador de modelos: {e}", COLOR_YELLOW)
+        time.sleep(3600)
 
 # ---------------- atualizacoes (GitHub) ----------------
 DEFAULT_REPO = "marioondc9426/ai-thing-idk"
@@ -2309,15 +2509,21 @@ def autostart_set(on):
     if not FROZEN: return False
     import winreg
     with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE) as k:
-        if on: winreg.SetValueEx(k, APP_NAME, 0, winreg.REG_SZ, f'"{sys.executable}"')
+        if on: winreg.SetValueEx(k, APP_NAME, 0, winreg.REG_SZ, f'"{sys.executable}" --autostart')
         else:
             try: winreg.DeleteValue(k, APP_NAME)
             except FileNotFoundError: pass
     return True
 
+def tray_available():
+    try: import pystray, PIL; return True
+    except Exception: return False
+
 def app_options():
     cfg = load_config()
-    return {"frozen": FROZEN, "start_with_terminal": bool(cfg.get("start_with_terminal")), "terminal_open": terminal_is_open(), "start_with_windows": autostart_get(), "remote_enabled": bool(cfg.get("remote_enabled"))}
+    return {"frozen": FROZEN, "start_with_terminal": bool(cfg.get("start_with_terminal")), "terminal_open": terminal_is_open(), "start_with_windows": autostart_get(), "remote_enabled": bool(cfg.get("remote_enabled")),
+            "tray": bool(cfg.get("tray_enabled")), "tray_available": tray_available(), "auto_update_models": bool(cfg.get("auto_update_models")),
+            "models_updated_at": cfg.get("models_updated_at", 0), "model_update": dict(model_update_state)}
 
 # ---------------------------------------------------------------- tunel para acessar de fora de casa
 tunnel_state = {"running": False, "url": "", "error": "", "tool": ""}
@@ -2345,8 +2551,53 @@ def install_cloudflared(dest=None):
         except OSError: pass
         return {"ok": False, "error": f"Nao consegui baixar o cloudflared: {e}"}
 
+def find_tailscale():
+    return shutil.which("tailscale") or next((p for p in (os.path.join(os.environ.get("ProgramFiles", ""), "Tailscale", "tailscale.exe"), os.path.join(os.environ.get("ProgramFiles(x86)", ""), "Tailscale", "tailscale.exe")) if os.path.isfile(p)), None)
+
+def ts_run(*args, timeout=25):
+    r = subprocess.run([find_tailscale(), *args], capture_output=True, text=True, timeout=timeout, encoding="utf-8", errors="replace", creationflags=NOWIN)
+    return r.returncode, r.stdout or "", r.stderr or ""
+
+_ts_cache = {"t": 0, "v": None}
+def tailscale_status():
+    """{installed, state (Running | NeedsLogin | Stopped...), name}. Em cache por alguns segundos (a tela consulta de tempos em tempos)."""
+    if _ts_cache["v"] is not None and time.time() - _ts_cache["t"] < 8: return _ts_cache["v"]
+    if not find_tailscale(): v = {"installed": False}
+    else:
+        try:
+            code, out, _ = ts_run("status", "--json", timeout=8); d = json.loads(out)
+            v = {"installed": True, "state": d.get("BackendState", ""), "name": ((d.get("Self") or {}).get("DNSName") or "").rstrip(".")}
+        except Exception as e:
+            v = {"installed": True, "state": "", "name": "", "error": str(e)[:120]}
+    _ts_cache.update(t=time.time(), v=v); return v
+
+def start_tailscale():
+    """Publica o app na internet pelo Tailscale Funnel (endereco https://PC.rede.ts.net fixo, sem abrir porta no roteador). Entra na senha do app como qualquer acesso de fora."""
+    if not find_tailscale(): return {"ok": False, "error": "O Tailscale nao esta instalado."}
+    _ts_cache["v"] = None; st = tailscale_status()
+    if st.get("state") != "Running": return {"ok": False, "error": f"O Tailscale nao esta conectado (estado: {st.get('state') or 'desconhecido'}). Abra o Tailscale e entre na sua conta."}
+    stop_tunnel(); out = err = ""
+    try:
+        code, out, err = ts_run("funnel", "--bg", str(PORT), timeout=30)
+    except subprocess.TimeoutExpired as e:   # sem o Funnel ligado na conta o comando fica esperando voce ligar pelo site
+        out, err = (e.stdout or b"").decode("utf-8", "replace") if isinstance(e.stdout, bytes) else (e.stdout or ""), (e.stderr or b"").decode("utf-8", "replace") if isinstance(e.stderr, bytes) else (e.stderr or "")
+        code = 1
+    text = out + "\n" + err
+    link = re.search(r"https://login\.tailscale\.com/\S+", text)
+    url = re.search(r"https://[\w.\-]+\.ts\.net", text)
+    if code != 0 or not url:
+        msg = "O Funnel nao esta ligado na sua conta do Tailscale. Abra " + link.group(0) + " e ative." if link else (text.strip()[-300:] or "Nao consegui ligar o Funnel.")
+        try: ts_run("funnel", "reset", timeout=15)
+        except Exception: pass
+        tunnel_state.update(running=False, url="", error=msg, tool="tailscale"); return {"ok": False, "error": msg, "link": link.group(0) if link else ""}
+    tunnel_state.update(running=True, url=url.group(0), error="", tool="tailscale"); log("TUNEL", f"Tailscale Funnel: {url.group(0)}", COLOR_YELLOW)
+    return {"ok": True, "url": url.group(0)}
+
 def stop_tunnel():
     global _tunnel_proc
+    if tunnel_state.get("tool") == "tailscale" and tunnel_state.get("running"):
+        try: ts_run("funnel", "reset", timeout=15); log("TUNEL", "Tailscale Funnel desligado.", COLOR_YELLOW)
+        except Exception as e: log("TUNEL", f"Nao consegui desligar o Funnel: {e}", COLOR_RED)
     if _tunnel_proc and _tunnel_proc.poll() is None:
         try: _tunnel_proc.terminate()
         except OSError: pass
@@ -2370,6 +2621,38 @@ def start_tunnel():
         if _tunnel_proc is proc: tunnel_state.update(running=False, url="", error=tunnel_state["error"] or "O tunel foi encerrado.")
     threading.Thread(target=reader, daemon=True).start()
     return {"ok": True}
+
+tray_icon = None
+
+def tray_start():
+    """Icone ao lado do relogio: clique abre a janela; o botao de fechar da janela so a esconde (o app continua rodando)."""
+    global tray_icon
+    if tray_icon: return True
+    try:
+        import pystray
+        from PIL import Image
+        img = Image.open(CUSTOM_ICON).convert("RGBA") if os.path.isfile(CUSTOM_ICON) else Image.new("RGBA", (64, 64), (90, 120, 255, 255))
+        menu = pystray.Menu(pystray.MenuItem("Abrir " + APP_NAME, lambda icon, item: tray_show(), default=True), pystray.MenuItem("Sair", lambda icon, item: tray_quit()))
+        tray_icon = pystray.Icon(APP_NAME, img, APP_NAME, menu); tray_icon.run_detached()
+        log("BANDEJA", "Icone da bandeja ligado.", COLOR_GREEN); return True
+    except Exception as e:
+        log("BANDEJA", f"Nao consegui ligar a bandeja: {e}", COLOR_YELLOW); tray_icon = None; return False
+
+def tray_stop():
+    global tray_icon
+    if tray_icon:
+        try: tray_icon.stop()
+        except Exception: pass
+        tray_icon = None
+
+def tray_show():
+    try: window_api._window.show(); window_api._window.restore()
+    except Exception as e: log("BANDEJA", f"Nao consegui mostrar a janela: {e}", COLOR_YELLOW)
+
+def tray_quit():
+    tray_stop()
+    try: window_api._window.destroy()
+    except Exception: pass
 
 class WindowApi:
     """Botoes da barra de titulo propria (a janela nao tem a borda do Windows)."""
@@ -2410,7 +2693,9 @@ class WindowApi:
             else: self._window.maximize()
         self._maximized = not self._maximized
         return self._maximized
-    def close(self): self._window.destroy()
+    def close(self):
+        if tray_icon and load_config().get("tray_enabled"): self._window.hide(); return "hidden"   # com a bandeja ligada, fechar so esconde
+        self._window.destroy()
 
 if __name__ == '__main__':
     log("INICIO", f"Pasta do programa: {BASE_DIR}", COLOR_BLUE)
@@ -2420,11 +2705,13 @@ if __name__ == '__main__':
     threading.Thread(target=start_server, daemon=True).start()
     threading.Thread(target=start_ollama, daemon=True).start()
     threading.Thread(target=monitor_loop, daemon=True).start()
+    threading.Thread(target=model_updater_loop, daemon=True).start()
+    tray_on = bool(load_config().get("tray_enabled")) and tray_start()
     start_gpu_stream(gpu_interval_ms)
     time.sleep(1)
     log("INICIO", "Abrindo janela...", COLOR_BLUE)
     api = WindowApi()
-    api._window = webview.create_window(WINDOW_TITLE, f'http://127.0.0.1:{PORT}/index.html', width=1100, height=800, min_size=(800, 520), frameless=True, easy_drag=False, js_api=api)
+    api._window = webview.create_window(WINDOW_TITLE, f'http://127.0.0.1:{PORT}/index.html', width=1100, height=800, min_size=(800, 520), frameless=True, easy_drag=False, js_api=api, hidden=bool(tray_on and "--autostart" in sys.argv))
     # private_mode=False: sem isso o localStorage some toda vez que o app fecha
     window_api = api
     webview.start(private_mode=False, storage_path=os.path.join(BASE_DIR, "webview_data"), icon=custom_icon_ico())
