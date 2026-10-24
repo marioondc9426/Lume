@@ -5,3 +5,7 @@ webview_data/
 __pycache__/
 backup/
 *.pyc
+
+# temas do editor: so o tema demo e versionado
+custom themes/*
+!custom themes/orange.json

@@ -132,6 +132,10 @@
         .select-option:last-child { border-bottom: none; }
         .select-option:hover { background: rgba(128,128,128,0.15); color: var(--text-main); }
         .select-option.selected { background: var(--accent); color: #fff; font-weight: bold; }
+        .size-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px; border-top: 1px solid var(--border-color); background: rgba(128,128,128,0.07); }
+        .size-label { font-size: 0.7em; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
+        .size-row select { width: auto; min-width: 84px; padding: 6px 8px; font-size: 0.85em; border-radius: 8px; }
+        .size-info { flex: 1; min-width: 150px; font-size: 0.78em; color: var(--text-muted); line-height: 1.35; }
         .mo-label { flex: 1; display: flex; align-items: center; min-width: 0; }
         .mo-badge { font-size: 0.75em; padding: 1px 7px; border-radius: 9px; background: rgba(63,185,80,0.2); color: #3fb950; margin-left: 8px; white-space: nowrap; font-weight: normal; }
         .mo-badge.busy { background: rgba(227,160,8,0.2); color: var(--warn); }
@@ -621,21 +625,22 @@
         };
         const THEMES = ['dark', 'claude', 'kimi'];
         // gb = tamanho aproximado na memoria (usado para prever estouro de VRAM)
+        // fam/famName/params agrupam por familia; rec = tamanho sugerido ao escolher a familia; gb = tamanho aproximado
         const MODELS = [
-            { id: 'qwen3.5:2b', label: 'Qwen 3.5 2B (Básico)', icon: 'zap', tabs: ['chat'], gb: 2.7, vision: true, ctx: 262144 },
-            { id: 'gemma3:1b', label: 'Gemma 3 1B (Ultra leve)', icon: 'zap', tabs: ['chat'], gb: 0.9, ctx: 32768 },
-            { id: 'qwen2.5:1.5b', label: 'Qwen 2.5 1.5B (Ultra leve)', icon: 'zap', tabs: ['chat'], gb: 1.1, ctx: 32768 },
-            { id: 'llama3.2:3b', label: 'Llama 3.2 3B (Leve)', icon: 'zap', tabs: ['chat'], gb: 2.2, ctx: 131072 },
-            { id: 'qwen3.5:4b', label: 'Qwen 3.5 4B (Local)', icon: 'zap', tabs: ['chat', 'code'], gb: 3.3, vision: true, ctx: 262144 },
-            { id: 'qwen3.5:9b', label: 'Qwen 3.5 9B (Pesado)', icon: 'triangle-alert', tabs: ['chat', 'code'], gb: 6.6, heavy: true, vision: true, ctx: 262144 },
-            { id: 'gemma3:4b', label: 'Gemma 3 4B (Local)', icon: 'zap', tabs: ['chat'], gb: 3.4, vision: true, ctx: 131072 },
-            { id: 'bonsai-2:2b', label: 'Bonsai 2 2B (Ultra leve)', icon: 'zap', tabs: ['chat'], gb: 0.9, vision: true, ctx: 262144 },
-            { id: 'bonsai-2:4b', label: 'Bonsai 2 4B (Leve)', icon: 'zap', tabs: ['chat', 'code'], gb: 1.6, vision: true, ctx: 262144 },
-            { id: 'bonsai-2:9b', label: 'Bonsai 2 9B (Local)', icon: 'zap', tabs: ['chat', 'code'], gb: 3.2, vision: true, ctx: 262144 },
-            { id: 'bonsai-2:27b', label: 'Bonsai 2 27B (Pesado)', icon: 'triangle-alert', tabs: ['chat', 'code'], gb: 8.3, heavy: true, vision: true, ctx: 262144 },
-            { id: 'codegemma:7b', label: 'CodeGemma 7B (Apenas Código)', icon: 'pen-line', tabs: ['code'], gb: 5.0, ctx: 8192 },
-            { id: 'groq-openai/gpt-oss-120b', label: 'Groq GPT-OSS 120B', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 131072 },
-            { id: 'groq-openai/gpt-oss-20b', label: 'Groq GPT-OSS 20B', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 131072 },
+            { id: 'qwen3.5:2b', fam: 'qwen3.5', famName: 'Qwen 3.5', params: '2B', label: 'Qwen 3.5 2B (Básico)', icon: 'zap', tabs: ['chat'], gb: 2.7, vision: true, ctx: 262144 },
+            { id: 'qwen3.5:4b', fam: 'qwen3.5', famName: 'Qwen 3.5', params: '4B', rec: true, label: 'Qwen 3.5 4B (Local)', icon: 'zap', tabs: ['chat', 'code'], gb: 3.3, vision: true, ctx: 262144 },
+            { id: 'qwen3.5:9b', fam: 'qwen3.5', famName: 'Qwen 3.5', params: '9B', label: 'Qwen 3.5 9B (Pesado)', icon: 'triangle-alert', tabs: ['chat', 'code'], gb: 6.6, heavy: true, vision: true, ctx: 262144 },
+            { id: 'bonsai-2:2b', fam: 'bonsai-2', famName: 'Bonsai 2', params: '2B', label: 'Bonsai 2 2B (Ultra leve)', icon: 'zap', tabs: ['chat'], gb: 0.9, vision: true, ctx: 262144 },
+            { id: 'bonsai-2:4b', fam: 'bonsai-2', famName: 'Bonsai 2', params: '4B', label: 'Bonsai 2 4B (Leve)', icon: 'zap', tabs: ['chat', 'code'], gb: 1.6, vision: true, ctx: 262144 },
+            { id: 'bonsai-2:9b', fam: 'bonsai-2', famName: 'Bonsai 2', params: '9B', rec: true, label: 'Bonsai 2 9B (Local)', icon: 'zap', tabs: ['chat', 'code'], gb: 3.2, vision: true, ctx: 262144 },
+            { id: 'bonsai-2:27b', fam: 'bonsai-2', famName: 'Bonsai 2', params: '27B', label: 'Bonsai 2 27B (Pesado)', icon: 'triangle-alert', tabs: ['chat', 'code'], gb: 8.3, heavy: true, vision: true, ctx: 262144 },
+            { id: 'gemma3:1b', fam: 'gemma3', famName: 'Gemma 3', params: '1B', label: 'Gemma 3 1B (Ultra leve)', icon: 'zap', tabs: ['chat'], gb: 0.9, ctx: 32768 },
+            { id: 'gemma3:4b', fam: 'gemma3', famName: 'Gemma 3', params: '4B', rec: true, label: 'Gemma 3 4B (Local)', icon: 'zap', tabs: ['chat'], gb: 3.4, vision: true, ctx: 131072 },
+            { id: 'llama3.2:3b', fam: 'llama3.2', famName: 'Llama 3.2', params: '3B', rec: true, label: 'Llama 3.2 3B (Leve)', icon: 'zap', tabs: ['chat'], gb: 2.2, ctx: 131072 },
+            { id: 'qwen2.5:1.5b', fam: 'qwen2.5', famName: 'Qwen 2.5', params: '1.5B', rec: true, label: 'Qwen 2.5 1.5B (Ultra leve)', icon: 'zap', tabs: ['chat'], gb: 1.1, ctx: 32768 },
+            { id: 'codegemma:7b', fam: 'codegemma', famName: 'CodeGemma', params: '7B', rec: true, label: 'CodeGemma 7B (Apenas Código)', icon: 'pen-line', tabs: ['code'], gb: 5.0, ctx: 8192 },
+            { id: 'groq-openai/gpt-oss-120b', fam: 'groq-gpt-oss', famName: 'Groq GPT-OSS', params: '120B', rec: true, label: 'Groq GPT-OSS 120B', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 131072 },
+            { id: 'groq-openai/gpt-oss-20b', fam: 'groq-gpt-oss', famName: 'Groq GPT-OSS', params: '20B', label: 'Groq GPT-OSS 20B', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 131072 },
         ];
         const CODE_PROMPT_DEFAULT = 'Você é um agente de código. Use as ferramentas para ler, escrever e executar código no computador do usuário. Explique brevemente o que fez.';
 
@@ -775,6 +780,9 @@
             'Compactação cancelada.': 'Compaction cancelled.', 'Falha ao compactar: {x}': 'Failed to compact: {x}',
             'Compactado: {n} mensagens viraram um resumo. Contexto {a} → {b}.': 'Compacted: {n} messages became a summary. Context {a} → {b}.',
             'Não consegui compactar a conversa.': 'Could not compact the conversation.',
+            'Pesquisa na web indisponível': 'Web search unavailable',
+            'Parâmetros': 'Parameters', 'contexto': 'context', 'raciocínio': 'reasoning', 'ferramentas': 'tools', 'pesado para a sua GPU': 'heavy for your GPU',
+            'Nenhum modelo disponível.': 'No model available.',
             'Animações (desligue se a interface pesar na GPU)': 'Animations (turn off if the interface is heavy on the GPU)',
             'Instalar app (iPhone)': 'Install app (iPhone)', 'Instalar app': 'Install app', 'ou siga este tutorial': 'or follow this tutorial',
             'Coloca na tela inicial um ícone que abre só este site, em tela cheia. Depois de instalar, conecte de novo no ícone novo, porque o iPhone guarda o login separado do Safari.':
@@ -858,6 +866,17 @@
 
         const chatBox = $('chat'), promptInput = $('prompt'), commandMenu = $('command-menu');
         const modelById = id => MODELS.find(m => m.id === id);
+        // so aparece o que esta instalado no Ollama (nuvem sempre aparece); installed = null enquanto nao sabemos
+        let installed = null, installedSize = {}, vramTotalMB = 0, modelInfo = {};
+        const isAvail = m => m.cloud || installed === null || installed.has(m.id);
+        const availIn = tab => MODELS.filter(m => m.tabs.includes(tab) && isAvail(m));
+        const pickDefault = list => list.find(m => m.rec && !m.cloud) || list.find(m => !m.cloud && !m.heavy) || list.find(m => !m.cloud) || list[0];
+        function familiesIn(tab) { const map = new Map(); availIn(tab).forEach(m => { if (!map.has(m.fam)) map.set(m.fam, []); map.get(m.fam).push(m); }); return map; }
+        function ensureSelected() {
+            const avail = availIn(currentTab); if (!avail.length) return;
+            const cur = modelById(selectedModel);
+            if (!cur || !avail.includes(cur)) { const pick = pickDefault(avail); selectedModel = pick.id; if (!pick.cloud) lastLocalModel = pick.id; }
+        }
         const tabOf = id => chats[id].tab || 'chat';
 
         // ---------- persistencia: servidor (state.json / history.json) + copia no navegador ----------
@@ -913,6 +932,7 @@
             applyPerf();
             if (auth.local) fetch(API + '/api/perf_interval', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ms: config.perfInterval }) }).catch(() => {});
             if (auth.local || auth.authed) fetch(API + '/api/usage').then(r => r.json()).then(updateUsageBadge).catch(() => {});
+            if (auth.local || auth.authed) await refreshLoaded();   // descobre o que esta instalado
             switchTab('chat');
             startPolling();
             metricsLoop();
@@ -985,9 +1005,10 @@
         function switchTab(tab) {
             currentTab = tab;
             document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
-            const valid = MODELS.filter(m => m.tabs.includes(tab));
-            if (!valid.some(m => m.id === selectedModel)) selectedModel = (valid.find(m => !m.cloud && !m.heavy) || valid[0]).id;
-            if (!modelById(lastLocalModel).tabs.includes(tab)) lastLocalModel = valid.find(m => !m.cloud && !m.heavy).id;
+            const valid = availIn(tab);
+            if (!valid.some(m => m.id === selectedModel)) selectedModel = pickDefault(valid).id;
+            const lm = modelById(lastLocalModel);
+            if (!lm || !lm.tabs.includes(tab) || !isAvail(lm)) { const l = valid.find(m => !m.cloud && !m.heavy); if (l) lastLocalModel = l.id; }
             renderModelOptions();
             const ids = Object.keys(chats).filter(id => tabOf(id) === tab);
             if (ids.length) loadChat(ids[ids.length - 1]); else createNewChat();
@@ -996,45 +1017,94 @@
         // ---------- dropdown de modelos ----------
         const fmtGB = b => (b / 1e9).toFixed(1) + ' GB';
         let lastModelSig = '';
+        function sizeInfoText(m) {
+            const parts = [], inf = modelInfo[m.id];
+            if (m.cloud) { parts.push(tr('nuvem'), fmtK(m.ctx) + ' ' + tr('contexto')); return parts.join(' · '); }
+            const bytes = installedSize[m.id] || 0;
+            parts.push(bytes ? fmtGB(bytes) : '~' + m.gb + ' GB');
+            if (inf && inf.quant) parts.push(inf.quant);
+            parts.push(fmtK(inf && inf.ctx ? inf.ctx : m.ctx) + ' ' + tr('contexto'));
+            const caps = inf && inf.caps && inf.caps.length ? inf.caps : (m.vision ? ['vision'] : []);
+            if (caps.includes('vision')) parts.push(tr('visão'));
+            if (caps.includes('tools')) parts.push(tr('ferramentas'));
+            if (caps.includes('thinking')) parts.push(tr('raciocínio'));
+            if (vramTotalMB && m.gb * OVERFLOW_OVERHEAD > vramTotalMB / 1024 * OVERFLOW_LIMIT) parts.push('⚠ ' + tr('pesado para a sua GPU'));
+            return parts.join(' · ');
+        }
+        async function fillSizeInfo(m) {   // le os detalhes reais do Ollama e atualiza so o texto de info
+            const el = $('size-info'); if (!el) return;
+            el.textContent = sizeInfoText(m);
+            if (m.cloud || modelInfo[m.id]) return;
+            try {
+                const inf = await (await fetch(API + '/api/model_info?name=' + encodeURIComponent(m.id))).json();
+                if (inf && !inf.error) { modelInfo[m.id] = inf; const el2 = $('size-info'); if (el2 && el2.dataset.id === m.id) el2.textContent = sizeInfoText(m); }
+            } catch (e) {}
+        }
         function renderModelOptions(onlyIfChanged = false) {
+            ensureSelected();
             // a lista so e reconstruida quando algo mudou (senao a animacao e o hover "reiniciavam" a cada atualizacao)
-            const sig = JSON.stringify([currentTab, selectedModel, Object.entries(loadedModels).map(([k, v]) => [k, v.size]), pendingModel]);
+            const sig = JSON.stringify([currentTab, selectedModel, Object.entries(loadedModels).map(([k, v]) => [k, v.size]), pendingModel, installed ? [...installed].sort() : null, vramTotalMB]);
             if (onlyIfChanged === true && sig === lastModelSig) return;
             lastModelSig = sig;
             const box = $('model-options'); box.innerHTML = '';
-            MODELS.filter(m => m.tabs.includes(currentTab)).forEach((m, i) => {
+            const fams = familiesIn(currentTab), cur = modelById(selectedModel);
+            let i = 0;
+            fams.forEach((sizes, fam) => {
+                const rec = sizes.find(m => m.rec) || sizes[0];
                 const el = document.createElement('div');
-                el.className = 'select-option' + (m.id === selectedModel ? ' selected' : '');
-                el.style.setProperty('--i', i);
+                el.className = 'select-option' + (fam === cur.fam ? ' selected' : '');
+                el.style.setProperty('--i', i++);
                 const label = document.createElement('span'); label.className = 'mo-label';
-                label.innerHTML = `<img class="ic" src="icons/${m.icon}.png">`;
-                label.appendChild(document.createTextNode(m.label));
-                const info = loadedModels[m.id], pend = pendingModel[m.id];
-                if (m.vision) { const v = document.createElement('span'); v.className = 'mo-badge vision'; v.textContent = tr('visão'); label.appendChild(v); }
-                if (m.cloud) { const b = document.createElement('span'); b.className = 'mo-badge cloud'; b.textContent = tr('nuvem'); label.appendChild(b); }
-                else if (pend) { const b = document.createElement('span'); b.className = 'mo-badge busy'; b.textContent = tr(pend) + '...'; label.appendChild(b); }
-                else if (info) { const b = document.createElement('span'); b.className = 'mo-badge'; b.textContent = tr('na memória') + ' · ' + fmtGB(info.size); label.appendChild(b); }
+                label.innerHTML = `<img class="ic" src="icons/${rec.icon === 'triangle-alert' ? 'zap' : rec.icon}.png">`;
+                label.appendChild(document.createTextNode(rec.famName));
+                if (sizes.some(m => m.vision)) { const v = document.createElement('span'); v.className = 'mo-badge vision'; v.textContent = tr('visão'); label.appendChild(v); }
+                if (rec.cloud) { const b = document.createElement('span'); b.className = 'mo-badge cloud'; b.textContent = tr('nuvem'); label.appendChild(b); }
+                else if (sizes.some(m => pendingModel[m.id])) { const b = document.createElement('span'); b.className = 'mo-badge busy'; b.textContent = tr(pendingModel[sizes.find(m => pendingModel[m.id]).id]) + '...'; label.appendChild(b); }
+                else if (sizes.some(m => loadedModels[m.id])) { const b = document.createElement('span'); b.className = 'mo-badge'; b.textContent = tr('na memória'); label.appendChild(b); }
                 el.appendChild(label);
-                if (!m.cloud) {   // controle individual de cada modelo local
-                    const play = document.createElement('button'); play.className = 'mo-btn'; play.title = tr('Iniciar {label}', { label: m.label });
-                    play.innerHTML = '<img class="ic" src="icons/circle-play.png">'; play.disabled = !!info || !!pend;
-                    play.onclick = e => { e.stopPropagation(); modelStart(m); };
-                    const stop = document.createElement('button'); stop.className = 'mo-btn'; stop.title = tr('Parar {label}', { label: m.label });
-                    stop.innerHTML = '<img class="ic" src="icons/circle-stop.png">'; stop.disabled = !info || !!pend;
-                    stop.onclick = e => { e.stopPropagation(); modelStop(m); };
-                    el.append(play, stop);
-                }
-                el.onclick = () => selectModel(m.id);
+                el.onclick = () => selectFamily(fam);
                 box.appendChild(el);
             });
-            const m = modelById(selectedModel);
-            $('model-trigger-icon').src = `icons/${m.icon}.png`; $('model-trigger-text').textContent = m.label;
+            if (!fams.size) { const e = document.createElement('div'); e.className = 'select-option'; e.textContent = tr('Nenhum modelo disponível.'); box.appendChild(e); }
+            // linha de parametros do modelo da familia escolhida
+            const sizes = fams.get(cur.fam) || [];
+            if (sizes.length) {
+                const row = document.createElement('div'); row.className = 'size-row';
+                const lab = document.createElement('span'); lab.className = 'size-label'; lab.textContent = tr('Parâmetros');
+                const sel = document.createElement('select'); sel.id = 'size-select';
+                sizes.forEach(m => sel.add(new Option(m.params + (m.heavy ? ' ⚠' : ''), m.id)));
+                sel.value = cur.id; sel.onchange = () => pickSize(sel.value);
+                const info = document.createElement('span'); info.className = 'size-info'; info.id = 'size-info'; info.dataset.id = cur.id; info.textContent = sizeInfoText(cur);
+                row.append(lab, sel, info);
+                if (!cur.cloud) {   // iniciar / parar este tamanho
+                    const loaded = loadedModels[cur.id], pend = pendingModel[cur.id];
+                    const play = document.createElement('button'); play.className = 'mo-btn'; play.title = tr('Iniciar {label}', { label: cur.label });
+                    play.innerHTML = '<img class="ic" src="icons/circle-play.png">'; play.disabled = !!loaded || !!pend;
+                    play.onclick = e => { e.stopPropagation(); modelStart(cur); };
+                    const stop = document.createElement('button'); stop.className = 'mo-btn'; stop.title = tr('Parar {label}', { label: cur.label });
+                    stop.innerHTML = '<img class="ic" src="icons/circle-stop.png">'; stop.disabled = !loaded || !!pend;
+                    stop.onclick = e => { e.stopPropagation(); modelStop(cur); };
+                    row.append(play, stop);
+                }
+                box.appendChild(row);
+                fillSizeInfo(cur);
+            }
+            $('model-trigger-icon').src = `icons/${cur.icon === 'triangle-alert' ? 'zap' : cur.icon}.png`; $('model-trigger-text').textContent = cur.famName + ' ' + cur.params;
             updateCtxBar();
         }
+        async function selectFamily(fam) {
+            const sizes = familiesIn(currentTab).get(fam); if (!sizes || modelById(selectedModel).fam === fam) return;
+            const remembered = sizes.find(m => config.famSize && config.famSize[fam] === m.id);
+            await selectModel((remembered || sizes.find(m => m.rec) || sizes.find(m => !m.heavy) || sizes[0]).id, true);
+            renderModelOptions();
+        }
+        async function pickSize(id) { await selectModel(id); renderModelOptions(); }
         async function refreshLoaded() {
             try {
                 const st = await (await fetch(API + '/api/models_status')).json();
                 loadedModels = {}; st.loaded.forEach(m => loadedModels[m.name] = m);
+                if (st.vram_total) vramTotalMB = st.vram_total;
+                if (Array.isArray(st.installed)) { installed = new Set(st.installed); installedSize = st.installed_sizes || {}; }
             } catch (e) {}
         }
         let openTimer = null;
@@ -1052,15 +1122,16 @@
         // mousedown (e nao click): o click acontece depois de renderModelOptions recriar os elementos
         document.addEventListener('mousedown', e => { if (!e.target.closest('#model-select')) { $('model-select').classList.remove('open'); clearInterval(openTimer); } });
 
-        async function selectModel(id) {
+        async function selectModel(id, keepOpen = false) {
             const m = modelById(id);
-            $('model-select').classList.remove('open'); clearInterval(openTimer);
+            if (!keepOpen) { $('model-select').classList.remove('open'); clearInterval(openTimer); }
             if (m.cloud && !(await hasGroqKey())) { await noKeyDialog(); return; }   // continua no modelo anterior
             if (m.heavy) {
                 const r = await ask({ title: 'Modelo muito pesado', body: tr('{label} é muito pesado para esta máquina e vai rodar super lento (pode estourar a VRAM e usar a RAM/CPU).', { label: m.label }), buttons: ['Usar mesmo assim', 'Cancelar'], danger: true });
                 if (r.index !== 0) return;
             }
             selectedModel = id; config.model = id; if (!m.cloud) lastLocalModel = id;
+            config.famSize = Object.assign({}, config.famSize, { [m.fam]: id });
             saveState(); renderModelOptions();
         }
         async function modelStart(m) {

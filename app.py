@@ -11,6 +11,7 @@ import subprocess
 import os
 import atexit
 import base64
+import html as html_mod
 import copy
 import hmac
 import secrets
@@ -197,20 +198,82 @@ def get_workdir(cfg=None):
     return wd if os.path.isdir(wd) else BASE_DIR
 
 # ---------------------------------------------------------------- ferramentas
+SEARCH_UA = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+             'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8'}
+MAX_SEARCH_RESULTS = 5
+
+def _clean_html(text):
+    return re.sub(r'\s+', ' ', html_mod.unescape(re.sub(r'<[^>]+>', '', text))).strip()
+
+def _fetch(url, data=None, headers=None):
+    req = urllib.request.Request(url, data=data, headers={**SEARCH_UA, **(headers or {})})
+    with urllib.request.urlopen(req, timeout=10) as r: return r.read().decode('utf-8', 'replace')
+
+def _search_ddg(query):
+    """DuckDuckGo 'lite' (o endpoint /html/ passou a exigir verificacao anti-robo)."""
+    page = _fetch("https://lite.duckduckgo.com/lite/", data=urllib.parse.urlencode({'q': query}).encode(), headers={'Content-Type': 'application/x-www-form-urlencoded'})
+    if re.search(r'anomaly|bots use duckduckgo', page, re.I): raise Exception("pediu verificacao anti-robo")
+    out = []
+    for m in re.finditer(r"""<a[^>]*href="([^"]+)"[^>]*class='result-link'[^>]*>(.*?)</a>.*?<td[^>]*class='result-snippet'[^>]*>(.*?)</td>""", page, re.S):
+        url = html_mod.unescape(m.group(1))
+        if 'duckduckgo.com/y.js' in url: continue   # anuncio
+        out.append((_clean_html(m.group(2)), _clean_html(m.group(3)), 'https:' + url if url.startswith('//') else url))
+        if len(out) >= MAX_SEARCH_RESULTS: break
+    return out
+
+def _bing_url(href):
+    m = re.search(r'[?&]u=a1([A-Za-z0-9_\-]+)', href)   # links do Bing vem embrulhados em base64
+    if m and 'bing.com/ck/' in href:
+        try: return base64.urlsafe_b64decode(m.group(1) + '=' * (-len(m.group(1)) % 4)).decode()
+        except Exception: pass
+    return href
+
+def _search_bing(query):
+    page = _fetch("https://www.bing.com/search?q=" + urllib.parse.quote(query) + "&setlang=pt-BR")
+    out = []
+    for block in re.findall(r'<li class="b_algo".*?</li>', page, re.S):
+        a = re.search(r'<h2[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>(.*?)</a>', block, re.S)
+        if not a: continue
+        sn = re.search(r'<p[^>]*>(.*?)</p>', block, re.S)
+        out.append((_clean_html(a.group(2)), _clean_html(sn.group(1)) if sn else '', _bing_url(html_mod.unescape(a.group(1)))))
+        if len(out) >= MAX_SEARCH_RESULTS: break
+    return out
+
+def _search_wikipedia(query):
+    """Ultimo recurso: so enciclopedia, mas nunca bloqueia."""
+    out = []
+    for lang in ("pt", "en"):
+        data = json.loads(_fetch(f"https://{lang}.wikipedia.org/w/api.php?action=query&list=search&srsearch={urllib.parse.quote(query)}&format=json&srlimit={MAX_SEARCH_RESULTS}&utf8=1"))
+        for x in data.get("query", {}).get("search", []):
+            out.append((x["title"], _clean_html(x["snippet"]), f"https://{lang}.wikipedia.org/wiki/{urllib.parse.quote(x['title'].replace(' ', '_'))}"))
+        if out: break
+    return out[:MAX_SEARCH_RESULTS]
+
+def search_web_results(query):
+    """Tenta DuckDuckGo, depois Bing, depois Wikipedia. Retorna ([(titulo, trecho, link)], fonte) ou ([], None)."""
+    errors = []
+    for name, fn in (("DuckDuckGo", _search_ddg), ("Bing", _search_bing), ("Wikipedia", _search_wikipedia)):
+        try:
+            res = fn(query)
+            if res: return res, name
+            errors.append(f"{name}: sem resultados")
+        except Exception as e:
+            errors.append(f"{name}: {e}")
+    log("WEB", "Pesquisa falhou em todas as fontes -> " + "; ".join(errors), COLOR_RED)
+    return [], None
+
+def format_search(results, source):
+    out = f"\n\n--- RESULTADOS / RESULTS ({source}) ---\n"
+    for i, (title, snippet, link) in enumerate(results, 1): out += f"[{i}] {title}\n{snippet}\nLink: {link}\n\n"
+    return out
+
 def search_web(query):
-    try:
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}"
-        req = urllib.request.Request(url, headers=headers)
-        html = urllib.request.urlopen(req, timeout=10).read().decode('utf-8')
-        titles = re.findall(r'<a class="result__snippet[^>]*>(.*?)</a>', html, re.DOTALL)
-        links = re.findall(r'<a class="result__url" href="([^"]+)"', html)
-        clean_titles = [re.sub(r'<[^>]+>', '', t).strip() for t in titles[:3]]
-        if not clean_titles: return "Nenhum resultado."
-        res = "\n\n--- RESULTADOS ---\n"
-        for i, (t, l) in enumerate(zip(clean_titles, links)): res += f"[{i+1}] {t}\nLink: {l.strip()}\n\n"
-        return res
-    except Exception as e: return f"Erro: {e}"
+    results, source = search_web_results(query)
+    if not results:
+        return ("Pesquisa na web indisponivel agora / Web search unavailable right now. "
+                "NAO invente a resposta: diga ao usuario que nao foi possivel pesquisar. / Do NOT make up an answer: tell the user the search was not possible.")
+    log("WEB", f"{len(results)} resultado(s) via {source}", COLOR_GREEN)
+    return format_search(results, source)
 
 TOOL_PROMPT = """
 
@@ -297,26 +360,50 @@ def execute_tool(tool_name, tool_args, workdir):
     except Exception as e:
         return f"Erro: {e}"
 
-TOOL_MARK = re.compile(r'\$\$\s*\[\s*TOOL\s*[:\s]\s*(\w+)[^\]]*\]', re.IGNORECASE)
+TOOL_NAMES = ("list_files", "read_file", "write_file", "cmd", "powershell", "search_web")
+TOOL_MARK = re.compile(r'(?:\$\$\s*)?\[\s*TOOL\s*[:\s]\s*(\w+)[^\]]*\]', re.IGNORECASE)   # "$$" na frente e opcional
+FENCE_MARK = re.compile(r'```[ \t]*(' + "|".join(TOOL_NAMES) + r')\b', re.IGNORECASE)    # modelos pequenos as vezes usam ```powershell {...}```
+ARG_KEYS = {"command", "path", "content", "query"}
+
+def _decode_json(rest):
+    for candidate in (rest, rest.replace("'", '"')):
+        try: return json.JSONDecoder().raw_decode(candidate)
+        except Exception: pass
+    return None
 
 def find_tool_call(text):
-    """Procura uma chamada completa `$$[TOOL: nome] {json}$$`. Retorna (nome, args, fim) ou None."""
+    """Procura uma chamada completa de ferramenta. Retorna (nome, args, fim) ou None.
+    Formato oficial: $$[TOOL: nome] {json}$$. Tambem aceita sem os $$ e o bloco ```nome {json}```."""
+    fence = False
     m = TOOL_MARK.search(text)
-    if not m: return None
-    rest = text[m.end():]
+    if m:
+        name, base = m.group(1), m.end()
+    else:
+        f = FENCE_MARK.search(text)
+        if not f: return None
+        name, base, fence = f.group(1).lower(), f.end(), True
+    rest = text[base:]
     start = rest.find('{')
     if start == -1: return None
-    try:
-        args, used = json.JSONDecoder().raw_decode(rest[start:])
-    except Exception:
-        try:
-            args, used = json.JSONDecoder().raw_decode(rest[start:].replace("'", '"'))
-        except Exception:
-            return None
-    end = m.end() + start + used
-    tail = text[end:end + 4].lstrip()
-    if tail.startswith("$$"): end = text.index("$$", end) + 2
-    return m.group(1), args, end
+    if fence and rest[:start].strip(): return None   # exemplo de codigo comum, nao uma chamada
+    decoded = _decode_json(rest[start:])
+    if not decoded: return None
+    args, used = decoded
+    if fence and (not isinstance(args, dict) or not args or not set(args) <= ARG_KEYS): return None
+    end = base + start + used
+    if fence:
+        close = re.match(r'[\s$]*```', text[end:])
+        if close: end += close.end()
+    elif text[end:end + 6].lstrip().startswith("$$"):
+        end = text.index("$$", end) + 2
+    return name, args, end
+
+def looks_like_failed_call(text):
+    """A IA tentou chamar uma ferramenta mas errou o formato (nada foi reconhecido)."""
+    return bool(re.search(r'\[\s*TOOL', text, re.I) or re.search(r'\{\s*"(command|path|query|content)"\s*:', text))
+
+CORRECTION_PT = 'Formato invalido: nenhuma ferramenta foi executada. Para usar uma ferramenta escreva EXATAMENTE $$[TOOL: nome] {"argumento": "valor"}$$ (sem bloco de codigo) e pare de escrever. Tente de novo.'
+CORRECTION_EN = 'Invalid format: no tool was run. To use a tool write EXACTLY $$[TOOL: name] {"argument": "value"}$$ (no code block) and stop writing. Try again.'
 
 def ask_permission(description):
     """Bloqueia ate o usuario aprovar/negar no popup (ou parar a geracao)."""
@@ -340,6 +427,29 @@ def ollama_is_running():
 def ollama_post(path, payload, timeout=120):
     req = urllib.request.Request(f"{OLLAMA_URL}{path}", data=json.dumps(payload).encode('utf-8'), headers={'Content-Type': 'application/json'})
     with urllib.request.urlopen(req, timeout=timeout) as r: return r.read()
+
+def ollama_tags():
+    """Modelos INSTALADOS no Ollama ([{name, size, ...}]) ou None se o Ollama nao responde."""
+    try:
+        with urllib.request.urlopen(f"{OLLAMA_URL}/api/tags", timeout=2) as r: return json.load(r).get("models", [])
+    except Exception:
+        return None
+
+_model_info_cache = {}
+def get_model_info(name):
+    """Detalhes de um modelo instalado, lidos do proprio Ollama (parametros, quantizacao, contexto, capacidades)."""
+    hit = _model_info_cache.get(name)
+    if hit and time.time() - hit[0] < 120: return hit[1]
+    try:
+        d = json.loads(ollama_post("/api/show", {"model": name}, timeout=10))
+    except Exception:
+        return {}
+    mi = d.get("model_info") or {}
+    det = d.get("details") or {}
+    info = {"params": det.get("parameter_size"), "quant": det.get("quantization_level"), "caps": d.get("capabilities") or [],
+            "ctx": next((v for k, v in mi.items() if k.endswith(".context_length")), None)}
+    _model_info_cache[name] = (time.time(), info)
+    return info
 
 def ollama_ps():
     """Modelos carregados na memoria agora: [{name, size, size_vram, ...}]."""
@@ -673,10 +783,16 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             cfg = load_config()
             return self.send_json({"groq_key_saved": bool(cfg.get("groq_api_key")), "workdir": get_workdir(cfg) if local else "", "default_workdir": BASE_DIR if local else ""})
         if p == '/api/models_status':
-            running = ollama_is_running()
+            tags = ollama_tags(); running = tags is not None
             used, total, _ = get_gpu_metrics()
             loaded = [{"name": m["name"], "size": m.get("size", 0), "size_vram": m.get("size_vram", 0)} for m in ollama_ps()] if running else []
-            return self.send_json({"running": running, "loaded": loaded, "vram_total": total, "vram_used": used})
+            return self.send_json({"running": running, "loaded": loaded, "vram_total": total, "vram_used": used,
+                                   "installed": [m["name"] for m in tags] if running else None,
+                                   "installed_sizes": {m["name"]: m.get("size", 0) for m in tags} if running else {}})
+        if p == '/api/model_info':
+            name = (self.query.get('name') or [''])[0]
+            if not re.fullmatch(r'[\w.:\-/]+', name): return self.send_json({"error": "nome invalido"}, 400)
+            return self.send_json(get_model_info(name))
         if p == '/api/metrics':
             vram_used, vram_total, gpu_util = get_gpu_metrics()
             vram_pct = None
@@ -943,10 +1059,17 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 if len(query.strip()) >= MIN_WEB_QUERY:
                     status("Pesquisando na web")
                     log("WEB", f"Pesquisando: {query}", COLOR_CYAN)
-                    messages[0]["content"] += L("\n\n[PESQUISA NA WEB - use se for relevante e cite os links]", "\n\n[WEB SEARCH - use it if relevant and cite the links]") + search_web(query)
+                    results, source = search_web_results(query)
+                    if results:
+                        messages[0]["content"] += L("\n\n[PESQUISA NA WEB - use se for relevante e cite os links]", "\n\n[WEB SEARCH - use it if relevant and cite the links]") + format_search(results, source)
+                    else:
+                        status("Pesquisa na web indisponível")
+                        messages[0]["content"] += L("\n\n[A pesquisa na web falhou: voce NAO tem dados atuais. Se a pergunta depender de informacao recente, diga isso ao usuario em vez de inventar.]",
+                                                    "\n\n[The web search failed: you do NOT have current data. If the question depends on recent information, say so instead of making things up.]")
                 else:
                     log("WEB", "Mensagem curta demais, pesquisa ignorada.", COLOR_GRAY)
 
+            corrections = 0
             for step in range(MAX_AGENT_STEPS if agent else 1):
                 full = ""
                 gen = stream_model(model, messages, think, cfg, num_ctx)
@@ -970,6 +1093,14 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     break
                 call = find_tool_call(full) if agent else None
                 if not call:
+                    if agent and corrections < 2 and looks_like_failed_call(full):   # errou o formato: pede para repetir (ate 2 vezes)
+                        corrections += 1
+                        log("AGENTE", "Chamada de ferramenta fora do formato; pedindo para a IA repetir.", COLOR_YELLOW)
+                        send(L("\n\n[formato de ferramenta invalido, pedindo para a IA tentar de novo]", "\n\n[invalid tool format, asking the AI to try again]"))
+                        messages.append({"role": "assistant", "content": full})
+                        messages.append({"role": "user", "content": L(CORRECTION_PT, CORRECTION_EN)})
+                        status("Pensando")
+                        continue
                     break
                 tool_name, tool_args, end = call
                 tool_args = normalize_args(tool_name, tool_args)
