@@ -293,7 +293,9 @@
         #connect-banner button { margin: 0; padding: 4px 12px; background: #111; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
         #menu-btn { display: none; font-size: 22px; color: var(--text-main); margin-right: 8px; padding: 2px 8px; }
         #drawer-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 850; }
-        body.remote .host-only { display: none !important; }
+        body.remote:not(.root) .host-only { display: none !important; }
+        #root-chip { display: none; font-size: 0.78em; padding: 4px 10px; margin-bottom: 8px; border: 1px solid #d29922; color: #d29922; border-radius: 8px; }
+        body.root #root-chip { display: block; }
         body.remote #titlebar { display: none; }
         body.remote #settings-modal, body.remote #memory-modal, body.remote #export-modal, body.remote #stats-modal, body.remote #dialog-overlay, body.remote #drop-overlay { inset: 0; }
         @media (hover: none) { .chat-actions { opacity: 1; } .msg-actions { opacity: .75; } }
@@ -478,6 +480,7 @@
 
         <div id="sidebar">
             <h2 class="brand"><img class="wordmark bare-white brandlogo" src="icons/qwen-seeklogo.png" alt="Qwen" title="Qwen"></h2>
+            <div id="root-chip">🔓 Acesso root (link secreto)</div>
             <div id="guest-chip" style="display:none;"><span id="guest-chip-name"></span><span id="guest-chip-use" class="muted"></span><button type="button" onclick="guestLogout()">Sair</button></div>
             <div class="tabs">
                 <div class="tab active" data-tab="chat" onclick="switchTab('chat')">Chat</div>
@@ -731,7 +734,15 @@
                 </div>
                 <span class="hint">No outro aparelho: abra o endereço acima, vá em Configurações, aba Servidor, "Conectar ao servidor" e digite esta senha.</span>
 
-                <label class="toggle-container"><input type="checkbox" id="srv-pwreq" onchange="srvSet({ password_required: this.checked })"><div class="toggle-switch"></div> Exigir senha nos outros aparelhos (desligado: qualquer um na sua rede entra sem senha)</label>
+                <label class="toggle-container"><input type="checkbox" id="srv-pwreq" onchange="pwToggle('lan', this.checked)"><div class="toggle-switch"></div> Exigir senha na rede de casa / Wi-Fi (desligado: qualquer aparelho do seu Wi-Fi entra sem senha)</label>
+                <label class="toggle-container"><input type="checkbox" id="srv-pwnet" onchange="pwToggle('net', this.checked)"><div class="toggle-switch"></div> Exigir senha pela internet (túnel) (desligado: quem tiver o endereço do túnel entra como dono, sem senha)</label>
+                <span class="hint">Ligar uma senha que estava desligada desconecta todos os aparelhos na hora.</span>
+
+                <div class="section-title">Acesso root pelo link secreto</div>
+                <span class="hint">Com isso ligado, abrir <b>/owner-SEUCODIGO</b> em qualquer aparelho dá acesso total, igual à janela do <code>run.bat</code> no PC: configurações, chaves, aba Code, rodar código, painel. Sem senha e sem restrição, então quem tiver o link é "root". Use um código longo e aleatório e não compartilhe. Trocar o código ou desligar derruba as sessões root na hora.</span>
+                <label class="toggle-container"><input type="checkbox" id="srv-ownerlink" onchange="ownerLinkToggle(this.checked)"><div class="toggle-switch"></div> Ligar o link secreto /owner-</label>
+                <div class="srv-actions"><input type="text" id="srv-ownercode" maxlength="40" autocomplete="off" spellcheck="false" style="flex:1; min-width:140px;" placeholder="código (ex.: Y7927)"><button class="btn btn-secondary" onclick="ownerCodeSave()">Salvar código</button><button class="btn btn-secondary" onclick="ownerCodeRandom()">Gerar aleatório</button></div>
+                <div id="srv-ownerlinks" class="srv-list"></div>
 
                 <div class="section-title">Permissões dos aparelhos remotos</div>
                 <label class="toggle-container"><input type="checkbox" id="srv-code" onchange="srvSet({ allow_remote_code: this.checked })"><div class="toggle-switch"></div> Permitir a aba Code (a IA pode ler e escrever arquivos e rodar comandos NESTE PC; cada ação continua pedindo a sua aprovação aqui)</label>
@@ -927,7 +938,12 @@
             'Overlay de desempenho': 'Performance overlay', 'Mostrar overlay no canto superior direito': 'Show overlay in the top-right corner', 'Estilo': 'Style',
             'Padrão (colorido)': 'Default (colored)', 'Cinza (discreto)': 'Gray (subtle)', 'Atualização:': 'Refresh:',
             'A GPU em si só atualiza o uso a cada ~100–1000 ms; valores menores que isso não deixam o número mais preciso.': 'The GPU itself only updates its usage every ~100–1000 ms; lower values do not make the number more precise.',
-            'Salvar Tudo': 'Save all', 'Acesso de fora de casa e amigos': 'Access from outside your home and friends', 'Abrir túnel (Cloudflare)': 'Open tunnel (Cloudflare)', 'Fechar túnel': 'Close tunnel', 'Abrir o painel (/dashboard)': 'Open the dashboard (/dashboard)',
+            'Salvar Tudo': 'Save all', 'Exigir senha na rede de casa / Wi-Fi (desligado: qualquer aparelho do seu Wi-Fi entra sem senha)': 'Require a password on the home network / Wi-Fi (off: any device on your Wi-Fi gets in without one)',
+            'Exigir senha pela internet (túnel) (desligado: quem tiver o endereço do túnel entra como dono, sem senha)': 'Require a password over the internet (tunnel) (off: anyone with the tunnel address gets in as the owner, without one)',
+            'Ligar uma senha que estava desligada desconecta todos os aparelhos na hora.': 'Turning a password back on disconnects all devices immediately.', 'Acesso root pelo link secreto': 'Root access through the secret link',
+            'Ligar o link secreto /owner-': 'Turn on the secret /owner- link', 'Salvar código': 'Save code', 'Gerar aleatório': 'Generate random', '🔓 Acesso root (link secreto)': '🔓 Root access (secret link)',
+            'Senha ligada: todos os aparelhos conectados foram desconectados.': 'Password on: all connected devices were disconnected.', 'Desligar a senha pela internet?': 'Turn off the internet password?', 'Desligar a senha na rede de casa?': 'Turn off the home network password?', 'Desligar a senha': 'Turn off the password',
+            'Código salvo. As sessões root antigas foram encerradas.': 'Code saved. Old root sessions were ended.', 'Novo código aleatório gerado. As sessões root antigas foram encerradas.': 'New random code generated. Old root sessions were ended.', 'Código inválido.': 'Invalid code.', 'Ligar o link root?': 'Turn on the root link?', 'Acesso de fora de casa e amigos': 'Access from outside your home and friends', 'Abrir túnel (Cloudflare)': 'Open tunnel (Cloudflare)', 'Fechar túnel': 'Close tunnel', 'Abrir o painel (/dashboard)': 'Open the dashboard (/dashboard)',
             'Túnel aberto. O endereço muda toda vez que o túnel é aberto.': 'Tunnel open. The address changes every time the tunnel is opened.', 'Abrindo o túnel...': 'Opening the tunnel...', 'Túnel encerrado: {e}': 'Tunnel closed: {e}', 'link para os amigos': 'link for friends', 'seu painel': 'your dashboard',
             'O túnel grátis do Cloudflare precisa do programa cloudflared. Instale no PowerShell com:': 'The free Cloudflare tunnel needs the cloudflared program. Install it in PowerShell with:', 'e abra o app de novo.': 'and open the app again.', 'Quer um endereço fixo (que não muda)? Use o Tailscale Funnel: instale o Tailscale, entre na sua conta e rode': 'Want a fixed address (that never changes)? Use Tailscale Funnel: install Tailscale, sign in and run', 'O Tailscale já está instalado neste PC.': 'Tailscale is already installed on this PC.', 'hoje': 'today', 'Seu acesso será desligado em {s} s.': 'Your access will be turned off in {s} s.', 'O servidor foi desligado pelo dono': 'The server was turned off by the owner', 'Sua conta foi desativada': 'Your account was disabled', 'Fale com quem te convidou para voltar a usar.': 'Talk to whoever invited you to use it again.', 'Tentar de novo': 'Try again', 'Sair': 'Log out',
             'Sua conta está desativada.': 'Your account is disabled.', 'Você atingiu o limite de respostas de hoje.': 'You reached today’s answer limit.', 'Calma! Muitas respostas em pouco tempo. Tente de novo em instantes.': 'Easy! Too many answers in a short time. Try again in a moment.', 'O servidor está ocupado agora. Tente de novo em instantes.': 'The server is busy right now. Try again in a moment.', 'Você não tem acesso a este modelo.': 'You do not have access to this model.', 'Este recurso está bloqueado na sua conta.': 'This feature is blocked on your account.', 'Enviar imagens está bloqueado na sua conta.': 'Sending images is blocked on your account.', 'Anexar arquivos está bloqueado na sua conta.': 'Attaching files is blocked on your account.', 'Nuvem: últimas 5 h (respostas · GPU)': 'Cloud: last 5 h (answers · GPU)', 'Nuvem: últimos 7 dias (respostas · GPU)': 'Cloud: last 7 days (answers · GPU)', 'Local no PC (período escolhido)': 'Local on PC (chosen period)', 'Modelo da nuvem (30 dias)': 'Cloud model (30 days)', 'Tempo de GPU': 'GPU time', 'Nenhuma resposta de modelo da nuvem do Ollama registrada ainda.': 'No Ollama cloud answers recorded yet.', 'Ver o uso na conta do Ollama': 'See usage on the Ollama account', 'O Ollama mede o plano grátis por tempo de GPU (janelas de 5 horas e 7 dias) e não oferece uma forma de o app ler a % usada. Os números acima são só o que passou por este app.': 'Ollama measures the free plan by GPU time (5-hour and 7-day windows) and offers no way for the app to read the % used. The numbers above are only what went through this app.', 'Rodar': 'Run', 'Rodar este código?': 'Run this code?', 'Instalar bibliotecas e rodar?': 'Install libraries and run?', 'Instalar e rodar': 'Install and run', 'Não perguntar de novo': 'Do not ask again', 'Rodando...': 'Running...', 'Programa aberto': 'Program opened', 'Parado por tempo': 'Stopped (time limit)', 'Terminou ✓': 'Finished ✓', 'Erro (código {n})': 'Error (code {n})', '(sem saída)': '(no output)',
@@ -1220,7 +1236,8 @@
             guest_busy: 'O servidor está ocupado agora. Tente de novo em instantes.', guest_model: 'Você não tem acesso a este modelo.', guest_blocked: 'Este recurso está bloqueado na sua conta.' };
         async function checkAuth() {
             try { auth = await (await _fetch(API + '/api/auth/status')).json(); } catch (e) {}
-            document.body.classList.toggle('remote', !auth.local);
+            document.body.classList.toggle('remote', !auth.local || !!auth.root);   // acesso root de outro aparelho: tela de celular, mas com todos os poderes
+            document.body.classList.toggle('root', !!auth.root);
             document.body.classList.toggle('guest', isGuest());
             if (isGuest()) applyGuestUI();
         }
@@ -1988,7 +2005,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
         });
 
         // ---------- fontes (cartoes clicaveis) ----------
-        function openExternal(url) { if (auth.local) fetch(API + '/api/open_url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) }).catch(() => {}); else window.open(url, '_blank', 'noopener'); }
+        function openExternal(url) { if (auth.local && !auth.root) fetch(API + '/api/open_url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) }).catch(() => {}); else window.open(url, '_blank', 'noopener'); }
         const domainOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return u; } };
         function favIcon(x) {   // logo do site (servico de icones do DuckDuckGo); se nao carregar, mostra a inicial
             const dom = domainOf(x.url), wrap = document.createElement('a');
@@ -2584,7 +2601,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             if (kind === 'txt') { b64 = btoa(unescape(encodeURIComponent(text))); ext = 'txt'; }
             else if (kind === 'pdf') { b64 = buildPdf(text); ext = 'pdf'; }
             else { b64 = buildPng(text); ext = 'png'; }
-            if (!auth.local) { downloadB64(`${name}.${ext}`, b64, { txt: 'text/plain', pdf: 'application/pdf', png: 'image/png' }[ext]); return; }
+            if (!auth.local || auth.root) { downloadB64(`${name}.${ext}`, b64, { txt: 'text/plain', pdf: 'application/pdf', png: 'image/png' }[ext]); return; }
             try {
                 const r = await (await fetch(API + '/api/export', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filename: `${name}.${ext}`, b64 }) })).json();
                 showInfo(tr('Salvo em {path}', { path: r.path }), 10000);
@@ -2852,6 +2869,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             $('tun-start').style.display = t.running ? 'none' : ''; $('tun-stop').style.display = t.running ? '' : 'none';
             $('tun-start').disabled = !t.cloudflared;
             $('tun-status').textContent = t.running ? (t.url ? tr('Túnel aberto. O endereço muda toda vez que o túnel é aberto.') : tr('Abrindo o túnel...')) : (t.error ? tr('Túnel encerrado: {e}', { e: t.error }) : '');
+            window.__tunUrl = t.url || ''; renderOwnerLinks();
             const box = $('tun-links'); box.innerHTML = '';
             if (t.url) [[t.url, 'chat'], [t.url + '/share', tr('link para os amigos')], [t.url + '/dashboard', tr('seu painel')]].forEach(([u, lab]) => {
                 const row = document.createElement('div'); row.className = 'srv-row'; const code = document.createElement('code'); code.textContent = u;
@@ -2876,7 +2894,8 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 return;
             }
             let i; try { i = await (await fetch(API + '/api/server_info')).json(); } catch (e) { return; }
-            $('srv-remote').checked = i.remote_enabled; $('srv-code').checked = i.allow_remote_code; $('srv-pwreq').checked = i.password_required !== false;
+            $('srv-remote').checked = i.remote_enabled; $('srv-code').checked = i.allow_remote_code; $('srv-pwreq').checked = i.password_required !== false; $('srv-pwnet').checked = i.internet_password_required !== false;
+            $('srv-ownerlink').checked = !!i.owner_link_enabled; if (document.activeElement !== $('srv-ownercode')) $('srv-ownercode').value = i.owner_code || ''; lastServerInfo = i; renderOwnerLinks();
             $('srv-listening').textContent = tr(i.remote_enabled ? 'Ouvindo em {addr} (rede local ligada)' : 'Ouvindo em {addr} (somente neste PC)', { addr: i.listening });
             $('srv-password').value = i.password; refreshTunnel();
             const addr = $('srv-addresses'); addr.innerHTML = '';
@@ -2912,6 +2931,34 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             if ('remote_enabled' in obj) { showInfo(obj.remote_enabled ? 'Ligando o acesso pela rede...' : 'Desligando o acesso pela rede...', 2500); await sleep(1800); }
             refreshServerTab();
         }
+        async function pwToggle(kind, on) {
+            const key = kind === 'net' ? 'internet_password_required' : 'password_required';
+            if (!on) {
+                const r = await ask({ title: kind === 'net' ? 'Desligar a senha pela internet?' : 'Desligar a senha na rede de casa?',
+                    body: kind === 'net' ? 'Sem senha, QUALQUER pessoa que tiver o endereço do túnel entra como dono (chat e painel). Configurações e a aba Code continuam só no PC e no link root. Só faça isso se o endereço for secreto.' : 'Qualquer aparelho conectado ao seu Wi-Fi entra como dono, sem senha.',
+                    buttons: ['Desligar a senha', 'Cancelar'], danger: true });
+                if (r.index !== 0) { refreshServerTab(); return; }
+            }
+            await srvSet({ [key]: on });
+            if (on) showInfo('Senha ligada: todos os aparelhos conectados foram desconectados.', 6000);
+        }
+        let lastServerInfo = null;
+        function renderOwnerLinks() {
+            const box = $('srv-ownerlinks'); if (!box) return; box.innerHTML = '';
+            const i = lastServerInfo; if (!i || !i.owner_link_enabled || !i.owner_code) return;
+            const urls = i.addresses.map(a => `${a}/owner-${i.owner_code}`); if (window.__tunUrl) urls.unshift(`${window.__tunUrl}/owner-${i.owner_code}`);
+            urls.forEach(u => { const row = document.createElement('div'); row.className = 'srv-row'; const code = document.createElement('code'); code.textContent = u; const b = document.createElement('button'); b.className = 'btn btn-secondary'; b.textContent = tr('Copiar'); b.onclick = () => copyText(u); row.append(code, b); box.appendChild(row); });
+        }
+        async function ownerLinkToggle(on) {
+            if (on) { const r = await ask({ title: 'Ligar o link root?', body: 'Quem abrir /owner-CODIGO terá acesso total ao app e ao seu PC (rodar comandos e código), sem senha. Só ligue se for usar e guarde o link como uma senha.', buttons: ['Ligar', 'Cancelar'], danger: true }); if (r.index !== 0) { refreshServerTab(); return; } }
+            await srvSet({ owner_link_enabled: on });
+        }
+        async function ownerCodeSave() {
+            const r = await fetch(API + '/api/server_config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ owner_code: $('srv-ownercode').value }) });
+            if (!r.ok) showInfo((await r.json()).error || 'Código inválido.', 6000); else showInfo('Código salvo. As sessões root antigas foram encerradas.', 5000);
+            refreshServerTab();
+        }
+        async function ownerCodeRandom() { await srvSet({ owner_code_random: true }); showInfo('Novo código aleatório gerado. As sessões root antigas foram encerradas.', 5000); }
         async function srvRegenerate() {
             const r = await ask({ title: 'Gerar nova senha?', body: 'A senha atual deixa de valer e todos os aparelhos conectados serão desconectados.', buttons: ['Gerar nova senha', 'Cancelar'], danger: true });
             if (r.index === 0) srvSet({ regenerate_password: true });

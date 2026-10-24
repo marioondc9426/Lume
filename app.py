@@ -59,7 +59,7 @@ guest_recent = {}       # id do amigo -> horarios das ultimas respostas (limite 
 guest_lock = threading.Lock()
 login_recent_fails = []  # horarios das senhas erradas de qualquer IP (trava global contra tentativas pela internet)
 # Versao: "1.2" = versao nova com novidades (o numero depois do ponto sobe); "1.2.01", "1.2.02"... = correcoes (patches) dessa versao.
-VERSION = "1.6"
+VERSION = "1.7"
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")     # chaves de API, pasta de trabalho, uso
 HISTORY_FILE = os.path.join(BASE_DIR, "history.json")   # chats
 STATE_FILE = os.path.join(BASE_DIR, "state.json")       # preferencias da interface + memorias
@@ -183,7 +183,10 @@ def load_config():
     cfg.setdefault("remote_enabled", True)       # aceitar conexoes de outros aparelhos da rede (ligado por padrao; exige senha)
     cfg.setdefault("allow_remote_code", False)   # deixar aparelhos remotos usarem a aba Code
     cfg.setdefault("tokens", {})                 # aparelhos conectados
-    cfg.setdefault("password_required", True)    # False = qualquer aparelho da rede entra sem senha
+    cfg.setdefault("password_required", True)    # False = qualquer aparelho da rede de casa entra sem senha
+    cfg.setdefault("internet_password_required", True)   # False = quem abrir o endereco publico (tunel) entra como dono, sem senha
+    cfg.setdefault("owner_link_enabled", False)  # link secreto /owner-CODIGO: entra com acesso total (como a janela do PC)
+    cfg.setdefault("owner_code", "")
     cfg.setdefault("port", PORT)
     cfg.setdefault("exa_api_key", "")            # pesquisa feita para IAs (exa.ai); vazio = usa DuckDuckGo
     cfg.setdefault("search_provider", "auto")    # auto | exa | duckduckgo
@@ -1229,9 +1232,19 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
     def is_tls(self):
         return isinstance(self.connection, ssl.SSLSocket)
 
-    def is_local(self):
+    def is_desktop(self):
         """Janela do proprio app: conexao vinda do proprio PC E enderecada a 127.0.0.1/localhost (barra DNS rebinding)."""
         return self.client_address[0] in LOOPBACK_IPS and self.host_only() in LOCAL_HOSTS
+
+    def is_root(self):
+        """Sessao aberta pelo link secreto /owner-CODIGO: tem os mesmos poderes da janela do PC (configuracoes, aba Code, rodar codigo...)."""
+        if getattr(self, '_root', None) is not None: return self._root
+        cfg = load_config(); tok = self.get_token(); info = cfg["tokens"].get(tok) if tok else None
+        self._root = bool(cfg.get("owner_link_enabled") and info and info.get("root")); return self._root
+
+    def is_local(self):
+        """Quem tem acesso total: a janela do PC ou uma sessao root."""
+        return self.is_desktop() or self.is_root()
 
     def is_proxied(self):
         """Veio por um tunel/proxy instalado neste PC (cloudflared, tailscale funnel...): a conexao chega de 127.0.0.1, mas o Host e o do site publico."""
@@ -1269,7 +1282,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             else:
                 uid, u = guests.by_token(tok)
                 if u: lvl = ('guest', (uid, u))
-                elif not cfg.get("password_required", True) and not self.is_proxied(): lvl = ('owner', None)   # sem senha so vale na rede de casa
+                elif (not cfg.get("internet_password_required", True)) if self.is_proxied() else (not cfg.get("password_required", True)): lvl = ('owner', None)   # "sem senha": um botao para a rede de casa, outro para a internet
         self._lvl = lvl; return lvl
 
     def get_token(self):
@@ -1307,6 +1320,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
     def do_GET(self):
         parsed = urllib.parse.urlsplit(self.path)
         self.query = urllib.parse.parse_qs(parsed.query); self.path = p = parsed.path
+        if p.startswith('/owner-'):
+            return self.owner_login(p[len('/owner-'):])
         if not p.startswith('/api/'):
             return self.serve_static(p)
         local = self.is_local()
@@ -1335,7 +1350,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return self.send_json({"servers": discover_servers()})
         if p == '/api/auth/status':
             cfg = load_config(); lvl, gu = self.auth_level()
-            info = {"local": local, "authed": lvl is not None, "role": lvl, "remote_enabled": cfg["remote_enabled"], "allow_remote_code": cfg["allow_remote_code"],
+            info = {"local": local, "root": self.is_root(), "authed": lvl is not None, "role": lvl, "remote_enabled": cfg["remote_enabled"], "allow_remote_code": cfg["allow_remote_code"],
                     "password_required": cfg.get("password_required", True), "version": VERSION, "app_name": APP_NAME,
                     "https_port": int(cfg.get("https_port", HTTPS_PORT)) if https_httpd is not None else 0, "secure": self.is_secure_conn(),
                     "share_open": bool(guests.settings["open"]), "invite_required": bool(guests.settings["invite_code"])}
@@ -1395,6 +1410,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             cfg = load_config()
             return self.send_json({
                 "remote_enabled": cfg["remote_enabled"], "allow_remote_code": cfg["allow_remote_code"], "password": cfg["password"], "password_required": cfg.get("password_required", True),
+                "internet_password_required": cfg.get("internet_password_required", True), "owner_link_enabled": bool(cfg.get("owner_link_enabled")), "owner_code": cfg.get("owner_code", ""),
                 "port": PORT, "configured_port": cfg.get("port", PORT),
                 "listening": f"{'0.0.0.0' if cfg['remote_enabled'] else '127.0.0.1'}:{PORT}",
                 "addresses": [f"http://{ip}:{PORT}" for ip in lan_ips()],
@@ -1469,9 +1485,26 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             if "remote_enabled" in data and bool(data["remote_enabled"]) != cfg["remote_enabled"]:
                 cfg["remote_enabled"] = bool(data["remote_enabled"]); restart = True
             if "allow_remote_code" in data: cfg["allow_remote_code"] = bool(data["allow_remote_code"])
-            if "password_required" in data:
-                cfg["password_required"] = bool(data["password_required"])
-                log("AUTH", "Senha " + ("exigida" if cfg["password_required"] else "DESLIGADA: qualquer aparelho da rede entra sem senha") + ".", COLOR_YELLOW if not cfg["password_required"] else COLOR_GREEN)
+            for key, what in (("password_required", "rede de casa"), ("internet_password_required", "internet")):
+                if key in data:
+                    new = bool(data[key])
+                    if new and not cfg.get(key, True):   # senha religada depois de desligada: derruba todos os aparelhos na hora
+                        cfg["tokens"] = {}; log("AUTH", f"Senha da {what} religada: todos os dispositivos foram desconectados.", COLOR_YELLOW)
+                    cfg[key] = new
+                    log("AUTH", f"Senha da {what}: " + ("exigida" if new else "DESLIGADA (entra sem senha)") + ".", COLOR_GREEN if new else COLOR_YELLOW)
+            if any(k in data for k in ("owner_link_enabled", "owner_code", "owner_code_random")):
+                was, old = bool(cfg.get("owner_link_enabled")), cfg.get("owner_code", "")
+                if "owner_link_enabled" in data: cfg["owner_link_enabled"] = bool(data["owner_link_enabled"])
+                if data.get("owner_code_random"): cfg["owner_code"] = secrets.token_urlsafe(12)
+                elif "owner_code" in data:
+                    code = str(data["owner_code"]).strip()
+                    if not re.fullmatch(r"[A-Za-z0-9_\-]{5,40}", code): return self.send_json({"error": "O codigo deve ter de 5 a 40 letras, numeros, - ou _."}, 400)
+                    cfg["owner_code"] = code
+                if cfg["owner_link_enabled"] and not cfg.get("owner_code"): cfg["owner_code"] = secrets.token_urlsafe(12)
+                if (was and not cfg["owner_link_enabled"]) or cfg.get("owner_code") != old:   # desligou ou trocou o codigo: sessoes root caem na hora
+                    n = len(cfg["tokens"]); cfg["tokens"] = {t: i for t, i in cfg["tokens"].items() if not i.get("root")}
+                    if n != len(cfg["tokens"]): log("AUTH", "Sessoes root encerradas.", COLOR_YELLOW)
+                log("AUTH", "Link secreto /owner-: " + ("LIGADO" if cfg["owner_link_enabled"] else "desligado"), COLOR_YELLOW if cfg["owner_link_enabled"] else COLOR_GREEN)
             if data.get("regenerate_password"):
                 cfg["password"] = generate_password(); cfg["tokens"] = {}
                 log("AUTH", "Nova senha gerada; todos os dispositivos foram desconectados.", COLOR_YELLOW)
@@ -1769,6 +1802,36 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 guests.save()
             return self.send_json({"ok": True, **self.admin_overview()})
         return self.send_json({"error": "rota desconhecida"}, 404)
+
+    def rate_locked(self, ip, now):
+        """Segundos de espera se este IP (ou o conjunto de todos) errou demais; 0 se pode tentar."""
+        recent = [t for t in login_recent_fails if now - t < 600]; login_recent_fails[:] = recent
+        if len(recent) >= 30: return 300
+        f = login_failures.get(ip)
+        if f and f[0] >= LOGIN_MAX_FAILS and now - f[1] < LOGIN_LOCK_SECONDS: return int(LOGIN_LOCK_SECONDS - (now - f[1]))
+        return 0
+
+    def rate_fail(self, ip, now):
+        login_recent_fails.append(now); f = login_failures.get(ip)
+        if not f or now - f[1] >= LOGIN_LOCK_SECONDS: f = login_failures[ip] = [0, now]
+        f[0] += 1
+
+    def owner_login(self, code):
+        """GET /owner-CODIGO: se o link secreto estiver ligado e o codigo bater, esta sessao vira "root"."""
+        ip, now = self.client_ip(), time.time(); cfg = load_config()
+        if self.rate_locked(ip, now): self.send_response(429); self.end_headers(); return
+        real = cfg.get("owner_code") or ""
+        if not (cfg.get("owner_link_enabled") and real and hmac.compare_digest(code.encode(), real.encode())):
+            self.rate_fail(ip, now); log("SEGURANCA", f"Link /owner- recusado ({ip})", COLOR_RED)
+            self.send_response(404); self.end_headers(); return
+        login_failures.pop(ip, None)
+        tok = secrets.token_hex(24)
+        cfg["tokens"][tok] = {"ip": ip, "name": "Acesso root (" + device_name(self.headers.get('User-Agent')) + ")", "created": now, "last": now, "root": True}
+        while len(cfg["tokens"]) > 20: del cfg["tokens"][min(cfg["tokens"], key=lambda t: cfg["tokens"][t]["last"])]
+        save_config(cfg); log("AUTH", f"ACESSO ROOT pelo link secreto: {ip}", COLOR_YELLOW)
+        self.send_response(302); self.send_header('Location', '/'); self.send_header('Cache-Control', 'no-store')
+        for k, v in self.guest_cookie(tok).items(): self.send_header(k, v)
+        self.end_headers()
 
     def handle_login(self, data):
         ip, now = self.client_ip(), time.time()
