@@ -158,6 +158,7 @@ def load_config():
     cfg.setdefault("remote_enabled", True)       # aceitar conexoes de outros aparelhos da rede (ligado por padrao; exige senha)
     cfg.setdefault("allow_remote_code", False)   # deixar aparelhos remotos usarem a aba Code
     cfg.setdefault("tokens", {})                 # aparelhos conectados
+    cfg.setdefault("password_required", True)    # False = qualquer aparelho da rede entra sem senha
     cfg.setdefault("port", PORT)
     cfg.setdefault("exa_api_key", "")            # pesquisa feita para IAs (exa.ai); vazio = usa DuckDuckGo
     cfg.setdefault("search_provider", "auto")    # auto | exa | duckduckgo
@@ -992,7 +993,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         return ''
 
     def is_authed(self):
-        if self.is_local(): return True
+        if self.is_local() or not load_config().get("password_required", True): return True
         tok = self.get_token()
         if not tok: return False
         cfg = load_config(); info = cfg["tokens"].get(tok)
@@ -1076,7 +1077,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             if not local: return self.send_json({"error": "local_only"}, 403)
             cfg = load_config()
             return self.send_json({
-                "remote_enabled": cfg["remote_enabled"], "allow_remote_code": cfg["allow_remote_code"], "password": cfg["password"],
+                "remote_enabled": cfg["remote_enabled"], "allow_remote_code": cfg["allow_remote_code"], "password": cfg["password"], "password_required": cfg.get("password_required", True),
                 "port": PORT, "configured_port": cfg.get("port", PORT),
                 "listening": f"{'0.0.0.0' if cfg['remote_enabled'] else '127.0.0.1'}:{PORT}",
                 "addresses": [f"http://{ip}:{PORT}" for ip in lan_ips()],
@@ -1142,6 +1143,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             if "remote_enabled" in data and bool(data["remote_enabled"]) != cfg["remote_enabled"]:
                 cfg["remote_enabled"] = bool(data["remote_enabled"]); restart = True
             if "allow_remote_code" in data: cfg["allow_remote_code"] = bool(data["allow_remote_code"])
+            if "password_required" in data:
+                cfg["password_required"] = bool(data["password_required"])
+                log("AUTH", "Senha " + ("exigida" if cfg["password_required"] else "DESLIGADA: qualquer aparelho da rede entra sem senha") + ".", COLOR_YELLOW if not cfg["password_required"] else COLOR_GREEN)
             if data.get("regenerate_password"):
                 cfg["password"] = generate_password(); cfg["tokens"] = {}
                 log("AUTH", "Nova senha gerada; todos os dispositivos foram desconectados.", COLOR_YELLOW)

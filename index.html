@@ -644,6 +644,8 @@
                 </div>
                 <span class="hint">No outro aparelho: abra o endereço acima, vá em Configurações, aba Servidor, "Conectar ao servidor" e digite esta senha.</span>
 
+                <label class="toggle-container"><input type="checkbox" id="srv-pwreq" onchange="srvSet({ password_required: this.checked })"><div class="toggle-switch"></div> Exigir senha nos outros aparelhos (desligado: qualquer um na sua rede entra sem senha)</label>
+
                 <div class="section-title">Permissões dos aparelhos remotos</div>
                 <label class="toggle-container"><input type="checkbox" id="srv-code" onchange="srvSet({ allow_remote_code: this.checked })"><div class="toggle-switch"></div> Permitir a aba Code (a IA pode ler e escrever arquivos e rodar comandos NESTE PC; cada ação continua pedindo a sua aprovação aqui)</label>
 
@@ -817,6 +819,7 @@
             'No outro aparelho: abra o endereço acima, vá em Configurações, aba Servidor, "Conectar ao servidor" e digite esta senha.':
                 'On the other device: open the address above, go to Settings, Server tab, "Connect to server" and type this password.',
             'Permissões dos aparelhos remotos': 'Remote device permissions',
+            'Exigir senha nos outros aparelhos (desligado: qualquer um na sua rede entra sem senha)': 'Require a password on other devices (off: anyone on your network gets in without one)',
             'Permitir a aba Code (a IA pode ler e escrever arquivos e rodar comandos NESTE PC; cada ação continua pedindo a sua aprovação aqui)':
                 'Allow the Code tab (the AI can read and write files and run commands on THIS PC; every action still asks for your approval here)',
             'Aparelhos conectados': 'Connected devices', 'Desconectar todos': 'Disconnect all', 'Desconectar': 'Disconnect', 'iPhone': 'iPhone',
@@ -2150,7 +2153,7 @@
                 return;
             }
             let i; try { i = await (await fetch(API + '/api/server_info')).json(); } catch (e) { return; }
-            $('srv-remote').checked = i.remote_enabled; $('srv-code').checked = i.allow_remote_code;
+            $('srv-remote').checked = i.remote_enabled; $('srv-code').checked = i.allow_remote_code; $('srv-pwreq').checked = i.password_required !== false;
             $('srv-listening').textContent = tr(i.remote_enabled ? 'Ouvindo em {addr} (rede local ligada)' : 'Ouvindo em {addr} (somente neste PC)', { addr: i.listening });
             $('srv-password').value = i.password;
             const addr = $('srv-addresses'); addr.innerHTML = '';
