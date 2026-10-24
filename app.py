@@ -161,7 +161,9 @@ def load_config():
     cfg.setdefault("port", PORT)
     cfg.setdefault("exa_api_key", "")            # pesquisa feita para IAs (exa.ai); vazio = usa DuckDuckGo
     cfg.setdefault("search_provider", "auto")    # auto | exa | duckduckgo
-    cfg.setdefault("exa_type", "auto")           # lite | auto | deep-lite
+    cfg.setdefault("exa_type", "lite")           # lite (US$ 0,004/busca) | auto (US$ 0,007) | deep-lite
+    cfg.setdefault("search_results", 5)          # resultados por busca (ate 10 o preco do Exa e o mesmo)
+    cfg.setdefault("search_daily_limit", 100)    # maximo de buscas pagas do Exa por dia (0 = sem limite)
     changed = False
     if not cfg.get("password"):
         cfg["password"] = generate_password(); changed = True
@@ -211,7 +213,12 @@ def get_workdir(cfg=None):
 # ---------------------------------------------------------------- ferramentas
 SEARCH_UA = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
              'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8'}
-MAX_SEARCH_RESULTS = 5
+MAX_SEARCH_RESULTS = 5   # padrao; o valor real vem da configuracao "search_results"
+
+def max_results():
+    try: return max(1, min(10, int(load_config().get("search_results", MAX_SEARCH_RESULTS))))
+    except (TypeError, ValueError): return MAX_SEARCH_RESULTS
+
 
 def _clean_html(text):
     return re.sub(r'\s+', ' ', html_mod.unescape(re.sub(r'<[^>]+>', '', text))).strip()
@@ -350,7 +357,7 @@ def _search_ddg(query):
         url = html_mod.unescape(m.group(1))
         if 'duckduckgo.com/y.js' in url: continue   # anuncio
         out.append((_clean_html(m.group(2)), _clean_html(m.group(3)), 'https:' + url if url.startswith('//') else url))
-        if len(out) >= MAX_SEARCH_RESULTS: break
+        if len(out) >= max_results(): break
     return out
 
 EXA_URL = "https://api.exa.ai/search"
@@ -363,7 +370,7 @@ def exa_api_key(cfg=None):
 def _search_exa(query, key, kind="auto"):
     """Exa (busca feita para IAs): devolve os trechos mais relevantes de cada pagina ("highlights") e a data de publicacao."""
     kind = kind if kind in EXA_TYPES else "auto"
-    body = {"query": query, "numResults": MAX_SEARCH_RESULTS, "type": kind, "contents": {"highlights": {"maxCharacters": 800}}}
+    body = {"query": query, "numResults": max_results(), "type": kind, "contents": {"highlights": {"maxCharacters": 800}}}
     if kind != "lite":   # o tipo "lite" aceita poucos parametros
         if NEWS_RE.search(query): body["category"] = "news"   # so noticias: rapido e traz as de hoje (forcar recrawl so atrasava 4-5 s sem mudar o resultado)
     req = urllib.request.Request(EXA_URL, data=json.dumps(body).encode(), headers={"x-api-key": key, "Content-Type": "application/json", "User-Agent": "thingmabobber/1.0"})
@@ -374,7 +381,7 @@ def _search_exa(query, key, kind="auto"):
         why = {401: "chave do Exa invalida", 402: "sem creditos no Exa", 429: "limite de requisicoes do Exa"}.get(e.code, f"Exa respondeu {e.code}")
         raise Exception(why)
     out = []
-    for r in data.get("results", [])[:MAX_SEARCH_RESULTS]:
+    for r in data.get("results", [])[:max_results()]:
         text = " ... ".join(h.strip() for h in (r.get("highlights") or []) if h) or r.get("summary") or r.get("text") or ""
         date = (r.get("publishedDate") or "")[:10]
         out.append((r.get("title") or r.get("url", ""), (f"[{date}] " if date else "") + _clean_html(text)[:900], r.get("url", "")))
@@ -387,24 +394,61 @@ def _search_wikipedia(query):
     """Ultimo recurso: so enciclopedia, mas nunca bloqueia."""
     out = []
     for lang in ("pt", "en"):
-        data = json.loads(_fetch(f"https://{lang}.wikipedia.org/w/api.php?action=query&list=search&srsearch={urllib.parse.quote(query)}&format=json&srlimit={MAX_SEARCH_RESULTS}&utf8=1"))
+        data = json.loads(_fetch(f"https://{lang}.wikipedia.org/w/api.php?action=query&list=search&srsearch={urllib.parse.quote(query)}&format=json&srlimit={max_results()}&utf8=1"))
         for x in data.get("query", {}).get("search", []):
             out.append((x["title"], _clean_html(x["snippet"]), f"https://{lang}.wikipedia.org/wiki/{urllib.parse.quote(x['title'].replace(' ', '_'))}"))
         if out: break
-    return out[:MAX_SEARCH_RESULTS]
+    return out[:max_results()]
+
+_search_cache = {}          # consulta normalizada -> (hora, resultados, fonte)
+SEARCH_CACHE_TTL = 6 * 3600  # a mesma busca nao e paga de novo por 6 horas
+SEARCH_CACHE_MAX = 200
+
+def exa_searches_today():
+    """Quantas buscas pagas do Exa foram feitas hoje (da meia-noite local)."""
+    midnight = time.mktime(time.strptime(time.strftime("%Y-%m-%d"), "%Y-%m-%d"))
+    return sum(1 for e in _read_json(STATS_FILE, {"events": []}).get("events", []) if e.get("type") == "exa" and e.get("kind") == "search" and e.get("ts", 0) >= midnight)
+
+GREETING_RE = re.compile(r"(?i)(oi+|ol[aá]|e a[ií]|bom dia|boa tarde|boa noite|obrigad[oa]|valeu|ok(ay)?|certo|entendi|beleza|tchau|hi|hello|hey|thanks?|thank you|bye|cool)[\s!.?,]*")
+
+CREATIVE_RE = re.compile(r"(?i)(me )?(conta|conte|escreva|escreve|crie|cria|gere|gera|invente|traduza|traduz|resuma|resume|reescreva|reescreve|corrija|corrige|revise|explique (esse|este|o|a) (c[oó]digo|texto|trecho)|tell me (a|an)|write|create|generate|make up|translate|summari[sz]e|rewrite|fix|proofread)\b")
+FRESH_HINT_RE = re.compile(r"(?i)\b(hoje|agora|atual|atuais|recente|recentes|[uú]ltim[ao]s?|not[ií]cias?|pre[cç]o|cota[cç][aã]o|today|current|latest|recent|news|price|2025|2026)\b")
+
+def needs_web(text):
+    """Evita gastar uma busca paga em mensagens que nao precisam: cumprimentos, frases curtas sem pergunta, codigo e arquivos anexados."""
+    t = (text or "").strip()
+    if len(t) < MIN_WEB_QUERY or GREETING_RE.fullmatch(t): return False
+    if len(re.findall(r"\w+", t)) <= 3 and "?" not in t: return False
+    if "```" in t or t.startswith("/"): return False
+    if "[Arquivo anexado" in t or "[Attached file" in t: return False   # a pergunta e sobre o arquivo
+    if CREATIVE_RE.match(t) and not FRESH_HINT_RE.search(t): return False   # pedido criativo/de transformacao: nao precisa de internet
+    return True
 
 def search_web_results(query):
-    """Exa (se houver chave), depois DuckDuckGo, depois Wikipedia. Retorna ([(titulo, trecho, link)], fonte) ou ([], None)."""
+    """Exa (se houver chave e limite diario), depois DuckDuckGo, depois Wikipedia. Retorna ([(titulo, trecho, link)], fonte) ou ([], None)."""
     cfg = load_config(); key = exa_api_key(cfg); provider = cfg.get("search_provider", "auto")
+    ck = re.sub(r"\s+", " ", (query or "").strip().lower())
+    hit = _search_cache.get(ck)
+    if hit and time.time() - hit[0] < SEARCH_CACHE_TTL:
+        log("WEB", "Resultado reaproveitado do cache (busca repetida, sem custo).", COLOR_GRAY)
+        return hit[1], hit[2] + " (cache)"
     chain = []
-    if provider in ("auto", "exa") and key: chain.append(("Exa", lambda q: _search_exa(q, key, cfg.get("exa_type", "auto"))))
+    if provider in ("auto", "exa") and key:
+        limit = int(cfg.get("search_daily_limit", 100) or 0)
+        if limit and exa_searches_today() >= limit:
+            log("WEB", f"Limite diario do Exa atingido ({limit} buscas); usando DuckDuckGo hoje.", COLOR_YELLOW)
+        else:
+            chain.append(("Exa", lambda q: _search_exa(q, key, cfg.get("exa_type", "lite"))))
     if provider != "exa" or not chain: chain.append(("DuckDuckGo", _search_ddg))
     chain.append(("Wikipedia", _search_wikipedia))
     errors = []
     for name, fn in chain:
         try:
             res = fn(query)
-            if res: return res, name
+            if res:
+                if len(_search_cache) >= SEARCH_CACHE_MAX: _search_cache.pop(next(iter(_search_cache)))
+                _search_cache[ck] = (time.time(), res, name)
+                return res, name
             errors.append(f"{name}: sem resultados")
         except Exception as e:
             errors.append(f"{name}: {e}")
@@ -413,6 +457,9 @@ def search_web_results(query):
 
 def format_search(results, source):
     out = f"\n\n--- RESULTADOS / RESULTS ({source}) ---\n"
+    if str(source).startswith("Wikipedia"):   # ultima opcao: busca por palavras, pode trazer paginas sem relacao com a pergunta
+        out += ("AVISO / NOTE: a busca principal esta indisponivel; estes resultados podem NAO responder a pergunta. Se nao responderem, diga que nao encontrou. / "
+                "The main search is unavailable; these results may NOT answer the question. If they do not, say you could not find it.\n")
     for i, (title, snippet, link) in enumerate(results, 1): out += f"[{i}] {title}\n{snippet}\nLink: {link}\n\n"
     return out
 
@@ -484,11 +531,12 @@ def truncate(text):
         return text[:MAX_TOOL_OUTPUT] + f"\n...[cortado, {len(text) - MAX_TOOL_OUTPUT} caracteres omitidos]"
     return text
 
-def execute_tool(tool_name, tool_args, workdir):
+def execute_tool(tool_name, tool_args, workdir, lang="pt"):
+    L = lambda pt, en: en if lang == "en" else pt
     def full(p): return p if os.path.isabs(p) else os.path.join(workdir, p)
     try:
         if tool_name == "list_files":
-            return truncate("\n".join(os.listdir(full(tool_args.get("path", ".")))) or "(pasta vazia)")
+            return truncate("\n".join(os.listdir(full(tool_args.get("path", ".")))) or L("(pasta vazia)", "(empty folder)"))
         if tool_name == "read_file":
             with open(full(tool_args["path"]), 'r', encoding='utf-8', errors='replace') as f: return truncate(f.read())
         if tool_name == "write_file":
@@ -499,27 +547,27 @@ def execute_tool(tool_name, tool_args, workdir):
             os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
             with open(path, 'w', encoding='utf-8') as f: f.write(new)
             uid = save_undo(path, existed, old_bytes)
-            if b"\x00" in old_bytes[:8000]: return f"Arquivo binario substituido. [undo:{uid}]"
-            diff = list(difflib.unified_diff(old_bytes.decode("utf-8", "replace").splitlines(), new.splitlines(), "antes" if existed else "(novo arquivo)", "depois", lineterm="", n=2))
-            shown = "\n".join(diff[:120]) + (f"\n... (+{len(diff) - 120} linhas)" if len(diff) > 120 else "")
-            return f"Arquivo escrito com sucesso. [undo:{uid}]\n```diff\n{shown}\n```"
+            if b"\x00" in old_bytes[:8000]: return L(f"Arquivo binario substituido. [undo:{uid}]", f"Binary file replaced. [undo:{uid}]")
+            diff = list(difflib.unified_diff(old_bytes.decode("utf-8", "replace").splitlines(), new.splitlines(), L("antes", "before") if existed else L("(novo arquivo)", "(new file)"), L("depois", "after"), lineterm="", n=2))
+            shown = ("\n".join(diff[:120]) + (L(f"\n... (+{len(diff) - 120} linhas)", f"\n... (+{len(diff) - 120} lines)") if len(diff) > 120 else "")) or L("(sem alteracoes)", "(no changes)")
+            return f"{L('Arquivo escrito com sucesso.', 'File written successfully.')} [undo:{uid}]\n```diff\n{shown}\n```"
         if tool_name in ("cmd", "powershell"):
             cmd = tool_args["command"]
             argv = cmd if tool_name == "cmd" else ["powershell", "-NoProfile", "-Command", cmd]
             r = subprocess.run(argv, shell=(tool_name == "cmd"), capture_output=True, text=True, errors="replace", timeout=TOOL_TIMEOUT, cwd=workdir)
             out = (r.stdout or "") + (r.stderr or "")
-            if r.returncode != 0: out += f"\n[codigo de saida {r.returncode}]"
-            return truncate(out.strip() or "(sem saida)")
+            if r.returncode != 0: out += L(f"\n[codigo de saida {r.returncode}]", f"\n[exit code {r.returncode}]")
+            return truncate(out.strip() or L("(sem saida)", "(no output)"))
         if tool_name == "search_web":
             return truncate(search_web(tool_args.get("query", "")))
         if tool_name == "read_url":
             title, page = read_url_text(tool_args.get("url", ""))
             return truncate(f"{title}\n\n{page}")
-        return f"Ferramenta desconhecida: {tool_name}"
+        return L(f"Ferramenta desconhecida: {tool_name}", f"Unknown tool: {tool_name}")
     except subprocess.TimeoutExpired:
-        return f"Erro: comando passou de {TOOL_TIMEOUT}s e foi cancelado."
+        return L(f"Erro: comando passou de {TOOL_TIMEOUT}s e foi cancelado.", f"Error: command exceeded {TOOL_TIMEOUT}s and was cancelled.")
     except KeyError as e:
-        return f"Erro: argumento faltando: {e}"
+        return L(f"Erro: argumento faltando: {e}", f"Error: missing argument: {e}")
     except Exception as e:
         return f"Erro: {e}"
 
@@ -999,7 +1047,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return self.send_json(build_stats(days))
         if p == '/api/config_status':
             cfg = load_config()
-            return self.send_json({"groq_key_saved": bool(cfg.get("groq_api_key")), "exa_key_saved": bool(exa_api_key(cfg)), "search_provider": cfg.get("search_provider", "auto"), "exa_type": cfg.get("exa_type", "auto"), "workdir": get_workdir(cfg) if local else "", "default_workdir": BASE_DIR if local else ""})
+            return self.send_json({"groq_key_saved": bool(cfg.get("groq_api_key")), "exa_key_saved": bool(exa_api_key(cfg)), "search_provider": cfg.get("search_provider", "auto"), "exa_type": cfg.get("exa_type", "lite"), "search_results": max_results(), "search_daily_limit": cfg.get("search_daily_limit", 100), "exa_today": exa_searches_today(), "workdir": get_workdir(cfg) if local else "", "default_workdir": BASE_DIR if local else ""})
         if p == '/api/models_status':
             tags = ollama_tags(); running = tags is not None
             used, total, _ = get_gpu_metrics()
@@ -1118,7 +1166,11 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 return self.send_json({"error": "Pasta de trabalho nao existe."}, 400)
             if data.get("search_provider") not in (None, "auto", "exa", "duckduckgo") or data.get("exa_type") not in (None, *EXA_TYPES):
                 return self.send_json({"error": "Opcao de pesquisa invalida."}, 400)
-            for k in ("groq_api_key", "exa_api_key", "workdir", "search_provider", "exa_type"):
+            for k, lo, hi in (("search_results", 1, 10), ("search_daily_limit", 0, 100000)):
+                if k in data:
+                    try: data[k] = max(lo, min(hi, int(data[k])))
+                    except (TypeError, ValueError): return self.send_json({"error": "Opcao de pesquisa invalida."}, 400)
+            for k in ("groq_api_key", "exa_api_key", "workdir", "search_provider", "exa_type", "search_results", "search_daily_limit"):
                 if k in data: cfg[k] = data[k].strip() if k.endswith("_key") else data[k]
             save_config(cfg)
             secrets_sent = [k for k in ("groq_api_key", "exa_api_key") if k in data]
@@ -1300,7 +1352,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 messages[0]["content"] += (TOOL_PROMPT_EN if lang == 'en' else TOOL_PROMPT).replace("{workdir}", workdir)
             elif req_json.get("search_web"):
                 query = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")[:200]
-                if len(query.strip()) >= MIN_WEB_QUERY:
+                if needs_web(query):
                     status("Pesquisando na web")
                     log("WEB", f"Pesquisando: {query}", COLOR_CYAN)
                     results, source = search_web_results(query)
@@ -1312,7 +1364,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                         messages[0]["content"] += L("\n\n[A pesquisa na web falhou: voce NAO tem dados atuais. Se a pergunta depender de informacao recente, diga isso ao usuario em vez de inventar.]",
                                                     "\n\n[The web search failed: you do NOT have current data. If the question depends on recent information, say so instead of making things up.]")
                 else:
-                    log("WEB", "Mensagem curta demais, pesquisa ignorada.", COLOR_GRAY)
+                    log("WEB", "Mensagem nao precisa de pesquisa (cumprimento, frase curta, codigo ou arquivo); nada foi gasto.", COLOR_GRAY)
 
             corrections = 0; native_tries = 0
             req_tokens = req_prompt = 0; req_seconds = 0.0   # para as estatisticas
@@ -1389,7 +1441,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     except Exception as e:
                         result = f"Erro: {e}"
                 else:
-                    result = execute_tool(tool_name, tool_args, workdir)
+                    result = execute_tool(tool_name, tool_args, workdir, lang)
                 log("TOOL", f"resultado de {tool_name}: {len(result)} caracteres", COLOR_GREEN if not result.startswith("Erro") else COLOR_RED)
                 send(L(f"\n\n[resultado de {tool_name}]\n{result}\n[/resultado]\n\n", f"\n\n[result of {tool_name}]\n{result}\n[/result]\n\n"))
                 pair = [{"role": "assistant", "content": full},

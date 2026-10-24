@@ -166,7 +166,7 @@
         #usage-badge { position: fixed; bottom: 20px; left: 20px; background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 20px; padding: 5px 15px; font-size: 0.75em; color: var(--text-muted); z-index: 1000; display: none; }
 
         /* Modais e dialogo */
-        #settings-modal, #memory-modal, #export-modal, #dialog-overlay { position: fixed; inset: 36px 0 0 0; background: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: center; z-index: 1000; }
+        #settings-modal, #memory-modal, #export-modal, #stats-modal, #dialog-overlay { position: fixed; inset: 36px 0 0 0; background: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: center; z-index: 1000; }
         #dialog-overlay { z-index: 3000; }
         .modal-content { background: var(--bg-main); padding: 25px; border-radius: 14px; width: 540px; max-width: 94vw; border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 16px; max-height: 90%; overflow-y: auto; position: relative; }
         #dialog { width: 460px; gap: 14px; animation: chatFresh .2s ease-out; }
@@ -242,7 +242,7 @@
         #drawer-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 850; }
         body.remote .host-only { display: none !important; }
         body.remote #titlebar { display: none; }
-        body.remote #settings-modal, body.remote #memory-modal, body.remote #export-modal, body.remote #dialog-overlay, body.remote #drop-overlay { inset: 0; }
+        body.remote #settings-modal, body.remote #memory-modal, body.remote #export-modal, body.remote #stats-modal, body.remote #dialog-overlay, body.remote #drop-overlay { inset: 0; }
         @media (hover: none) { .chat-actions { opacity: 1; } .copy-btn { opacity: .75; } }
         @media (max-width: 760px) {
             #sidebar { position: fixed; top: 0; bottom: 0; left: 0; width: 82vw; max-width: 320px; transform: translateX(-100%); transition: transform .25s ease; z-index: 900; padding-top: env(safe-area-inset-top); }
@@ -276,6 +276,71 @@
         .ctx-btn:disabled { opacity: .4; cursor: default; }
         .msg.summary { align-self: flex-start; border: 1px dashed var(--border-color); color: var(--text-muted); background: none; }
         .sum-head { font-weight: bold; font-size: 0.8em; margin-bottom: 6px; }
+        .final-text { display: block; }
+
+        /* Anexos de arquivo */
+        .file-chip { display: flex; align-items: center; gap: 6px; max-width: 240px; height: 40px; padding: 0 8px 0 10px; border-radius: 10px; border: 1px solid var(--border-color); background: var(--bg-input); font-size: 0.8em; animation: chatFresh .2s ease-out; }
+        .file-chip .ic { margin: 0; width: 16px; height: 16px; }
+        .file-chip .fc-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 130px; }
+        .file-chip .fc-size { color: var(--text-muted); white-space: nowrap; font-size: 0.9em; }
+        .file-chip button { border: none; background: none; color: var(--text-muted); cursor: pointer; font-size: 16px; padding: 0 2px; }
+        .file-chip button:hover { color: var(--danger); }
+        .msg-files { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+        .msg-files .file-chip { height: 30px; background: rgba(0,0,0,0.25); border-color: rgba(255,255,255,0.2); color: #fff; animation: none; }
+
+        /* Ferramentas do agente: chamada, resultado, diff */
+        .tool-call { display: flex; align-items: baseline; gap: 8px; margin: 8px 0; padding: 6px 10px; border-radius: 8px; background: rgba(128,128,128,0.12); border-left: 3px solid var(--accent); font-size: 0.85em; }
+        .tool-call .tc-name { font-weight: bold; color: var(--accent); white-space: nowrap; }
+        .tool-call code { font-family: Consolas, monospace; word-break: break-all; white-space: pre-wrap; }
+        .tool-call.running code { opacity: .6; animation: pulse 1s ease-in-out infinite; }
+        .tool-result { margin: 4px 0 10px; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; font-size: 0.82em; }
+        .tool-result summary { cursor: pointer; padding: 6px 10px; background: rgba(128,128,128,0.1); color: var(--text-muted); display: flex; align-items: center; gap: 6px; user-select: none; }
+        .tool-result.err summary { color: #ff6b6b; }
+        .tool-result pre { margin: 0; padding: 8px 10px; font-family: Consolas, monospace; white-space: pre-wrap; word-break: break-word; max-height: 260px; overflow: auto; }
+        .tool-result pre.diff { border-top: 1px solid var(--border-color); }
+        .d-add { color: #3fb950; background: rgba(63,185,80,0.12); display: block; } .d-del { color: #ff6b6b; background: rgba(255,107,107,0.12); display: block; }
+        .d-hunk { color: #4da3ff; display: block; } .d-meta { color: var(--text-muted); display: block; }
+        .undo-btn { margin-left: auto; padding: 2px 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-main); color: var(--text-main); cursor: pointer; font-size: 0.95em; }
+        .undo-btn:hover:not(:disabled) { background: var(--accent); color: #fff; } .undo-btn:disabled { opacity: .6; cursor: default; }
+        .tool-note { color: var(--text-muted); font-style: italic; font-size: 0.9em; }
+
+        /* Fontes (cartoes clicaveis) */
+        .sources { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; align-items: stretch; }
+        .src-label { width: 100%; font-size: 0.7em; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
+        .src-card { display: flex; align-items: center; gap: 8px; max-width: 250px; padding: 6px 10px; border-radius: 10px; border: 1px solid var(--border-color); background: rgba(128,128,128,0.08); text-decoration: none; color: var(--text-main); font-size: 0.78em; transition: border-color .15s, background .15s; }
+        .src-card:hover { border-color: var(--accent); background: rgba(128,128,128,0.16); }
+        .src-n { width: 18px; height: 18px; border-radius: 50%; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 0.85em; flex-shrink: 0; }
+        .src-body { display: flex; flex-direction: column; min-width: 0; }
+        .src-dom { color: var(--text-muted); font-size: 0.9em; }
+        .src-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+        /* Barra lateral: busca, fixados, pastas */
+        #chat-search { margin: 4px 15px 8px; width: calc(100% - 30px); padding: 8px 12px; font-size: 0.85em; }
+        .list-head { padding: 8px 15px 4px; font-size: 0.68em; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); }
+        .list-head.folder { cursor: pointer; text-transform: none; letter-spacing: 0; font-size: 0.8em; padding: 8px 15px; border-top: 1px solid var(--border-color); }
+        .list-head.folder:hover { color: var(--text-main); }
+        .list-empty { padding: 14px 15px; color: var(--text-muted); font-size: 0.85em; }
+        .chat-item .col { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+        .chat-item .snip { font-size: 0.75em; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 2px; }
+        .chat-item .pin-mark { width: 11px; height: 11px; margin: 0 5px 0 0; opacity: .7; }
+        .chat-item .actions-wide { display: flex; }
+
+        /* Estatisticas */
+        #stats-modal .modal-content { width: 700px; }
+        .stats-top { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+        .stats-top select { width: auto; }
+        .stats-top .btn { margin: 0; }
+        .stats-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+        .stat-card { padding: 12px 14px; border-radius: 12px; border: 1px solid var(--border-color); background: var(--bg-input); }
+        .stat-card .v { font-size: 1.35em; font-weight: bold; } .stat-card .l { font-size: 0.72em; color: var(--text-muted); margin-top: 2px; }
+        .stats-table { width: 100%; border-collapse: collapse; font-size: 0.82em; }
+        .stats-table th { text-align: right; color: var(--text-muted); font-weight: normal; padding: 6px 8px; border-bottom: 1px solid var(--border-color); }
+        .stats-table td { text-align: right; padding: 6px 8px; border-bottom: 1px solid var(--border-color); font-variant-numeric: tabular-nums; }
+        .stats-table th:first-child, .stats-table td:first-child { text-align: left; }
+        .chart { display: flex; align-items: flex-end; gap: 6px; height: 120px; padding-top: 6px; }
+        .chart .bar-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; min-width: 0; }
+        .chart .bar { width: 100%; max-width: 34px; background: var(--accent); border-radius: 4px 4px 0 0; min-height: 2px; transition: height .3s ease; }
+        .chart .bar-label { font-size: 0.62em; color: var(--text-muted); margin-top: 4px; white-space: nowrap; }
 
         /* Imagens anexadas */
         #attach-strip { display: none; gap: 10px; padding: 10px 20px 0; background: var(--bg-sidebar); border-top: 1px solid var(--border-color); flex-wrap: wrap; }
@@ -357,6 +422,8 @@
             <button class="btn btn-primary" onclick="createNewChat()">+ Novo Chat</button>
             <button class="btn btn-secondary" onclick="openSettings()">⚙️ Configurações</button>
             <button class="btn btn-secondary" onclick="openMemory()">🧠 Memória</button>
+            <button class="btn btn-secondary" onclick="openStats()">📊 Estatísticas</button>
+            <input type="text" id="chat-search" placeholder="Pesquisar nos chats..." autocomplete="off" spellcheck="false">
             <div id="chat-list"></div>
         </div>
 
@@ -383,8 +450,8 @@
 
             <div id="attach-strip"></div>
             <div class="controls" id="controls">
-                <button class="btn btn-secondary attach-btn" onclick="$('file-input').click()" title="Anexar imagem (ou arraste / cole)"><img class="ic" src="icons/plus.svg"></button>
-                <input type="file" id="file-input" accept="image/*" multiple style="display:none" onchange="addImageFiles(this.files); this.value = ''">
+                <button class="btn btn-secondary attach-btn" onclick="$('file-input').click()" title="Anexar arquivo ou imagem (ou arraste / cole)"><img class="ic" src="icons/plus.svg"></button>
+                <input type="file" id="file-input" accept="image/*,.txt,.md,.markdown,.json,.csv,.tsv,.log,.py,.js,.ts,.jsx,.tsx,.html,.htm,.css,.xml,.yml,.yaml,.ini,.toml,.cfg,.conf,.bat,.ps1,.sh,.c,.cpp,.h,.hpp,.java,.cs,.go,.rs,.rb,.php,.sql,.r,.lua,.kt,.swift,.tex,.rst,.pdf" multiple style="display:none" onchange="addFiles(this.files); this.value = ''">
                 <div class="custom-select" id="model-select">
                     <div class="select-trigger" onclick="toggleCustomSelect()">
                         <img class="ic" id="model-trigger-icon" src="icons/zap.png">
@@ -492,10 +559,20 @@
         <div class="form-group host-only">
             <label>Qualidade da busca do Exa</label>
             <select id="opt-exatype">
-                <option value="lite">Rápida (lite)</option>
-                <option value="auto">Equilibrada (auto, recomendada)</option>
+                <option value="lite">Rápida e barata (lite, recomendada)</option>
+                <option value="auto">Equilibrada (auto, quase o dobro do preço)</option>
                 <option value="deep-lite">Profunda (deep-lite, mais lenta e cara)</option>
             </select>
+        </div>
+        <div class="form-group host-only">
+            <label>Resultados por busca</label>
+            <input type="text" id="opt-sresults" inputmode="numeric" maxlength="2" style="width:90px;">
+            <span class="hint">Mais resultados deixam o prompt maior e a IA mais lenta. Até 10 o preço do Exa é o mesmo.</span>
+        </div>
+        <div class="form-group host-only">
+            <label>Limite diário de buscas pagas (Exa)</label>
+            <input type="text" id="opt-slimit" inputmode="numeric" maxlength="6" style="width:110px;">
+            <span class="hint" id="exa-today-hint"></span>
         </div>
         <label class="toggle-container"><input type="checkbox" id="opt-star"><div class="toggle-switch"></div> Trocar * sozinho no início da linha por •</label>
         <label class="toggle-container"><input type="checkbox" id="opt-autostop"><div class="toggle-switch"></div> Ao trocar de modelo, parar o anterior automaticamente se a VRAM não couber os dois</label>
@@ -601,6 +678,22 @@
                 </div>
             </div>
         </div>
+    </div></div>
+
+    <!-- Modal Estatisticas -->
+    <div id="stats-modal"><div class="modal-content">
+        <button class="close-btn" onclick="closeStats()">&times;</button>
+        <h2>📊 Estatísticas de uso</h2>
+        <div class="stats-top">
+            <select id="stats-days" onchange="refreshStats()"><option value="7">Últimos 7 dias</option><option value="30" selected>Últimos 30 dias</option><option value="90">Últimos 90 dias</option></select>
+            <button class="btn btn-secondary host-only" onclick="clearStats()">Limpar</button>
+        </div>
+        <div id="stats-cards" class="stats-cards"></div>
+        <div class="section-title">Por modelo</div>
+        <div id="stats-models"></div>
+        <div class="section-title">Tokens por dia</div>
+        <div id="stats-chart" class="chart"></div>
+        <span class="hint" id="stats-note"></span>
     </div></div>
 
     <!-- Modal Memória -->
@@ -809,8 +902,35 @@
             'Busca na web feita para IAs (exa.ai). Sem chave, usa o DuckDuckGo, que costuma bloquear.': 'Web search built for AIs (exa.ai). Without a key it uses DuckDuckGo, which often blocks requests.',
             'Provedor de pesquisa na web': 'Web search provider', 'Automático (Exa se tiver chave, senão DuckDuckGo)': 'Automatic (Exa if you have a key, otherwise DuckDuckGo)',
             'Só Exa': 'Exa only', 'Só DuckDuckGo': 'DuckDuckGo only', 'Qualidade da busca do Exa': 'Exa search quality',
-            'Rápida (lite)': 'Fast (lite)', 'Equilibrada (auto, recomendada)': 'Balanced (auto, recommended)', 'Profunda (deep-lite, mais lenta e cara)': 'Deep (deep-lite, slower and pricier)',
+            'Rápida e barata (lite, recomendada)': 'Fast and cheap (lite, recommended)', 'Equilibrada (auto, quase o dobro do preço)': 'Balanced (auto, almost double the price)',
+            'Resultados por busca': 'Results per search', 'Mais resultados deixam o prompt maior e a IA mais lenta. Até 10 o preço do Exa é o mesmo.': 'More results make the prompt larger and the AI slower. Up to 10 the Exa price is the same.',
+            'Limite diário de buscas pagas (Exa)': 'Daily limit of paid searches (Exa)',
+            'Hoje: {n} buscas. 0 = sem limite; ao atingir o limite, usa o DuckDuckGo no resto do dia.': 'Today: {n} searches. 0 = no limit; when the limit is reached, DuckDuckGo is used for the rest of the day.', 'Profunda (deep-lite, mais lenta e cara)': 'Deep (deep-lite, slower and pricier)',
             'Opcao de pesquisa invalida.': 'Invalid search option.',
+            '📊 Estatísticas': '📊 Statistics', 'Estatísticas de uso': 'Usage statistics', '📊 Estatísticas de uso': '📊 Usage statistics',
+            'Últimos 7 dias': 'Last 7 days', 'Últimos 30 dias': 'Last 30 days', 'Últimos 90 dias': 'Last 90 days', 'Limpar': 'Clear', 'Por modelo': 'By model', 'Tokens por dia': 'Tokens per day',
+            'Respostas': 'Replies', 'respostas': 'replies', 'Tokens gerados': 'Tokens generated', 'Tempo gerando': 'Time generating', 'Modelo': 'Model', 'Tokens': 'Tokens', 'Média tok/s': 'Avg tok/s', 'Melhor tok/s': 'Best tok/s',
+            'Exa: {n}': 'Exa: {n}', 'buscas': 'searches', 'leituras': 'reads',
+            'Ainda não há dados. As estatísticas passam a ser registradas a partir de agora.': 'No data yet. Statistics are recorded from now on.',
+            'Dados desde {d}.': 'Data since {d}.', 'Tokens de modelos na nuvem (~) são estimados; os locais são contados pelo Ollama.': 'Cloud model tokens (~) are estimated; local ones are counted by Ollama.',
+            'Limpar estatísticas?': 'Clear statistics?', 'Todo o histórico de uso será apagado.': 'All usage history will be deleted.',
+            'Pesquisar nos chats...': 'Search chats...', 'Nenhum chat encontrado.': 'No chats found.', 'Fixados': 'Pinned', 'Sem pasta': 'No folder', 'Fixar': 'Pin', 'Desafixar': 'Unpin',
+            'Mover para pasta': 'Move to folder', 'Mover': 'Move', 'Nome da pasta': 'Folder name', 'Pastas existentes: {list}': 'Existing folders: {list}',
+            'Digite um nome novo para criar uma pasta. Deixe vazio para tirar o chat da pasta.': 'Type a new name to create a folder. Leave empty to take the chat out of its folder.',
+            'Anexar arquivo ou imagem (ou arraste / cole)': 'Attach file or image (or drag / paste)',
+            'Máximo de 6 anexos por mensagem.': 'Maximum of 6 attachments per message.', '{name} passa de 20 MB.': '{name} is over 20 MB.',
+            '{name}: arquivo grande, cortado nos primeiros {n} caracteres.': '{name}: large file, cut to the first {n} characters.',
+            'Não consegui ler o arquivo.': 'Could not read the file.', 'Tipo de arquivo não suportado. Use imagens, texto, código ou PDF.': 'Unsupported file type. Use images, text, code or PDF.',
+            'Arquivo binario nao suportado (use texto, codigo ou PDF).': 'Binary file not supported (use text, code or PDF).',
+            'Este PDF nao tem texto selecionavel (talvez seja escaneado).': 'This PDF has no selectable text (it may be scanned).',
+            'Para ler PDF instale o pypdf: pip install pypdf': 'To read PDFs install pypdf: pip install pypdf', 'Requisicao grande demais.': 'Request too large.',
+            'cortado': 'cut', '(cortado)': '(cut)', 'Leia o(s) arquivo(s) anexado(s) e faça um resumo.': 'Read the attached file(s) and write a summary.',
+            '[Arquivo anexado: {name}]': '[Attached file: {name}]', '[Fim do arquivo]': '[End of file]', '[arquivo: {name}] ': '[file: {name}] ',
+            '[Arquivo anexado: {name}] (omitido: sem espaço no contexto)': '[Attached file: {name}] (omitted: no room in the context)',
+            'Parte dos arquivos não coube no contexto e foi cortada ou omitida. Aumente o contexto em Configurações.': 'Some of the files did not fit in the context and were cut or omitted. Increase the context in Settings.',
+            'resultado de': 'result of', 'Desfazer': 'Undo', 'Desfeito ✓': 'Undone ✓', '{n} caracteres': '{n} characters', 'Fontes': 'Sources',
+            'Não consegui desfazer.': 'Could not undo.', 'Backup nao encontrado (ja foi desfeito ou expirou).': 'Backup not found (already undone or expired).',
+            'Arquivo restaurado para a versao anterior.': 'File restored to its previous version.', 'Arquivo criado pela IA foi apagado.': 'The file created by the AI was deleted.', 'O arquivo ja nao existia.': 'The file no longer existed.',
             'Parâmetros': 'Parameters', 'contexto': 'context', 'raciocínio': 'reasoning', 'ferramentas': 'tools', 'pesado para a sua GPU': 'heavy for your GPU',
             'Nenhum modelo disponível.': 'No model available.',
             'Animações (desligue se a interface pesar na GPU)': 'Animations (turn off if the interface is heavy on the GPU)',
@@ -864,7 +984,7 @@
                 if (n.nodeValue !== next) n.nodeValue = next;
             }
             document.querySelectorAll('[placeholder], [title]').forEach(el => {
-                if (el.closest(_skipI18n)) return;
+                if (el.closest(_skipI18n) && !(el.tagName === 'TEXTAREA' && el.id === 'prompt')) return;
                 ['placeholder', 'title'].forEach(a => {
                     if (!el.hasAttribute(a)) return;
                     const k = 'pt' + a; if (!el.dataset[k]) el.dataset[k] = el.getAttribute(a);
@@ -1016,7 +1136,7 @@
                 $('dlg-title').textContent = tr(title); $('dlg-body').textContent = tr(body);
                 $('dlg-toggle-wrap').style.display = toggle ? '' : 'none';
                 $('dlg-toggle').checked = false; $('dlg-toggle-label').textContent = toggle ? tr(toggle) : '';
-                const inp = $('dlg-input'); inp.style.display = input ? '' : 'none'; inp.value = '';
+                const inp = $('dlg-input'); inp.style.display = input ? '' : 'none'; inp.value = (input && input.value) || '';
                 if (input) { inp.type = input.type || 'text'; inp.placeholder = input.placeholder || ''; setTimeout(() => inp.focus(), 60); }
                 const box = $('dlg-buttons'); box.innerHTML = '';
                 const done = index => { $('dialog-overlay').style.display = 'none'; document.removeEventListener('keydown', onKey); resolve({ index, checked: $('dlg-toggle').checked, value: inp.value.trim() }); };
@@ -1212,23 +1332,66 @@
 
         // ---------- chats ----------
         function updateHeader() { $('chat-header-title').textContent = currentChatId && chats[currentChatId] ? dispTitle(chats[currentChatId].title) : ''; }
+        function chatMatch(id, q) {   // trecho em que o texto aparece (titulo ou mensagens), ou null
+            const c = chats[id]; if ((c.title || '').toLowerCase().includes(q)) return c.title;
+            for (const m of c.messages) { const t = m.content || '', k = t.toLowerCase().indexOf(q); if (k !== -1) return (k > 30 ? '…' : '') + t.slice(Math.max(0, k - 30), k + q.length + 50).replace(/\s+/g, ' '); }
+            return null;
+        }
+        function chatItem(id, newId, snippet) {
+            const c = chats[id], item = document.createElement('div');
+            item.className = 'chat-item' + (id === currentChatId ? ' active' : '') + (id === newId ? ' new-chat' : '');
+            const col = document.createElement('span'); col.className = 'col';
+            const title = document.createElement('span'); title.className = 'title';
+            if (c.pinned) { const pm = document.createElement('img'); pm.className = 'ic pin-mark'; pm.src = 'icons/pin.svg'; title.appendChild(pm); }
+            title.appendChild(document.createTextNode(dispTitle(c.title))); col.appendChild(title);
+            if (snippet) { const sn = document.createElement('span'); sn.className = 'snip'; sn.textContent = snippet; col.appendChild(sn); }
+            const actions = document.createElement('span'); actions.className = 'chat-actions';
+            const btn = (icon, tip, fn) => { const b = document.createElement('button'); b.className = 'icon-btn'; b.title = tr(tip); b.innerHTML = `<img class="ic" src="icons/${icon}">`; b.onclick = fn; return b; };
+            actions.append(btn('pin.svg', c.pinned ? 'Desafixar' : 'Fixar', e => togglePin(id, e)), btn('folder.svg', 'Mover para pasta', e => moveToFolder(id, e)),
+                           btn('pen-line.png', 'Renomear', e => renameChatPrompt(id, e)), btn('trash.png', 'Apagar', e => deleteChat(id, e)));
+            item.append(col, actions);
+            item.onclick = () => { closeDrawer(); loadChat(id); };
+            return item;
+        }
         function renderSidebar(newId) {
             const list = $('chat-list'); list.innerHTML = '';
-            Object.keys(chats).filter(id => tabOf(id) === currentTab).reverse().forEach(id => {
-                const item = document.createElement('div');
-                item.className = 'chat-item' + (id === currentChatId ? ' active' : '') + (id === newId ? ' new-chat' : '');
-                const title = document.createElement('span'); title.className = 'title'; title.textContent = dispTitle(chats[id].title);
-                const actions = document.createElement('span'); actions.className = 'chat-actions';
-                const edit = document.createElement('button'); edit.className = 'icon-btn'; edit.title = tr('Renomear'); edit.innerHTML = '<img class="ic" src="icons/pen-line.png">';
-                edit.onclick = e => renameChatPrompt(id, e);
-                const del = document.createElement('button'); del.className = 'icon-btn'; del.title = tr('Apagar'); del.innerHTML = '<img class="ic" src="icons/trash.png">';
-                del.onclick = e => deleteChat(id, e);
-                actions.append(edit, del); item.append(title, actions);
-                item.onclick = () => { closeDrawer(); loadChat(id); };
-                list.appendChild(item);
-            });
+            const q = ($('chat-search').value || '').trim().toLowerCase();
+            const ids = Object.keys(chats).filter(id => tabOf(id) === currentTab).sort((a, b) => b - a);   // ids = data de criacao: mais novos primeiro
+            const head = t => { const h = document.createElement('div'); h.className = 'list-head'; h.textContent = t; list.appendChild(h); return h; };
+            if (q) {
+                let n = 0;
+                ids.forEach(id => { const sn = chatMatch(id, q); if (sn !== null) { list.appendChild(chatItem(id, newId, sn === chats[id].title ? '' : sn)); n++; } });
+                if (!n) { const e = document.createElement('div'); e.className = 'list-empty'; e.textContent = tr('Nenhum chat encontrado.'); list.appendChild(e); }
+            } else {
+                const pinned = ids.filter(id => chats[id].pinned), folders = {};
+                ids.filter(id => !chats[id].pinned && chats[id].folder).forEach(id => (folders[chats[id].folder] = folders[chats[id].folder] || []).push(id));
+                if (pinned.length) { head(tr('Fixados')); pinned.forEach(id => list.appendChild(chatItem(id, newId))); }
+                Object.keys(folders).sort((a, b) => a.localeCompare(b)).forEach(name => {
+                    const closed = config.folderClosed && config.folderClosed[name];
+                    const h = head(`${closed ? '▸' : '▾'} ${name} (${folders[name].length})`); h.classList.add('folder');
+                    h.onclick = () => { config.folderClosed = Object.assign({}, config.folderClosed, { [name]: !closed }); saveState(); renderSidebar(); };
+                    if (!closed) folders[name].forEach(id => list.appendChild(chatItem(id, newId)));
+                });
+                const rest = ids.filter(id => !chats[id].pinned && !chats[id].folder);
+                if (rest.length && (pinned.length || Object.keys(folders).length)) head(tr('Sem pasta'));
+                rest.forEach(id => list.appendChild(chatItem(id, newId)));
+            }
             updateHeader();
         }
+        function togglePin(id, e) { e.stopPropagation(); chats[id].pinned = !chats[id].pinned; saveToStorage(); renderSidebar(); }
+        async function moveToFolder(id, e) {
+            e.stopPropagation();
+            const existing = [...new Set(Object.keys(chats).filter(i => tabOf(i) === currentTab).map(i => chats[i].folder).filter(Boolean))].sort();
+            const hint = tr('Digite um nome novo para criar uma pasta. Deixe vazio para tirar o chat da pasta.');
+            const r = await ask({ title: 'Mover para pasta', body: (existing.length ? tr('Pastas existentes: {list}', { list: existing.join(', ') }) + '\n\n' : '') + hint, buttons: ['Mover', 'Cancelar'], input: { type: 'text', placeholder: 'Nome da pasta', value: chats[id].folder || '' } });
+            if (r.index !== 0) return;
+            const name = r.value.trim().slice(0, 40);
+            if (name) chats[id].folder = name; else delete chats[id].folder;
+            saveToStorage(); renderSidebar();
+        }
+        let sidebarTimer = null;
+        $('chat-search').addEventListener('input', () => { clearTimeout(sidebarTimer); sidebarTimer = setTimeout(() => renderSidebar(), 120); });
+        $('chat-search').addEventListener('keydown', e => { if (e.key === 'Escape') { e.target.value = ''; renderSidebar(); } });
         function renameChatPrompt(id, event) { event.stopPropagation(); const n = prompt(tr('Novo nome:'), chats[id].title); if (n) { chats[id].title = n; saveToStorage(); renderSidebar(); } }
         async function deleteChat(id, event) {
             event.stopPropagation();
@@ -1255,7 +1418,7 @@
             chatBox.innerHTML = '';
             if (chats[id].welcome === undefined) { chats[id].welcome = Math.floor(Math.random() * 5); saveToStorage(); }
             addMessageToUI('ai', WELCOMES[curLang()][chats[id].welcome], { welcome: true, animate: false });
-            chats[id].messages.forEach(m => addMessageToUI(m.role, m.content, { animate: false, images: m.images, count: m.count }));
+            chats[id].messages.forEach(m => addMessageToUI(m.role, m.content, { animate: false, images: m.images, files: m.files, sources: m.sources, count: m.count }));
             chatBox.scrollTop = chatBox.scrollHeight;
             updateCtxBar();
             if (isNew) { chatBox.classList.remove('fresh'); void chatBox.offsetWidth; chatBox.classList.add('fresh'); }
@@ -1273,15 +1436,21 @@
             div.className = `msg ${role}` + (opts.welcome ? ' welcome' : '') + (opts.animate === false ? ' noanim' : '');
             const think = document.createElement('div'); think.className = 'think';
             const span = document.createElement('span'); span.className = 'final-text';
-            if (opts.html) span.innerHTML = text; else span.innerHTML = fmt(text);
+            if (opts.html) span.innerHTML = text; else span.innerHTML = (role === 'ai' && !opts.welcome) ? renderRich(text) : fmt(text);
             if (opts.images && opts.images.length) {
                 const box = document.createElement('div'); box.className = 'msg-images';
                 opts.images.forEach(src => { const im = document.createElement('img'); im.src = src; box.appendChild(im); });
                 div.appendChild(box);
             }
+            if (opts.files && opts.files.length) {
+                const box = document.createElement('div'); box.className = 'msg-files';
+                opts.files.forEach(f => { const c = document.createElement('div'); c.className = 'file-chip'; c.innerHTML = '<img class="ic" src="icons/file-text.svg">'; const n = document.createElement('span'); n.className = 'fc-name'; n.textContent = f.name; const z = document.createElement('span'); z.className = 'fc-size'; z.textContent = fmtBytes(f.size || f.text.length); c.append(n, z); box.appendChild(c); });
+                div.appendChild(box);
+            }
             if (role === 'summary') { const h = document.createElement('div'); h.className = 'sum-head'; h.textContent = tr('Conversa compactada ({n} mensagens resumidas)', { n: opts.count || '?' }); div.appendChild(h); }
             if (role === 'ai') div.appendChild(think);
             div.appendChild(span);
+            if (opts.sources && opts.sources.length) div.appendChild(sourcesEl(opts.sources));
             if (role === 'ai' && !opts.welcome) {
                 const btn = document.createElement('button'); btn.className = 'copy-btn'; btn.title = tr('Copiar resposta');
                 btn.innerHTML = '<img class="ic" src="icons/clipboard-copy.png">';
@@ -1293,6 +1462,107 @@
             return div;
         }
         function addNote(text) { return addMessageToUI('note', text); }
+
+        // ---------- agente: chamadas e resultados de ferramentas como cartoes (em vez do texto cru) ----------
+        const TOOL_RE = '(?:list_files|read_file|write_file|cmd|powershell|search_web|read_url)';
+        const INLINE_KEYS = { cmd: 'command', powershell: 'command', search_web: 'query', read_url: 'url', read_file: 'path', list_files: 'path' };
+        function matchBrace(text, k) {
+            let depth = 0, inStr = false, esc = false;
+            for (let p = k; p < text.length; p++) {
+                const c = text[p];
+                if (inStr) { if (esc) esc = false; else if (c === '\\') esc = true; else if (c === '"') inStr = false; }
+                else if (c === '"') inStr = true; else if (c === '{') depth++; else if (c === '}') { depth--; if (depth === 0) return p; }
+            }
+            return -1;
+        }
+        function parseCallAt(text, i) {   // text[i..] comeca com "$$"; devolve {name, args, end} ou null
+            let j = i + 2; while (/\s/.test(text[j] || '')) j++;
+            if (text[j] !== '[') return null;
+            const close = text.indexOf(']', j); if (close === -1) return null;
+            const head = text.slice(j + 1, close);
+            let m = head.match(/^\s*TOOL\s*[:\s]\s*(\w+)\s*$/i) || head.match(new RegExp('^\\s*(' + TOOL_RE + ')\\s*$', 'i'));
+            let e = close + 1;
+            if (m) {
+                let k = close + 1; while (/\s/.test(text[k] || '')) k++;
+                if (text[k] !== '{') return null;
+                const end = matchBrace(text, k); if (end === -1) return null;
+                let args = {}; const raw = text.slice(k, end + 1);
+                try { args = JSON.parse(raw); } catch (x) { try { args = JSON.parse(raw.replace(/'/g, '"')); } catch (y) {} }
+                e = end + 1; while (/\s/.test(text[e] || '')) e++; if (text.startsWith('$$', e)) e += 2;
+                return { name: m[1].toLowerCase(), args, end: e };
+            }
+            m = head.match(new RegExp('^\\s*(cmd|powershell|search_web|read_url|read_file|list_files)\\s*[:=]\\s*([\\s\\S]+)$', 'i'));
+            if (m) {
+                while (/\s/.test(text[e] || '')) e++; if (text.startsWith('$$', e)) e += 2;
+                const name = m[1].toLowerCase();
+                return { name, args: { [INLINE_KEYS[name]]: m[2].trim().replace(/^["'`]|["'`]$/g, '') }, end: e };
+            }
+            return null;
+        }
+        function callHtml(c) {
+            const a = c.args || {}, arg = a.command ?? a.path ?? a.query ?? a.url ?? '';
+            const pre = c.name === 'cmd' ? '$ ' : c.name === 'powershell' ? 'PS> ' : '';
+            const extra = c.name === 'write_file' && a.content != null ? ' (' + tr('{n} caracteres', { n: String(a.content).length }) + ')' : '';
+            return `<div class="tool-call"><span class="tc-name">${esc(c.name)}</span><code>${esc(pre + String(arg) + extra)}</code></div>`;
+        }
+        function colorDiff(d) {
+            return d.split('\n').map(l => { const c = /^(\+\+\+|---)/.test(l) ? 'd-meta' : l.startsWith('@@') ? 'd-hunk' : l.startsWith('+') ? 'd-add' : l.startsWith('-') ? 'd-del' : ''; return c ? `<span class="${c}">${esc(l)}</span>` : esc(l) + '\n'; }).join('');
+        }
+        function resultHtml(name, body) {
+            let undoId = null, diff = null;
+            body = body.replace(/\s*\[undo:([0-9a-f]{8})\]/, (m, id) => { undoId = id; return ''; });
+            body = body.replace(/\n?```diff\n([\s\S]*?)\n```/, (m, d) => { diff = d; return ''; });
+            const txt = body.trim(), err = /^(Erro|Error)\b/.test(txt);
+            const open = (diff || txt.split('\n').length <= 12) ? ' open' : '';
+            const undo = undoId && auth.local ? `<button class="undo-btn" data-undo="${undoId}">${esc(tr('Desfazer'))}</button>` : '';
+            return `<details class="tool-result${err ? ' err' : ''}"${open}><summary>${err ? '✗' : '✓'} ${esc(tr('resultado de'))} <b>${esc(name)}</b>${undo}</summary>` +
+                (txt ? `<pre>${esc(txt)}</pre>` : '') + (diff ? `<pre class="diff">${colorDiff(diff)}</pre>` : '') + '</details>';
+        }
+        const NOTE_RE = /\[((?:Acao negada|Action denied|Nenhuma ferramenta|No tool was run|formato de ferramenta|invalid tool format|plano B|fallback: native|Geracao parada|Generation stopped|Limite de \d+|Limit of \d+)[^\]]*)\]/g;
+        const richPart = seg => { seg = seg.replace(/^\n+|\n+$/g, ''); return seg ? fmt(seg).replace(NOTE_RE, '<span class="tool-note">[$1]</span>') : ''; };
+        function renderRich(text) {
+            if (!text.includes('$$[') && !/\[(?:resultado de|result of) \w+\]/.test(text)) return richPart(text) || fmt(text);
+            let out = '', i = 0, m; const re = /\$\$\s*\[|\[(?:resultado de|result of) (\w+)\]\n/g;
+            while ((m = re.exec(text))) {
+                if (m.index < i) continue;
+                if (m[0].startsWith('$$')) {
+                    const c = parseCallAt(text, m.index); if (!c) continue;
+                    out += richPart(text.slice(i, m.index)) + callHtml(c); i = re.lastIndex = c.end;
+                } else {
+                    let endIdx = -1, endLen = 0;
+                    for (const em of ['\n[/resultado]', '\n[/result]']) { const p = text.indexOf(em, re.lastIndex); if (p !== -1 && (endIdx === -1 || p < endIdx)) { endIdx = p; endLen = em.length; } }
+                    out += richPart(text.slice(i, m.index));
+                    if (endIdx === -1) { out += `<div class="tool-call running"><span class="tc-name">${esc(m[1])}</span><code>…</code></div>`; i = text.length; break; }   // resultado ainda chegando
+                    out += resultHtml(m[1], text.slice(re.lastIndex, endIdx)); i = re.lastIndex = endIdx + endLen;
+                }
+            }
+            return out + richPart(text.slice(i));
+        }
+        chatBox.addEventListener('click', async e => {   // botao "Desfazer" dos cartoes de write_file
+            const b = e.target.closest('.undo-btn'); if (!b) return;
+            e.preventDefault(); e.stopPropagation(); b.disabled = true;
+            try {
+                const r = await fetch(API + '/api/undo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: b.dataset.undo }) });
+                const d = await r.json();
+                if (r.ok) { b.textContent = tr('Desfeito ✓'); showInfo(d.message); } else { b.disabled = false; showInfo(d.error || 'Não consegui desfazer.'); }
+            } catch (err) { b.disabled = false; showInfo('Servidor não respondeu.'); }
+        });
+
+        // ---------- fontes (cartoes clicaveis) ----------
+        function openExternal(url) { if (auth.local) fetch(API + '/api/open_url', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url }) }).catch(() => {}); else window.open(url, '_blank', 'noopener'); }
+        const domainOf = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return u; } };
+        function fillSources(box, list) {
+            box.innerHTML = ''; box.style.display = list.length ? '' : 'none';
+            if (!list.length) return;
+            const lab = document.createElement('span'); lab.className = 'src-label'; lab.textContent = tr('Fontes'); box.appendChild(lab);
+            list.forEach((x, i) => {
+                const a = document.createElement('a'); a.className = 'src-card'; a.href = x.url; a.title = x.url; a.onclick = ev => { ev.preventDefault(); openExternal(x.url); };
+                a.innerHTML = '<span class="src-n"></span><span class="src-body"><span class="src-dom"></span><span class="src-title"></span></span>';
+                a.querySelector('.src-n').textContent = i + 1; a.querySelector('.src-dom').textContent = domainOf(x.url); a.querySelector('.src-title').textContent = x.title || x.url;
+                box.appendChild(a);
+            });
+        }
+        function sourcesEl(list) { const box = document.createElement('div'); box.className = 'sources'; fillSources(box, list); return box; }
 
         // ---------- caixa de texto ----------
         function autosize() { promptInput.style.height = 'auto'; promptInput.style.height = Math.min(promptInput.scrollHeight, 200) + 'px'; }
@@ -1306,7 +1576,7 @@
         function clearPrompt() { promptInput.value = ''; promptInput.dispatchEvent(new Event('input')); }
 
         // ---------- imagens: anexar, arrastar, colar ----------
-        let pendingImages = [], dragDepth = 0;
+        let pendingImages = [], pendingFiles = [], dragDepth = 0;
         function fileToDataUrl(file) {   // reduz para no maximo 1024px (JPEG) para o chat e o historico nao ficarem pesados
             return new Promise((resolve, reject) => {
                 const url = URL.createObjectURL(file), img = new Image();
@@ -1319,36 +1589,80 @@
                 img.onerror = reject; img.src = url;
             });
         }
-        async function addImageFiles(files) {
-            const imgs = [...files].filter(f => f.type.startsWith('image/'));
-            if (!imgs.length) { if (files.length) showInfo('Só imagens são aceitas.'); return; }
-            for (const f of imgs) {
-                if (pendingImages.length >= 6) { showInfo('Máximo de 6 imagens por mensagem.'); break; }
-                try { pendingImages.push(await fileToDataUrl(f)); } catch (e) { showInfo('Não consegui ler essa imagem.'); }
+        const TEXT_EXT = /\.(txt|md|markdown|json|csv|tsv|log|py|js|ts|jsx|tsx|html|htm|css|xml|yml|yaml|ini|toml|cfg|conf|bat|ps1|sh|c|cpp|h|hpp|java|cs|go|rs|rb|php|sql|r|lua|kt|swift|tex|rst|pdf)$/i;
+        const MAX_ATTACH = 6, MAX_FILE_BYTES = 20 * 1024 * 1024;
+        const attachCount = () => pendingImages.length + pendingFiles.length;
+        const fmtBytes = n => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : n >= 1024 ? Math.round(n / 1024) + ' KB' : n + ' B';
+        const fileToB64 = file => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.onerror = rej; r.readAsDataURL(file); });
+        async function addFiles(files) {   // imagens vao direto; texto/codigo/PDF passam pelo servidor, que extrai o texto
+            let rejected = 0;
+            for (const f of [...files]) {
+                if (attachCount() >= MAX_ATTACH) { showInfo('Máximo de 6 anexos por mensagem.'); break; }
+                if (f.type.startsWith('image/')) { try { pendingImages.push(await fileToDataUrl(f)); } catch (e) { showInfo('Não consegui ler essa imagem.'); } continue; }
+                if (!(TEXT_EXT.test(f.name) || f.type.startsWith('text/'))) { rejected++; continue; }
+                if (f.size > MAX_FILE_BYTES) { showInfo(tr('{name} passa de 20 MB.', { name: f.name })); continue; }
+                try {
+                    const r = await fetch(API + '/api/extract_text', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filename: f.name, b64: await fileToB64(f) }) });
+                    const d = await r.json();
+                    if (!r.ok) { showInfo(d.error || 'Não consegui ler o arquivo.'); continue; }
+                    pendingFiles.push({ name: f.name, size: f.size, text: d.text, truncated: d.truncated, pages: d.pages });
+                    if (d.truncated) showInfo(tr('{name}: arquivo grande, cortado nos primeiros {n} caracteres.', { name: f.name, n: d.chars }));
+                } catch (e) { showInfo('Não consegui ler o arquivo.'); }
             }
+            if (rejected) showInfo('Tipo de arquivo não suportado. Use imagens, texto, código ou PDF.');
             renderAttachments(); promptInput.focus();
         }
         function renderAttachments() {
             const strip = $('attach-strip'); strip.innerHTML = '';
-            strip.style.display = pendingImages.length ? 'flex' : 'none';
+            strip.style.display = attachCount() ? 'flex' : 'none';
             pendingImages.forEach((src, i) => {
                 const t = document.createElement('div'); t.className = 'thumb';
                 const im = document.createElement('img'); im.src = src;
                 const x = document.createElement('button'); x.textContent = '×'; x.title = tr('Remover'); x.onclick = () => { pendingImages.splice(i, 1); renderAttachments(); };
                 t.append(im, x); strip.appendChild(t);
             });
+            pendingFiles.forEach((f, i) => {
+                const c = document.createElement('div'); c.className = 'file-chip'; c.innerHTML = '<img class="ic" src="icons/file-text.svg">';
+                const n = document.createElement('span'); n.className = 'fc-name'; n.textContent = f.name; n.title = f.name;
+                const z = document.createElement('span'); z.className = 'fc-size'; z.textContent = fmtBytes(f.size) + (f.truncated ? ' · ' + tr('cortado') : '');
+                const x = document.createElement('button'); x.textContent = '×'; x.title = tr('Remover'); x.onclick = () => { pendingFiles.splice(i, 1); renderAttachments(); };
+                c.append(n, z, x); strip.appendChild(c);
+            });
         }
+        const attachNote = m => (m.images && m.images.length ? tr('[{n} imagem(ns)] ', { n: m.images.length }) : '') + (m.files || []).map(f => tr('[arquivo: {name}] ', { name: f.name })).join('');
         const hasFiles = e => e.dataTransfer && [...e.dataTransfer.types].includes('Files');
         document.addEventListener('dragenter', e => { if (!hasFiles(e) || editing) return; e.preventDefault(); dragDepth++; $('drop-overlay').style.display = 'flex'; });
         document.addEventListener('dragover', e => { if (hasFiles(e)) e.preventDefault(); });
         document.addEventListener('dragleave', e => { if (!hasFiles(e)) return; dragDepth = Math.max(0, dragDepth - 1); if (!dragDepth) $('drop-overlay').style.display = 'none'; });
-        document.addEventListener('drop', e => { if (!hasFiles(e)) return; e.preventDefault(); dragDepth = 0; $('drop-overlay').style.display = 'none'; if (!editing) addImageFiles(e.dataTransfer.files); });
+        document.addEventListener('drop', e => { if (!hasFiles(e)) return; e.preventDefault(); dragDepth = 0; $('drop-overlay').style.display = 'none'; if (!editing) addFiles(e.dataTransfer.files); });
         document.addEventListener('paste', e => {
-            const files = [...((e.clipboardData && e.clipboardData.files) || [])].filter(f => f.type.startsWith('image/'));
+            const files = [...((e.clipboardData && e.clipboardData.files) || [])];
             if (!files.length) return;
-            e.preventDefault(); addImageFiles(files);
+            e.preventDefault(); addFiles(files);
         });
 
+        // texto dos arquivos anexados entra na mensagem do usuario; se nao couber no contexto, corta/omite os mais antigos
+        const fileBlock = f => tr('[Arquivo anexado: {name}]', { name: f.name }) + (f.truncated ? ' ' + tr('(cortado)') : '') + '\n' + f.text + '\n' + tr('[Fim do arquivo]');
+        function buildApiMessages(chat, model, sys) {
+            const msgs = chat.messages.filter(m => m.role !== 'summary');
+            let budget = Math.floor(ctxMax() * 2.6) - sys.length - msgs.reduce((a, m) => a + m.content.length, 0);   // caracteres que sobram para arquivos
+            const blocks = new Map(); let omitted = 0;
+            for (let i = msgs.length - 1; i >= 0; i--) {
+                const fs = msgs[i].files || []; if (!fs.length) continue;
+                blocks.set(i, fs.map(f => {
+                    if (f.text.length + 80 <= budget) { budget -= f.text.length + 80; return fileBlock(f); }
+                    omitted++;
+                    if (i === msgs.length - 1 && budget > 2000) { const cut = { ...f, text: f.text.slice(0, budget - 80), truncated: true }; budget = 0; return fileBlock(cut); }
+                    return tr('[Arquivo anexado: {name}] (omitido: sem espaço no contexto)', { name: f.name });
+                }).join('\n\n'));
+            }
+            if (omitted) showInfo('Parte dos arquivos não coube no contexto e foi cortada ou omitida. Aumente o contexto em Configurações.', 9000);
+            return [{ role: 'system', content: sys }, ...msgs.map((m, i) => {
+                const o = { role: m.role === 'ai' ? 'assistant' : 'user', content: blocks.has(i) ? blocks.get(i) + '\n\n' + m.content : m.content };
+                if (m.images && m.images.length && model.vision) o.images = m.images.map(d => d.split(',')[1]);
+                return o;
+            })];
+        }
         function setBusy(on) {
             busy = on;
             const b = $('send-btn'); b.classList.toggle('stop', on); b.title = tr(on ? 'Parar' : 'Enviar');
@@ -1359,28 +1673,29 @@
 
         async function sendMessage() {
             let text = promptInput.value.trim();
-            if ((!text && !pendingImages.length) || !currentChatId || busy) return;
+            if ((!text && !attachCount()) || !currentChatId || busy) return;
             const chat = chats[currentChatId];
             if (text === '/clear') { chat.messages = []; saveToStorage(); loadChat(currentChatId); clearPrompt(); return; }
             if (text.startsWith('/rename ')) { const n = text.slice(8).trim(); if (n) { chat.title = n; saveToStorage(); renderSidebar(); } clearPrompt(); return; }
 
-            let imgs = pendingImages.slice();
+            let imgs = pendingImages.slice(); const files = pendingFiles.slice();
             if (imgs.length && !modelById(selectedModel).vision) {
                 const vm = modelById('qwen3.5:4b');
                 const r = await ask({ title: 'Este modelo não lê imagens', body: tr('{label} só entende texto. Troque para um modelo com o selo "visão" na lista.', { label: modelById(selectedModel).label }), buttons: [tr('Trocar para {label}', { label: vm.label }), 'Enviar só o texto', 'Cancelar'] });
                 if (r.index === 0) { selectedModel = vm.id; config.model = vm.id; lastLocalModel = vm.id; saveState(); renderModelOptions(); }
                 else if (r.index === 1) imgs = [];
                 else return;
-                if (!text && !imgs.length) return;
+                if (!text && !imgs.length && !files.length) return;
             }
             const model = modelById(selectedModel);
             if (model.cloud && !(await hasGroqKey())) { await noKeyDialog(); return; }
             if (!(await handleOverflow(model))) return;
 
-            if (!text && imgs.length) text = tr('Descreva esta imagem.');
+            if (!text && files.length) text = tr('Leia o(s) arquivo(s) anexado(s) e faça um resumo.'); else if (!text && imgs.length) text = tr('Descreva esta imagem.');
             if (chat.messages.length === 0) { chat.title = text.substring(0, 30) + (text.length > 30 ? '...' : ''); renderSidebar(); }
-            addMessageToUI('user', text, { images: imgs }); chat.messages.push(imgs.length ? { role: 'user', content: text, images: imgs } : { role: 'user', content: text }); saveToStorage();
-            clearPrompt(); pendingImages = []; renderAttachments(); updateCtxBar();
+            const um = { role: 'user', content: text }; if (imgs.length) um.images = imgs; if (files.length) um.files = files;
+            addMessageToUI('user', text, { images: imgs, files }); chat.messages.push(um); saveToStorage();
+            clearPrompt(); pendingImages = []; pendingFiles = []; renderAttachments(); updateCtxBar();
 
             const aiDiv = addMessageToUI('ai', `<span class="loading-dots">${tr('Iniciando')}</span>`, { html: true });
             const textSpan = aiDiv.querySelector('.final-text'), thinkDiv = aiDiv.querySelector('.think');
@@ -1388,7 +1703,7 @@
             stLine.innerHTML = '<span class="pulse"></span><span class="st-text"></span>'; aiDiv.insertBefore(stLine, aiDiv.querySelector('.copy-btn'));
             setBusy(true);
             const isCode = currentTab === 'code';
-            let fullResponse = '', gotText = false, chars = 0, lastStats = null;
+            let fullResponse = '', gotText = false, chars = 0, lastStats = null; const msgSources = []; let srcEl = null;
             const status = s => { setOverlayStatus(s); const t = trStatus(s); stLine.querySelector('.st-text').textContent = t; if (!gotText) textSpan.innerHTML = `<span class="loading-dots">${esc(t)}</span>`; };
 
             try {
@@ -1396,7 +1711,7 @@
                 const summaries = chat.messages.filter(m => m.role === 'summary').map(m => m.content);
                 if (summaries.length) sys += tr('\n\nRESUMO DA CONVERSA ANTERIOR (as mensagens antigas foram compactadas):\n') + summaries.join('\n') + '\n';
                 if (globalMemories.length > 0) sys += tr('\n\nFATOS QUE VOCÊ DEVE LEMBRAR:\n') + globalMemories.map(m => `- ${m}`).join('\n') + '\n';
-                const apiMessages = [{ role: 'system', content: sys }, ...chat.messages.filter(m => m.role !== 'summary').map(m => { const o = { role: m.role === 'ai' ? 'assistant' : 'user', content: m.content }; if (m.images && m.images.length && model.vision) o.images = m.images.map(d => d.split(',')[1]); return o; })];
+                const apiMessages = buildApiMessages(chat, model, sys);
 
                 status('Iniciando'); showPerfStreaming();
                 const response = await fetch(API + '/api/chat', {
@@ -1411,12 +1726,13 @@
                     let data; try { data = JSON.parse(line); } catch (e) { return; }
                     if (data.stats) { lastStats = data.stats; showRealPerf(data.stats); return; }
                     if (data.status) { status(data.status); return; }
+                    if (data.sources) { data.sources.forEach(x => { if (x.url && !msgSources.some(y => y.url === x.url)) msgSources.push(x); }); if (!srcEl) { srcEl = sourcesEl([]); textSpan.after(srcEl); } fillSources(srcEl, msgSources); return; }
                     const msg = data.message || {};
                     if (msg.thinking) { thinkDiv.style.display = 'block'; thinkDiv.textContent += msg.thinking; thinkDiv.scrollTop = thinkDiv.scrollHeight; status('Pensando'); }
                     if (msg.content) {
                         if (!gotText) { textSpan.textContent = ''; gotText = true; }
                         status('Escrevendo');
-                        fullResponse += msg.content; textSpan.innerHTML = fmt(fullResponse);
+                        fullResponse += msg.content; textSpan.innerHTML = renderRich(fullResponse);
                         chars += msg.content.length; updateStreamingPerf(chars);
                     }
                     chatBox.scrollTop = chatBox.scrollHeight;
@@ -1430,7 +1746,7 @@
                 }
                 handle(buf);
                 if (!gotText) textSpan.textContent = tr('(sem resposta)');
-                chat.messages.push({ role: 'ai', content: fullResponse, model: selectedModel });
+                chat.messages.push(msgSources.length ? { role: 'ai', content: fullResponse, model: selectedModel, sources: msgSources } : { role: 'ai', content: fullResponse, model: selectedModel });
                 if (lastStats) chat.ctxReal = { tokens: lastStats.prompt_tokens + lastStats.tokens, count: chat.messages.length };
                 saveToStorage();
                 fetch(API + '/api/usage').then(r => r.json()).then(updateUsageBadge).catch(() => {});
@@ -1522,7 +1838,9 @@
                 $('groq-status').classList.toggle('ok', st.groq_key_saved);
                 $('exa-status').textContent = tr(st.exa_key_saved ? 'chave salva ✓' : 'não salva');
                 $('exa-status').classList.toggle('ok', st.exa_key_saved);
-                $('opt-provider').value = st.search_provider || 'auto'; $('opt-exatype').value = st.exa_type || 'auto';
+                $('opt-provider').value = st.search_provider || 'auto'; $('opt-exatype').value = st.exa_type || 'lite';
+                $('opt-sresults').value = st.search_results; $('opt-slimit').value = st.search_daily_limit;
+                $('exa-today-hint').textContent = tr('Hoje: {n} buscas. 0 = sem limite; ao atingir o limite, usa o DuckDuckGo no resto do dia.', { n: st.exa_today });
             } catch (e) {}
         }
         function closeSettings() { $('settings-modal').style.display = 'none'; }
@@ -1588,6 +1906,8 @@
             saveState();
             if (auth.local) {
                 const body = { workdir: $('workdir-input').value.trim(), search_provider: $('opt-provider').value, exa_type: $('opt-exatype').value };
+                const sr = parseInt($('opt-sresults').value, 10), sl = parseInt($('opt-slimit').value, 10);
+                if (sr >= 1) body.search_results = sr; if (sl >= 0) body.search_daily_limit = sl;
                 const key = $('groq-key-input').value.trim();
                 if (key) body.groq_api_key = key;
                 const exaKey = $('exa-key-input').value.trim();
@@ -1600,6 +1920,30 @@
             closeSettings();
             updateCtxBar();
             if (currentChatId) loadChat(currentChatId);   // re-renderiza com as opcoes de formatacao novas
+        }
+
+        // ---------- estatisticas de uso ----------
+        const nfmt = n => Number(n || 0).toLocaleString(curLang() === 'en' ? 'en-US' : 'pt-BR');
+        const fmtDur = sec => sec >= 3600 ? (sec / 3600).toFixed(1) + ' h' : sec >= 60 ? Math.round(sec / 60) + ' min' : Math.round(sec) + ' s';
+        async function openStats() { $('stats-modal').style.display = 'flex'; await refreshStats(); }
+        function closeStats() { $('stats-modal').style.display = 'none'; }
+        async function refreshStats() {
+            let st; try { st = await (await fetch(API + '/api/stats?days=' + $('stats-days').value)).json(); } catch (e) { return; }
+            const card = (v, l) => `<div class="stat-card"><div class="v">${esc(String(v))}</div><div class="l">${esc(tr(l))}</div></div>`;
+            $('stats-cards').innerHTML = card(nfmt(st.totals.requests), 'Respostas') + card(nfmt(st.totals.tokens), 'Tokens gerados') + card(fmtDur(st.totals.seconds), 'Tempo gerando') +
+                card('US$ ' + st.exa.cost.toFixed(3), 'Exa: ' + st.exa.searches + ' ' + tr('buscas') + ' · ' + st.exa.reads + ' ' + tr('leituras'));
+            const rows = Object.entries(st.models).sort((a, b) => b[1].requests - a[1].requests);
+            $('stats-models').innerHTML = rows.length ? `<table class="stats-table"><tr><th>${esc(tr('Modelo'))}</th><th>${esc(tr('Respostas'))}</th><th>${esc(tr('Tokens'))}</th><th>${esc(tr('Média tok/s'))}</th><th>${esc(tr('Melhor tok/s'))}</th></tr>` +
+                rows.map(([name, m]) => { const mod = modelById(name), tilde = m.cloud ? '~' : ''; return `<tr><td>${esc(mod ? mod.label : name)}${m.cloud ? ' ☁' : ''}</td><td>${nfmt(m.requests)}</td><td>${tilde}${nfmt(m.tokens)}</td><td>${tilde}${m.avg_tps.toFixed(1)}</td><td>${tilde}${m.best_tps.toFixed(1)}</td></tr>`; }).join('') + '</table>'
+                : `<span class="hint">${esc(tr('Ainda não há dados. As estatísticas passam a ser registradas a partir de agora.'))}</span>`;
+            const max = Math.max(1, ...st.series.map(d => d.tokens));
+            $('stats-chart').innerHTML = st.series.map(d => `<div class="bar-wrap" title="${esc(d.day)}: ${nfmt(d.tokens)} tokens, ${d.requests} ${esc(tr('respostas'))}${d.exa_cost ? ', Exa US$ ' + d.exa_cost.toFixed(3) : ''}"><div class="bar" style="height:${Math.max(2, d.tokens / max * 100)}%"></div><div class="bar-label">${esc(d.day.slice(8))}/${esc(d.day.slice(5, 7))}</div></div>`).join('');
+            $('stats-note').textContent = (st.since ? tr('Dados desde {d}.', { d: new Date(st.since * 1000).toLocaleDateString(curLang() === 'en' ? 'en-US' : 'pt-BR') }) + ' ' : '') + tr('Tokens de modelos na nuvem (~) são estimados; os locais são contados pelo Ollama.');
+        }
+        async function clearStats() {
+            const r = await ask({ title: 'Limpar estatísticas?', body: 'Todo o histórico de uso será apagado.', buttons: ['Limpar', 'Cancelar'], danger: true });
+            if (r.index !== 0) return;
+            await fetch(API + '/api/stats_clear', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); refreshStats();
         }
 
         // ---------- memoria ----------
@@ -1641,7 +1985,7 @@
         function exportSelectAll(on) { document.querySelectorAll('#export-list input').forEach(c => c.checked = on); rebuildExportText(); }
         function rebuildExportText() {
             const parts = [];
-            document.querySelectorAll('#export-list input').forEach(c => { if (c.checked) { const m = exportMsgs[+c.dataset.i]; parts.push(`${whoOf(m)}: ${m.images && m.images.length ? tr('[{n} imagem(ns)] ', { n: m.images.length }) : ''}${plain(m.content)}`); } });
+            document.querySelectorAll('#export-list input').forEach(c => { if (c.checked) { const m = exportMsgs[+c.dataset.i]; parts.push(`${whoOf(m)}: ${attachNote(m)}${plain(m.content)}`); } });
             $('export-text').value = parts.join('\n\n');
         }
         function wrapLines(text, max) {
@@ -1882,7 +2226,7 @@
         const ctxMax = () => { const m = modelById(selectedModel); return m.cloud ? m.ctx : Math.min(config.numCtx, m.ctx); };
         function ctxInfo(chat) {
             const sys = (currentTab === 'code' ? config.codePrompt : config.systemPrompt).length + globalMemories.join('').length;
-            const msgTokens = ms => ms.reduce((a, m) => a + Math.ceil(m.content.length / 4) + (m.images ? m.images.length * 400 : 0), 0);   // ~4 caracteres por token, ~400 por imagem
+            const msgTokens = ms => ms.reduce((a, m) => a + Math.ceil(m.content.length / 4) + (m.images ? m.images.length * 400 : 0) + (m.files ? m.files.reduce((s, f) => s + Math.ceil(f.text.length / 4), 0) : 0), 0);   // ~4 caracteres por token, ~400 por imagem
             const est = Math.ceil(sys / 4) + msgTokens(chat.messages);
             const r = chat.ctxReal;
             if (r && r.count <= chat.messages.length) {
@@ -1920,7 +2264,7 @@
             const r = await ask({ title: 'Compactar conversa?', body: tr('{n} mensagens mais antigas serão trocadas por um resumo gerado por {label}. As {keep} últimas continuam como estão. Isso não pode ser desfeito.', { n: old.length, label: model.label, keep: KEEP }), buttons: ['Compactar', 'Cancelar'] });
             if (r.index !== 0) return;
             const before = ctxInfo(chat).used;
-            let transcript = old.map(m => m.role === 'summary' ? tr('Resumo anterior: ') + m.content : `${whoOf(m)}: ${m.images && m.images.length ? tr('[{n} imagem(ns)] ', { n: m.images.length }) : ''}${plain(m.content)}`).join('\n\n');
+            let transcript = old.map(m => m.role === 'summary' ? tr('Resumo anterior: ') + m.content : `${whoOf(m)}: ${attachNote(m)}${plain(m.content)}`).join('\n\n');
             const maxChars = ctxMax() * 3; if (transcript.length > maxChars) transcript = transcript.slice(-maxChars);
             setBusy(true); setOverlayStatus('Compactando'); $('ctx-compact').textContent = tr('Compactando...'); $('ctx-compact').disabled = true;
             try {
