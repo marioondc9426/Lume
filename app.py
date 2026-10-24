@@ -45,7 +45,7 @@ except Exception: tls = None
 CERTS_DIR = os.path.join(BASE_DIR, "certs")
 HTTPS_PORT = 8443
 # Versao: "1.2" = versao nova com novidades (o numero depois do ponto sobe); "1.2.01", "1.2.02"... = correcoes (patches) dessa versao.
-VERSION = "1.3.01"
+VERSION = "1.4"
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")     # chaves de API, pasta de trabalho, uso
 HISTORY_FILE = os.path.join(BASE_DIR, "history.json")   # chats
 STATE_FILE = os.path.join(BASE_DIR, "state.json")       # preferencias da interface + memorias

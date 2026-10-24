@@ -742,6 +742,8 @@
                     <div class="srv-actions"><button class="btn btn-secondary" id="phone-bench-btn" onclick="phoneBenchClick()">Testar o celular (benchmark)</button></div>
                     <span class="hint" id="phone-bench-result"></span>
                     <div id="phone-models" class="srv-list"></div>
+                    <span class="hint" id="phone-storage"></span>
+                    <div class="srv-actions"><button class="btn btn-secondary" id="phone-clear-btn" onclick="phoneClearCache()">Apagar os modelos baixados (liberar espaço)</button></div>
                     <div id="phone-https-steps" style="display:none;">
                         <div class="section-title">Ativar o HTTPS (uma vez só)</div>
                         <span class="hint">1. Toque em "Baixar certificado" e depois em Permitir.<br>2. Abra Ajustes → "Perfil baixado" → Instalar.<br>3. Ajustes → Geral → Sobre → Ajustes de Confiança de Certificado → ligue "Thingmabobber Local CA".<br>4. Toque em "Abrir versão segura" e conecte de novo com a senha.</span>
@@ -894,7 +896,7 @@
             'Overlay de desempenho': 'Performance overlay', 'Mostrar overlay no canto superior direito': 'Show overlay in the top-right corner', 'Estilo': 'Style',
             'Padrão (colorido)': 'Default (colored)', 'Cinza (discreto)': 'Gray (subtle)', 'Atualização:': 'Refresh:',
             'A GPU em si só atualiza o uso a cada ~100–1000 ms; valores menores que isso não deixam o número mais preciso.': 'The GPU itself only updates its usage every ~100–1000 ms; lower values do not make the number more precise.',
-            'Salvar Tudo': 'Save all', 'Modelos neste celular': 'Models on this phone', 'Rodar os modelos locais neste celular (em vez de no PC)': 'Run local models on this phone (instead of on the PC)',
+            'Salvar Tudo': 'Save all', 'Apagar os modelos baixados (liberar espaço)': 'Delete downloaded models (free space)', 'Apagar os modelos baixados?': 'Delete downloaded models?', 'Isso libera o espaço que os modelos do celular ocupam. Para usar de novo, é preciso baixar outra vez.': 'This frees the space used by the phone models. To use them again you have to download them again.', 'Apagar': 'Delete', 'Modelos apagados do celular.': 'Models deleted from the phone.', 'Espaço usado por este site no celular: {mb} MB (os modelos baixados ficam aqui).': 'Space used by this site on the phone: {mb} MB (downloaded models are stored here).', 'Modelos neste celular': 'Models on this phone', 'Rodar os modelos locais neste celular (em vez de no PC)': 'Run local models on this phone (instead of on the PC)',
             'Roda dentro do navegador, na placa gráfica do celular (WebGPU). Os modelos são baixados uma vez (centenas de MB), então use o Wi-Fi. A aba Code e a pesquisa na web só funcionam nos modelos do PC. Os modelos da nuvem continuam passando pelo PC: o Ollama não aceita chamadas diretas de uma página web.': 'Runs inside the browser, on the phone GPU (WebGPU). Models are downloaded once (hundreds of MB), so use Wi-Fi. The Code tab and web search only work with PC models. Cloud models still go through the PC: Ollama does not accept direct calls from a web page.',
             'Testar o celular (benchmark)': 'Test this phone (benchmark)', 'Ativar o HTTPS (uma vez só)': 'Turn on HTTPS (one time only)', 'Baixar certificado': 'Download certificate', 'Abrir versão segura (https)': 'Open secure version (https)',
             '1. Toque em "Baixar certificado" e depois em Permitir.<br>2. Abra Ajustes → "Perfil baixado" → Instalar.<br>3. Ajustes → Geral → Sobre → Ajustes de Confiança de Certificado → ligue "Thingmabobber Local CA".<br>4. Toque em "Abrir versão segura" e conecte de novo com a senha.': '1. Tap "Download certificate", then Allow.<br>2. Open Settings → "Profile Downloaded" → Install.<br>3. Settings → General → About → Certificate Trust Settings → turn on "Thingmabobber Local CA".<br>4. Tap "Open secure version" and connect again with the password.',
@@ -2700,7 +2702,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             const ok = phoneReady();
             $('phone-status').textContent = ok ? tr('✓ Conexão segura e WebGPU disponíveis neste celular.') : (window.isSecureContext ? tr('✗ Este navegador não tem WebGPU (no iPhone precisa do iOS 26 ou mais novo).') : tr('✗ Esta página não é segura (http). Siga os passos abaixo para abrir pelo endereço https.'));
             $('opt-phonelocal').checked = !!config.phoneLocal; $('opt-phonelocal').disabled = !ok;
-            $('phone-bench-btn').disabled = !ok;
+            $('phone-bench-btn').disabled = !ok; phoneStorageInfo();
             const res = $('phone-bench-result'), b = phoneBench;
             res.textContent = !b ? tr('Ainda não testado.') : !b.gpu ? tr('Sem WebGPU: nenhum modelo roda aqui.') : tr('Memória utilizável ≈ {mb} MB · velocidade ≈ {g} GFLOPS{c}', { mb: b.budgetMB, g: b.gflops == null ? '?' : b.gflops, c: b.crashed ? tr(' (a aba caiu no teste; valor estimado)') : '' });
             const list = $('phone-models'); list.innerHTML = '';
@@ -2714,6 +2716,18 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             sp.style.display = window.isSecureContext ? 'none' : '';
             $('phone-open-https').href = httpsPort ? `https://${location.hostname}:${httpsPort}/` : '#'; $('phone-open-https').style.display = httpsPort ? '' : 'none';
             $('phone-ca-link').href = API + '/api/ca_profile';
+        }
+        async function phoneStorageInfo() {   // quanto espaco este site esta usando no celular (modelos baixados ficam aqui)
+            const el = $('phone-storage'); if (!el) return;
+            try { const e = await navigator.storage.estimate(); el.textContent = tr('Espaço usado por este site no celular: {mb} MB (os modelos baixados ficam aqui).', { mb: Math.round((e.usage || 0) / 1048576) }); } catch (e) { el.textContent = ''; }
+        }
+        async function phoneClearCache() {
+            const c = await ask({ title: 'Apagar os modelos baixados?', body: 'Isso libera o espaço que os modelos do celular ocupam. Para usar de novo, é preciso baixar outra vez.', buttons: ['Apagar', 'Cancelar'], danger: true });
+            if (c.index !== 0) return;
+            await phoneUnload(); phoneEngine = null;
+            let n = 0; try { for (const k of await caches.keys()) if (/webllm|mlc/i.test(k)) { await caches.delete(k); n++; } } catch (e) {}
+            try { if (indexedDB.databases) for (const d of await indexedDB.databases()) if (/webllm|mlc/i.test(d.name || '')) indexedDB.deleteDatabase(d.name); } catch (e) {}
+            showInfo(tr('Modelos apagados do celular.')); renderModelOptions(); phoneStorageInfo();
         }
         async function phoneToggle(on) { config.phoneLocal = on; saveState(); await phoneSetup(); renderPhoneSection(); }
         async function phoneBenchClick() {

@@ -6,6 +6,9 @@ Como numerar:
 - O número fica em `VERSION` no topo do `app.py` e aparece em Configurações > Atualizações.
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
+## v1.4
+- Botão "Apagar os modelos baixados" na seção do celular, com o espaço usado pelo site.
+
 ## v1.3.01
 - Benchmark do celular mede a memória até 3 GB (antes parava em 1,6 GB e não achava o limite de aparelhos mais fortes).
 
