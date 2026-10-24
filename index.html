@@ -1198,7 +1198,11 @@
         const speedClass = t => t < 5 ? 'slow' : t < 15 ? 'normal' : 'fast';
         const speedLabel = t => t < 5 ? 'Lento' : t < 15 ? 'Normal' : 'Rápido';
 
+        // o overlay fica no canto superior direito, mas logo abaixo das barras do topo (nao cobre Compactar nem o botao de copiar)
+        function placePerf() { perfMonitor.style.top = ($('chat-header').getBoundingClientRect().bottom + 8) + 'px'; }
+        window.addEventListener('resize', placePerf);
         function applyPerf() {
+            placePerf();
             saveState();
             perfMonitor.classList.toggle('gray', config.perfStyle === 'gray');
             perfMonitor.style.display = config.perfEnabled ? '' : 'none';
@@ -1265,6 +1269,7 @@
         function updateCtxBar() {
             const bar = $('ctx-bar');
             bar.style.display = config.showCtxBar ? '' : 'none';
+            placePerf();
             const chat = chats[currentChatId]; if (!chat || !config.showCtxBar) return;
             const { used, exact } = ctxInfo(chat), max = ctxMax(), pct = Math.min(100, used / max * 100);
             const fill = $('ctx-fill'); fill.style.width = pct + '%'; fill.className = 'ctx-fill' + (pct >= 90 ? ' bad' : pct >= 70 ? ' warn' : '');
