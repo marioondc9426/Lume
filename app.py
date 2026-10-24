@@ -37,6 +37,8 @@ except ImportError:
 PORT = 8000
 OLLAMA_URL = "http://127.0.0.1:11434"
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Versao: "1.2" = versao nova com novidades (o numero depois do ponto sobe); "1.2.01", "1.2.02"... = correcoes (patches) dessa versao.
+VERSION = "1.0"
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")     # chaves de API, pasta de trabalho, uso
 HISTORY_FILE = os.path.join(BASE_DIR, "history.json")   # chats
 STATE_FILE = os.path.join(BASE_DIR, "state.json")       # preferencias da interface + memorias
@@ -1084,7 +1086,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return self.send_json({"servers": discover_servers()})
         if p == '/api/auth/status':
             cfg = load_config()
-            return self.send_json({"local": local, "authed": self.is_authed(), "remote_enabled": cfg["remote_enabled"], "allow_remote_code": cfg["allow_remote_code"], "password_required": cfg.get("password_required", True)})
+            return self.send_json({"local": local, "authed": self.is_authed(), "remote_enabled": cfg["remote_enabled"], "allow_remote_code": cfg["allow_remote_code"], "password_required": cfg.get("password_required", True), "version": VERSION})
         if not self.is_authed():
             return self.send_json({"error": "unauthorized"}, 401)
         if p == '/api/usage':
@@ -1595,7 +1597,7 @@ def check_update():
         if code != 0: return {"status": "error", "error": "no_git"}
         _, when, _ = _git("log", "-1", "--format=%cd", "--date=short")
         _, subj, _ = _git("log", "-1", "--format=%s")
-        info = {"local": local[:7], "local_date": when, "local_subject": subj}
+        info = {"local": local[:7], "local_date": when, "local_subject": subj, "version": VERSION}
         req = urllib.request.Request(f"https://api.github.com/repos/{github_repo()}/compare/{local}...main",
                                      headers={"Accept": "application/vnd.github+json", "User-Agent": "ai-thing-updater"})
         try:
@@ -1603,6 +1605,13 @@ def check_update():
         except urllib.error.HTTPError as e:
             if e.code == 404: return {**info, "status": "unknown"}   # commit local que o GitHub nao conhece
             raise
+        remote_version = ""
+        try:   # a versao que esta no GitHub (linha VERSION = "..." do app.py)
+            rq = urllib.request.Request(f"https://raw.githubusercontent.com/{github_repo()}/main/app.py", headers={"Range": "bytes=0-6000", "User-Agent": "ai-thing-updater"})
+            with urllib.request.urlopen(rq, timeout=8) as r2: mv = re.search(r'^VERSION = "([^"]+)"', r2.read().decode("utf-8", "replace"), re.M)
+            remote_version = mv.group(1) if mv else ""
+        except Exception: pass
+        info["remote_version"] = remote_version
         status = {"identical": "uptodate", "ahead": "available", "behind": "ahead", "diverged": "diverged"}.get(d.get("status"), "unknown")
         commits = [{"sha": c["sha"][:7], "msg": c["commit"]["message"].split("\n")[0]} for c in d.get("commits", [])][-15:]
         return {**info, "status": status, "behind_by": d.get("ahead_by", 0) if status == "available" else 0, "commits": commits[::-1]}

@@ -859,7 +859,7 @@
             'Usar o contexto máximo de cada modelo': 'Use the maximum context of each model', 'Código': 'Code', 'Copiar': 'Copy', 'Copiado ✓': 'Copied ✓',
             'Com isso ligado, cada modelo usa tudo o que suporta (ex.: 256K) e o valor acima é ignorado. Cuidado: contextos enormes ocupam MUITA VRAM e deixam tudo mais lento.': 'When on, each model uses everything it supports (e.g. 256K) and the value above is ignored. Careful: huge contexts take A LOT of VRAM and slow everything down.', 'Salvar': 'Save', 'Atualizações': 'Updates', 'Verificar atualizações': 'Check for updates', 'Atualizar agora': 'Update now',
             'Avisar quando houver versão nova ao abrir o app': 'Notify me when a new version is available at startup', 'Verificando...': 'Checking...', 'Atualizando...': 'Updating...',
-            'Versão atual: {v} ({d})': 'Current version: {v} ({d})', '{n} atualização(ões) disponível(is)': '{n} update(s) available', 'você está na versão mais recente ✓': 'you are on the latest version ✓',
+            'Versão atual: v{v} ({c}, {d})': 'Current version: v{v} ({c}, {d})', 'v{v} disponível': 'v{v} available', '{n} atualização(ões) disponível(is)': '{n} update(s) available', 'você está na versão mais recente ✓': 'you are on the latest version ✓',
             'esta versão é mais nova que a do GitHub (ainda não enviada).': 'this version is newer than the one on GitHub (not pushed yet).', 'esta cópia mudou de um jeito que não dá para atualizar sozinho.': 'this copy has changed in a way that cannot be updated automatically.',
             'o GitHub não conhece esta versão.': 'GitHub does not know this version.', 'Atualizar só funciona se o programa foi baixado com o Git (git clone).': 'Updating only works if the program was downloaded with Git (git clone).',
             'Não consegui verificar agora (sem internet?).': 'Could not check right now (no internet?).', 'Já está atualizando.': 'Already updating.', 'Não consegui atualizar.': 'Could not update.',
@@ -2138,9 +2138,9 @@
             if (manual) { ver.textContent = tr('Verificando...'); $('upd-check-btn').disabled = true; }
             let r; try { r = await (await fetch(API + '/api/update_check')).json(); } catch (e) { r = { status: 'error', error: String(e) }; }
             $('upd-check-btn').disabled = false; updInfo = r; list.innerHTML = ''; btn.style.display = 'none';
-            const cur = r.local ? tr('Versão atual: {v} ({d})', { v: r.local, d: r.local_date }) : '';
+            const cur = r.local ? tr('Versão atual: v{v} ({c}, {d})', { v: r.version, c: r.local, d: r.local_date }) : '';
             if (r.status === 'available') {
-                ver.textContent = cur + ' — ' + tr('{n} atualização(ões) disponível(is)', { n: r.behind_by }); btn.style.display = '';
+                ver.textContent = cur + ' — ' + (r.remote_version && r.remote_version !== r.version ? tr('v{v} disponível', { v: r.remote_version }) + ' · ' : '') + tr('{n} atualização(ões) disponível(is)', { n: r.behind_by }); btn.style.display = '';
                 (r.commits || []).forEach(c => { const d = document.createElement('div'); d.textContent = `• ${c.msg}`; list.appendChild(d); });
             } else if (r.status === 'uptodate') ver.textContent = cur + ' — ' + tr('você está na versão mais recente ✓');
             else if (r.status === 'ahead') ver.textContent = cur + ' — ' + tr('esta versão é mais nova que a do GitHub (ainda não enviada).');
