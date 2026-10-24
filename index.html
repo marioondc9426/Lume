@@ -1713,7 +1713,7 @@
                     let warn = '';
                     if (m.vram != null && m.vram_total) {
                         if (m.vram >= m.vram_total - 300) warn = tr('VRAM no limite ({pct}%)', { pct: m.vram_pct });
-                        else if (m.vram > 6144) warn = tr('VRAM alta ({gb} GB)', { gb: (m.vram / 1024).toFixed(1) });
+                        else if (m.vram > (m.vram_warn_mb || 6144)) warn = tr('VRAM alta ({gb} GB)', { gb: (m.vram / 1024).toFixed(1) });
                     }
                     setText('mon-vram-warn', warn);
                 }

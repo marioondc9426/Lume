@@ -40,7 +40,7 @@ MAX_AGENT_STEPS = 8        # limite de chamadas de ferramenta por mensagem
 MAX_TOOL_OUTPUT = 8000     # caracteres devolvidos a IA por ferramenta
 TOOL_TIMEOUT = 60          # segundos para cmd/powershell
 MIN_WEB_QUERY = 5         # mensagens menores que isso ("oi") nao disparam pesquisa na web
-VRAM_WARN_MB = 6144        # aviso de VRAM alta (6 GB)
+VRAM_WARN_MB = 7144        # aviso de VRAM alta (7 GB)
 MAX_ALERTS = 5             # quantas vezes repetir o mesmo aviso enquanto a situacao continuar
 ollama_process = None
 pending_command = {"cmd": "", "resolve": None}
@@ -362,6 +362,9 @@ def execute_tool(tool_name, tool_args, workdir):
 
 TOOL_NAMES = ("list_files", "read_file", "write_file", "cmd", "powershell", "search_web")
 TOOL_MARK = re.compile(r'(?:\$\$\s*)?\[\s*TOOL\s*[:\s]\s*(\w+)[^\]]*\]', re.IGNORECASE)   # "$$" na frente e opcional
+TOOL_MARK_SHORT = re.compile(r'\$\$\s*\[\s*(' + "|".join(TOOL_NAMES) + r')\s*\]', re.IGNORECASE)   # "$$[cmd] {...}$$" (sem a palavra TOOL)
+TOOL_INLINE = re.compile(r'\$\$\s*\[\s*(cmd|powershell|search_web|read_file|list_files)\s*[:=]\s*(.+?)\s*\]\s*\$\$', re.IGNORECASE | re.DOTALL)   # "$$[cmd: "dir"]$$"
+INLINE_KEY = {"cmd": "command", "powershell": "command", "search_web": "query", "read_file": "path", "list_files": "path"}   # write_file nunca (precisa do conteudo)
 FENCE_MARK = re.compile(r'```[ \t]*(' + "|".join(TOOL_NAMES) + r')\b', re.IGNORECASE)    # modelos pequenos as vezes usam ```powershell {...}```
 ARG_KEYS = {"command", "path", "content", "query"}
 
@@ -375,9 +378,14 @@ def find_tool_call(text):
     """Procura uma chamada completa de ferramenta. Retorna (nome, args, fim) ou None.
     Formato oficial: $$[TOOL: nome] {json}$$. Tambem aceita sem os $$ e o bloco ```nome {json}```."""
     fence = False
-    m = TOOL_MARK.search(text)
+    m = TOOL_MARK.search(text) or TOOL_MARK_SHORT.search(text)
+    if not m:
+        mi = TOOL_INLINE.search(text)
+        if mi:
+            name = mi.group(1).lower()
+            return name, {INLINE_KEY[name]: mi.group(2).strip().strip('"\'`')}, mi.end()
     if m:
-        name, base = m.group(1), m.end()
+        name, base = m.group(1).lower() if m.re is TOOL_MARK_SHORT else m.group(1), m.end()
     else:
         f = FENCE_MARK.search(text)
         if not f: return None
@@ -400,7 +408,7 @@ def find_tool_call(text):
 
 def looks_like_failed_call(text):
     """A IA tentou chamar uma ferramenta mas errou o formato (nada foi reconhecido)."""
-    return bool(re.search(r'\[\s*TOOL', text, re.I) or re.search(r'\{\s*"(command|path|query|content)"\s*:', text))
+    return bool(re.search(r'\[\s*TOOL|\$\$\s*\[', text, re.I) or re.search(r'\{\s*"(command|path|query|content)"\s*:', text))
 
 CORRECTION_PT = 'Formato invalido: nenhuma ferramenta foi executada. Para usar uma ferramenta escreva EXATAMENTE $$[TOOL: nome] {"argumento": "valor"}$$ (sem bloco de codigo) e pare de escrever. Tente de novo.'
 CORRECTION_EN = 'Invalid format: no tool was run. To use a tool write EXACTLY $$[TOOL: name] {"argument": "value"}$$ (no code block) and stop writing. Try again.'
@@ -803,7 +811,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 elif vram_used > VRAM_WARN_MB: vram_warn = f'VRAM alta ({vram_used / 1024:.1f} GB)'
             return self.send_json({
                 "vram_used": vram_used, "vram_total": vram_total, "vram": vram_used,
-                "vram_pct": vram_pct, "gpu": gpu_util, "vram_warn": vram_warn,
+                "vram_pct": vram_pct, "gpu": gpu_util, "vram_warn": vram_warn, "vram_warn_mb": VRAM_WARN_MB,
                 "generation_active": generation_active, "alert": alert_state
             })
         if p == '/api/server_info':
@@ -1070,6 +1078,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     log("WEB", "Mensagem curta demais, pesquisa ignorada.", COLOR_GRAY)
 
             corrections = 0
+            failed_pending = False   # a ultima tentativa de chamar ferramenta falhou e ainda nao houve uma boa
             for step in range(MAX_AGENT_STEPS if agent else 1):
                 full = ""
                 gen = stream_model(model, messages, think, cfg, num_ctx)
@@ -1094,15 +1103,20 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 call = find_tool_call(full) if agent else None
                 if not call:
                     if agent and corrections < 2 and looks_like_failed_call(full):   # errou o formato: pede para repetir (ate 2 vezes)
-                        corrections += 1
+                        corrections += 1; failed_pending = True
                         log("AGENTE", "Chamada de ferramenta fora do formato; pedindo para a IA repetir.", COLOR_YELLOW)
                         send(L("\n\n[formato de ferramenta invalido, pedindo para a IA tentar de novo]", "\n\n[invalid tool format, asking the AI to try again]"))
                         messages.append({"role": "assistant", "content": full})
                         messages.append({"role": "user", "content": L(CORRECTION_PT, CORRECTION_EN)})
                         status("Pensando")
                         continue
+                    if agent and failed_pending:   # a IA pode ter escrito que "executou", mas nada rodou: avisa o usuario
+                        log("AGENTE", "A IA nao conseguiu chamar a ferramenta no formato certo; nada foi executado.", COLOR_RED)
+                        send(L("\n\n[Nenhuma ferramenta foi executada: a IA nao conseguiu chamar a ferramenta no formato correto. Se ela disse que executou algo, isso nao aconteceu.]",
+                               "\n\n[No tool was run: the AI could not call the tool in the correct format. If it said it ran something, that did not happen.]"))
                     break
                 tool_name, tool_args, end = call
+                failed_pending = False
                 tool_args = normalize_args(tool_name, tool_args)
                 full = full[:end]
                 log("TOOL", f"{tool_name} {tool_args}", COLOR_CYAN)
