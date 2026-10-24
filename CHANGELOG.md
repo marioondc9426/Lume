@@ -6,6 +6,9 @@ Como numerar:
 - O número fica em `VERSION` no topo do `app.py` e aparece em Configurações > Atualizações.
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
+## v1.3.01
+- Benchmark do celular mede a memória até 3 GB (antes parava em 1,6 GB e não achava o limite de aparelhos mais fortes).
+
 ## v1.3
 - HTTPS local: o servidor abre também em `https://IP:8443` com uma autoridade (CA) própria, que só vale para redes locais. O perfil da CA é baixado pelo celular em Configurações > Servidor.
 - Modelos rodando no celular (WebLLM + WebGPU): lista de modelos pequenos, download na primeira vez, chat sem passar pelo PC.

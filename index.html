@@ -2660,15 +2660,15 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             r.f16 = adapter.features.has('shader-f16'); r.maxBufferMB = Math.round(adapter.limits.maxBufferSize / 1048576); r.maxStorageMB = Math.round(adapter.limits.maxStorageBufferBindingSize / 1048576);
             r.vendor = (adapter.info && (adapter.info.description || adapter.info.vendor || adapter.info.architecture)) || '';
             let device; try { device = await adapter.requestDevice({ requiredLimits: { maxBufferSize: adapter.limits.maxBufferSize, maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize } }); } catch (e) { device = await adapter.requestDevice(); }
-            // 1) quanta memoria da placa grafica da para reservar (sobe de 64 em 64 MB; se a aba cair, o proximo carregamento estima o limite)
-            const bufs = []; let mb = 0; const STEP = 64, CAP = 1600;
+            // 1) quanta memoria da placa grafica da para reservar (sobe de 128 em 128 MB; se a aba cair, o proximo carregamento estima o limite)
+            const bufs = []; let mb = 0; const STEP = 128, CAP = 3072;   // sobe de 128 em 128 MB ate 3 GB
             say('Medindo a memória...');
             while (mb < CAP) {
                 try { localStorage.setItem('thingmabobber_bench_progress', JSON.stringify({ running: true, mb })); } catch (e) {}
                 device.pushErrorScope('out-of-memory');
                 let b; try { b = device.createBuffer({ size: STEP * 1048576, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST }); device.queue.writeBuffer(b, 0, new Uint8Array(4096)); } catch (e) { b = null; }
                 await device.queue.onSubmittedWorkDone(); const err = await device.popErrorScope();
-                if (err || !b) break; bufs.push(b); mb += STEP; if (mb % 256 === 0) say(`Medindo a memória... ${mb} MB`);
+                if (err || !b) break; bufs.push(b); mb += STEP; say(`Medindo a memória... ${mb} MB`);
             }
             bufs.forEach(b => b.destroy()); try { localStorage.removeItem('thingmabobber_bench_progress'); } catch (e) {}
             r.allocMB = mb;
@@ -2684,7 +2684,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 r.gflops = Math.round((reps * 2 * N * N * N) / sec / 1e9); [A, B, C].forEach(b => b.destroy());
             } catch (e) { r.gflops = 0; }
             device.destroy();
-            r.budgetMB = Math.round(Math.min(r.allocMB, r.maxBufferMB ? Math.max(r.allocMB, 0) : r.allocMB) * 0.85);   // folga para o sistema e o cache de contexto
+            r.budgetMB = Math.round(r.allocMB * 0.85); r.capped = r.allocMB >= CAP;   // folga para o sistema e o cache de contexto
             phoneBench = r; try { localStorage.setItem('thingmabobber_phone_bench', JSON.stringify(r)); } catch (e) {}
             return r;
         }
