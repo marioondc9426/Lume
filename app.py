@@ -49,8 +49,9 @@ MAX_AGENT_STEPS = 8        # limite de chamadas de ferramenta por mensagem
 MAX_TOOL_OUTPUT = 8000     # caracteres devolvidos a IA por ferramenta
 TOOL_TIMEOUT = 60          # segundos para cmd/powershell
 MIN_WEB_QUERY = 5         # mensagens menores que isso ("oi") nao disparam pesquisa na web
+MONITOR_EVERY_S = 2.5     # de quanto em quanto tempo a memoria da GPU e conferida
+VRAM_ALERT_EVERY_S = 2.5 # a cada quantos segundos o aviso de VRAM alta (terminal) se repete
 VRAM_WARN_MB = 7144        # aviso de VRAM alta (7 GB)
-MAX_ALERTS = 5             # quantas vezes repetir o mesmo aviso enquanto a situacao continuar
 ollama_process = None
 pending_command = {"cmd": "", "resolve": None}
 stop_generation_flag = threading.Event()
@@ -722,8 +723,11 @@ def ollama_ps():
     except Exception:
         return []
 
-def ollama_load(model):
-    ollama_post("/api/generate", {"model": model, "keep_alive": "10m"})
+def ollama_load(model, num_ctx=None):
+    """Carrega o modelo. Com o mesmo num_ctx do chat: contexto diferente faz o Ollama recarregar o modelo (carregava duas vezes)."""
+    payload = {"model": model, "keep_alive": "10m"}
+    if num_ctx: payload["options"] = {"num_ctx": int(num_ctx)}
+    ollama_post("/api/generate", payload)
 
 def ollama_unload(model):
     ollama_post("/api/generate", {"model": model, "keep_alive": 0}, timeout=30)
@@ -767,7 +771,7 @@ def shutdown_all():
 atexit.register(stop_ollama)
 
 # ---------------------------------------------------------------- monitor de memoria
-alert_state = {"id": 0, "kind": "", "text": "", "suggest": "", "count": 0, "max": MAX_ALERTS, "used": 0, "total": 0, "partial": False}
+alert_state = {"id": 0, "kind": "", "text": "", "suggest": "", "count": 0, "used": 0, "total": 0, "partial": False}
 _vram_alerts = {"count": 0, "last": 0.0}
 _swap_alerts = {"count": 0, "last": 0.0}
 
@@ -787,8 +791,9 @@ def rank_models_to_stop(loaded):
     return sorted(ranked, reverse=True)
 
 def emit_alert(kind, text, suggest, count, used=0, total=0, partial=False):
-    alert_state.update(id=alert_state["id"] + 1, kind=kind, text=text, suggest=suggest, count=count, used=used, total=total, partial=partial)
-    log("MEMORIA", f"{text} (aviso {count}/{MAX_ALERTS})", COLOR_YELLOW)
+    if kind != "vram":   # "VRAM alta" aparece so no terminal; a janela so mostra o aviso de VRAM no limite
+        alert_state.update(id=alert_state["id"] + 1, kind=kind, text=text, suggest=suggest, count=count, used=used, total=total, partial=partial)
+    log("MEMORIA", f"{text} (aviso {count})", COLOR_YELLOW)
 
 def check_memory():
     used, total, _ = get_gpu_metrics()
@@ -800,7 +805,7 @@ def check_memory():
     high = used > VRAM_WARN_MB
     if not high: _vram_alerts["count"] = 0
     if not swap: _swap_alerts["count"] = 0
-    if swap and _swap_alerts["count"] < MAX_ALERTS and now - _swap_alerts["last"] >= 30:
+    if swap and now - _swap_alerts["last"] >= 30:
         ranked = rank_models_to_stop(loaded)
         for _, _, detail in ranked: log("MEMORIA", f"  pontuacao -> {detail}", COLOR_GRAY)
         suggest = ranked[0][1] if ranked else ""
@@ -808,13 +813,13 @@ def check_memory():
         text = f"VRAM no limite ({used / 1024:.1f} de {total / 1024:.1f} GB)" + (", modelo vazando para a RAM/CPU" if partial else "")
         text += f". Recomendado desligar o modelo {suggest}." if suggest else "."
         emit_alert("swap", text, suggest, _swap_alerts["count"], used, total, partial)
-    elif high and not swap and _vram_alerts["count"] < MAX_ALERTS and now - _vram_alerts["last"] >= 10:
+    elif high and not swap and now - _vram_alerts["last"] >= VRAM_ALERT_EVERY_S - 0.1:
         _vram_alerts["count"] += 1; _vram_alerts["last"] = now
         emit_alert("vram", f"VRAM alta: {used / 1024:.1f} de {total / 1024:.1f} GB em uso.", "", _vram_alerts["count"], used, total)
 
 def monitor_loop():
     while True:
-        time.sleep(2)
+        time.sleep(MONITOR_EVERY_S)
         try: check_memory()
         except Exception as e: log("MEMORIA", f"Erro no monitor: {e}", COLOR_RED)
 
@@ -1302,7 +1307,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 if not start_ollama(): raise Exception("Ollama nao esta rodando.")
                 log("MODELO", f"Carregando {model}...", COLOR_CYAN)
-                t = time.time(); ollama_load(model)
+                try: nctx = int(data.get("num_ctx") or 0)
+                except (TypeError, ValueError): nctx = 0
+                t = time.time(); ollama_load(model, nctx or None)
                 log("MODELO", f"{model} carregado em {time.time() - t:.1f}s", COLOR_GREEN)
                 return self.send_json({"ok": True})
             except Exception as e:

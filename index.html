@@ -92,6 +92,21 @@
         .copy-btn.done { border-color: #3fb950; background: rgba(63,185,80,0.25); }
         .msg.ai:hover .copy-btn { opacity: 1; }
         .msg.ai { padding-bottom: 20px; }
+        .codeblock { margin: 10px 0; border: 1px solid var(--border-color); border-radius: 10px; overflow: hidden; background: rgba(0,0,0,0.28); white-space: normal; }
+        .cb-head { display: flex; align-items: center; justify-content: space-between; padding: 5px 10px; font-size: 0.75em; color: var(--text-muted); background: rgba(128,128,128,0.14); border-bottom: 1px solid var(--border-color); }
+        .code-copy { background: none; border: 1px solid var(--border-color); color: var(--text-muted); border-radius: 6px; padding: 2px 8px; font-size: 1em; cursor: pointer; }
+        .code-copy:hover { color: var(--text-main); background: rgba(128,128,128,0.2); }
+        .codeblock pre { margin: 0; padding: 10px 12px; overflow-x: auto; white-space: pre; font-size: 0.86em; line-height: 1.45; }
+        .codeblock code { font-family: Consolas, 'Cascadia Mono', 'Courier New', monospace; color: var(--text-main); }
+        code.inline { font-family: Consolas, 'Cascadia Mono', monospace; background: rgba(128,128,128,0.22); padding: 1px 5px; border-radius: 4px; font-size: 0.9em; }
+        .tk-c { color: #7f8a96; font-style: italic; } .tk-s { color: #6aab73; } .tk-n { color: #e0955a; } .tk-k { color: #b57edc; } .tk-f { color: #5aa9f5; } .tk-t { color: #e5736f; }
+        .tk-add { color: #3fb950; background: rgba(63,185,80,0.12); display: inline-block; width: 100%; } .tk-del { color: #f85149; background: rgba(248,81,73,0.12); display: inline-block; width: 100%; }
+        .msg-tag { display: flex; align-items: center; font-size: 0.72em; color: var(--text-muted); margin: -4px 0 8px -4px; white-space: nowrap; overflow: hidden; }
+        .msg-tag .wordmark { height: 20px; padding: 2px 6px; margin-right: 6px; border-radius: 5px; }
+        .msg-tag .wordmark.bare { height: 22px; padding: 0; }
+        .msg-tag .logo-img { height: 20px; padding: 2px 6px; border-radius: 5px; margin-right: 6px; }
+        .msg-tag .tag-tps { margin-left: 5px; }
+        .msg-tag .ic { width: 12px; height: 12px; margin-right: 4px; }
         @keyframes slideUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
         .user { background: var(--bg-msg-user); color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
         .ai { background: var(--bg-msg-ai); align-self: flex-start; border-bottom-left-radius: 4px; border: 1px solid var(--border-color); }
@@ -137,6 +152,11 @@
         .size-label { font-size: 0.7em; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
         .size-row select { width: auto; min-width: 84px; padding: 6px 8px; font-size: 0.85em; border-radius: 8px; }
         .size-info { flex: 1; min-width: 150px; font-size: 0.78em; color: var(--text-muted); line-height: 1.35; }
+        .mode-ic { margin: 0 0 0 6px; opacity: .85; }
+        .wordmark { height: 28px; width: auto; background: #fff; border-radius: 6px; padding: 3px 8px; margin-right: 6px; flex-shrink: 0; vertical-align: middle; }
+        .wordmark.bare { padding: 0; height: 30px; }
+        #model-trigger-icon.wordmark, #model-trigger-icon.logo-img { height: 24px; } #model-trigger-icon.wordmark.bare { height: 26px; }
+        .logo-img { height: 28px; width: auto; background: #fff; border-radius: 6px; padding: 3px 8px; margin-right: 6px; vertical-align: middle; flex-shrink: 0; }   /* fundo branco: o texto do logo da NVIDIA e preto */
         .mo-label { flex: 1; display: flex; align-items: center; min-width: 0; }
         .mo-badge { font-size: 0.75em; padding: 1px 7px; border-radius: 9px; background: rgba(63,185,80,0.2); color: #3fb950; margin-left: 8px; white-space: nowrap; font-weight: normal; }
         .mo-badge.busy { background: rgba(227,160,8,0.2); color: var(--warn); }
@@ -546,6 +566,8 @@
                 <option value="4096">4K (padrão do Ollama, mais leve)</option><option value="8192">8K</option><option value="16384">16K</option>
                 <option value="32768">32K</option><option value="65536">64K</option><option value="131072">128K</option><option value="262144">256K</option>
             </select>
+            <label class="toggle-container"><input type="checkbox" id="opt-maxctx" onchange="$('opt-ctx').disabled = this.checked"><div class="toggle-switch"></div> Usar o contexto máximo de cada modelo</label>
+            <span class="hint">Com isso ligado, cada modelo usa tudo o que suporta (ex.: 256K) e o valor acima é ignorado. Cuidado: contextos enormes ocupam MUITA VRAM e deixam tudo mais lento.</span>
             <span class="hint">Quanto o modelo lembra da conversa. Contextos grandes usam MUITO mais VRAM e deixam tudo mais lento; aumente aos poucos. Cada modelo é limitado ao máximo que suporta (o CodeGemma só tem 8K). Trocar o valor recarrega o modelo.</span>
         </div>
         <label class="toggle-container"><input type="checkbox" id="opt-ctxbar"><div class="toggle-switch"></div> Mostrar a barra de contexto no topo</label>
@@ -592,6 +614,7 @@
 
         <div class="section-title">Aparência</div>
         <label class="toggle-container"><input type="checkbox" id="opt-anim" onchange="config.animations = this.checked; applyAnim()"><div class="toggle-switch"></div> Animações (desligue se a interface pesar na GPU)</label>
+        <label class="toggle-container"><input type="checkbox" id="opt-hidevram" onchange="config.hideVramWarn = this.checked; saveState()"><div class="toggle-switch"></div> Esconder os avisos de VRAM na janela (continuam aparecendo no terminal)</label>
         <div class="form-group">
             <label>UI Scaling (<span id="scale-val">1.0</span>x)</label>
             <input type="range" id="ui-scale" min="0.7" max="1.5" step="0.1" value="1" oninput="updateScale(this.value)">
@@ -775,8 +798,15 @@
             { id: 'llama3.2:3b', fam: 'llama3.2', famName: 'Llama 3.2', params: '3B', rec: true, label: 'Llama 3.2 3B (Leve)', icon: 'zap', tabs: ['chat'], gb: 2.2, ctx: 131072 },
             { id: 'qwen2.5:1.5b', fam: 'qwen2.5', famName: 'Qwen 2.5', params: '1.5B', rec: true, label: 'Qwen 2.5 1.5B (Ultra leve)', icon: 'zap', tabs: ['chat'], gb: 1.1, ctx: 32768 },
             { id: 'codegemma:7b', fam: 'codegemma', famName: 'CodeGemma', params: '7B', rec: true, label: 'CodeGemma 7B (Apenas Código)', icon: 'pen-line', tabs: ['code'], gb: 5.0, ctx: 8192 },
-            { id: 'groq-openai/gpt-oss-120b', fam: 'groq-gpt-oss', famName: 'Groq GPT-OSS', params: '120B', rec: true, label: 'Groq GPT-OSS 120B', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 131072 },
-            { id: 'groq-openai/gpt-oss-20b', fam: 'groq-gpt-oss', famName: 'Groq GPT-OSS', params: '20B', label: 'Groq GPT-OSS 20B', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 131072 },
+            { id: 'nemotron-3-nano:4b', fam: 'nemotron-3-nano', famName: 'Nemotron 3', params: '4B', rec: true, label: 'Nemotron 3 4B (Local)', icon: 'zap', tabs: ['chat', 'code'], gb: 2.9, ctx: 262144 },
+            { id: 'nemotron-3-nano:30b-cloud', fam: 'nemotron-3-nano', famName: 'Nemotron 3', params: '30B', label: 'Nemotron 3 30B (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 1048576 },
+            { id: 'nemotron-3-super:cloud', fam: 'nemotron-3-nano', famName: 'Nemotron 3', params: '120B', label: 'Nemotron 3 Super 120B (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 262144 },
+            { id: 'deepseek-v4.1-flash:cloud', fam: 'deepseek-v4', famName: 'DeepSeek V4.1 Flash', params: 'Cloud', rec: true, label: 'DeepSeek V4.1 Flash (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, vision: true, ctx: 1048576 },
+            { id: 'gpt-oss:120b-cloud', fam: 'gpt-oss', famName: 'GPT-OSS', params: '120B', rec: true, label: 'GPT-OSS 120B (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 131072 },
+            { id: 'gpt-oss:20b-cloud', fam: 'gpt-oss', famName: 'GPT-OSS', params: '20B', label: 'GPT-OSS 20B (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 131072 },
+            { id: 'gemma4:cloud', fam: 'gemma4', famName: 'Gemma 4', params: 'Cloud', rec: true, label: 'Gemma 4 (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, vision: true, ctx: 262144 },
+            { id: 'gemma4:31b-cloud', fam: 'gemma4', famName: 'Gemma 4', params: '31B', label: 'Gemma 4 31B (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, vision: true, ctx: 262144 },
+            { id: 'beam:cloud', fam: 'beam', famName: 'Beam', params: 'Cloud', rec: true, label: 'Beam (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 1048576 },
         ];
         const CODE_PROMPT_DEFAULT = 'Você é um agente de código. Use as ferramentas para ler, escrever e executar código no computador do usuário. Explique brevemente o que fez.';
 
@@ -826,7 +856,9 @@
             'Overlay de desempenho': 'Performance overlay', 'Mostrar overlay no canto superior direito': 'Show overlay in the top-right corner', 'Estilo': 'Style',
             'Padrão (colorido)': 'Default (colored)', 'Cinza (discreto)': 'Gray (subtle)', 'Atualização:': 'Refresh:',
             'A GPU em si só atualiza o uso a cada ~100–1000 ms; valores menores que isso não deixam o número mais preciso.': 'The GPU itself only updates its usage every ~100–1000 ms; lower values do not make the number more precise.',
-            'Salvar Tudo': 'Save all', 'Salvar': 'Save', 'Atualizações': 'Updates', 'Verificar atualizações': 'Check for updates', 'Atualizar agora': 'Update now',
+            'Salvar Tudo': 'Save all', 'Esconder os avisos de VRAM na janela (continuam aparecendo no terminal)': 'Hide VRAM warnings in the window (they still show in the terminal)', 'Roda na nuvem (precisa de internet)': 'Runs in the cloud (needs internet)', 'Funciona sem internet': 'Works offline', 'Roda no seu PC': 'Runs on your PC',
+            'Usar o contexto máximo de cada modelo': 'Use the maximum context of each model', 'Código': 'Code', 'Copiar': 'Copy', 'Copiado ✓': 'Copied ✓',
+            'Com isso ligado, cada modelo usa tudo o que suporta (ex.: 256K) e o valor acima é ignorado. Cuidado: contextos enormes ocupam MUITA VRAM e deixam tudo mais lento.': 'When on, each model uses everything it supports (e.g. 256K) and the value above is ignored. Careful: huge contexts take A LOT of VRAM and slow everything down.', 'Salvar': 'Save', 'Atualizações': 'Updates', 'Verificar atualizações': 'Check for updates', 'Atualizar agora': 'Update now',
             'Avisar quando houver versão nova ao abrir o app': 'Notify me when a new version is available at startup', 'Verificando...': 'Checking...', 'Atualizando...': 'Updating...',
             'Versão atual: {v} ({d})': 'Current version: {v} ({d})', '{n} atualização(ões) disponível(is)': '{n} update(s) available', 'você está na versão mais recente ✓': 'you are on the latest version ✓',
             'esta versão é mais nova que a do GitHub (ainda não enviada).': 'this version is newer than the one on GitHub (not pushed yet).', 'esta cópia mudou de um jeito que não dá para atualizar sozinho.': 'this copy has changed in a way that cannot be updated automatically.',
@@ -901,6 +933,7 @@
             'Copiar resposta': 'Copy answer', 'Remover': 'Remove', 'Conversa compactada ({n} mensagens resumidas)': 'Compacted conversation ({n} messages summarized)',
             'Só imagens são aceitas.': 'Only images are accepted.', 'Máximo de 6 imagens por mensagem.': 'Maximum of 6 images per message.', 'Não consegui ler essa imagem.': 'Could not read that image.',
             'Este modelo não lê imagens': 'This model cannot read images', 'Enviar só o texto': 'Send text only',
+            '{label} não lê imagens: as imagens foram ignoradas e só o texto foi enviado. Troque para um modelo com o selo "visão" para analisá-las.': '{label} cannot read images: the images were ignored and only the text was sent. Switch to a model with the "vision" badge to analyze them.',
             '{label} só entende texto. Troque para um modelo com o selo "visão" na lista.': '{label} only understands text. Switch to a model with the "vision" badge in the list.',
             'Trocar para {label}': 'Switch to {label}', 'Descreva esta imagem.': 'Describe this image.',
             '\n\nRESUMO DA CONVERSA ANTERIOR (as mensagens antigas foram compactadas):\n': '\n\nSUMMARY OF THE PREVIOUS CONVERSATION (older messages were compacted):\n',
@@ -1040,7 +1073,7 @@
         const OVERFLOW_OVERHEAD = 1.3, OVERFLOW_LIMIT = 0.85;   // estimativa: modelo novo ocupa gb*1.3 e o total nao deve passar de 85% da VRAM
 
         const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } };
-        let config = Object.assign({ theme: 'dark', systemPrompt: 'Você é um assistente direto.', codePrompt: CODE_PROMPT_DEFAULT, scale: 1, bgImage: '', bgOpacity: 0, perfEnabled: true, perfStyle: 'default', perfInterval: 50, numCtx: 4096, showCtxBar: true, lang: '', animations: true, model: 'qwen3.5:4b', webSearch: true, starToDot: true, autoStopPrev: false, autoUpdate: true }, load('thingmabobber_config', {}));
+        let config = Object.assign({ theme: 'dark', systemPrompt: 'Você é um assistente direto.', codePrompt: CODE_PROMPT_DEFAULT, scale: 1, bgImage: '', bgOpacity: 0, perfEnabled: true, perfStyle: 'default', perfInterval: 50, numCtx: 4096, showCtxBar: true, lang: '', animations: true, model: 'qwen3.5:4b', webSearch: true, starToDot: true, autoStopPrev: false, autoUpdate: true, hideVramWarn: true }, load('thingmabobber_config', {}));
         let chats = load('thingmabobber_chats', {});
         let globalMemories = load('thingmabobber_memories', []);
         let currentChatId = null, currentTab = 'chat', selectedModel = config.model, lastLocalModel = 'qwen3.5:4b', busy = false;
@@ -1050,7 +1083,7 @@
         const modelById = id => MODELS.find(m => m.id === id);
         // so aparece o que esta instalado no Ollama (nuvem sempre aparece); installed = null enquanto nao sabemos
         let installed = null, installedSize = {}, vramTotalMB = 0, modelInfo = {};
-        const isAvail = m => m.cloud || installed === null || installed.has(m.id);
+        const isAvail = m => m.groq || installed === null || installed.has(m.id);
         const availIn = tab => MODELS.filter(m => m.tabs.includes(tab) && isAvail(m));
         const pickDefault = list => list.find(m => m.rec && !m.cloud) || list.find(m => !m.cloud && !m.heavy) || list.find(m => !m.cloud) || list[0];
         function familiesIn(tab) { const map = new Map(); availIn(tab).forEach(m => { if (!map.has(m.fam)) map.set(m.fam, []); map.get(m.fam).push(m); }); return map; }
@@ -1224,6 +1257,29 @@
                 if (inf && !inf.error) { modelInfo[m.id] = inf; const el2 = $('size-info'); if (el2 && el2.dataset.id === m.id) el2.textContent = sizeInfoText(m); }
             } catch (e) {}
         }
+        // familias com logo: wordmark = imagem com o nome (vai num chip branco); img+text = logo pequeno e o nome ao lado
+        const FAM_LOGO = {
+            'qwen3.5': { img: 'qwen3.5.png', wordmark: true }, 'qwen2.5': { img: 'qwen2.5.png', wordmark: true }, 'gemma3': { img: 'gemma3.png', wordmark: true },
+            'gpt-oss': { img: 'gpt-oss.png', wordmark: true, bare: true }, 'gemma4': { img: 'gemma4.png', wordmark: true }, 'beam': { img: 'beam.png', wordmark: true, bare: true }, 'nemotron-3-nano': { img: 'nvidia.svg', text: 'Nemotron 3' },
+        };
+        function modeIcon(kind) {   // so a imagem: nuvem = precisa de internet; globo cortado = roda sem internet
+            const im = document.createElement('img'); im.className = 'ic mode-ic'; im.src = kind === 'cloud' ? 'icons/cloud.png' : 'icons/globe-off.png';
+            im.title = tr(kind === 'cloud' ? 'Roda na nuvem (precisa de internet)' : 'Funciona sem internet'); return im;
+        }
+        function famLabelNodes(rec) {   // [imagem, texto] que identificam a familia
+            const lg = FAM_LOGO[rec.fam], out = [];
+            if (lg) {
+                const im = document.createElement('img'); im.src = 'icons/' + lg.img; im.alt = rec.famName; im.title = rec.famName;
+                im.className = lg.wordmark ? 'wordmark' + (lg.bare ? ' bare' : '') : 'logo-img';
+                im.onerror = () => { im.style.display = 'none'; };   // arquivo ainda nao existe: sobra so o texto
+                out.push(im);
+                if (!lg.wordmark) out.push(document.createTextNode(lg.text || rec.famName));
+            } else {
+                if (rec.icon !== 'cloud') { const im = document.createElement('img'); im.className = 'ic'; im.src = `icons/${rec.icon === 'triangle-alert' ? 'zap' : rec.icon}.png`; out.push(im); }   // modelos so da nuvem ja mostram o icone de nuvem ao lado
+                out.push(document.createTextNode(rec.famName));
+            }
+            return out;
+        }
         function renderModelOptions(onlyIfChanged = false) {
             ensureSelected();
             // a lista so e reconstruida quando algo mudou (senao a animacao e o hover "reiniciavam" a cada atualizacao)
@@ -1239,11 +1295,11 @@
                 el.className = 'select-option' + (fam === cur.fam ? ' selected' : '');
                 el.style.setProperty('--i', i++);
                 const label = document.createElement('span'); label.className = 'mo-label';
-                label.innerHTML = `<img class="ic" src="icons/${rec.icon === 'triangle-alert' ? 'zap' : rec.icon}.png">`;
-                label.appendChild(document.createTextNode(rec.famName));
+                famLabelNodes(rec).forEach(n => label.appendChild(n));
                 if (sizes.some(m => m.vision)) { const v = document.createElement('span'); v.className = 'mo-badge vision'; v.textContent = tr('visão'); label.appendChild(v); }
-                if (rec.cloud) { const b = document.createElement('span'); b.className = 'mo-badge cloud'; b.textContent = tr('nuvem'); label.appendChild(b); }
-                else if (sizes.some(m => pendingModel[m.id])) { const b = document.createElement('span'); b.className = 'mo-badge busy'; b.textContent = tr(pendingModel[sizes.find(m => pendingModel[m.id]).id]) + '...'; label.appendChild(b); }
+                if (sizes.some(m => !m.cloud)) label.appendChild(modeIcon('local'));
+                if (sizes.some(m => m.cloud)) label.appendChild(modeIcon('cloud'));
+                if (sizes.some(m => pendingModel[m.id])) { const b = document.createElement('span'); b.className = 'mo-badge busy'; b.textContent = tr(pendingModel[sizes.find(m => pendingModel[m.id]).id]) + '...'; label.appendChild(b); }
                 else if (sizes.some(m => loadedModels[m.id])) { const b = document.createElement('span'); b.className = 'mo-badge'; b.textContent = tr('na memória'); label.appendChild(b); }
                 el.appendChild(label);
                 el.onclick = () => selectFamily(fam);
@@ -1259,7 +1315,12 @@
                 sizes.forEach(m => sel.add(new Option(m.params + (m.heavy ? ' ⚠' : ''), m.id)));
                 sel.value = cur.id; sel.onchange = () => pickSize(sel.value);
                 const info = document.createElement('span'); info.className = 'size-info'; info.id = 'size-info'; info.dataset.id = cur.id; info.textContent = sizeInfoText(cur);
-                row.append(lab, sel, info);
+                row.append(lab, sel);
+                if (sizes.some(m => m.cloud) && sizes.some(m => !m.cloud)) {   // familia com versao local e na nuvem (ex.: Nemotron): casa = local, nuvem = nuvem
+                    const mi = document.createElement('img'); mi.className = 'ic'; mi.style.margin = '0'; mi.src = cur.cloud ? 'icons/cloud.png' : 'icons/house.svg';
+                    mi.title = tr(cur.cloud ? 'Roda na nuvem (precisa de internet)' : 'Roda no seu PC'); row.append(mi);
+                }
+                row.append(info);
                 if (!cur.cloud) {   // iniciar / parar este tamanho
                     const loaded = loadedModels[cur.id], pend = pendingModel[cur.id];
                     const play = document.createElement('button'); play.className = 'mo-btn'; play.title = tr('Iniciar {label}', { label: cur.label });
@@ -1273,7 +1334,10 @@
                 box.appendChild(row);
                 fillSizeInfo(cur);
             }
-            $('model-trigger-icon').src = `icons/${cur.icon === 'triangle-alert' ? 'zap' : cur.icon}.png`; $('model-trigger-text').textContent = cur.famName + ' ' + cur.params;
+            const lg = FAM_LOGO[cur.fam], ti = $('model-trigger-icon');
+            ti.style.display = ''; ti.className = lg ? (lg.wordmark ? 'wordmark' + (lg.bare ? ' bare' : '') : 'logo-img') : 'ic';
+            ti.src = lg ? 'icons/' + lg.img : `icons/${cur.icon === 'triangle-alert' ? 'zap' : cur.icon}.png`; ti.onerror = lg ? () => { ti.style.display = 'none'; } : null;
+            $('model-trigger-text').textContent = (lg && lg.wordmark ? '' : (lg ? lg.text : cur.famName) + ' ') + cur.params;
             updateCtxBar();
         }
         async function selectFamily(fam) {
@@ -1309,7 +1373,7 @@
         async function selectModel(id, keepOpen = false) {
             const m = modelById(id);
             if (!keepOpen) { $('model-select').classList.remove('open'); clearInterval(openTimer); }
-            if (m.cloud && !(await hasGroqKey())) { await noKeyDialog(); return; }   // continua no modelo anterior
+            if (m.groq && !(await hasGroqKey())) { await noKeyDialog(); return; }   // continua no modelo anterior
             if (m.heavy) {
                 const r = await ask({ title: 'Modelo muito pesado', body: tr('{label} é muito pesado para esta máquina e vai rodar super lento (pode estourar a VRAM e usar a RAM/CPU).', { label: m.label }), buttons: ['Usar mesmo assim', 'Cancelar'], danger: true });
                 if (r.index !== 0) return;
@@ -1318,10 +1382,11 @@
             config.famSize = Object.assign({}, config.famSize, { [m.fam]: id });
             saveState(); renderModelOptions();
         }
+        const effCtx = m => config.maxCtx ? m.ctx : Math.min(config.numCtx, m.ctx);   // contexto usado: o escolhido ou, com o toggle, o maximo do modelo
         async function modelStart(m) {
             if (!(await handleOverflow(m))) return;
             pendingModel[m.id] = 'carregando'; renderModelOptions();
-            try { await fetch(API + '/api/model_start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: m.id }) }); } catch (e) {}
+            try { await fetch(API + '/api/model_start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: m.id, num_ctx: m.cloud ? undefined : effCtx(m) }) }); } catch (e) {}
             delete pendingModel[m.id]; await refreshLoaded(); renderModelOptions();
         }
         async function modelStop(m) {
@@ -1451,7 +1516,7 @@
             chatBox.innerHTML = '';
             if (chats[id].welcome === undefined) { chats[id].welcome = Math.floor(Math.random() * 5); saveToStorage(); }
             addMessageToUI('ai', WELCOMES[curLang()][chats[id].welcome], { welcome: true, animate: false });
-            chats[id].messages.forEach(m => addMessageToUI(m.role, m.content, { animate: false, images: m.images, files: m.files, sources: m.sources, count: m.count }));
+            chats[id].messages.forEach(m => addMessageToUI(m.role, m.content, { animate: false, images: m.images, files: m.files, sources: m.sources, count: m.count, model: m.role === 'ai' ? m.model : undefined, tps: m.tps }));
             chatBox.scrollTop = chatBox.scrollHeight;
             updateCtxBar();
             if (isNew) { chatBox.classList.remove('fresh'); void chatBox.offsetWidth; chatBox.classList.add('fresh'); }
@@ -1464,9 +1529,28 @@
         const plain = text => bullets(text).replace(/\*\*([^*\n]+?)\*\*/g, '$1');
 
         // ---------- mensagens ----------
+        // etiqueta pequena no canto de cada resposta: logo + nome do modelo (+ velocidade quando se sabe)
+        function modelTag(modelId, tps) {
+            const m = modelById(modelId), tag = document.createElement('div'); tag.className = 'msg-tag';
+            famLabelNodes(m).forEach(n => tag.appendChild(n));
+            if (m.famName && !FAM_LOGO[m.fam]) tag.lastChild.textContent = m.famName + ' ' + m.params;
+            else tag.appendChild(document.createTextNode(FAM_LOGO[m.fam] && FAM_LOGO[m.fam].wordmark ? m.params : ' ' + m.params));
+            const sp = document.createElement('span'); sp.className = 'tag-tps'; tag.appendChild(sp); setTagTps(tag, tps);
+            return tag;
+        }
+        function setTagTps(tag, tps) { const sp = tag.querySelector('.tag-tps'); sp.textContent = tps ? ' · ' + tps.toFixed(1) + ' t/s' : ''; tag._tps = tps || 0; }
+        function copyPayload(div, span) {   // texto original (markdown) + rodape com o modelo e a velocidade
+            let raw = div._raw;
+            if (!raw || raw.includes('$$[') || /\[(?:resultado de|result of) \w+\]/.test(raw)) raw = span.innerText;
+            const tag = div.querySelector('.msg-tag'), mid = div.dataset.model;
+            if (!mid) return raw;
+            const m = modelById(mid), tps = tag && tag._tps;
+            return raw.replace(/\s+$/, '') + `\n\n— ${m.famName} ${m.params}` + (tps ? ` · ${tps.toFixed(1)} t/s` : '');
+        }
         function addMessageToUI(role, text, opts = {}) {
             const div = document.createElement('div');
             div.className = `msg ${role}` + (opts.welcome ? ' welcome' : '') + (opts.animate === false ? ' noanim' : '');
+            if (opts.model) div.dataset.model = opts.model;
             const think = document.createElement('div'); think.className = 'think';
             const span = document.createElement('span'); span.className = 'final-text';
             if (opts.html) span.innerHTML = text; else span.innerHTML = (role === 'ai' && !opts.welcome) ? renderRich(text) : fmt(text);
@@ -1481,13 +1565,15 @@
                 div.appendChild(box);
             }
             if (role === 'summary') { const h = document.createElement('div'); h.className = 'sum-head'; h.textContent = tr('Conversa compactada ({n} mensagens resumidas)', { n: opts.count || '?' }); div.appendChild(h); }
+            if (role === 'ai' && !opts.welcome && opts.model) div.appendChild(modelTag(opts.model, opts.tps));
             if (role === 'ai') div.appendChild(think);
             div.appendChild(span);
+            div._raw = opts.html ? null : text;
             if (opts.sources && opts.sources.length) div.appendChild(sourcesEl(opts.sources));
             if (role === 'ai' && !opts.welcome) {
                 const btn = document.createElement('button'); btn.className = 'copy-btn'; btn.title = tr('Copiar resposta');
                 btn.innerHTML = '<img class="ic" src="icons/clipboard-copy.png">';
-                btn.onclick = () => { navigator.clipboard.writeText(span.innerText); btn.classList.add('done'); setTimeout(() => btn.classList.remove('done'), 1200); };
+                btn.onclick = () => { copyText(copyPayload(div, span)); btn.classList.add('done'); setTimeout(() => btn.classList.remove('done'), 1200); };
                 div.appendChild(btn);
             }
             chatBox.appendChild(div);
@@ -1552,7 +1638,91 @@
                 (txt ? `<pre>${esc(txt)}</pre>` : '') + (diff ? `<pre class="diff">${colorDiff(diff)}</pre>` : '') + '</details>';
         }
         const NOTE_RE = /\[((?:Acao negada|Action denied|Nenhuma ferramenta|No tool was run|formato de ferramenta|invalid tool format|plano B|fallback: native|Geracao parada|Generation stopped|Limite de \d+|Limit of \d+)[^\]]*)\]/g;
-        const richPart = seg => { seg = seg.replace(/^\n+|\n+$/g, ''); return seg ? fmt(seg).replace(NOTE_RE, '<span class="tool-note">[$1]</span>') : ''; };
+        // ---- blocos ```linguagem ... ``` com destaque de sintaxe
+        const LANG_ALIAS = { js: 'javascript', jsx: 'javascript', ts: 'typescript', tsx: 'typescript', node: 'javascript', mjs: 'javascript', py: 'python', python3: 'python', sh: 'bash', shell: 'bash', zsh: 'bash', console: 'bash', ps1: 'powershell', pwsh: 'powershell', yml: 'yaml', htm: 'html', xml: 'html', svg: 'html', vue: 'html', 'c++': 'cpp', cc: 'cpp', hpp: 'cpp', cs: 'csharp', 'c#': 'csharp', rs: 'rust', golang: 'go', kt: 'kotlin', rb: 'ruby', md: 'markdown', jsonc: 'json', batch: 'bat', cmd: 'bat', postgres: 'sql', mysql: 'sql', sqlite: 'sql', text: '', txt: '', plain: '', plaintext: '' };
+        const LANG_NAMES = { javascript: 'JavaScript', typescript: 'TypeScript', python: 'Python', bash: 'Bash', powershell: 'PowerShell', bat: 'Batch', json: 'JSON', html: 'HTML', css: 'CSS', sql: 'SQL', c: 'C', cpp: 'C++', csharp: 'C#', java: 'Java', go: 'Go', rust: 'Rust', kotlin: 'Kotlin', ruby: 'Ruby', php: 'PHP', yaml: 'YAML', markdown: 'Markdown', lua: 'Lua', swift: 'Swift', diff: 'Diff', ini: 'INI', toml: 'TOML' };
+        const KW_C = 'if else for while do switch case break continue return goto struct union enum typedef static const volatile extern sizeof void int char float double long short unsigned signed auto register inline true false NULL nullptr class public private protected virtual template typename namespace using new delete try catch throw this operator bool';
+        const KW = {
+            python: 'and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise return try while with yield True False None self print',
+            javascript: 'async await break case catch class const continue debugger default delete do else export extends finally for from function if import in instanceof let new of return static super switch this throw try typeof var void while with yield true false null undefined',
+            typescript: 'async await break case catch class const continue default delete do else enum export extends finally for from function if implements import in instanceof interface let new of private protected public readonly return static super switch this throw try type typeof var void while yield true false null undefined as any string number boolean',
+            bash: 'if then else elif fi for while until do done case esac function in return exit export local echo cd ls cat grep sed awk git pip python npm sudo apt',
+            powershell: 'if else elseif foreach for while do switch function param return try catch finally throw begin process end Get-ChildItem Get-Content Set-Content Write-Host Write-Output Remove-Item New-Item Test-Path Select-Object Where-Object ForEach-Object $true $false $null',
+            bat: 'echo set if else for in do goto call exit rem pause cd dir copy del move start not exist errorlevel setlocal endlocal',
+            sql: 'select from where insert into values update set delete create table drop alter add index join left right inner outer on group by order having limit offset as and or not null is in like distinct union all primary key foreign references default count sum avg min max SELECT FROM WHERE INSERT INTO VALUES UPDATE SET DELETE CREATE TABLE DROP ALTER ADD JOIN LEFT RIGHT INNER OUTER ON GROUP BY ORDER HAVING LIMIT AS AND OR NOT NULL IS IN LIKE DISTINCT UNION',
+            c: KW_C, cpp: KW_C + ' include define', csharp: KW_C + ' string var readonly override abstract async await foreach in is as null interface internal',
+            java: 'abstract assert boolean break byte case catch char class const continue default do double else enum extends final finally float for if implements import instanceof int interface long native new package private protected public return short static super switch this throw throws try void volatile while true false null var String',
+            go: 'break case chan const continue default defer else fallthrough for func go goto if import interface map package range return select struct switch type var true false nil string int bool error',
+            rust: 'as break const continue crate else enum extern false fn for if impl in let loop match mod move mut pub ref return self Self static struct super trait true type unsafe use where while async await dyn String Vec Option Some None Result Ok Err',
+            kotlin: 'as break class continue do else false for fun if in interface is null object package return super this throw true try typealias val var when while override private public open data sealed',
+            ruby: 'alias and begin break case class def defined? do else elsif end ensure false for if in module next nil not or redo rescue retry return self super then true undef unless until when while yield puts require',
+            php: 'abstract and array as break case catch class clone const continue declare default do echo else elseif empty enddeclare endfor endforeach endif endswitch endwhile extends final finally for foreach function global if implements include instanceof interface isset list namespace new or print private protected public require return static switch this throw trait try unset use var while yield true false null',
+            lua: 'and break do else elseif end false for function goto if in local nil not or repeat return then true until while print',
+            swift: 'as break case catch class continue default defer do else enum extension fallthrough false for func guard if import in init inout internal is let nil operator private protocol public repeat return self static struct subscript super switch throw throws true try typealias var where while',
+            css: '', json: 'true false null', yaml: 'true false null yes no', toml: 'true false', ini: '', html: '', diff: '', markdown: '',
+        };
+        const HASH_COMMENT = new Set(['python', 'bash', 'powershell', 'yaml', 'ruby', 'toml', 'ini', 'php']), SLASH_COMMENT = new Set(['javascript', 'typescript', 'c', 'cpp', 'csharp', 'java', 'go', 'rust', 'kotlin', 'php', 'swift', 'css', 'json']);
+        function highlight(code, lang) {
+            const L = lang in LANG_ALIAS ? LANG_ALIAS[lang] : lang;
+            if (L === 'diff') return code.split('\n').map(l => { const e = esc(l); return /^\+(?!\+)/.test(l) ? `<span class="tk-add">${e}</span>` : /^-(?!-)/.test(l) ? `<span class="tk-del">${e}</span>` : /^@@/.test(l) ? `<span class="tk-k">${e}</span>` : e; }).join('\n');
+            if (!(L in KW)) return esc(code);
+            const kws = new Set(KW[L].split(' ').filter(Boolean)), ci = L === 'sql';
+            const parts = [];
+            if (L === 'html') parts.push('(?<c><!--[\\s\\S]*?(?:-->|$))', '(?<t></?[A-Za-z][\\w:-]*|/?>)', '(?<s>"[^"\\n]*"?|\'[^\'\\n]*\'?)', '(?<a>[\\w:-]+(?==))');
+            else {
+                const c = []; if (SLASH_COMMENT.has(L) || L === 'sql') c.push(L === 'sql' ? '--[^\\n]*' : '//[^\\n]*', '/\\*[\\s\\S]*?(?:\\*/|$)'); if (HASH_COMMENT.has(L)) c.push('#[^\\n]*'); if (L === 'bat') c.push('(?:rem|::)[^\\n]*');
+                if (L === 'lua') c.push('--[^\\n]*'); if (L === 'ini' || L === 'toml') c.push(';[^\\n]*');
+                if (c.length) parts.push('(?<c>' + c.join('|') + ')');
+                parts.push(L === 'python' ? '(?<s>(?:"{3}[\\s\\S]*?(?:"{3}|$)|\'{3}[\\s\\S]*?(?:\'{3}|$)|[rbfRBF]{0,2}"(?:\\\\.|[^"\\\\\\n])*"?|[rbfRBF]{0,2}\'(?:\\\\.|[^\'\\\\\\n])*\'?))' : '(?<s>"(?:\\\\.|[^"\\\\\\n])*"?|\'(?:\\\\.|[^\'\\\\\\n])*\'?' + (['javascript', 'typescript', 'go', 'kotlin'].includes(L) ? '|`(?:\\\\.|[^`\\\\])*`?' : '') + ')');
+                if (L === 'powershell' || L === 'bash') parts.push('(?<v>\\$[\\w:?{}]+)');
+                if (L === 'css') parts.push('(?<k>@[\\w-]+)', '(?<f>[\\w-]+(?=\\s*:))', '(?<n>#[0-9a-fA-F]{3,8}\\b|\\b\\d[\\d.]*(?:px|em|rem|%|vh|vw|s|ms)?)');
+                if (L !== 'css') parts.push('(?<n>\\b(?:0x[\\da-fA-F]+|\\d[\\d_]*\\.?\\d*(?:[eE][+-]?\\d+)?)\\b)');
+                parts.push('(?<w>[A-Za-z_$][\\w$-]*)');
+            }
+            const re = new RegExp(parts.join('|'), 'g');
+            let out = '', last = 0, m;
+            while ((m = re.exec(code))) {
+                if (m[0] === '') { re.lastIndex++; continue; }
+                out += esc(code.slice(last, m.index)); last = m.index + m[0].length;
+                const g = m.groups, e = esc(m[0]);
+                if (g.c) out += `<span class="tk-c">${e}</span>`;
+                else if (g.s) out += (L === 'json' && /^\s*:/.test(code.slice(last, last + 4)) ? `<span class="tk-f">${e}</span>` : `<span class="tk-s">${e}</span>`);
+                else if (g.t) out += `<span class="tk-t">${e}</span>`;
+                else if (g.a) out += `<span class="tk-f">${e}</span>`;
+                else if (g.v) out += `<span class="tk-n">${e}</span>`;
+                else if (g.k) out += `<span class="tk-k">${e}</span>`;
+                else if (g.f) out += `<span class="tk-f">${e}</span>`;
+                else if (g.n) out += `<span class="tk-n">${e}</span>`;
+                else if (g.w) out += kws.has(ci ? m[0] : m[0]) || (ci && kws.has(m[0].toUpperCase())) ? `<span class="tk-k">${e}</span>` : (/^\s*\(/.test(code.slice(last, last + 3)) ? `<span class="tk-f">${e}</span>` : e);
+                else out += e;
+            }
+            return out + esc(code.slice(last));
+        }
+        const FENCE_RE = /```([^\n`]*)\n?([\s\S]*?)(?:```|$)/g;
+        const inlineCode = h => h.replace(/`([^`\n]+)`/g, '<code class="inline">$1</code>');
+        const textHtml = t => t ? inlineCode(fmt(t).replace(NOTE_RE, '<span class="tool-note">[$1]</span>')) : '';
+        function codeBlockHtml(info, code) {
+            const lang = (info.trim().split(/\s+/)[0] || '').toLowerCase(), canon = lang in LANG_ALIAS ? LANG_ALIAS[lang] : lang;
+            const label = LANG_NAMES[canon] || (canon ? canon : tr('Código'));
+            code = code.replace(/\n$/, '');
+            return `<div class="codeblock"><div class="cb-head"><span class="cb-lang">${esc(label)}</span><button class="code-copy" type="button">${esc(tr('Copiar'))}</button></div><pre><code>${highlight(code, lang)}</code></pre></div>`;
+        }
+        const richPart = seg => {
+            seg = seg.replace(/^\n+|\n+$/g, ''); if (!seg) return '';
+            if (!seg.includes('```')) return textHtml(seg);
+            let out = '', last = 0, m; FENCE_RE.lastIndex = 0;
+            while ((m = FENCE_RE.exec(seg))) {
+                out += textHtml(seg.slice(last, m.index).replace(/^\n+|\n+$/g, '')) + codeBlockHtml(m[1], m[2]);
+                last = FENCE_RE.lastIndex; if (last >= seg.length) break;
+                if (m[0] === '') FENCE_RE.lastIndex++;
+            }
+            return out + textHtml(seg.slice(last).replace(/^\n+|\n+$/g, ''));
+        };
+        document.addEventListener('click', e => {   // botao "Copiar" de cada bloco de codigo
+            const b = e.target.closest('.code-copy'); if (!b) return;
+            copyText(b.closest('.codeblock').querySelector('code').textContent);
+            const old = b.textContent; b.textContent = tr('Copiado ✓'); setTimeout(() => { b.textContent = old; }, 1300);
+        });
         function renderRich(text) {
             if (!text.includes('$$[') && !/\[(?:resultado de|result of) \w+\]/.test(text)) return richPart(text) || fmt(text);
             let out = '', i = 0, m; const re = /\$\$\s*\[|\[(?:resultado de|result of) (\w+)\]\n/g;
@@ -1598,7 +1768,13 @@
         function sourcesEl(list) { const box = document.createElement('div'); box.className = 'sources'; fillSources(box, list); return box; }
 
         // ---------- caixa de texto ----------
-        function autosize() { promptInput.style.height = 'auto'; promptInput.style.height = Math.min(promptInput.scrollHeight, 200) + 'px'; }
+        function autosize() {   // cresce com o texto, no maximo 6 linhas (depois disso rola)
+            const cs = getComputedStyle(promptInput), lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.4;
+            const max = lh * 6 + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+            promptInput.style.height = 'auto';
+            promptInput.style.height = Math.min(promptInput.scrollHeight, max) + 'px';
+            promptInput.style.overflowY = promptInput.scrollHeight > max ? 'auto' : 'hidden';
+        }
         promptInput.addEventListener('input', function () {
             autosize();
             $('controls').classList.toggle('typing', this.value.length > 0);
@@ -1712,16 +1888,12 @@
             if (text.startsWith('/rename ')) { const n = text.slice(8).trim(); if (n) { chat.title = n; saveToStorage(); renderSidebar(); } clearPrompt(); return; }
 
             let imgs = pendingImages.slice(); const files = pendingFiles.slice();
-            if (imgs.length && !modelById(selectedModel).vision) {
-                const vm = modelById('qwen3.5:4b');
-                const r = await ask({ title: 'Este modelo não lê imagens', body: tr('{label} só entende texto. Troque para um modelo com o selo "visão" na lista.', { label: modelById(selectedModel).label }), buttons: [tr('Trocar para {label}', { label: vm.label }), 'Enviar só o texto', 'Cancelar'] });
-                if (r.index === 0) { selectedModel = vm.id; config.model = vm.id; lastLocalModel = vm.id; saveState(); renderModelOptions(); }
-                else if (r.index === 1) imgs = [];
-                else return;
-                if (!text && !imgs.length && !files.length) return;
+            if (!modelById(selectedModel).vision && (imgs.length || chat.messages.some(m => m.images && m.images.length))) {   // so avisa: as imagens ficam no chat, mas o modelo nao as recebe
+                showInfo(tr('{label} não lê imagens: as imagens foram ignoradas e só o texto foi enviado. Troque para um modelo com o selo "visão" para analisá-las.', { label: modelById(selectedModel).label }), 9000);
+                if (!text && !files.length) return;
             }
             const model = modelById(selectedModel);
-            if (model.cloud && !(await hasGroqKey())) { await noKeyDialog(); return; }
+            if (model.groq && !(await hasGroqKey())) { await noKeyDialog(); return; }
             if (!(await handleOverflow(model))) return;
 
             if (!text && files.length) text = tr('Leia o(s) arquivo(s) anexado(s) e faça um resumo.'); else if (!text && imgs.length) text = tr('Descreva esta imagem.');
@@ -1730,7 +1902,7 @@
             addMessageToUI('user', text, { images: imgs, files }); chat.messages.push(um); saveToStorage();
             clearPrompt(); pendingImages = []; pendingFiles = []; renderAttachments(); updateCtxBar();
 
-            const aiDiv = addMessageToUI('ai', `<span class="loading-dots">${tr('Iniciando')}</span>`, { html: true });
+            const aiDiv = addMessageToUI('ai', `<span class="loading-dots">${tr('Iniciando')}</span>`, { html: true, model: selectedModel });
             const textSpan = aiDiv.querySelector('.final-text'), thinkDiv = aiDiv.querySelector('.think');
             const stLine = document.createElement('div'); stLine.className = 'msg-status';
             stLine.innerHTML = '<span class="pulse"></span><span class="st-text"></span>'; aiDiv.insertBefore(stLine, aiDiv.querySelector('.copy-btn'));
@@ -1749,7 +1921,7 @@
                 status('Iniciando'); showPerfStreaming();
                 const response = await fetch(API + '/api/chat', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ model: selectedModel, messages: apiMessages, stream: true, think: $('use-thinking').checked, search_web: !isCode && config.webSearch, agent: isCode, lang: curLang(), num_ctx: model.cloud ? undefined : Math.min(config.numCtx, model.ctx) })
+                    body: JSON.stringify({ model: selectedModel, messages: apiMessages, stream: true, think: $('use-thinking').checked, search_web: !isCode && config.webSearch, agent: isCode, lang: curLang(), num_ctx: model.cloud ? undefined : effCtx(model) })
                 });
                 if (!response.ok) { let err = {}; try { err = await response.json(); } catch (e) {} throw new Error(err.error || ('HTTP ' + response.status)); }
                 const reader = response.body.getReader(), decoder = new TextDecoder();
@@ -1765,7 +1937,7 @@
                     if (msg.content) {
                         if (!gotText) { textSpan.textContent = ''; gotText = true; }
                         status('Escrevendo');
-                        fullResponse += msg.content; textSpan.innerHTML = renderRich(fullResponse);
+                        fullResponse += msg.content; textSpan.innerHTML = renderRich(fullResponse); aiDiv._raw = fullResponse;
                         chars += msg.content.length; updateStreamingPerf(chars);
                     }
                     chatBox.scrollTop = chatBox.scrollHeight;
@@ -1779,7 +1951,9 @@
                 }
                 handle(buf);
                 if (!gotText) textSpan.textContent = tr('(sem resposta)');
-                chat.messages.push(msgSources.length ? { role: 'ai', content: fullResponse, model: selectedModel, sources: msgSources } : { role: 'ai', content: fullResponse, model: selectedModel });
+                const tps = lastStats && lastStats.seconds ? lastStats.tokens / lastStats.seconds : 0;
+                const tg = aiDiv.querySelector('.msg-tag'); if (tg) setTagTps(tg, tps);
+                chat.messages.push({ role: 'ai', content: fullResponse, model: selectedModel, ...(tps ? { tps: +tps.toFixed(1) } : {}), ...(msgSources.length ? { sources: msgSources } : {}) });
                 if (lastStats) chat.ctxReal = { tokens: lastStats.prompt_tokens + lastStats.tokens, count: chat.messages.length };
                 saveToStorage();
                 fetch(API + '/api/usage').then(r => r.json()).then(updateUsageBadge).catch(() => {});
@@ -1838,7 +2012,7 @@
             const msg = a.kind === 'swap'
                 ? tr('VRAM no limite ({used} de {total} GB)', { used: gb(a.used), total: gb(a.total) }) + (a.partial ? tr(', modelo vazando para a RAM/CPU') : '') + (a.suggest ? tr('. Recomendado desligar o modelo {m}.', { m: a.suggest }) : tr('.'))
                 : tr('VRAM alta: {used} de {total} GB em uso.', { used: gb(a.used), total: gb(a.total) });
-            t.querySelector('.toast-body').textContent = msg + ' ' + tr('(aviso {c}/{max})', { c: a.count, max: a.max });
+            t.querySelector('.toast-body').textContent = msg;
             const actions = t.querySelector('.toast-actions');
             if (a.kind === 'swap' && a.suggest) {
                 const stop = document.createElement('button'); stop.className = 'btn btn-primary'; stop.style.cssText = 'margin:0;padding:5px 10px;';
@@ -1854,8 +2028,8 @@
         async function openSettings() {
             $('system-prompt-input').value = sysPrompt(false);
             $('code-prompt-input').value = sysPrompt(true);
-            $('opt-lang').value = curLang(); $('opt-anim').checked = config.animations !== false;
-            $('opt-ctx').value = String(config.numCtx); $('opt-ctxbar').checked = config.showCtxBar; $('opt-web').checked = config.webSearch; $('opt-star').checked = config.starToDot; $('opt-autostop').checked = config.autoStopPrev;
+            $('opt-lang').value = curLang(); $('opt-anim').checked = config.animations !== false; $('opt-hidevram').checked = config.hideVramWarn !== false;
+            $('opt-ctx').value = String(config.numCtx); $('opt-maxctx').checked = !!config.maxCtx; $('opt-ctx').disabled = !!config.maxCtx; $('opt-ctxbar').checked = config.showCtxBar; $('opt-web').checked = config.webSearch; $('opt-star').checked = config.starToDot; $('opt-autostop').checked = config.autoStopPrev;
             $('perf-enabled').checked = config.perfEnabled; $('opt-autoupd').checked = config.autoUpdate !== false;
             $('perf-style').value = config.perfStyle;
             if (auth.local) checkUpdates(false);
@@ -1937,7 +2111,7 @@
         async function saveSettings() {
             config.systemPrompt = $('system-prompt-input').value;
             config.codePrompt = $('code-prompt-input').value || CODE_PROMPT_DEFAULT;
-            config.numCtx = +$('opt-ctx').value; config.showCtxBar = $('opt-ctxbar').checked; config.webSearch = $('opt-web').checked; config.starToDot = $('opt-star').checked; config.autoStopPrev = $('opt-autostop').checked;
+            config.numCtx = +$('opt-ctx').value; config.maxCtx = $('opt-maxctx').checked; config.showCtxBar = $('opt-ctxbar').checked; config.webSearch = $('opt-web').checked; config.starToDot = $('opt-star').checked; config.autoStopPrev = $('opt-autostop').checked;
             saveState();
             if (auth.local) {
                 const body = { workdir: $('workdir-input').value.trim(), search_provider: $('opt-provider').value, exa_type: $('opt-exatype').value };
@@ -2165,9 +2339,9 @@
                         if (m.vram >= m.vram_total - 300) warn = tr('VRAM no limite ({pct}%)', { pct: m.vram_pct });
                         else if (m.vram > (m.vram_warn_mb || 6144)) warn = tr('VRAM alta ({gb} GB)', { gb: (m.vram / 1024).toFixed(1) });
                     }
-                    setText('mon-vram-warn', warn);
+                    setText('mon-vram-warn', config.hideVramWarn !== false ? '' : warn);
                 }
-                if (m.alert && m.alert.id !== lastAlertId) { if (lastAlertId !== null) showAlert(m.alert); lastAlertId = m.alert.id; }
+                if (m.alert && m.alert.id !== lastAlertId) { if (lastAlertId !== null && config.hideVramWarn === false) showAlert(m.alert); lastAlertId = m.alert.id; }
                 delay = config.perfEnabled ? config.perfInterval : 2000;
             } catch (e) {}
             setTimeout(metricsLoop, delay);
@@ -2308,7 +2482,7 @@
 
         // ---------- barra de contexto + compactar ----------
         const fmtK = n => n >= 1024 ? (n / 1024).toFixed(n % 1024 && n < 10240 ? 1 : 0) + 'K' : String(n);
-        const ctxMax = () => { const m = modelById(selectedModel); return m.cloud ? m.ctx : Math.min(config.numCtx, m.ctx); };
+        const ctxMax = () => { const m = modelById(selectedModel); return m.cloud ? m.ctx : effCtx(m); };
         function ctxInfo(chat) {
             const sys = (currentTab === 'code' ? config.codePrompt : config.systemPrompt).length + globalMemories.join('').length;
             const msgTokens = ms => ms.reduce((a, m) => a + Math.ceil(m.content.length / 4) + (m.images ? m.images.length * 400 : 0) + (m.files ? m.files.reduce((s, f) => s + Math.ceil(f.text.length / 4), 0) : 0), 0);   // ~4 caracteres por token, ~400 por imagem
@@ -2343,7 +2517,7 @@
             if (busy || !chat) return;
             if (chat.messages.length < 4) { showInfo('Conversa curta demais para compactar.'); return; }
             const model = modelById(selectedModel);
-            if (model.cloud && !(await hasGroqKey())) { await noKeyDialog(); return; }
+            if (model.groq && !(await hasGroqKey())) { await noKeyDialog(); return; }
             if (!(await handleOverflow(model))) return;
             const KEEP = 2, old = chat.messages.slice(0, -KEEP), tail = chat.messages.slice(-KEEP);
             const r = await ask({ title: 'Compactar conversa?', body: tr('{n} mensagens mais antigas serão trocadas por um resumo gerado por {label}. As {keep} últimas continuam como estão. Isso não pode ser desfeito.', { n: old.length, label: model.label, keep: KEEP }), buttons: ['Compactar', 'Cancelar'] });
