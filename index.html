@@ -187,6 +187,8 @@
         #toast-container { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 10px; z-index: 2000; max-width: 380px; }
         .toast { background: var(--bg-main); border: 1px solid var(--accent); border-radius: 8px; padding: 15px; width: 360px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); display: flex; flex-direction: column; gap: 10px; animation: slideIn 0.3s ease-out; }
         .toast.alert { border-color: var(--warn); }
+        .toast.leaving { animation: toastOut .4s ease-in forwards; pointer-events: none; }
+        @keyframes toastOut { to { opacity: 0; transform: translateX(40px); max-height: 0; padding-top: 0; padding-bottom: 0; margin-top: -10px; } }
         @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
         .toast-header { font-weight: bold; font-size: 0.9em; color: var(--accent); }
         .toast.alert .toast-header { color: var(--warn); }
@@ -493,7 +495,7 @@
 
             <div id="attach-strip"></div>
             <div class="controls" id="controls">
-                <button class="btn btn-secondary attach-btn" onclick="$('file-input').click()" title="Anexar arquivo ou imagem (ou arraste / cole)"><img class="ic" src="icons/plus.svg"></button>
+                <button class="btn btn-secondary attach-btn" onclick="$('file-input').click()" title="Anexar arquivo ou imagem (ou arraste / cole)"><img class="ic" src="icons/plus.png"></button>
                 <input type="file" id="file-input" accept="image/*,.txt,.md,.markdown,.json,.csv,.tsv,.log,.py,.js,.ts,.jsx,.tsx,.html,.htm,.css,.xml,.yml,.yaml,.ini,.toml,.cfg,.conf,.bat,.ps1,.sh,.c,.cpp,.h,.hpp,.java,.cs,.go,.rs,.rb,.php,.sql,.r,.lua,.kt,.swift,.tex,.rst,.pdf" multiple style="display:none" onchange="addFiles(this.files); this.value = ''">
                 <div class="custom-select" id="model-select">
                     <div class="select-trigger" onclick="toggleCustomSelect()">
@@ -2122,11 +2124,12 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             await fetch(API + '/api/resolve_pending', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ approved }) });
             document.querySelectorAll('.toast.perm').forEach(t => t.remove());
         }
+        function closeToast(t) { if (!t.isConnected || t.classList.contains('leaving')) return; t.classList.add('leaving'); t.addEventListener('animationend', ev => { if (ev.animationName === 'toastOut') t.remove(); }); setTimeout(() => t.remove(), 600); }   // some com fade em vez de sumir de repente
         function showInfo(text, ms = 6000) {
             const t = document.createElement('div'); t.className = 'toast info';
             t.innerHTML = `<div class="toast-header"><img class="ic" src="icons/info.png">${tr('Aviso')}</div><div class="toast-body"></div>`;
             t.querySelector('.toast-body').textContent = tr(text);
-            $('toast-container').appendChild(t); setTimeout(() => t.remove(), ms);
+            $('toast-container').appendChild(t); t.onclick = () => closeToast(t); setTimeout(() => closeToast(t), Math.max(2200, Math.round(ms * 0.55)));   // fica menos tempo na tela; clicar fecha
         }
         function showAlert(a) {
             const t = document.createElement('div'); t.className = 'toast alert';
@@ -2139,12 +2142,12 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             const actions = t.querySelector('.toast-actions');
             if (a.kind === 'swap' && a.suggest) {
                 const stop = document.createElement('button'); stop.className = 'btn btn-primary'; stop.style.cssText = 'margin:0;padding:5px 10px;';
-                stop.textContent = tr('Parar {label}', { label: a.suggest }); stop.onclick = () => { t.remove(); modelStopByName(a.suggest); };
+                stop.textContent = tr('Parar {label}', { label: a.suggest }); stop.onclick = () => { closeToast(t); modelStopByName(a.suggest); };
                 actions.appendChild(stop);
             }
             const ok = document.createElement('button'); ok.className = 'btn btn-secondary'; ok.style.cssText = 'margin:0;padding:5px 10px;';
-            ok.textContent = tr('Ok'); ok.onclick = () => t.remove(); actions.appendChild(ok);
-            $('toast-container').appendChild(t); setTimeout(() => t.remove(), 20000);
+            ok.textContent = tr('Ok'); ok.onclick = () => closeToast(t); actions.appendChild(ok);
+            $('toast-container').appendChild(t); setTimeout(() => closeToast(t), 9000);
         }
 
         // ---------- configuracoes ----------
