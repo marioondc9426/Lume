@@ -457,6 +457,14 @@
             </div>
             <span class="hint">Deixe vazio para manter a chave já salva. Chaves gratuitas em console.groq.com/keys</span>
         </div>
+        <div class="form-group host-only">
+            <label>Exa API Key <span class="badge" id="exa-status">não salva</span></label>
+            <div class="key-input">
+                <input type="password" id="exa-key-input" placeholder="exa-..." autocomplete="off" spellcheck="false">
+                <button type="button" class="eye" onclick="toggleKey('exa-key-input', this)">Mostrar</button>
+            </div>
+            <span class="hint">Busca na web feita para IAs (exa.ai). Sem chave, usa o DuckDuckGo, que costuma bloquear.</span>
+        </div>
 
         <div class="section-title">Chat</div>
         <div class="form-group">
@@ -473,6 +481,22 @@
         </div>
         <label class="toggle-container"><input type="checkbox" id="opt-ctxbar"><div class="toggle-switch"></div> Mostrar a barra de contexto no topo</label>
         <label class="toggle-container"><input type="checkbox" id="opt-web"><div class="toggle-switch"></div> Pesquisar na web nas respostas (aba Chat)</label>
+        <div class="form-group host-only">
+            <label>Provedor de pesquisa na web</label>
+            <select id="opt-provider">
+                <option value="auto">Automático (Exa se tiver chave, senão DuckDuckGo)</option>
+                <option value="exa">Só Exa</option>
+                <option value="duckduckgo">Só DuckDuckGo</option>
+            </select>
+        </div>
+        <div class="form-group host-only">
+            <label>Qualidade da busca do Exa</label>
+            <select id="opt-exatype">
+                <option value="lite">Rápida (lite)</option>
+                <option value="auto">Equilibrada (auto, recomendada)</option>
+                <option value="deep-lite">Profunda (deep-lite, mais lenta e cara)</option>
+            </select>
+        </div>
         <label class="toggle-container"><input type="checkbox" id="opt-star"><div class="toggle-switch"></div> Trocar * sozinho no início da linha por •</label>
         <label class="toggle-container"><input type="checkbox" id="opt-autostop"><div class="toggle-switch"></div> Ao trocar de modelo, parar o anterior automaticamente se a VRAM não couber os dois</label>
 
@@ -780,7 +804,13 @@
             'Compactação cancelada.': 'Compaction cancelled.', 'Falha ao compactar: {x}': 'Failed to compact: {x}',
             'Compactado: {n} mensagens viraram um resumo. Contexto {a} → {b}.': 'Compacted: {n} messages became a summary. Context {a} → {b}.',
             'Não consegui compactar a conversa.': 'Could not compact the conversation.',
-            'Pesquisa na web indisponível': 'Web search unavailable',
+            'Pesquisa na web indisponível': 'Web search unavailable', 'Tentando chamada nativa': 'Trying native tool call',
+            'pode errar ao usar ferramentas; é só pedir de novo': 'may fail when using tools; just ask again',
+            'Busca na web feita para IAs (exa.ai). Sem chave, usa o DuckDuckGo, que costuma bloquear.': 'Web search built for AIs (exa.ai). Without a key it uses DuckDuckGo, which often blocks requests.',
+            'Provedor de pesquisa na web': 'Web search provider', 'Automático (Exa se tiver chave, senão DuckDuckGo)': 'Automatic (Exa if you have a key, otherwise DuckDuckGo)',
+            'Só Exa': 'Exa only', 'Só DuckDuckGo': 'DuckDuckGo only', 'Qualidade da busca do Exa': 'Exa search quality',
+            'Rápida (lite)': 'Fast (lite)', 'Equilibrada (auto, recomendada)': 'Balanced (auto, recommended)', 'Profunda (deep-lite, mais lenta e cara)': 'Deep (deep-lite, slower and pricier)',
+            'Opcao de pesquisa invalida.': 'Invalid search option.',
             'Parâmetros': 'Parameters', 'contexto': 'context', 'raciocínio': 'reasoning', 'ferramentas': 'tools', 'pesado para a sua GPU': 'heavy for your GPU',
             'Nenhum modelo disponível.': 'No model available.',
             'Animações (desligue se a interface pesar na GPU)': 'Animations (turn off if the interface is heavy on the GPU)',
@@ -1028,6 +1058,7 @@
             if (caps.includes('vision')) parts.push(tr('visão'));
             if (caps.includes('tools')) parts.push(tr('ferramentas'));
             if (caps.includes('thinking')) parts.push(tr('raciocínio'));
+            if (currentTab === 'code') parts.push('⚠ ' + tr('pode errar ao usar ferramentas; é só pedir de novo'));
             if (vramTotalMB && m.gb * OVERFLOW_OVERHEAD > vramTotalMB / 1024 * OVERFLOW_LIMIT) parts.push('⚠ ' + tr('pesado para a sua GPU'));
             return parts.join(' · ');
         }
@@ -1479,7 +1510,7 @@
             $('perf-enabled').checked = config.perfEnabled;
             $('perf-style').value = config.perfStyle;
             $('perf-interval').value = config.perfInterval; $('perf-int-val').innerText = config.perfInterval;
-            $('groq-key-input').value = '';
+            $('groq-key-input').value = ''; $('exa-key-input').value = '';
             $('settings-modal').style.display = 'flex';
             showSettingsTab('general');
             if (!auth.local && !auth.authed) { showSettingsTab('server'); return; }
@@ -1489,6 +1520,9 @@
                 $('workdir-input').placeholder = st.default_workdir;
                 $('groq-status').textContent = tr(st.groq_key_saved ? 'chave salva ✓' : 'não salva');
                 $('groq-status').classList.toggle('ok', st.groq_key_saved);
+                $('exa-status').textContent = tr(st.exa_key_saved ? 'chave salva ✓' : 'não salva');
+                $('exa-status').classList.toggle('ok', st.exa_key_saved);
+                $('opt-provider').value = st.search_provider || 'auto'; $('opt-exatype').value = st.exa_type || 'auto';
             } catch (e) {}
         }
         function closeSettings() { $('settings-modal').style.display = 'none'; }
@@ -1553,9 +1587,11 @@
             config.numCtx = +$('opt-ctx').value; config.showCtxBar = $('opt-ctxbar').checked; config.webSearch = $('opt-web').checked; config.starToDot = $('opt-star').checked; config.autoStopPrev = $('opt-autostop').checked;
             saveState();
             if (auth.local) {
-                const body = { workdir: $('workdir-input').value.trim() };
+                const body = { workdir: $('workdir-input').value.trim(), search_provider: $('opt-provider').value, exa_type: $('opt-exatype').value };
                 const key = $('groq-key-input').value.trim();
                 if (key) body.groq_api_key = key;
+                const exaKey = $('exa-key-input').value.trim();
+                if (exaKey) body.exa_api_key = exaKey;
                 try {
                     const r = await fetch(API + '/api/save_config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
                     if (!r.ok) { alert(tr((await r.json()).error || 'Erro ao salvar.')); return; }

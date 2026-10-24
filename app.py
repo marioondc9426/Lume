@@ -151,6 +151,9 @@ def load_config():
     cfg.setdefault("allow_remote_code", False)   # deixar aparelhos remotos usarem a aba Code
     cfg.setdefault("tokens", {})                 # aparelhos conectados
     cfg.setdefault("port", PORT)
+    cfg.setdefault("exa_api_key", "")            # pesquisa feita para IAs (exa.ai); vazio = usa DuckDuckGo
+    cfg.setdefault("search_provider", "auto")    # auto | exa | duckduckgo
+    cfg.setdefault("exa_type", "auto")           # lite | auto | deep-lite
     changed = False
     if not cfg.get("password"):
         cfg["password"] = generate_password(); changed = True
@@ -221,22 +224,33 @@ def _search_ddg(query):
         if len(out) >= MAX_SEARCH_RESULTS: break
     return out
 
-def _bing_url(href):
-    m = re.search(r'[?&]u=a1([A-Za-z0-9_\-]+)', href)   # links do Bing vem embrulhados em base64
-    if m and 'bing.com/ck/' in href:
-        try: return base64.urlsafe_b64decode(m.group(1) + '=' * (-len(m.group(1)) % 4)).decode()
-        except Exception: pass
-    return href
+EXA_URL = "https://api.exa.ai/search"
+EXA_TYPES = ("lite", "auto", "deep-lite")
+NEWS_RE = re.compile(r'\b(not[ií]cias?|news|[uú]ltimas not[ií]cias|latest news|breaking)\b', re.I)
 
-def _search_bing(query):
-    page = _fetch("https://www.bing.com/search?q=" + urllib.parse.quote(query) + "&setlang=pt-BR")
+def exa_api_key(cfg=None):
+    return ((cfg or load_config()).get("exa_api_key") or os.environ.get("EXA_API_KEY") or "").strip()
+
+def _search_exa(query, key, kind="auto"):
+    """Exa (busca feita para IAs): devolve os trechos mais relevantes de cada pagina ("highlights") e a data de publicacao."""
+    kind = kind if kind in EXA_TYPES else "auto"
+    body = {"query": query, "numResults": MAX_SEARCH_RESULTS, "type": kind, "contents": {"highlights": {"maxCharacters": 800}}}
+    if kind != "lite":   # o tipo "lite" aceita poucos parametros
+        if NEWS_RE.search(query): body["category"] = "news"   # so noticias: rapido e traz as de hoje (forcar recrawl so atrasava 4-5 s sem mudar o resultado)
+    req = urllib.request.Request(EXA_URL, data=json.dumps(body).encode(), headers={"x-api-key": key, "Content-Type": "application/json", "User-Agent": "thingmabobber/1.0"})
+    t = time.time()
+    try:
+        with urllib.request.urlopen(req, timeout=25 if kind == "deep-lite" else 15) as r: data = json.load(r)
+    except urllib.error.HTTPError as e:
+        why = {401: "chave do Exa invalida", 402: "sem creditos no Exa", 429: "limite de requisicoes do Exa"}.get(e.code, f"Exa respondeu {e.code}")
+        raise Exception(why)
     out = []
-    for block in re.findall(r'<li class="b_algo".*?</li>', page, re.S):
-        a = re.search(r'<h2[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>(.*?)</a>', block, re.S)
-        if not a: continue
-        sn = re.search(r'<p[^>]*>(.*?)</p>', block, re.S)
-        out.append((_clean_html(a.group(2)), _clean_html(sn.group(1)) if sn else '', _bing_url(html_mod.unescape(a.group(1)))))
-        if len(out) >= MAX_SEARCH_RESULTS: break
+    for r in data.get("results", [])[:MAX_SEARCH_RESULTS]:
+        text = " ... ".join(h.strip() for h in (r.get("highlights") or []) if h) or r.get("summary") or r.get("text") or ""
+        date = (r.get("publishedDate") or "")[:10]
+        out.append((r.get("title") or r.get("url", ""), (f"[{date}] " if date else "") + _clean_html(text)[:900], r.get("url", "")))
+    cost = (data.get("costDollars") or {}).get("total")
+    log("WEB", f"Exa ({kind}) em {time.time() - t:.1f}s" + (f", custo US$ {cost:.4f}" if isinstance(cost, (int, float)) else ""), COLOR_GRAY)
     return out
 
 def _search_wikipedia(query):
@@ -250,9 +264,14 @@ def _search_wikipedia(query):
     return out[:MAX_SEARCH_RESULTS]
 
 def search_web_results(query):
-    """Tenta DuckDuckGo, depois Bing, depois Wikipedia. Retorna ([(titulo, trecho, link)], fonte) ou ([], None)."""
+    """Exa (se houver chave), depois DuckDuckGo, depois Wikipedia. Retorna ([(titulo, trecho, link)], fonte) ou ([], None)."""
+    cfg = load_config(); key = exa_api_key(cfg); provider = cfg.get("search_provider", "auto")
+    chain = []
+    if provider in ("auto", "exa") and key: chain.append(("Exa", lambda q: _search_exa(q, key, cfg.get("exa_type", "auto"))))
+    if provider != "exa" or not chain: chain.append(("DuckDuckGo", _search_ddg))
+    chain.append(("Wikipedia", _search_wikipedia))
     errors = []
-    for name, fn in (("DuckDuckGo", _search_ddg), ("Bing", _search_bing), ("Wikipedia", _search_wikipedia)):
+    for name, fn in chain:
         try:
             res = fn(query)
             if res: return res, name
@@ -412,6 +431,48 @@ def looks_like_failed_call(text):
 
 CORRECTION_PT = 'Formato invalido: nenhuma ferramenta foi executada. Para usar uma ferramenta escreva EXATAMENTE $$[TOOL: nome] {"argumento": "valor"}$$ (sem bloco de codigo) e pare de escrever. Tente de novo.'
 CORRECTION_EN = 'Invalid format: no tool was run. To use a tool write EXACTLY $$[TOOL: name] {"argument": "value"}$$ (no code block) and stop writing. Try again.'
+
+def _schema(name, desc, props, required):
+    return {"type": "function", "function": {"name": name, "description": desc, "parameters": {"type": "object", "properties": props, "required": required}}}
+
+NATIVE_TOOLS = [
+    _schema("list_files", "List the files in a folder", {"path": {"type": "string"}}, []),
+    _schema("read_file", "Read a text file", {"path": {"type": "string"}}, ["path"]),
+    _schema("write_file", "Create or overwrite a file", {"path": {"type": "string"}, "content": {"type": "string"}}, ["path", "content"]),
+    _schema("cmd", "Run a command in the Windows CMD", {"command": {"type": "string"}}, ["command"]),
+    _schema("powershell", "Run a command in PowerShell", {"command": {"type": "string"}}, ["command"]),
+    _schema("search_web", "Search the web", {"query": {"type": "string"}}, ["query"]),
+]
+
+def _clean_arg(v):
+    return v.strip().strip('"\'`') if isinstance(v, str) and not v.startswith(("\n", " ")) and len(v) < 4096 and "\n" not in v else v
+
+def native_tool_call(model, messages, num_ctx=None, workdir=None):
+    """Plano B para quando a IA nao acerta o formato de texto das ferramentas: usa o recurso NATIVO de
+    ferramentas do Ollama (so modelos com a capacidade 'tools'). Retorna (nome, args) ou None."""
+    if "tools" not in (get_model_info(model).get("caps") or []): return None
+    msgs = [dict(m) for m in messages]
+    if msgs and msgs[0].get("role") == "system":   # tira a instrucao do formato de texto, senao a IA continua obedecendo ela
+        base = re.split(r'\n\n\[(?:MODO AGENTE|AGENT MODE)\]', msgs[0]["content"])[0]
+        msgs[0]["content"] = base + "\n\nYou can use tools on the user's computer through function calls." + (f" Working folder: {workdir}" if workdir else "")
+    msgs.append({"role": "user", "content": "Call the tool needed to fulfil the user's request now (use the function call, do not write text)."})
+    payload = {"model": model, "messages": msgs, "stream": False, "think": False, "tools": NATIVE_TOOLS}
+    if num_ctx: payload["options"] = {"num_ctx": int(num_ctx)}
+    try:
+        data = json.loads(ollama_post("/api/chat", payload, timeout=120))
+    except Exception as e:
+        log("AGENTE", f"Plano B falhou: {e}", COLOR_RED)
+        return None
+    msg = data.get("message") or {}
+    for tc in msg.get("tool_calls") or []:
+        fn = tc.get("function") or {}; name = fn.get("name"); args = fn.get("arguments")
+        if isinstance(args, str):
+            try: args = json.loads(args)
+            except ValueError: args = None
+        if name in TOOL_NAMES and isinstance(args, dict):
+            return name, {k: (_clean_arg(v) if k != "content" else v) for k, v in args.items()}
+    c = find_tool_call(msg.get("content") or "")   # alguns modelos respondem com o formato de texto mesmo assim
+    return (c[0], c[1]) if c else None
 
 def ask_permission(description):
     """Bloqueia ate o usuario aprovar/negar no popup (ou parar a geracao)."""
@@ -789,7 +850,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return self.send_json(list_custom_themes())
         if p == '/api/config_status':
             cfg = load_config()
-            return self.send_json({"groq_key_saved": bool(cfg.get("groq_api_key")), "workdir": get_workdir(cfg) if local else "", "default_workdir": BASE_DIR if local else ""})
+            return self.send_json({"groq_key_saved": bool(cfg.get("groq_api_key")), "exa_key_saved": bool(exa_api_key(cfg)), "search_provider": cfg.get("search_provider", "auto"), "exa_type": cfg.get("exa_type", "auto"), "workdir": get_workdir(cfg) if local else "", "default_workdir": BASE_DIR if local else ""})
         if p == '/api/models_status':
             tags = ollama_tags(); running = tags is not None
             used, total, _ = get_gpu_metrics()
@@ -904,10 +965,13 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             if data.get("workdir") and not os.path.isdir(data["workdir"]):
                 log("CONFIG", f"Pasta de trabalho invalida: {data['workdir']}", COLOR_RED)
                 return self.send_json({"error": "Pasta de trabalho nao existe."}, 400)
-            for k in ("groq_api_key", "workdir"):
-                if k in data: cfg[k] = data[k]
+            if data.get("search_provider") not in (None, "auto", "exa", "duckduckgo") or data.get("exa_type") not in (None, *EXA_TYPES):
+                return self.send_json({"error": "Opcao de pesquisa invalida."}, 400)
+            for k in ("groq_api_key", "exa_api_key", "workdir", "search_provider", "exa_type"):
+                if k in data: cfg[k] = data[k].strip() if k.endswith("_key") else data[k]
             save_config(cfg)
-            log("CONFIG", "Configuracoes salvas (" + ", ".join(k for k in data if k != "groq_api_key") + (", chave groq" if "groq_api_key" in data else "") + ")", COLOR_GREEN)
+            secrets_sent = [k for k in ("groq_api_key", "exa_api_key") if k in data]
+            log("CONFIG", "Configuracoes salvas (" + ", ".join([k for k in data if k not in secrets_sent] + [f"chave {k.split('_')[0]}" for k in secrets_sent]) + ")", COLOR_GREEN)
             return self.send_json({"ok": True})
 
         if p == '/api/history':
@@ -1077,7 +1141,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 else:
                     log("WEB", "Mensagem curta demais, pesquisa ignorada.", COLOR_GRAY)
 
-            corrections = 0
+            corrections = 0; native_tries = 0
+            clean = list(messages)   # conversa sem as tentativas falhas e sem os pedidos de correcao (o plano B usa esta)
             failed_pending = False   # a ultima tentativa de chamar ferramenta falhou e ainda nao houve uma boa
             for step in range(MAX_AGENT_STEPS if agent else 1):
                 full = ""
@@ -1110,13 +1175,24 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                         messages.append({"role": "user", "content": L(CORRECTION_PT, CORRECTION_EN)})
                         status("Pensando")
                         continue
+                    if agent and looks_like_failed_call(full): failed_pending = True   # sem tentativas de correcao sobrando
+                    if agent and failed_pending and native_tries < 2:   # plano B: chamada nativa do Ollama
+                        native_tries += 1
+                        status("Tentando chamada nativa")
+                        nc = native_tool_call(model, clean, num_ctx, workdir)
+                        if nc:
+                            full = "$$[TOOL: %s] %s$$" % (nc[0], json.dumps(nc[1], ensure_ascii=False))
+                            log("AGENTE", f"Plano B (chamada nativa do Ollama) funcionou: {nc[0]}", COLOR_GREEN)
+                            send(L("\n\n[plano B: chamada nativa de ferramenta]\n", "\n\n[fallback: native tool call]\n") + full)
+                            call = (nc[0], nc[1], len(full))
+                if not call:
                     if agent and failed_pending:   # a IA pode ter escrito que "executou", mas nada rodou: avisa o usuario
                         log("AGENTE", "A IA nao conseguiu chamar a ferramenta no formato certo; nada foi executado.", COLOR_RED)
-                        send(L("\n\n[Nenhuma ferramenta foi executada: a IA nao conseguiu chamar a ferramenta no formato correto. Se ela disse que executou algo, isso nao aconteceu.]",
-                               "\n\n[No tool was run: the AI could not call the tool in the correct format. If it said it ran something, that did not happen.]"))
+                        send(L("\n\n[Nenhuma ferramenta foi executada: a IA nao conseguiu chamar a ferramenta no formato correto. Se ela disse que executou algo, isso nao aconteceu. Modelos pequenos as vezes falham ao usar ferramentas: e so pedir de novo.]",
+                               "\n\n[No tool was run: the AI could not call the tool in the correct format. If it said it ran something, that did not happen. Small models sometimes fail when using tools: just ask again.]"))
                     break
                 tool_name, tool_args, end = call
-                failed_pending = False
+                failed_pending = False; corrections = 0; native_tries = 0   # cada passo ganha as suas tentativas
                 tool_args = normalize_args(tool_name, tool_args)
                 full = full[:end]
                 log("TOOL", f"{tool_name} {tool_args}", COLOR_CYAN)
@@ -1129,8 +1205,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 result = execute_tool(tool_name, tool_args, workdir)
                 log("TOOL", f"resultado de {tool_name}: {len(result)} caracteres", COLOR_GREEN if not result.startswith("Erro") else COLOR_RED)
                 send(L(f"\n\n[resultado de {tool_name}]\n{result}\n\n", f"\n\n[result of {tool_name}]\n{result}\n\n"))
-                messages.append({"role": "assistant", "content": full})
-                messages.append({"role": "user", "content": L(f"Resultado da ferramenta {tool_name}:\n{result}", f"Tool result for {tool_name}:\n{result}")})
+                pair = [{"role": "assistant", "content": full},
+                        {"role": "user", "content": L(f"Resultado da ferramenta {tool_name}:\n{result}", f"Tool result for {tool_name}:\n{result}")}]
+                messages.extend(pair); clean.extend(pair)
                 status("Pensando")
             else:
                 if agent:
