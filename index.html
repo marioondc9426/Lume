@@ -158,6 +158,8 @@
         .select-option:last-child { border-bottom: none; }
         .select-option:hover { background: rgba(128,128,128,0.15); color: var(--text-main); }
         .select-option.selected { background: var(--accent); color: #fff; font-weight: bold; }
+        .select-option.disabled { opacity: .35; filter: grayscale(1); cursor: not-allowed; }
+        .srv-row.phone-no { opacity: .45; }
         .size-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px; border-top: 1px solid var(--border-color); background: rgba(128,128,128,0.07); }
         .size-label { font-size: 0.7em; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
         .size-row select { width: auto; min-width: 84px; padding: 6px 8px; font-size: 0.85em; border-radius: 8px; }
@@ -732,6 +734,20 @@
                     <button class="btn btn-primary" id="srv-connect-btn" onclick="connectToServer()">Conectar ao servidor</button>
                     <button class="btn btn-secondary" id="srv-disconnect-btn" onclick="disconnectFromServer()">Desconectar</button>
                 </div>
+                <div id="srv-phone" class="set-pane" style="display:none;">
+                    <div class="section-title">Modelos neste celular</div>
+                    <span class="hint" id="phone-status"></span>
+                    <label class="toggle-container"><input type="checkbox" id="opt-phonelocal" onchange="phoneToggle(this.checked)"><div class="toggle-switch"></div> Rodar os modelos locais neste celular (em vez de no PC)</label>
+                    <span class="hint">Roda dentro do navegador, na placa gráfica do celular (WebGPU). Os modelos são baixados uma vez (centenas de MB), então use o Wi-Fi. A aba Code e a pesquisa na web só funcionam nos modelos do PC. Os modelos da nuvem continuam passando pelo PC: o Ollama não aceita chamadas diretas de uma página web.</span>
+                    <div class="srv-actions"><button class="btn btn-secondary" id="phone-bench-btn" onclick="phoneBenchClick()">Testar o celular (benchmark)</button></div>
+                    <span class="hint" id="phone-bench-result"></span>
+                    <div id="phone-models" class="srv-list"></div>
+                    <div id="phone-https-steps" style="display:none;">
+                        <div class="section-title">Ativar o HTTPS (uma vez só)</div>
+                        <span class="hint">1. Toque em "Baixar certificado" e depois em Permitir.<br>2. Abra Ajustes → "Perfil baixado" → Instalar.<br>3. Ajustes → Geral → Sobre → Ajustes de Confiança de Certificado → ligue "Thingmabobber Local CA".<br>4. Toque em "Abrir versão segura" e conecte de novo com a senha.</span>
+                        <div class="srv-actions"><a class="btn btn-secondary" id="phone-ca-link" href="#">Baixar certificado</a><a class="btn btn-primary" id="phone-open-https" href="#">Abrir versão segura (https)</a></div>
+                    </div>
+                </div>
                 <div id="ios-install" class="set-pane" style="display:none;">
                     <div class="section-title">Instalar app (iPhone)</div>
                     <span class="hint">Coloca na tela inicial um ícone que abre só este site, em tela cheia. Depois de instalar, conecte de novo no ícone novo, porque o iPhone guarda o login separado do Safari.</span>
@@ -878,7 +894,15 @@
             'Overlay de desempenho': 'Performance overlay', 'Mostrar overlay no canto superior direito': 'Show overlay in the top-right corner', 'Estilo': 'Style',
             'Padrão (colorido)': 'Default (colored)', 'Cinza (discreto)': 'Gray (subtle)', 'Atualização:': 'Refresh:',
             'A GPU em si só atualiza o uso a cada ~100–1000 ms; valores menores que isso não deixam o número mais preciso.': 'The GPU itself only updates its usage every ~100–1000 ms; lower values do not make the number more precise.',
-            'Salvar Tudo': 'Save all', 'Copiar mensagem': 'Copy message', 'Copiar pergunta e resposta': 'Copy question and answer', 'Usuário': 'User', 'Resposta': 'Answer', 'Mostrar mais': 'Show more', 'Mostrar menos': 'Show less', '\n\nFORMATAÇÃO: responda em Markdown. Para emojis escreva o código entre dois-pontos, como :fire: ou :skull: (nunca só a palavra). Para setas e símbolos use o caractere Unicode direto (→ ≈ ✓ ≠), sem LaTeX.': '\n\nFORMATTING: answer in Markdown. For emojis write the code between colons, like :fire: or :skull: (never just the word). For arrows and symbols use the Unicode character directly (→ ≈ ✓ ≠), no LaTeX.', 'Versão desatualizada: você usa a v{a} e já existe a v{b}.': 'Outdated version: you are on v{a} and v{b} is available.', 'Versão desatualizada: há {n} atualização(ões) nova(s).': 'Outdated version: {n} new update(s) available.', 'Depois': 'Later', 'Esconder os avisos de VRAM na janela (continuam aparecendo no terminal)': 'Hide VRAM warnings in the window (they still show in the terminal)', 'Roda na nuvem (precisa de internet)': 'Runs in the cloud (needs internet)', 'Funciona sem internet': 'Works offline', 'Roda no seu PC': 'Runs on your PC',
+            'Salvar Tudo': 'Save all', 'Modelos neste celular': 'Models on this phone', 'Rodar os modelos locais neste celular (em vez de no PC)': 'Run local models on this phone (instead of on the PC)',
+            'Roda dentro do navegador, na placa gráfica do celular (WebGPU). Os modelos são baixados uma vez (centenas de MB), então use o Wi-Fi. A aba Code e a pesquisa na web só funcionam nos modelos do PC. Os modelos da nuvem continuam passando pelo PC: o Ollama não aceita chamadas diretas de uma página web.': 'Runs inside the browser, on the phone GPU (WebGPU). Models are downloaded once (hundreds of MB), so use Wi-Fi. The Code tab and web search only work with PC models. Cloud models still go through the PC: Ollama does not accept direct calls from a web page.',
+            'Testar o celular (benchmark)': 'Test this phone (benchmark)', 'Ativar o HTTPS (uma vez só)': 'Turn on HTTPS (one time only)', 'Baixar certificado': 'Download certificate', 'Abrir versão segura (https)': 'Open secure version (https)',
+            '1. Toque em "Baixar certificado" e depois em Permitir.<br>2. Abra Ajustes → "Perfil baixado" → Instalar.<br>3. Ajustes → Geral → Sobre → Ajustes de Confiança de Certificado → ligue "Thingmabobber Local CA".<br>4. Toque em "Abrir versão segura" e conecte de novo com a senha.': '1. Tap "Download certificate", then Allow.<br>2. Open Settings → "Profile Downloaded" → Install.<br>3. Settings → General → About → Certificate Trust Settings → turn on "Thingmabobber Local CA".<br>4. Tap "Open secure version" and connect again with the password.',
+            '✓ Conexão segura e WebGPU disponíveis neste celular.': '✓ Secure connection and WebGPU available on this phone.', '✗ Este navegador não tem WebGPU (no iPhone precisa do iOS 26 ou mais novo).': '✗ This browser has no WebGPU (on iPhone it needs iOS 26 or newer).', '✗ Esta página não é segura (http). Siga os passos abaixo para abrir pelo endereço https.': '✗ This page is not secure (http). Follow the steps below to open the https address.',
+            'Ainda não testado.': 'Not tested yet.', 'Sem WebGPU: nenhum modelo roda aqui.': 'No WebGPU: no model runs here.', 'Memória utilizável ≈ {mb} MB · velocidade ≈ {g} GFLOPS{c}': 'Usable memory ≈ {mb} MB · speed ≈ {g} GFLOPS{c}', ' (a aba caiu no teste; valor estimado)': ' (the tab crashed during the test; estimated value)',
+            'deve rodar': 'should run', 'apertado': 'tight', 'não roda': 'will not run', 'não testado': 'not tested', 'Medindo a memória...': 'Measuring memory...', 'Medindo a velocidade...': 'Measuring speed...', 'de memória': 'of memory', 'roda neste celular': 'runs on this phone',
+            'não roda neste celular': 'will not run on this phone', 'apertado para este celular': 'tight for this phone', 'baixando': 'downloading', 'Não consegui carregar {m}: {e}': 'Could not load {m}: {e}', 'Baixando/carregando o modelo no celular... {p}%': 'Downloading/loading the model on the phone... {p}%',
+            'Não consegui carregar a lista de modelos do celular (sem internet?).': 'Could not load the phone model list (no internet?).', 'Copiar mensagem': 'Copy message', 'Copiar pergunta e resposta': 'Copy question and answer', 'Usuário': 'User', 'Resposta': 'Answer', 'Mostrar mais': 'Show more', 'Mostrar menos': 'Show less', '\n\nFORMATAÇÃO: responda em Markdown. Para emojis escreva o código entre dois-pontos, como :fire: ou :skull: (nunca só a palavra). Para setas e símbolos use o caractere Unicode direto (→ ≈ ✓ ≠), sem LaTeX.': '\n\nFORMATTING: answer in Markdown. For emojis write the code between colons, like :fire: or :skull: (never just the word). For arrows and symbols use the Unicode character directly (→ ≈ ✓ ≠), no LaTeX.', 'Versão desatualizada: você usa a v{a} e já existe a v{b}.': 'Outdated version: you are on v{a} and v{b} is available.', 'Versão desatualizada: há {n} atualização(ões) nova(s).': 'Outdated version: {n} new update(s) available.', 'Depois': 'Later', 'Esconder os avisos de VRAM na janela (continuam aparecendo no terminal)': 'Hide VRAM warnings in the window (they still show in the terminal)', 'Roda na nuvem (precisa de internet)': 'Runs in the cloud (needs internet)', 'Funciona sem internet': 'Works offline', 'Roda no seu PC': 'Runs on your PC',
             'Usar o contexto máximo de cada modelo': 'Use the maximum context of each model', 'Código': 'Code', 'Copiar': 'Copy', 'Copiado ✓': 'Copied ✓',
             'Com isso ligado, cada modelo usa tudo o que suporta (ex.: 256K) e o valor acima é ignorado. Cuidado: contextos enormes ocupam MUITA VRAM e deixam tudo mais lento.': 'When on, each model uses everything it supports (e.g. 256K) and the value above is ignored. Careful: huge contexts take A LOT of VRAM and slow everything down.', 'Salvar': 'Save', 'Atualizações': 'Updates', 'Verificar atualizações': 'Check for updates', 'Atualizar agora': 'Update now',
             'Avisar quando houver versão nova ao abrir o app': 'Notify me when a new version is available at startup', 'Verificando...': 'Checking...', 'Atualizando...': 'Updating...',
@@ -1110,7 +1134,7 @@
         const modelById = id => MODELS.find(m => m.id === id);
         // so aparece o que esta instalado no Ollama (nuvem sempre aparece); installed = null enquanto nao sabemos
         let installed = null, installedSize = {}, vramTotalMB = 0, modelInfo = {};
-        const isAvail = m => m.groq || installed === null || installed.has(m.id);
+        const isAvail = m => m.phone ? phoneMode() : (phoneMode() && !m.cloud ? false : (m.groq || installed === null || installed.has(m.id)));   // no modo celular os locais do PC saem da lista
         const availIn = tab => MODELS.filter(m => m.tabs.includes(tab) && isAvail(m));
         const pickDefault = list => list.find(m => m.rec && !m.cloud) || list.find(m => !m.cloud && !m.heavy) || list.find(m => !m.cloud) || list[0];
         function familiesIn(tab) { const map = new Map(); availIn(tab).forEach(m => { if (!map.has(m.fam)) map.set(m.fam, []); map.get(m.fam).push(m); }); return map; }
@@ -1162,6 +1186,7 @@
             if (auth.local || auth.authed) await loadFromServer(); else showConnectBanner();
             await loadCustomThemes();
             applyBaseTheme(config.theme);
+            phoneSetup();
             if (auth.local && config.autoUpdate !== false) { setTimeout(() => checkUpdates(false), 4000); setInterval(() => { if (config.autoUpdate !== false) checkUpdates(false); }, 6 * 3600 * 1000); }   // ao abrir e a cada 6 h
             translateStatic(); $('opt-lang').value = curLang();
             document.body.classList.toggle('no-anim', config.animations === false);
@@ -1263,6 +1288,7 @@
         function sizeInfoText(m) {
             const parts = [], inf = modelInfo[m.id];
             if (m.cloud) { parts.push(tr('nuvem'), fmtK(m.ctx) + ' ' + tr('contexto')); return parts.join(' · '); }
+            if (m.phone) { const v = phoneVerdict(m); return [`~${m.gb} GB ` + tr('de memória'), fmtK(m.ctx) + ' ' + tr('contexto'), tr('roda neste celular'), v === 'no' ? '⚠ ' + tr('não roda neste celular') : v === 'tight' ? '⚠ ' + tr('apertado para este celular') : ''].filter(Boolean).join(' · '); }
             const bytes = installedSize[m.id] || 0;
             parts.push(bytes ? fmtGB(bytes) : '~' + m.gb + ' GB');
             if (inf && inf.quant) parts.push(inf.quant);
@@ -1278,7 +1304,7 @@
         async function fillSizeInfo(m) {   // le os detalhes reais do Ollama e atualiza so o texto de info
             const el = $('size-info'); if (!el) return;
             el.textContent = sizeInfoText(m);
-            if (m.cloud || modelInfo[m.id]) return;
+            if (m.cloud || m.phone || modelInfo[m.id]) return;
             try {
                 const inf = await (await fetch(API + '/api/model_info?name=' + encodeURIComponent(m.id))).json();
                 if (inf && !inf.error) { modelInfo[m.id] = inf; const el2 = $('size-info'); if (el2 && el2.dataset.id === m.id) el2.textContent = sizeInfoText(m); }
@@ -1319,7 +1345,7 @@
             fams.forEach((sizes, fam) => {
                 const rec = sizes.find(m => m.rec) || sizes[0];
                 const el = document.createElement('div');
-                el.className = 'select-option' + (fam === cur.fam ? ' selected' : '');
+                el.className = 'select-option' + (fam === cur.fam ? ' selected' : '') + (sizes.every(phoneBlocked) ? ' disabled' : '');
                 el.style.setProperty('--i', i++);
                 const label = document.createElement('span'); label.className = 'mo-label';
                 famLabelNodes(rec).forEach(n => label.appendChild(n));
@@ -1329,7 +1355,7 @@
                 if (sizes.some(m => pendingModel[m.id])) { const b = document.createElement('span'); b.className = 'mo-badge busy'; b.textContent = tr(pendingModel[sizes.find(m => pendingModel[m.id]).id]) + '...'; label.appendChild(b); }
                 else if (sizes.some(m => loadedModels[m.id])) { const b = document.createElement('span'); b.className = 'mo-badge'; b.textContent = tr('na memória'); label.appendChild(b); }
                 el.appendChild(label);
-                el.onclick = () => selectFamily(fam);
+                el.onclick = () => { if (!el.classList.contains('disabled')) selectFamily(fam); };
                 box.appendChild(el);
             });
             if (!fams.size) { const e = document.createElement('div'); e.className = 'select-option'; e.textContent = tr('Nenhum modelo disponível.'); box.appendChild(e); }
@@ -1339,7 +1365,7 @@
                 const row = document.createElement('div'); row.className = 'size-row';
                 const lab = document.createElement('span'); lab.className = 'size-label'; lab.textContent = tr('Parâmetros');
                 const sel = document.createElement('select'); sel.id = 'size-select';
-                sizes.forEach(m => sel.add(new Option(m.params + (m.heavy ? ' ⚠' : ''), m.id)));
+                sizes.forEach(m => { const o = new Option(m.params + (m.heavy ? ' ⚠' : '') + (phoneBlocked(m) ? ' ✕' : ''), m.id); o.disabled = phoneBlocked(m); sel.add(o); });
                 sel.value = cur.id; sel.onchange = () => pickSize(sel.value);
                 const info = document.createElement('span'); info.className = 'size-info'; info.id = 'size-info'; info.dataset.id = cur.id; info.textContent = sizeInfoText(cur);
                 row.append(lab, sel);
@@ -1369,8 +1395,9 @@
         }
         async function selectFamily(fam) {
             const sizes = familiesIn(currentTab).get(fam); if (!sizes || modelById(selectedModel).fam === fam) return;
-            const remembered = sizes.find(m => config.famSize && config.famSize[fam] === m.id);
-            await selectModel((remembered || sizes.find(m => m.rec) || sizes.find(m => !m.heavy) || sizes[0]).id, true);
+            const usable = sizes.filter(m => !phoneBlocked(m)); if (!usable.length) return;
+            const remembered = usable.find(m => config.famSize && config.famSize[fam] === m.id);
+            await selectModel((remembered || usable.find(m => m.rec) || usable.find(m => !m.heavy) || usable[0]).id, true);
             renderModelOptions();
         }
         async function pickSize(id) { await selectModel(id); renderModelOptions(); }
@@ -1378,6 +1405,7 @@
             try {
                 const st = await (await fetch(API + '/api/models_status')).json();
                 loadedModels = {}; st.loaded.forEach(m => loadedModels[m.name] = m);
+                if (phoneLoadedId) loadedModels[phoneLoadedId] = { name: phoneLoadedId, size: 0 };
                 if (st.vram_total) vramTotalMB = st.vram_total;
                 if (Array.isArray(st.installed)) { installed = new Set(st.installed); installedSize = st.installed_sizes || {}; }
             } catch (e) {}
@@ -1411,12 +1439,18 @@
         }
         const effCtx = m => config.maxCtx ? m.ctx : Math.min(config.numCtx, m.ctx);   // contexto usado: o escolhido ou, com o toggle, o maximo do modelo
         async function modelStart(m) {
+            if (m.phone) {   // baixa (na primeira vez) e carrega o modelo na placa grafica do celular
+                pendingModel[m.id] = 'carregando'; renderModelOptions();
+                try { await phoneEngineFor(m, p => { if (p >= 0) { pendingModel[m.id] = `${tr('baixando')} ${p}%`; renderModelOptions(true); } }); } catch (e) { showInfo(tr('Não consegui carregar {m}: {e}', { m: m.label, e: e.message || e }), 9000); }
+                delete pendingModel[m.id]; renderModelOptions(); return;
+            }
             if (!(await handleOverflow(m))) return;
             pendingModel[m.id] = 'carregando'; renderModelOptions();
             try { await fetch(API + '/api/model_start', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: m.id, num_ctx: m.cloud ? undefined : effCtx(m) }) }); } catch (e) {}
             delete pendingModel[m.id]; await refreshLoaded(); renderModelOptions();
         }
         async function modelStop(m) {
+            if (m.phone) { await phoneUnload(); renderModelOptions(); return; }
             pendingModel[m.id] = 'desligando'; renderModelOptions();
             try { await fetch(API + '/api/model_stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: m.id }) }); } catch (e) {}
             delete pendingModel[m.id]; await refreshLoaded(); renderModelOptions();
@@ -1435,7 +1469,7 @@
 
         // Dois modelos juntos podem estourar a VRAM: avisa e oferece parar o anterior
         async function handleOverflow(m) {
-            if (m.cloud) return true;
+            if (m.cloud || m.phone) return true;
             let st; try { st = await (await fetch(API + '/api/models_status')).json(); } catch (e) { return true; }
             if (!st.running || !st.vram_total || st.loaded.some(x => x.name === m.id)) return true;
             const others = st.loaded.filter(x => x.name !== m.id);
@@ -2002,7 +2036,10 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             $('send-icon').src = on ? 'icons/circle-stop.png' : 'icons/send-horizontal.png';
         }
         function onSendClick() { if (busy) stopGeneration(); else sendMessage(); }
-        function stopGeneration() { fetch(API + '/api/stop', { method: 'POST' }); setOverlayStatus('Parando'); }
+        function stopGeneration() {
+            if (modelById(selectedModel).phone) { if (phoneEngine) phoneEngine.interruptGenerate(); } else fetch(API + '/api/stop', { method: 'POST' });
+            setOverlayStatus('Parando');
+        }
 
         async function sendMessage() {
             let text = promptInput.value.trim();
@@ -2040,17 +2077,19 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 const summaries = chat.messages.filter(m => m.role === 'summary').map(m => m.content);
                 if (summaries.length) sys += tr('\n\nRESUMO DA CONVERSA ANTERIOR (as mensagens antigas foram compactadas):\n') + summaries.join('\n') + '\n';
                 if (globalMemories.length > 0) sys += tr('\n\nFATOS QUE VOCÊ DEVE LEMBRAR:\n') + globalMemories.map(m => `- ${m}`).join('\n') + '\n';
-                sys += tr('\n\nFORMATAÇÃO: responda em Markdown. Para emojis escreva o código entre dois-pontos, como :fire: ou :skull: (nunca só a palavra). Para setas e símbolos use o caractere Unicode direto (→ ≈ ✓ ≠), sem LaTeX.');
+                if (!model.phone) sys += tr('\n\nFORMATAÇÃO: responda em Markdown. Para emojis escreva o código entre dois-pontos, como :fire: ou :skull: (nunca só a palavra). Para setas e símbolos use o caractere Unicode direto (→ ≈ ✓ ≠), sem LaTeX.');
                 const apiMessages = buildApiMessages(chat, model, sys);
 
                 status('Iniciando'); showPerfStreaming();
-                const response = await fetch(API + '/api/chat', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ model: selectedModel, messages: apiMessages, stream: true, think: $('use-thinking').checked, search_web: !isCode && config.webSearch, agent: isCode, lang: curLang(), num_ctx: model.cloud ? undefined : effCtx(model) })
-                });
-                if (!response.ok) { let err = {}; try { err = await response.json(); } catch (e) {} throw new Error(err.error || ('HTTP ' + response.status)); }
-                const reader = response.body.getReader(), decoder = new TextDecoder();
-                let buf = '';
+                let reader = null, decoder = null, buf = '';
+                if (!model.phone) {
+                    const response = await fetch(API + '/api/chat', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ model: selectedModel, messages: apiMessages, stream: true, think: $('use-thinking').checked, search_web: !isCode && config.webSearch, agent: isCode, lang: curLang(), num_ctx: model.cloud ? undefined : effCtx(model) })
+                    });
+                    if (!response.ok) { let err = {}; try { err = await response.json(); } catch (e) {} throw new Error(err.error || ('HTTP ' + response.status)); }
+                    reader = response.body.getReader(); decoder = new TextDecoder();
+                }
                 const handle = line => {
                     if (!line.trim()) return;
                     let data; try { data = JSON.parse(line); } catch (e) { return; }
@@ -2067,14 +2106,19 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                     }
                     followBottom();
                 };
-                while (true) {
+                if (model.phone) {
+                    await phoneStream(model, apiMessages, handle, (p, text) => {   // p: 0..100 enquanto baixa/carrega; -1 quando comeca a gerar
+                        if (p >= 0 && p < 100) { const t = tr('Baixando/carregando o modelo no celular... {p}%', { p }); stLine.querySelector('.st-text').textContent = t; if (!gotText) textSpan.innerHTML = `<span class="loading-dots">${esc(t)}</span>`; }
+                        else if (p === -1) status('Escrevendo');
+                    });
+                } else while (true) {
                     const { done, value } = await reader.read();
                     if (done) break;
                     buf += decoder.decode(value, { stream: true });
                     const lines = buf.split('\n'); buf = lines.pop();
                     lines.forEach(handle);
                 }
-                handle(buf);
+                if (!model.phone) handle(buf);
                 if (!gotText) textSpan.textContent = tr('(sem resposta)');
                 const tps = lastStats && lastStats.seconds ? lastStats.tokens / lastStats.seconds : 0;
                 const tg = aiDiv.querySelector('.msg-tag'); if (tg) setTagTps(tg, tps);
@@ -2512,6 +2556,174 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             [tr('Prompt: {n} tok ({tps} t/s)', { n: st.prompt_tokens, tps: ptps }), tr('Carga do modelo: {s}s', { s: st.load_seconds.toFixed(1) }), tr('Total: {s}s', { s: st.total_seconds.toFixed(1) })].forEach(t => { const d = document.createElement('div'); d.textContent = t; ex.appendChild(d); });
         }
 
+
+        // ---------- modelos rodando NO CELULAR (WebLLM + WebGPU; so funciona em pagina https) ----------
+        const WEBLLM_URL = 'https://cdn.jsdelivr.net/npm/@mlc-ai/web-llm@0.2.85/+esm';
+        const PHONE_BASES = [   // id no WebLLM (sem a quantizacao), nome da familia, tamanho
+            ['SmolLM2-360M-Instruct', 'SmolLM2', '360M'], ['Qwen2.5-0.5B-Instruct', 'Qwen 2.5', '0.5B'], ['Qwen3-0.6B', 'Qwen 3', '0.6B'], ['Llama-3.2-1B-Instruct', 'Llama 3.2', '1B'],
+            ['Qwen2.5-1.5B-Instruct', 'Qwen 2.5', '1.5B'], ['Qwen3-1.7B', 'Qwen 3', '1.7B'], ['SmolLM2-1.7B-Instruct', 'SmolLM2', '1.7B'], ['gemma-2-2b-it', 'Gemma 2', '2B'],
+            ['Qwen2.5-3B-Instruct', 'Qwen 2.5', '3B'], ['Llama-3.2-3B-Instruct', 'Llama 3.2', '3B'], ['Phi-3.5-mini-instruct', 'Phi 3.5 mini', '3.8B'], ['Qwen3-4B', 'Qwen 3', '4B'],
+        ];
+        function isRemoteDevice() { return !auth.local || !!window.__phoneDev; }
+        function phoneReady() { return !!window.isSecureContext && !!navigator.gpu; }
+        function phoneMode() { return isRemoteDevice() && !!config.phoneLocal && phoneReady(); }   // o celular roda os modelos locais (no lugar do PC)
+        let webllm = null, phoneEngine = null, phoneLoadedId = null, phoneBench = null, phoneCatalogOK = false;
+        try { phoneBench = JSON.parse(localStorage.getItem('thingmabobber_phone_bench') || 'null'); } catch (e) {}
+        async function loadWebLLM() { if (!webllm) webllm = await import(WEBLLM_URL); return webllm; }
+        function phoneVerdict(m) {   // 'ok' | 'tight' | 'no' | '?' (ainda sem benchmark)
+            if (!phoneBench || !phoneBench.budgetMB) return '?';
+            if (m.vramMB <= phoneBench.budgetMB * 0.65) return 'ok';
+            return m.vramMB <= phoneBench.budgetMB ? 'tight' : 'no';
+        }
+        function phoneBlocked(m) { return !!m.phone && phoneVerdict(m) === 'no'; }
+        async function loadPhoneCatalog() {   // monta a lista de modelos do celular a partir da lista do proprio WebLLM
+            const w = await loadWebLLM();
+            let f16 = true; try { const ad = await navigator.gpu.requestAdapter(); f16 = !!(ad && ad.features.has('shader-f16')); } catch (e) {}
+            const list = w.prebuiltAppConfig.model_list;
+            for (let i = MODELS.length - 1; i >= 0; i--) if (MODELS[i].phone) MODELS.splice(i, 1);
+            const firstOfFam = new Set();
+            PHONE_BASES.forEach(([base, name, params]) => {
+                const rec = (f16 ? list.find(x => x.model_id === base + '-q4f16_1-MLC') : null) || list.find(x => x.model_id === base + '-q4f32_1-MLC');
+                if (!rec) return;
+                const fam = 'phone-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '');
+                const small = (rec.vram_required_MB || 9999) <= 1500 && !firstOfFam.has(fam); if (small) firstOfFam.add(fam);
+                MODELS.push({ id: 'phone:' + rec.model_id, mlc: rec.model_id, fam, famName: name + ' · celular', params, rec: small, label: `${name} ${params} (celular)`, icon: 'zap', tabs: ['chat'],
+                    phone: true, gb: +((rec.vram_required_MB || 1000) / 1024).toFixed(1), vramMB: rec.vram_required_MB || 1000, ctx: Math.min(4096, (rec.overrides && rec.overrides.context_window_size) || 4096) });
+            });
+            phoneCatalogOK = true; return f16;
+        }
+        async function phoneSetup() {   // chamado ao abrir e ao ligar/desligar o modo celular
+            if (!isRemoteDevice() || !config.phoneLocal || !phoneReady()) { for (let i = MODELS.length - 1; i >= 0; i--) if (MODELS[i].phone) MODELS.splice(i, 1); phoneCatalogOK = false; renderModelOptions(); return; }
+            try { await loadPhoneCatalog(); } catch (e) { showInfo('Não consegui carregar a lista de modelos do celular (sem internet?).'); }
+            ensureSelected(); renderModelOptions(); updateCtxBar();
+        }
+        async function phoneEngineFor(m, onProgress) {
+            const w = await loadWebLLM();
+            const cb = p => onProgress && onProgress(Math.round((p.progress || 0) * 100), p.text || '');
+            const opts = { context_window_size: phoneVerdict(m) === 'tight' ? 2048 : m.ctx };
+            if (phoneEngine && phoneLoadedId === m.id) return phoneEngine;
+            if (!phoneEngine) { phoneEngine = await w.CreateMLCEngine(m.mlc, { initProgressCallback: cb }, opts); }
+            else { phoneEngine.setInitProgressCallback(cb); await phoneEngine.reload(m.mlc, opts); }
+            phoneLoadedId = m.id; loadedModels[m.id] = { name: m.id, size: m.vramMB * 1e6 }; return phoneEngine;
+        }
+        async function phoneUnload() { if (phoneEngine) { try { await phoneEngine.unload(); } catch (e) {} } phoneLoadedId = null; Object.keys(loadedModels).forEach(k => { if (k.startsWith('phone:')) delete loadedModels[k]; }); }
+        function trimForPhone(messages, ctxTokens) {   // cabe no contexto do modelo do celular: o sistema + as mensagens mais recentes
+            const budget = Math.max(800, (ctxTokens - 600) * 3), sys = messages.filter(x => x.role === 'system').map(x => ({ ...x, content: x.content.slice(0, Math.floor(budget / 3)) }));
+            let used = sys.reduce((a, x) => a + x.content.length, 0); const rest = [];
+            const others = messages.filter(x => x.role !== 'system');
+            for (let i = others.length - 1; i >= 0; i--) { const l = others[i].content.length; if (rest.length && used + l > budget) break; used += l; rest.unshift({ role: others[i].role, content: others[i].content.slice(0, budget) }); }
+            return [...sys, ...rest];
+        }
+        async function phoneStream(m, messages, emit, onProgress) {   // gera texto no proprio celular e entrega no mesmo formato do servidor
+            const eng = await phoneEngineFor(m, onProgress);
+            const t0 = performance.now(); onProgress(-1, '');
+            const chunks = await eng.chat.completions.create({ messages: trimForPhone(messages, m.ctx), stream: true, stream_options: { include_usage: true }, temperature: 0.7, extra_body: { enable_thinking: !!$('use-thinking').checked } });
+            let usage = null, pend = '', mode = 'start';   // separa o <think>...</think> do texto (o Qwen3 manda um bloco vazio mesmo com o raciocinio desligado)
+            const flushText = x => { if (x) emit(JSON.stringify({ message: { content: x } })); };
+            for await (const ch of chunks) {
+                const d = ch.choices && ch.choices[0] && ch.choices[0].delta && ch.choices[0].delta.content;
+                if (d) {
+                    if (mode === 'text') flushText(d);
+                    else {
+                        pend += d;
+                        if (mode === 'start') { const tr0 = pend.replace(/^\s+/, ''); if (tr0.startsWith('<think>')) mode = 'think'; else if ('<think>'.startsWith(tr0)) continue; else { mode = 'text'; flushText(pend); pend = ''; continue; } }
+                        if (mode === 'think') {
+                            const e = pend.indexOf('</think>');
+                            if (e === -1) { const th = pend.replace(/^\s*<think>/, ''); if (th.trim()) emit(JSON.stringify({ message: { thinking: th } })); pend = pend.slice(0, 0) + (th.trim() ? '<think>' : pend); }
+                            else { const th = pend.slice(0, e).replace(/^\s*<think>/, ''); if (th.trim()) emit(JSON.stringify({ message: { thinking: th } })); flushText(pend.slice(e + 8).replace(/^\s+/, '')); pend = ''; mode = 'text'; }
+                        }
+                    }
+                }
+                if (ch.usage) usage = ch.usage;
+            }
+            if (pend && mode !== 'text') flushText(pend.replace(/<\/?think>/g, ''));
+            const total = (performance.now() - t0) / 1000;
+            if (usage) { const dps = usage.extra && usage.extra.decode_tokens_per_s; emit(JSON.stringify({ stats: { tokens: usage.completion_tokens, seconds: dps ? usage.completion_tokens / dps : total, prompt_tokens: usage.prompt_tokens, prompt_seconds: (usage.extra && usage.extra.prefill_tokens_per_s) ? usage.prompt_tokens / usage.extra.prefill_tokens_per_s : 0, load_seconds: 0, total_seconds: total } })); }
+        }
+        // ---- benchmark leve do celular: WebGPU, memoria que a placa grafica deixa alocar e velocidade de calculo
+        const BENCH_SHADER = `
+            @group(0) @binding(0) var<storage, read> A: array<f32>;
+            @group(0) @binding(1) var<storage, read> B: array<f32>;
+            @group(0) @binding(2) var<storage, read_write> C: array<f32>;
+            const N: u32 = 512u;
+            @compute @workgroup_size(8, 8)
+            fn main(@builtin(global_invocation_id) id: vec3<u32>) {
+                let row = id.x; let col = id.y; if (row >= N || col >= N) { return; }
+                var s = 0.0; for (var k = 0u; k < N; k = k + 1u) { s = s + A[row * N + k] * B[k * N + col]; }
+                C[row * N + col] = s;
+            }`;
+        async function runPhoneBenchmark(onStep) {
+            const r = { when: Date.now(), secure: !!window.isSecureContext, gpu: !!navigator.gpu };
+            const say = t => { if (onStep) onStep(t); };
+            if (!r.gpu) { phoneBench = r; localStorage.setItem('thingmabobber_phone_bench', JSON.stringify(r)); return r; }
+            const adapter = await navigator.gpu.requestAdapter(); if (!adapter) { r.gpu = false; phoneBench = r; return r; }
+            r.f16 = adapter.features.has('shader-f16'); r.maxBufferMB = Math.round(adapter.limits.maxBufferSize / 1048576); r.maxStorageMB = Math.round(adapter.limits.maxStorageBufferBindingSize / 1048576);
+            r.vendor = (adapter.info && (adapter.info.description || adapter.info.vendor || adapter.info.architecture)) || '';
+            let device; try { device = await adapter.requestDevice({ requiredLimits: { maxBufferSize: adapter.limits.maxBufferSize, maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize } }); } catch (e) { device = await adapter.requestDevice(); }
+            // 1) quanta memoria da placa grafica da para reservar (sobe de 64 em 64 MB; se a aba cair, o proximo carregamento estima o limite)
+            const bufs = []; let mb = 0; const STEP = 64, CAP = 1600;
+            say('Medindo a memória...');
+            while (mb < CAP) {
+                try { localStorage.setItem('thingmabobber_bench_progress', JSON.stringify({ running: true, mb })); } catch (e) {}
+                device.pushErrorScope('out-of-memory');
+                let b; try { b = device.createBuffer({ size: STEP * 1048576, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST }); device.queue.writeBuffer(b, 0, new Uint8Array(4096)); } catch (e) { b = null; }
+                await device.queue.onSubmittedWorkDone(); const err = await device.popErrorScope();
+                if (err || !b) break; bufs.push(b); mb += STEP; if (mb % 256 === 0) say(`Medindo a memória... ${mb} MB`);
+            }
+            bufs.forEach(b => b.destroy()); try { localStorage.removeItem('thingmabobber_bench_progress'); } catch (e) {}
+            r.allocMB = mb;
+            // 2) velocidade de calculo (multiplicacao de matrizes 512x512)
+            say('Medindo a velocidade...');
+            try {
+                const N = 512, mk = () => { const b = device.createBuffer({ size: N * N * 4, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST }); device.queue.writeBuffer(b, 0, new Float32Array(N * N).fill(0.5)); return b; };
+                const A = mk(), B = mk(), C = device.createBuffer({ size: N * N * 4, usage: GPUBufferUsage.STORAGE });
+                const pipe = device.createComputePipeline({ layout: 'auto', compute: { module: device.createShaderModule({ code: BENCH_SHADER }), entryPoint: 'main' } });
+                const bind = device.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: A } }, { binding: 1, resource: { buffer: B } }, { binding: 2, resource: { buffer: C } }] });
+                const run = n => { const enc = device.createCommandEncoder(); for (let i = 0; i < n; i++) { const p = enc.beginComputePass(); p.setPipeline(pipe); p.setBindGroup(0, bind); p.dispatchWorkgroups(N / 8, N / 8); p.end(); } device.queue.submit([enc.finish()]); return device.queue.onSubmittedWorkDone(); };
+                await run(2); const t0 = performance.now(); const reps = 40; await run(reps); const sec = (performance.now() - t0) / 1000;
+                r.gflops = Math.round((reps * 2 * N * N * N) / sec / 1e9); [A, B, C].forEach(b => b.destroy());
+            } catch (e) { r.gflops = 0; }
+            device.destroy();
+            r.budgetMB = Math.round(Math.min(r.allocMB, r.maxBufferMB ? Math.max(r.allocMB, 0) : r.allocMB) * 0.85);   // folga para o sistema e o cache de contexto
+            phoneBench = r; try { localStorage.setItem('thingmabobber_phone_bench', JSON.stringify(r)); } catch (e) {}
+            return r;
+        }
+        (function recoverBench() {   // se a aba caiu no meio do teste de memoria, usa o ultimo valor que funcionou como limite
+            try {
+                const p = JSON.parse(localStorage.getItem('thingmabobber_bench_progress') || 'null');
+                if (p && p.running) { localStorage.removeItem('thingmabobber_bench_progress'); const mb = Math.max(0, p.mb - 128); phoneBench = { when: Date.now(), secure: !!window.isSecureContext, gpu: true, crashed: true, allocMB: mb, budgetMB: Math.round(mb * 0.85), f16: true }; localStorage.setItem('thingmabobber_phone_bench', JSON.stringify(phoneBench)); }
+            } catch (e) {}
+        })();
+        function renderPhoneSection() {
+            const sec = $('srv-phone'); if (!sec) return;
+            sec.style.display = isRemoteDevice() ? '' : 'none'; if (!isRemoteDevice()) return;
+            const ok = phoneReady();
+            $('phone-status').textContent = ok ? tr('✓ Conexão segura e WebGPU disponíveis neste celular.') : (window.isSecureContext ? tr('✗ Este navegador não tem WebGPU (no iPhone precisa do iOS 26 ou mais novo).') : tr('✗ Esta página não é segura (http). Siga os passos abaixo para abrir pelo endereço https.'));
+            $('opt-phonelocal').checked = !!config.phoneLocal; $('opt-phonelocal').disabled = !ok;
+            $('phone-bench-btn').disabled = !ok;
+            const res = $('phone-bench-result'), b = phoneBench;
+            res.textContent = !b ? tr('Ainda não testado.') : !b.gpu ? tr('Sem WebGPU: nenhum modelo roda aqui.') : tr('Memória utilizável ≈ {mb} MB · velocidade ≈ {g} GFLOPS{c}', { mb: b.budgetMB, g: b.gflops == null ? '?' : b.gflops, c: b.crashed ? tr(' (a aba caiu no teste; valor estimado)') : '' });
+            const list = $('phone-models'); list.innerHTML = '';
+            MODELS.filter(m => m.phone).forEach(m => {
+                const v = phoneVerdict(m), row = document.createElement('div'); row.className = 'srv-row' + (v === 'no' ? ' phone-no' : '');
+                const t = document.createElement('span'); t.style.flex = '1'; t.textContent = `${m.label} · ~${m.gb} GB`;
+                const bd = document.createElement('span'); bd.className = 'badge' + (v === 'ok' ? ' ok' : ''); bd.textContent = tr(v === 'ok' ? 'deve rodar' : v === 'tight' ? 'apertado' : v === 'no' ? 'não roda' : 'não testado');
+                row.append(t, bd); list.appendChild(row);
+            });
+            const sp = $('phone-https-steps'), httpsPort = auth.https_port;
+            sp.style.display = window.isSecureContext ? 'none' : '';
+            $('phone-open-https').href = httpsPort ? `https://${location.hostname}:${httpsPort}/` : '#'; $('phone-open-https').style.display = httpsPort ? '' : 'none';
+            $('phone-ca-link').href = API + '/api/ca_profile';
+        }
+        async function phoneToggle(on) { config.phoneLocal = on; saveState(); await phoneSetup(); renderPhoneSection(); }
+        async function phoneBenchClick() {
+            const btn = $('phone-bench-btn'); btn.disabled = true;
+            try { await runPhoneBenchmark(t => { $('phone-bench-result').textContent = tr(t); }); } catch (e) { showInfo('O teste falhou: ' + e.message); }
+            btn.disabled = false;
+            if (phoneReady() && config.phoneLocal) await phoneSetup(); else renderModelOptions();
+            renderPhoneSection();
+        }
+
         // ---------- servidor: acesso pela rede, senha, aparelhos, perfil do iPhone ----------
         const sleep = ms => new Promise(r => setTimeout(r, ms));
         async function copyText(t) {
@@ -2526,7 +2738,8 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 $('srv-conn-badge').textContent = tr(auth.authed ? 'conectado ✓' : 'não conectado'); $('srv-conn-badge').classList.toggle('ok', auth.authed);
                 $('srv-conn-host').textContent = location.host;
                 $('srv-connect-btn').style.display = auth.authed ? 'none' : ''; $('srv-disconnect-btn').style.display = auth.authed ? '' : 'none';
-                $('ios-install').style.display = isIphone() && !isStandalone() ? '' : 'none';   // some no iPhone que ja tem o app instalado
+                $('ios-install').style.display = isIphone() && !isStandalone() ? '' : 'none';
+                renderPhoneSection();   // some no iPhone que ja tem o app instalado
                 return;
             }
             let i; try { i = await (await fetch(API + '/api/server_info')).json(); } catch (e) { return; }
@@ -2540,6 +2753,13 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 const code = document.createElement('code'); code.textContent = u;
                 const b = document.createElement('button'); b.className = 'btn btn-secondary'; b.textContent = tr('Copiar'); b.onclick = () => copyText(u);
                 row.append(code, b); addr.appendChild(row);
+            });
+            (i.https_addresses || []).forEach(u => {
+                const row = document.createElement('div'); row.className = 'srv-row';
+                const code = document.createElement('code'); code.textContent = u;
+                const tag = document.createElement('span'); tag.className = 'badge ok'; tag.textContent = 'https';
+                const b = document.createElement('button'); b.className = 'btn btn-secondary'; b.textContent = tr('Copiar'); b.onclick = () => copyText(u);
+                row.append(code, tag, b); addr.appendChild(row);
             });
             const sel = $('srv-ios-host'); sel.innerHTML = '';
             i.addresses.forEach(u => sel.add(new Option(u.replace(/^http:\/\//, '').replace(/:\d+$/, ''), u.replace(/^http:\/\//, '').replace(/:\d+$/, ''))));

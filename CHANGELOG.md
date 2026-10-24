@@ -6,6 +6,12 @@ Como numerar:
 - O número fica em `VERSION` no topo do `app.py` e aparece em Configurações > Atualizações.
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
+## v1.3
+- HTTPS local: o servidor abre também em `https://IP:8443` com uma autoridade (CA) própria, que só vale para redes locais. O perfil da CA é baixado pelo celular em Configurações > Servidor.
+- Modelos rodando no celular (WebLLM + WebGPU): lista de modelos pequenos, download na primeira vez, chat sem passar pelo PC.
+- Benchmark do celular: mede a memória e a velocidade da placa gráfica e deixa em cinza (sem clique) os modelos que não vão rodar.
+- Requer o pacote `cryptography` (já está no requirements.txt). Modelos da nuvem continuam passando pelo PC.
+
 ## v1.2.01
 - Corrigido o ícone do botão "+" (o arquivo era PNG com nome .svg e não carregava; agora é `icons/plus.png`).
 - Avisos ficam menos tempo na tela e somem com fade; clicar num aviso fecha.

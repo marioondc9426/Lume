@@ -9,6 +9,7 @@ import re
 import time
 import subprocess
 import os
+import sys
 import atexit
 import base64
 import html as html_mod
@@ -20,6 +21,7 @@ import copy
 import hmac
 import secrets
 import socket
+import ssl
 import struct
 import uuid
 import zlib
@@ -37,8 +39,13 @@ except ImportError:
 PORT = 8000
 OLLAMA_URL = "http://127.0.0.1:11434"
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, BASE_DIR)
+try: import tls   # HTTPS local (precisa do pacote "cryptography")
+except Exception: tls = None
+CERTS_DIR = os.path.join(BASE_DIR, "certs")
+HTTPS_PORT = 8443
 # Versao: "1.2" = versao nova com novidades (o numero depois do ponto sobe); "1.2.01", "1.2.02"... = correcoes (patches) dessa versao.
-VERSION = "1.2.01"
+VERSION = "1.3"
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")     # chaves de API, pasta de trabalho, uso
 HISTORY_FILE = os.path.join(BASE_DIR, "history.json")   # chats
 STATE_FILE = os.path.join(BASE_DIR, "state.json")       # preferencias da interface + memorias
@@ -979,6 +986,22 @@ def make_icon_png(size=180):
     _icon_cache[size] = png
     return png
 
+def build_ca_profile(der, label="Thingmabobber (certificado)"):
+    """Perfil .mobileconfig que instala a CA local no iPhone (depois e preciso ativar a confianca em Ajustes > Geral > Sobre)."""
+    pid, cid = str(uuid.uuid4()).upper(), str(uuid.uuid4()).upper()
+    payload = {
+        "PayloadContent": [{
+            "PayloadType": "com.apple.security.root", "PayloadVersion": 1, "PayloadUUID": cid,
+            "PayloadIdentifier": f"com.thingmabobber.ca.{cid}", "PayloadDisplayName": "Thingmabobber Local CA",
+            "PayloadCertificateFileName": "Thingmabobber-CA.cer", "PayloadContent": der,
+        }],
+        "PayloadType": "Configuration", "PayloadVersion": 1, "PayloadUUID": pid,
+        "PayloadIdentifier": f"com.thingmabobber.cafile.{pid}", "PayloadDisplayName": label,
+        "PayloadDescription": "Permite abrir o Thingmabobber pelo endereco https (necessario para rodar modelos no celular).",
+        "PayloadOrganization": "Thingmabobber", "PayloadRemovalDisallowed": False,
+    }
+    return plistlib.dumps(payload, fmt=plistlib.FMT_XML)
+
 def build_ios_profile(url, label="Thingmabobber"):
     """Perfil .mobileconfig com um Web Clip: instala um icone na tela do iPhone que abre so o site."""
     pid, wid = str(uuid.uuid4()).upper(), str(uuid.uuid4()).upper()
@@ -1011,6 +1034,39 @@ class ThreadingServer(socketserver.ThreadingTCPServer):
     allow_reuse_address = True
     daemon_threads = True
 
+class TLSServer(ThreadingServer):
+    """Mesmo servidor, mas com TLS. O aperto de mao e feito na thread de cada conexao (um cliente travado nao trava os outros)."""
+    ssl_context = None
+    def get_request(self):
+        sock, addr = super().get_request()
+        return self.ssl_context.wrap_socket(sock, server_side=True, do_handshake_on_connect=False), addr
+    def finish_request(self, request, client_address):
+        try:
+            request.settimeout(10); request.do_handshake(); request.settimeout(None)
+        except (ssl.SSLError, OSError):
+            return   # celular que ainda nao confia na CA, ou conexao em texto puro
+        super().finish_request(request, client_address)
+    def handle_error(self, request, client_address): pass
+
+https_httpd = None
+
+def start_https_server():
+    """Sobe o HTTPS (porta 8443) ao lado do HTTP quando o acesso pela rede esta ligado. Sem o pacote cryptography fica so o HTTP."""
+    global https_httpd
+    if tls is None or not tls.HAS_CRYPTO:
+        log("HTTPS", "Pacote 'cryptography' nao instalado: HTTPS desligado (pip install cryptography).", COLOR_YELLOW); return
+    port = int(load_config().get("https_port", HTTPS_PORT))
+    try:
+        TLSServer.ssl_context = tls.server_context(CERTS_DIR, lan_ips())
+        srv = TLSServer(("0.0.0.0", port), functools.partial(AppHandler, directory=BASE_DIR))
+    except Exception as e:
+        log("HTTPS", f"Nao consegui ligar o HTTPS na porta {port}: {e}", COLOR_RED); return
+    https_httpd = srv
+    log("HTTPS", "HTTPS ligado. Enderecos: " + ", ".join(f"https://{ip}:{port}" for ip in lan_ips()), COLOR_YELLOW)
+    try: srv.serve_forever()
+    finally:
+        srv.server_close(); https_httpd = None
+
 class AppHandler(http.server.SimpleHTTPRequestHandler):
     def end_headers(self):
         self.send_header('Cache-Control', 'no-cache')   # o celular nao pode ficar com uma versao antiga da pagina
@@ -1028,6 +1084,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
     # ---- quem esta chamando?
     def host_only(self):
         return urllib.parse.urlsplit('//' + (self.headers.get('Host') or '')).hostname or ''
+
+    def is_tls(self):
+        return isinstance(self.connection, ssl.SSLSocket)
 
     def is_local(self):
         """Janela do proprio app: conexao vinda do proprio PC E enderecada a 127.0.0.1/localhost (barra DNS rebinding)."""
@@ -1078,6 +1137,19 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         if p == '/api/update_check':
             if not local: return self.send_json({"error": "local_only"}, 403)
             return self.send_json(check_update())
+        if p in ('/api/ca_profile', '/api/ca_cer'):   # a CA e publica (so o certificado, sem chave); so rede privada
+            if tls is None or not tls.HAS_CRYPTO: return self.send_json({"error": "no_crypto"}, 503)
+            try: private = local or ipaddress.ip_address(self.client_address[0]).is_private
+            except ValueError: private = False
+            if not private: return self.send_json({"error": "forbidden"}, 403)
+            der = tls.ca_der(CERTS_DIR)
+            if p == '/api/ca_cer':
+                self.send_response(200); self.send_header('Content-Type', 'application/x-x509-ca-cert'); self.send_header('Content-Length', str(len(der)))
+                self.send_header('Content-Disposition', 'attachment; filename="Thingmabobber-CA.cer"'); self.end_headers(); self.wfile.write(der); return
+            body = build_ca_profile(der)
+            log("HTTPS", f"Perfil do certificado enviado para {self.client_address[0]}", COLOR_GREEN)
+            self.send_response(200); self.send_header('Content-Type', 'application/x-apple-aspen-config'); self.send_header('Content-Length', str(len(body)))
+            self.send_header('Content-Disposition', 'attachment; filename="Thingmabobber-Certificado.mobileconfig"'); self.end_headers(); self.wfile.write(body); return
         if p == '/api/ping':   # publico: so diz que isto e o app e se pede senha
             cfg = load_config()
             return self.send_json({"app": "ai-thing", "name": socket.gethostname(), "password_required": cfg.get("password_required", True)})
@@ -1086,7 +1158,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return self.send_json({"servers": discover_servers()})
         if p == '/api/auth/status':
             cfg = load_config()
-            return self.send_json({"local": local, "authed": self.is_authed(), "remote_enabled": cfg["remote_enabled"], "allow_remote_code": cfg["allow_remote_code"], "password_required": cfg.get("password_required", True), "version": VERSION})
+            return self.send_json({"local": local, "authed": self.is_authed(), "remote_enabled": cfg["remote_enabled"], "allow_remote_code": cfg["allow_remote_code"], "password_required": cfg.get("password_required", True), "version": VERSION, "https_port": int(cfg.get("https_port", HTTPS_PORT)) if https_httpd is not None else 0, "secure": self.is_tls()})
         if not self.is_authed():
             return self.send_json({"error": "unauthorized"}, 401)
         if p == '/api/usage':
@@ -1139,15 +1211,16 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 "port": PORT, "configured_port": cfg.get("port", PORT),
                 "listening": f"{'0.0.0.0' if cfg['remote_enabled'] else '127.0.0.1'}:{PORT}",
                 "addresses": [f"http://{ip}:{PORT}" for ip in lan_ips()],
+                "https_addresses": [f"https://{ip}:{int(cfg.get('https_port', HTTPS_PORT))}" for ip in lan_ips()] if (https_httpd is not None) else [],
                 "devices": [{"id": t[:8], "name": i.get("name", ""), "ip": i.get("ip", ""), "created": i.get("created", 0), "last": i.get("last", 0)} for t, i in cfg["tokens"].items()],
             })
         if p == '/api/ios_profile':
             if local:
                 host = (self.query.get('host') or [''])[0]
                 if not re.fullmatch(r'[\w.\-]+', host or ''): host = (lan_ips() or ['127.0.0.1'])[0]
-                base = f"http://{host}:{PORT}"
+                base = f"https://{host}:{int(load_config().get('https_port', HTTPS_PORT))}" if (self.query.get('https') or [''])[0] == '1' and https_httpd is not None else f"http://{host}:{PORT}"
             else:
-                base = "http://" + (self.headers.get('Host') or f"127.0.0.1:{PORT}")   # o mesmo endereco que o celular usou para abrir o site
+                base = ("https://" if self.is_tls() else "http://") + (self.headers.get('Host') or f"127.0.0.1:{PORT}")   # o mesmo endereco que o celular usou para abrir o site
             body = build_ios_profile(base + "/index.html")
             log("IPHONE", f"Perfil gerado para {base}/index.html", COLOR_GREEN)
             self.send_response(200); self.send_header('Content-Type', 'application/x-apple-aspen-config'); self.send_header('Content-Length', str(len(body)))
@@ -1367,7 +1440,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 del cfg["tokens"][min(cfg["tokens"], key=lambda t: cfg["tokens"][t]["last"])]
             save_config(cfg)
             log("AUTH", f"Dispositivo conectado: {cfg['tokens'][tok]['name']} ({ip})", COLOR_GREEN)
-            return self.send_json({"ok": True}, headers={"Set-Cookie": f"thing_token={tok}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax"})
+            return self.send_json({"ok": True}, headers={"Set-Cookie": f"thing_token={tok}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax" + ("; Secure" if self.is_tls() else "")})
         if not fails or now - fails[1] >= LOGIN_LOCK_SECONDS: fails = login_failures[ip] = [0, now]
         fails[0] += 1
         log("AUTH", f"Senha incorreta de {ip} ({fails[0]}/{LOGIN_MAX_FAILS})", COLOR_RED)
@@ -1551,6 +1624,7 @@ def start_server():
                 return
             time.sleep(0.5)
     httpd = srv
+    if host == "0.0.0.0": threading.Thread(target=start_https_server, daemon=True).start()
     if host == "0.0.0.0":
         log("SERVIDOR", f"ACESSO REMOTO LIGADO na porta {PORT}. Enderecos: " + ", ".join(f"http://{ip}:{PORT}" for ip in lan_ips()), COLOR_YELLOW)
     else:
@@ -1651,7 +1725,8 @@ def restart_app():
 def restart_server():
     """Reinicia o servidor HTTP (troca entre 'so neste PC' e 'rede local') sem fechar o app."""
     def work():
-        old = httpd
+        old, old_tls = httpd, https_httpd
+        if old_tls: old_tls.shutdown()
         if old: old.shutdown()
         time.sleep(0.3)
         threading.Thread(target=start_server, daemon=True).start()
