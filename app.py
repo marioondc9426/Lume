@@ -48,15 +48,20 @@ except ImportError:
 
 PORT = 8000
 OLLAMA_URL = "http://127.0.0.1:11434"
-FROZEN = bool(getattr(sys, "frozen", False))   # True quando roda como Qwen.exe (PyInstaller)
+FROZEN = bool(getattr(sys, "frozen", False))   # True quando roda como Lume.exe (PyInstaller)
 RES_DIR = getattr(sys, "_MEIPASS", None) or os.path.dirname(os.path.abspath(__file__))   # o que vem dentro do programa: paginas e icones
-# Seus dados (conversas, chaves, certificados...): na pasta do projeto; no .exe ficam em %LOCALAPPDATA%\Qwen (ou na pasta indicada em QWEN_DATA_DIR)
-BASE_DIR = os.environ.get("QWEN_DATA_DIR") or (os.path.join(os.environ.get("LOCALAPPDATA") or os.path.dirname(sys.executable), "Qwen") if FROZEN else RES_DIR)
+def _env(name): return os.environ.get("LUME_" + name) or os.environ.get("QWEN_" + name)   # QWEN_* ainda vale (nome antigo do app)
+# Seus dados (conversas, chaves, certificados...): na pasta do projeto; no .exe ficam em %LOCALAPPDATA%\Lume (ou na pasta indicada em LUME_DATA_DIR)
+_data_root = os.environ.get("LOCALAPPDATA") or os.path.dirname(sys.executable)
+BASE_DIR = _env("DATA_DIR") or (os.path.join(_data_root, "Lume") if FROZEN else RES_DIR)
+if FROZEN and not _env("DATA_DIR") and not os.path.exists(BASE_DIR) and os.path.isdir(os.path.join(_data_root, "Qwen")):   # o app se chamava Qwen: traz as conversas e configuracoes junto
+    try: os.rename(os.path.join(_data_root, "Qwen"), BASE_DIR)
+    except OSError: BASE_DIR = os.path.join(_data_root, "Qwen")
 sys.path.insert(0, RES_DIR)
 if FROZEN:
     os.makedirs(BASE_DIR, exist_ok=True)
-    if not os.environ.get("QWEN_CONSOLE"):   # o .exe nao tem janela de console: o que seria impresso vai para o qwen.log (QWEN_CONSOLE=1 deixa no terminal)
-        _lp = os.path.join(BASE_DIR, "qwen.log")
+    if not _env("CONSOLE"):   # o .exe nao tem janela de console: o que seria impresso vai para o lume.log (LUME_CONSOLE=1 deixa no terminal)
+        _lp = os.path.join(BASE_DIR, "lume.log")
         try:
             if os.path.exists(_lp) and os.path.getsize(_lp) > 2_000_000: os.replace(_lp, _lp + ".old")
         except OSError: pass
@@ -65,7 +70,7 @@ try: import tls   # HTTPS local (precisa do pacote "cryptography")
 except Exception: tls = None
 CERTS_DIR = os.path.join(BASE_DIR, "certs")
 HTTPS_PORT = 8443
-APP_NAME = "Qwen"
+APP_NAME = "Lume"
 import guests as guests_mod   # contas de amigos (/share) e painel (/dashboard)
 guests = guests_mod.Guests(os.path.join(BASE_DIR, "guests.json"), os.path.join(BASE_DIR, "guest_data"))
 stop_events = {}        # id do amigo -> Event (parar so a geracao dele)
@@ -1251,11 +1256,11 @@ def device_name(ua):
     return "Dispositivo"
 
 _icon_cache = {}
-CUSTOM_ICON = os.path.join(RES_DIR, "icons", "qwen.png")   # se existir, e o icone do app (janela, .exe, bandeja): a logo com fundo transparente
-MOBILE_ICON = os.path.join(RES_DIR, "icons", "qwen-mobile.png")   # icone do iPhone / aba do navegador: logo menor sobre um gradiente (tools/make_icons.py)
+CUSTOM_ICON = os.path.join(RES_DIR, "icons", "lume.png")   # se existir, e o icone do app (janela, .exe, bandeja): a logo com fundo transparente
+MOBILE_ICON = os.path.join(RES_DIR, "icons", "lume-mobile.png")   # icone do iPhone / aba do navegador: logo menor sobre um gradiente (make_icons.py)
 
 def make_icon_png(size=180):
-    """Icone do app: icons/qwen.png se existir; senao um raio branco sobre azul gerado sem bibliotecas externas."""
+    """Icone do app: icons/lume.png se existir; senao um raio branco sobre azul gerado sem bibliotecas externas."""
     for path in (MOBILE_ICON, CUSTOM_ICON):
         if os.path.isfile(path):
             try:
@@ -2301,7 +2306,7 @@ def start_server():
         srv.server_close()
 
 def custom_icon_ico():
-    """Converte icons/qwen.png em .ico (o Windows aceita PNG dentro do .ico) para o icone da janela. None se nao houver."""
+    """Converte icons/lume.png em .ico (o Windows aceita PNG dentro do .ico) para o icone da janela. None se nao houver."""
     if not os.path.isfile(CUSTOM_ICON): return None
     try:
         data = open(CUSTOM_ICON, "rb").read()
@@ -2312,7 +2317,7 @@ def custom_icon_ico():
         with open(out, "wb") as f: f.write(struct.pack("<HHH", 0, 1, 1) + entry + data)
         return out
     except Exception as e:
-        log("ICONE", f"Nao consegui usar icons/qwen.png: {e}", COLOR_YELLOW); return None
+        log("ICONE", f"Nao consegui usar icons/lume.png: {e}", COLOR_YELLOW); return None
 
 # ---------------- atualizar os modelos instalados (ollama pull) ----------------
 model_update_state = {"running": False, "current": "", "done": 0, "total": 0, "updated": [], "error": ""}
@@ -2375,9 +2380,9 @@ def parse_ver(v):
     n = [int(x) for x in re.findall(r"\d+", v or "")][:4]; return tuple(n + [0] * (3 - len(n)))   # "1.7.03" -> (1, 7, 3)
 
 def check_release():
-    """Versao do .exe: compara com a ultima Release do GitHub (o CI sobe o Qwen.exe em cada tag v*)."""
+    """Versao do .exe: compara com a ultima Release do GitHub (o CI sobe o Lume.exe em cada tag v*)."""
     try:
-        req = urllib.request.Request(f"https://api.github.com/repos/{DEFAULT_REPO}/releases/latest", headers={"Accept": "application/vnd.github+json", "User-Agent": "qwen-updater"})
+        req = urllib.request.Request(f"https://api.github.com/repos/{DEFAULT_REPO}/releases/latest", headers={"Accept": "application/vnd.github+json", "User-Agent": "lume-updater"})
         try:
             with urllib.request.urlopen(req, timeout=10) as r: d = json.loads(r.read())
         except urllib.error.HTTPError as e:
@@ -2394,17 +2399,17 @@ def check_release():
 pending_update = {"new": "", "cmd": ""}
 
 def apply_release():
-    """Baixa o Qwen.exe novo da Release e prepara a troca; o reinicio (restart_app) faz a troca com o app fechado."""
+    """Baixa o Lume.exe novo da Release e prepara a troca; o reinicio (restart_app) faz a troca com o app fechado."""
     if not update_lock.acquire(blocking=False): return {"ok": False, "error": "busy"}
     try:
         info = check_release()
         if info.get("status") != "available" or not info.get("asset"): return {"ok": False, "error": "pull", "detail": "Nao ha versao nova para baixar."}
-        a = info["asset"]; new = os.path.join(tempfile.gettempdir(), "Qwen-update.exe"); h = hashlib.sha256()
-        with urllib.request.urlopen(urllib.request.Request(a["url"], headers={"User-Agent": "qwen-updater"}), timeout=60) as r, open(new, "wb") as f:
+        a = info["asset"]; new = os.path.join(tempfile.gettempdir(), "Lume-update.exe"); h = hashlib.sha256()
+        with urllib.request.urlopen(urllib.request.Request(a["url"], headers={"User-Agent": "lume-updater"}), timeout=60) as r, open(new, "wb") as f:
             for chunk in iter(lambda: r.read(1 << 20), b""): f.write(chunk); h.update(chunk)
         if a.get("size") and os.path.getsize(new) != a["size"]: os.remove(new); return {"ok": False, "error": "pull", "detail": "O download veio incompleto."}
         if a.get("digest", "").startswith("sha256:") and a["digest"][7:].lower() != h.hexdigest().lower(): os.remove(new); return {"ok": False, "error": "pull", "detail": "O arquivo baixado nao confere com o GitHub (sha256)."}
-        cmd = os.path.join(tempfile.gettempdir(), "qwen-update.cmd"); exe = sys.executable
+        cmd = os.path.join(tempfile.gettempdir(), "lume-update.cmd"); exe = sys.executable
         with open(cmd, "w", encoding="utf-8") as f:
             f.write(f'@echo off\r\nping -n 4 127.0.0.1 >nul\r\nset n=0\r\n:retry\r\nmove /y "{new}" "{exe}" >nul 2>&1\r\nif errorlevel 1 (\r\n  set /a n+=1\r\n  if %n% GEQ 20 goto fim\r\n  ping -n 2 127.0.0.1 >nul\r\n  goto retry\r\n)\r\n:fim\r\nstart "" "{exe}"\r\n')
         pending_update.update(new=new, cmd=cmd); log("UPDATE", f"Versao {info['remote_version']} baixada; a troca acontece ao reiniciar.", COLOR_GREEN)
@@ -2495,11 +2500,11 @@ def terminal_is_open():
     return bool(terminal_proc and terminal_proc.poll() is None)
 
 def set_terminal(on):
-    """Abre/fecha uma janela de terminal que acompanha o log (qwen.log) ao vivo. E uma janela a parte: fechar o terminal nao fecha o app. So no .exe (pelo run.bat o terminal ja existe)."""
+    """Abre/fecha uma janela de terminal que acompanha o log (lume.log) ao vivo. E uma janela a parte: fechar o terminal nao fecha o app. So no .exe (pelo run.bat o terminal ja existe)."""
     global terminal_proc
     if os.name != "nt" or not FROZEN: return False
     if on and not terminal_is_open():
-        lp = os.path.join(BASE_DIR, "qwen.log").replace("'", "''")
+        lp = os.path.join(BASE_DIR, "lume.log").replace("'", "''")
         script = f"$Host.UI.RawUI.WindowTitle = '{APP_NAME} - log'; Get-Content -LiteralPath '{lp}' -Tail 200 -Wait -Encoding UTF8"
         try: terminal_proc = subprocess.Popen(["powershell.exe", "-NoProfile", "-NoExit", "-Command", script], creationflags=0x00000010)   # CREATE_NEW_CONSOLE
         except OSError as e:
@@ -2522,6 +2527,8 @@ def autostart_set(on):
     if not FROZEN: return False
     import winreg
     with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE) as k:
+        try: winreg.DeleteValue(k, "Qwen")   # entrada do nome antigo do app
+        except FileNotFoundError: pass
         if on: winreg.SetValueEx(k, APP_NAME, 0, winreg.REG_SZ, f'"{sys.executable}" --autostart')
         else:
             try: winreg.DeleteValue(k, APP_NAME)
@@ -2552,7 +2559,7 @@ def install_cloudflared(dest=None):
     dest = dest or os.path.join(BASE_DIR, "tools", "cloudflared.exe"); os.makedirs(os.path.dirname(dest), exist_ok=True)
     tmp = dest + ".download"
     try:
-        req = urllib.request.Request(CLOUDFLARED_URL, headers={"User-Agent": "qwen-app"})
+        req = urllib.request.Request(CLOUDFLARED_URL, headers={"User-Agent": "lume-app"})
         with urllib.request.urlopen(req, timeout=60) as r, open(tmp, "wb") as f: shutil.copyfileobj(r, f)
         ps = subprocess.run(["powershell", "-NoProfile", "-Command", f"$s = Get-AuthenticodeSignature -LiteralPath '{tmp}'; Write-Output ($s.Status.ToString() + '|' + $s.SignerCertificate.Subject)"],
                             capture_output=True, text=True, timeout=60, creationflags=NOWIN).stdout.strip()
@@ -2712,7 +2719,7 @@ class WindowApi:
 
 if __name__ == '__main__':
     log("INICIO", f"Pasta do programa: {BASE_DIR}", COLOR_BLUE)
-    PORT = int(os.environ.get("QWEN_PORT") or load_config().get("port", PORT))
+    PORT = int(_env("PORT") or load_config().get("port", PORT))
     if FROZEN and load_config().get("start_with_terminal"): set_terminal(True)
     log("INICIO", "Groq: " + ("biblioteca ok" if HAS_GROQ else "biblioteca NAO instalada (pip install groq)"), COLOR_GREEN if HAS_GROQ else COLOR_YELLOW)
     threading.Thread(target=start_server, daemon=True).start()

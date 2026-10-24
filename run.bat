@@ -1,5 +1,5 @@
 @echo off
 cd /d "%~dp0"
-title Qwen
+title Lume
 echo Iniciando o chat...
 python app.py

@@ -7,7 +7,7 @@ Como numerar:
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
 ## v2.0 (em desenvolvimento, ainda não enviado ao GitHub)
-Tudo que for pedido até o "push tudo isso aí" entra aqui. Já está dentro: o `Qwen.exe` e a geração automática (v1.8.x), a tela de boas-vindas com a aba de configurações (v1.9) e:
+Tudo que for pedido até o "push tudo isso aí" entra aqui. Já está dentro: o `Lume.exe` (antes `Qwen.exe`) e a geração automática (v1.8.x), a tela de boas-vindas com a aba de configurações (v1.9) e:
 - Animações: Configurações, Memória, Estatísticas, Exportar e as caixas de diálogo agora entram e saem com fade e deslize (e as abas internas das Configurações também). Respeitam "Animações" desligadas e a preferência de menos movimento do Windows.
 - **Várias conversas ao mesmo tempo**: dá para trocar de chat enquanto a IA ainda responde e conversar em outro; cada chat tem a sua geração (o "parar" só para a do chat aberto). Na barra lateral um ponto azul pulsa nos chats respondendo e um verde marca os que terminaram enquanto você estava em outro.
 - **Fila de mensagens**: se a IA está demorando, o que você enviar espera a vez (aparece pontilhado no fim do chat) e sai sozinho quando a resposta acabar. Dá para apagar uma mensagem da fila (lixeira) antes de a IA vê-la; se der erro, o texto volta para a caixa de digitação.
@@ -18,7 +18,8 @@ Tudo que for pedido até o "push tudo isso aí" entra aqui. Já está dentro: o 
 - **Atualizadores automáticos**: os modelos instalados podem se atualizar sozinhos (uma vez por semana, com o app aberto) e o app pode **baixar e instalar as próprias atualizações** em segundo plano, pedindo só a confirmação do reinício.
 - **Tailscale Funnel**: botão em Configurações → Servidor que publica o app num endereço fixo `https://PC.rede.ts.net` (precisa do Tailscale conectado e do Funnel ligado na conta). Continua exigindo a senha pela internet, e o Funnel é desligado quando o app fecha.
 - **Ícone na bandeja do sistema** (opção na tela de boas-vindas e em Configurações → Aplicativo): fechar a janela só a esconde; o ícone ao lado do relógio abre de novo ou sai. Com "iniciar com o Windows" o app abre já escondido na bandeja.
-- **Logo**: o ícone do app (janela, .exe, bandeja) agora tem fundo transparente; o ícone do celular/aba do navegador usa a logo menor sobre um gradiente "liquido" (gerado por `tools/make_icons.py`) e a tela de boas-vindas ganhou um gradiente animado que muda de forma.
+- **Novo nome: Lume**, com logo própria (um hexágono aberto em catavento com o centro aceso, degradê âmbar → rosa → violeta, inspirada na forma da logo do Qwen) e a palavra "lume". O app deixa de usar o nome e a marca do modelo Qwen, que continua na lista de modelos. Trocou: `Lume.exe`, a pasta de dados `%LOCALAPPDATA%\Lume` (a pasta `Qwen` antiga é renomeada sozinha, então conversas e configurações vêm junto), o log `lume.log` e as variáveis `LUME_DATA_DIR`, `LUME_PORT` e `LUME_CONSOLE` (as `QWEN_*` ainda funcionam). "Iniciar com o Windows" troca a entrada antiga `Qwen` pela `Lume` ao ser ligado de novo.
+- **Ícones**: o ícone do app (janela, `.exe`, bandeja) tem fundo transparente; o do celular e da aba do navegador usa a marca branca sobre um gradiente "líquido" distorcido; a tela de boas-vindas ganhou um gradiente animado que muda de forma. Tudo é gerado por `python make_icons.py`, que desenha a logo do zero.
 
 ## v1.9
 - A tela de boas-vindas ganhou a aba **Configurações**, com as opções mais usadas valendo na hora: idioma, tema, **iniciar com o terminal**, **iniciar com o Windows**, pesquisa na web, atualizações, animações, painel de desempenho e acesso pela rede.

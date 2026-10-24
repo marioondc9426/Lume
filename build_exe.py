@@ -1,4 +1,4 @@
-"""Gera o Qwen.exe (PyInstaller): dist/Qwen.exe, com o icone do Qwen e a versao do app.
+"""Gera o Lume.exe (PyInstaller): dist/Lume.exe, com o icone do Lume e a versao do app.
 
     python build_exe.py               gera e espera terminar
     python build_exe.py --background  gera por tras, sem travar o terminal (usado pelo hook do git); o log fica em build/build.log
@@ -42,11 +42,11 @@ def ensure(modules):
 
 
 def make_icon():
-    """icons/qwen.png -> build/qwen.ico com varios tamanhos (o Windows escolhe o melhor em cada lugar)."""
+    """icons/lume.png -> build/lume.ico com varios tamanhos (o Windows escolhe o melhor em cada lugar)."""
     from PIL import Image
     os.makedirs(BUILD, exist_ok=True)
-    out = os.path.join(BUILD, "qwen.ico")
-    src = Image.open(os.path.join(ROOT, "icons", "qwen.png")).convert("RGBA")
+    out = os.path.join(BUILD, "lume.ico")
+    src = Image.open(os.path.join(ROOT, "icons", "lume.png")).convert("RGBA")
     src.save(out, format="ICO", sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
     return out
 
@@ -59,9 +59,9 @@ def version_file(version):
   ffi=FixedFileInfo(filevers=({tup}), prodvers=({tup}), mask=0x3f, flags=0x0, OS=0x40004, fileType=0x1, subtype=0x0, date=(0, 0)),
   kids=[
     StringFileInfo([StringTable('040904B0', [
-      StringStruct('CompanyName', 'Qwen'), StringStruct('FileDescription', 'Qwen - chat de IA local'),
-      StringStruct('FileVersion', '{version}'), StringStruct('InternalName', 'Qwen'),
-      StringStruct('OriginalFilename', 'Qwen.exe'), StringStruct('ProductName', 'Qwen'), StringStruct('ProductVersion', '{version}')])]),
+      StringStruct('CompanyName', 'Lume'), StringStruct('FileDescription', 'Lume - chat de IA local'),
+      StringStruct('FileVersion', '{version}'), StringStruct('InternalName', 'Lume'),
+      StringStruct('OriginalFilename', 'Lume.exe'), StringStruct('ProductName', 'Lume'), StringStruct('ProductVersion', '{version}')])]),
     VarFileInfo([VarStruct('Translation', [1033, 1200])])
   ]
 )
@@ -74,7 +74,7 @@ def version_file(version):
 def build():
     ensure([("PyInstaller", "pyinstaller"), ("PIL", "pillow"), ("pystray", "pystray")])
     version = app_version(); ico = make_icon(); vfile = version_file(version)
-    cmd = [sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--onefile", "--windowed", "--name", "Qwen",
+    cmd = [sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--onefile", "--windowed", "--name", "Lume",
            "--icon", ico, "--version-file", vfile, "--distpath", DIST, "--workpath", os.path.join(BUILD, "work"), "--specpath", BUILD,
            "--collect-all", "webview", "--hidden-import", "clr", "--hidden-import", "clr_loader", "--hidden-import", "tls", "--hidden-import", "guests", "--hidden-import", "pystray._win32",
            "--exclude-module", "tkinter", "--exclude-module", "matplotlib", "--exclude-module", "numpy"]
@@ -82,13 +82,13 @@ def build():
         src = os.path.join(ROOT, item)
         if os.path.exists(src): cmd += ["--add-data", f"{src}{os.pathsep}{item if os.path.isdir(src) else '.'}"]
     cmd.append(os.path.join(ROOT, "app.py"))
-    say(f"Gerando Qwen.exe v{version}...")
+    say(f"Gerando Lume.exe v{version}...")
     t0 = time.time()
     with open(os.path.join(BUILD, "pyinstaller.log"), "w", encoding="utf-8") as lf:   # a saida do PyInstaller fica aqui (ajuda a achar o motivo quando falha)
         r = subprocess.run(cmd, cwd=ROOT, creationflags=NOWIN, stdout=lf, stderr=subprocess.STDOUT)
     if r.returncode != 0:
         with open(os.path.join(BUILD, "pyinstaller.log"), encoding="utf-8", errors="replace") as lf: say("Fim do log do PyInstaller:\n" + "".join(lf.readlines()[-15:]))
-    exe = os.path.join(DIST, "Qwen.exe")
+    exe = os.path.join(DIST, "Lume.exe")
     if r.returncode != 0 or not os.path.exists(exe):
         say(f"FALHOU (codigo {r.returncode})"); return False
     say(f"Pronto: {exe} ({os.path.getsize(exe) / 1048576:.1f} MB) em {time.time() - t0:.0f} s")

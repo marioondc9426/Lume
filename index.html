@@ -5,12 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="Qwen">
+    <meta name="apple-mobile-web-app-title" content="Lume">
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <meta name="theme-color" content="#111111">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <link rel="icon" type="image/png" href="/apple-touch-icon.png">
-    <title>Qwen</title>
+    <title>Lume</title>
     <style>
         :root { --bg-main: #1e1e1e; --bg-sidebar: #111; --bg-msg-user: #0056b3; --bg-msg-ai: #2d2d2d; --bg-input: #2d2d2d; --text-main: #e0e0e0; --text-muted: #888; --border-color: #333; --accent: #0056b3; --icon-filter: invert(1); --font: 'Segoe UI', sans-serif; --custom-bg-image: none; --custom-bg-opacity: 0; --warn: #e3a008; --danger: #d64545; }
         [data-theme="claude"] { --bg-main: #262624; --bg-sidebar: #1f1e1d; --bg-msg-user: #c4623f; --bg-msg-ai: #30302e; --bg-input: #30302e; --text-main: #ece9e2; --text-muted: #a09a8e; --border-color: #403e3a; --accent: #d97757; }
@@ -197,7 +197,7 @@
         .logo-img { height: 28px; width: auto; background: #fff; border-radius: 6px; padding: 3px 8px; margin-right: 6px; vertical-align: middle; flex-shrink: 0; }   /* fundo branco: o texto do logo da NVIDIA e preto */
         #sidebar h2.brand { display: flex; align-items: center; margin: 0 0 6px; }
         .brand-mark { height: 38px; width: auto; }
-        .brand-text { height: 26px; width: auto; margin: 0 0 0 10px !important; }   /* o texto "Qwen" e preto no PNG transparente: o filtro de icones deixa branco nos temas escuros */
+        .brand-text { height: 26px; width: auto; margin: 0 0 0 10px !important; }   /* o texto "lume" e preto no PNG transparente: o filtro de icones deixa branco nos temas escuros */
         #guest-chip { display: flex; align-items: center; gap: 8px; font-size: 0.8em; padding: 6px 10px; margin-bottom: 8px; border: 1px solid var(--border-color); border-radius: 8px; }
         #guest-chip button { margin-left: auto; background: none; border: 1px solid var(--border-color); color: var(--text-muted); border-radius: 6px; padding: 2px 8px; cursor: pointer; font-size: 0.95em; }
         #guest-banner { display: none; align-items: center; justify-content: center; gap: 12px; padding: 8px 14px; background: #9a6700; color: #fff; font-size: 0.9em; z-index: 600; flex-shrink: 0; flex-wrap: wrap; text-align: center; }
@@ -523,7 +523,7 @@
 
     <!-- Barra de titulo propria -->
     <div id="titlebar" class="pywebview-drag-region">
-        <div class="tb-title pywebview-drag-region">Qwen</div>
+        <div class="tb-title pywebview-drag-region">Lume</div>
         <div class="tb-btns">
             <button class="tb-btn" id="btn-min" title="Minimizar"><svg viewBox="0 0 12 12"><path d="M1 6h10"/></svg></button>
             <button class="tb-btn" id="btn-max" title="Maximizar"><svg viewBox="0 0 12 12"><rect x="1.5" y="1.5" width="9" height="9"/></svg></button>
@@ -536,7 +536,7 @@
         <div class="wl-card">
             <div class="wl-top"><span class="wl-ver" id="wl-ver"></span><select id="wl-lang" onchange="setLang(this.value); renderWelcomeCheck();" aria-label="Idioma / Language"><option value="pt">Português (Brasil)</option><option value="en">English</option></select></div>
             <div class="wl-hero">
-                <div class="wl-logo"><img class="brand-mark" src="icons/qwen-mark.png" alt=""><img class="ic brand-text" src="icons/qwen-text.png" alt="Qwen"></div>
+                <div class="wl-logo"><img class="brand-mark" src="icons/lume-mark.png" alt=""><img class="ic brand-text" src="icons/lume-text.png" alt="Lume"></div>
                 <h1 id="wl-title">Bem-vindo!</h1>
                 <p>Seu chat de IA local: rápido, privado e do seu jeito.</p>
             </div>
@@ -573,7 +573,7 @@
         </div>
 
         <div id="sidebar">
-            <h2 class="brand" title="Qwen"><img class="brand-mark" src="icons/qwen-mark.png" alt=""><img class="ic brand-text" src="icons/qwen-text.png" alt="Qwen"></h2>
+            <h2 class="brand" title="Lume"><img class="brand-mark" src="icons/lume-mark.png" alt=""><img class="ic brand-text" src="icons/lume-text.png" alt="Lume"></h2>
             <div id="root-chip">🔓 Acesso root (link secreto)</div>
             <div id="guest-chip" style="display:none;"><span id="guest-chip-name"></span><span id="guest-chip-use" class="muted"></span><button type="button" onclick="guestLogout()">Sair</button></div>
             <div class="tabs">
@@ -1049,8 +1049,8 @@
             'A GPU em si só atualiza o uso a cada ~100–1000 ms; valores menores que isso não deixam o número mais preciso.': 'The GPU itself only updates its usage every ~100–1000 ms; lower values do not make the number more precise.',
             'Salvar Tudo': 'Save all', 'Início': 'Home', 'Configurações': 'Settings', 'Mais opções em Configurações': 'More options in Settings', 'Idioma': 'Language', 'Tema': 'Theme',
             'Começa com o idioma do Windows; se não tivermos o idioma, usa o inglês.': 'Starts with the Windows language; if we do not have it, English is used.', 'As cores do app. Dá para criar temas próprios em Configurações.': 'The app colors. You can create your own themes in Settings.',
-            'Iniciar com o terminal': 'Start with the terminal', 'Abre uma janela de terminal com o log do app, como o run.bat. Só no Qwen.exe.': 'Opens a terminal window with the app log, like run.bat. Qwen.exe only.',
-            'Iniciar com o Windows': 'Start with Windows', 'Abre o Qwen sozinho quando você entra no Windows. Só no Qwen.exe.': 'Opens Qwen by itself when you sign in to Windows. Qwen.exe only.',
+            'Iniciar com o terminal': 'Start with the terminal', 'Abre uma janela de terminal com o log do app, como o run.bat. Só no Lume.exe.': 'Opens a terminal window with the app log, like run.bat. Lume.exe only.',
+            'Iniciar com o Windows': 'Start with Windows', 'Abre o Lume sozinho quando você entra no Windows. Só no Lume.exe.': 'Opens Lume by itself when you sign in to Windows. Lume.exe only.',
             'Pesquisar na web nas respostas': 'Search the web in answers', 'A IA pesquisa na internet quando a pergunta pede dados atuais.': 'The AI searches the internet when the question needs current data.',
             'Verificar atualizações ao abrir': 'Check for updates on startup', 'Avisa quando há uma versão nova.': 'Tells you when there is a new version.', 'Animações': 'Animations', 'Desligue se a interface pesar na placa de vídeo.': 'Turn off if the interface is heavy on the graphics card.',
             'Painel de desempenho': 'Performance panel', 'Mostra a VRAM e a velocidade no canto da tela.': 'Shows VRAM and speed in the corner of the screen.', 'Acesso pela rede (celular e amigos)': 'Network access (phone and friends)', 'Deixa outros aparelhos entrarem. A senha continua exigida pela internet.': 'Lets other devices in. The password is still required over the internet.', 'Bem-vindo!': 'Welcome!', 'Aplicativo': 'App', 'Modelos do Ollama': 'Ollama models', 'Nome do modelo, ex.: qwen3.5:4b': 'Model name, e.g. qwen3.5:4b', 'Baixar': 'Download',
@@ -1059,7 +1059,7 @@
             'O Ollama não está rodando.': 'Ollama is not running.', 'Nenhum modelo local instalado ainda: baixe um abaixo.': 'No local model installed yet: download one below.', 'Atualizar': 'Update', 'Apagar': 'Delete',
             'Atualizando {n} ({d}/{t})...': 'Updating {n} ({d}/{t})...', 'Última conferência: {d}': 'Last check: {d}', 'atualizados: {l}': 'updated: {l}', 'Esse modelo já está sendo baixado.': 'That model is already downloading.', 'Conectando...': 'Connecting...', 'Baixando': 'Downloading', 'Pronto!': 'Done!',
             'Não consegui baixar {n}: {e}': 'Could not download {n}: {e}', 'Download de {n} cancelado.': 'Download of {n} cancelled.', '{n} está pronto para usar.': '{n} is ready to use.', 'Apagar modelo?': 'Delete model?', '{n} será removido deste PC (libera espaço em disco). Você pode baixar de novo depois.': '{n} will be removed from this PC (frees disk space). You can download it again later.',
-            'Ícone na bandeja do sistema: fechar a janela só esconde o app, que continua rodando ao lado do relógio': 'System tray icon: closing the window only hides the app, which keeps running next to the clock', 'Iniciar com o terminal (só no Qwen.exe)': 'Start with the terminal (Qwen.exe only)', 'Iniciar com o Windows (só no Qwen.exe)': 'Start with Windows (Qwen.exe only)',
+            'Ícone na bandeja do sistema: fechar a janela só esconde o app, que continua rodando ao lado do relógio': 'System tray icon: closing the window only hides the app, which keeps running next to the clock', 'Iniciar com o terminal (só no Lume.exe)': 'Start with the terminal (Lume.exe only)', 'Iniciar com o Windows (só no Lume.exe)': 'Start with Windows (Lume.exe only)',
             'Baixar e instalar atualizações do app sozinho (você só confirma o reinício)': 'Download and install app updates automatically (you only confirm the restart)',
             'Ícone na bandeja do sistema': 'System tray icon', 'Fechar a janela só esconde o app: ele continua rodando ao lado do relógio e abre com um clique no ícone.': 'Closing the window only hides the app: it keeps running next to the clock and opens with one click on the icon.',
             'Instalar atualizações sozinho': 'Install updates automatically', 'Baixa e instala a versão nova em segundo plano; você só confirma o reinício.': 'Downloads and installs the new version in the background; you only confirm the restart.',
@@ -1345,8 +1345,8 @@
             };
             select('Idioma', 'Começa com o idioma do Windows; se não tivermos o idioma, usa o inglês.', curLang(), [['pt', 'Português (Brasil)'], ['en', 'English']], v => { setLang(v); $('wl-lang').value = v; });
             select('Tema', 'As cores do app. Dá para criar temas próprios em Configurações.', THEMES.includes(config.theme) ? config.theme : 'dark', THEMES.map(x => [x, x[0].toUpperCase() + x.slice(1)]), v => { config.theme = v; applyBaseTheme(v); saveState(); });
-            toggle('Iniciar com o terminal', 'Abre uma janela de terminal com o log do app, como o run.bat. Só no Qwen.exe.', ao.start_with_terminal, async (on, el) => { const r = await post({ start_with_terminal: on }); if (r.ok === undefined) el.checked = !on; }, !!ao.frozen);
-            toggle('Iniciar com o Windows', 'Abre o Qwen sozinho quando você entra no Windows. Só no Qwen.exe.', ao.start_with_windows, async (on, el) => { const r = await post({ start_with_windows: on }); if (r.ok === undefined) el.checked = !on; }, !!ao.frozen);
+            toggle('Iniciar com o terminal', 'Abre uma janela de terminal com o log do app, como o run.bat. Só no Lume.exe.', ao.start_with_terminal, async (on, el) => { const r = await post({ start_with_terminal: on }); if (r.ok === undefined) el.checked = !on; }, !!ao.frozen);
+            toggle('Iniciar com o Windows', 'Abre o Lume sozinho quando você entra no Windows. Só no Lume.exe.', ao.start_with_windows, async (on, el) => { const r = await post({ start_with_windows: on }); if (r.ok === undefined) el.checked = !on; }, !!ao.frozen);
             toggle('Ícone na bandeja do sistema', 'Fechar a janela só esconde o app: ele continua rodando ao lado do relógio e abre com um clique no ícone.', ao.tray, async (on, el) => { const r = await post({ tray: on }); if (r.ok === undefined) el.checked = !on; }, !!(auth.local && ao.tray_available));
             toggle('Instalar atualizações sozinho', 'Baixa e instala a versão nova em segundo plano; você só confirma o reinício.', config.autoInstall, on => { config.autoInstall = on; saveState(); if (on) checkUpdates(false); }, !!auth.local);
             toggle('Atualizar modelos sozinho', 'Uma vez por semana confere se saiu versão nova dos modelos baixados e atualiza.', ao.auto_update_models, async (on, el) => { const r = await post({ auto_update_models: on }); if (r.ok === undefined) el.checked = !on; }, !!auth.local);
@@ -2905,8 +2905,8 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 const sw = document.createElement('div'); sw.className = 'toggle-switch'; l.append(i, sw, document.createTextNode(' ' + tr(text))); box.appendChild(l);
             };
             tg('Ícone na bandeja do sistema: fechar a janela só esconde o app, que continua rodando ao lado do relógio', ao.tray, async (on, el) => { const r = await appOptPost({ tray: on }); if (r.ok === undefined) el.checked = !on; }, !!ao.tray_available);
-            tg('Iniciar com o terminal (só no Qwen.exe)', ao.start_with_terminal, async (on, el) => { const r = await appOptPost({ start_with_terminal: on }); if (r.ok === undefined) el.checked = !on; }, !!ao.frozen);
-            tg('Iniciar com o Windows (só no Qwen.exe)', ao.start_with_windows, async (on, el) => { const r = await appOptPost({ start_with_windows: on }); if (r.ok === undefined) el.checked = !on; }, !!ao.frozen);
+            tg('Iniciar com o terminal (só no Lume.exe)', ao.start_with_terminal, async (on, el) => { const r = await appOptPost({ start_with_terminal: on }); if (r.ok === undefined) el.checked = !on; }, !!ao.frozen);
+            tg('Iniciar com o Windows (só no Lume.exe)', ao.start_with_windows, async (on, el) => { const r = await appOptPost({ start_with_windows: on }); if (r.ok === undefined) el.checked = !on; }, !!ao.frozen);
             tg('Baixar e instalar atualizações do app sozinho (você só confirma o reinício)', config.autoInstall, on => { config.autoInstall = on; saveState(); if (on) checkUpdates(false); });
         }
 
