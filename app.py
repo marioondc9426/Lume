@@ -22,6 +22,8 @@ import hmac
 import secrets
 import socket
 import ssl
+import hashlib
+import tempfile
 import importlib
 import importlib.util
 import ctypes
@@ -44,8 +46,19 @@ except ImportError:
 
 PORT = 8000
 OLLAMA_URL = "http://127.0.0.1:11434"
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, BASE_DIR)
+FROZEN = bool(getattr(sys, "frozen", False))   # True quando roda como Qwen.exe (PyInstaller)
+RES_DIR = getattr(sys, "_MEIPASS", None) or os.path.dirname(os.path.abspath(__file__))   # o que vem dentro do programa: paginas e icones
+# Seus dados (conversas, chaves, certificados...): na pasta do projeto; no .exe ficam em %LOCALAPPDATA%\Qwen (ou na pasta indicada em QWEN_DATA_DIR)
+BASE_DIR = os.environ.get("QWEN_DATA_DIR") or (os.path.join(os.environ.get("LOCALAPPDATA") or os.path.dirname(sys.executable), "Qwen") if FROZEN else RES_DIR)
+sys.path.insert(0, RES_DIR)
+if FROZEN:
+    os.makedirs(BASE_DIR, exist_ok=True)
+    if not (sys.stdout and getattr(sys.stdout, "isatty", lambda: False)()):   # sem janela de console: o que seria impresso vai para o qwen.log
+        _lp = os.path.join(BASE_DIR, "qwen.log")
+        try:
+            if os.path.exists(_lp) and os.path.getsize(_lp) > 2_000_000: os.replace(_lp, _lp + ".old")
+        except OSError: pass
+        sys.stdout = sys.stderr = open(_lp, "a", encoding="utf-8", buffering=1)
 try: import tls   # HTTPS local (precisa do pacote "cryptography")
 except Exception: tls = None
 CERTS_DIR = os.path.join(BASE_DIR, "certs")
@@ -59,7 +72,7 @@ guest_recent = {}       # id do amigo -> horarios das ultimas respostas (limite 
 guest_lock = threading.Lock()
 login_recent_fails = []  # horarios das senhas erradas de qualquer IP (trava global contra tentativas pela internet)
 # Versao: "1.2" = versao nova com novidades (o numero depois do ponto sobe); "1.2.01", "1.2.02"... = correcoes (patches) dessa versao.
-VERSION = "1.7.03"
+VERSION = "1.8"
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")     # chaves de API, pasta de trabalho, uso
 HISTORY_FILE = os.path.join(BASE_DIR, "history.json")   # chats
 STATE_FILE = os.path.join(BASE_DIR, "state.json")       # preferencias da interface + memorias
@@ -87,8 +100,13 @@ COLOR_RESET = "\033[0m"; COLOR_GREEN = "\033[92m"; COLOR_YELLOW = "\033[93m"; CO
 if os.name == 'nt':
     os.system("")  # habilita cores ANSI no terminal do Windows
 
+_ANSI = re.compile(r"\033\[[0-9;]*m")
 def log(tag, msg, color=COLOR_RESET):
-    print(f"{COLOR_GRAY}{time.strftime('%H:%M:%S')}{COLOR_RESET} {color}[{tag}]{COLOR_RESET} {msg}", flush=True)
+    line = f"{COLOR_GRAY}{time.strftime('%H:%M:%S')}{COLOR_RESET} {color}[{tag}]{COLOR_RESET} {msg}"
+    try:
+        if not sys.stdout.isatty(): line = _ANSI.sub("", line)   # arquivo de log sem codigos de cor
+        print(line, flush=True)
+    except Exception: pass
 
 # ---------------------------------------------------------------- GPU
 NO_WINDOW = subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
@@ -310,6 +328,10 @@ def build_stats(days=30):
     return {"days": days, "totals": tot, "models": models, "exa": exa, "series": series, "since": min((e["ts"] for e in evs), default=None), "ollama": oll}
 
 # ---------------------------------------------------------------- rodar codigo dos blocos
+def python_exe():
+    """O Python que roda os blocos de codigo: este mesmo (rodando pelo fonte) ou o Python instalado no PC (rodando como .exe)."""
+    return (shutil.which("python") or shutil.which("py")) if FROZEN else sys.executable
+
 RUN_DIR = os.path.join(BASE_DIR, "code_runs")          # os scripts que voce mandou rodar
 PKG_DIR = os.path.join(BASE_DIR, "code_packages")      # bibliotecas instaladas para esses scripts (nao mexe no Python do app)
 RUN_TIMEOUT = 60
@@ -338,6 +360,18 @@ def py_imports(code):
 def missing_python_packages(code):
     """(pacotes pip que faltam, usa janela/GUI?)"""
     mods = py_imports(code); std = getattr(sys, "stdlib_module_names", set()); missing = []
+    if FROZEN:   # no .exe o import acontece no Python instalado, entao e ele que diz o que falta
+        py = python_exe()
+        if not py: return [], bool(mods & GUI_MODULES)
+        probe = "import sys, json, importlib.util\nstd = sys.stdlib_module_names\nprint(json.dumps([m for m in sys.argv[1:] if m not in std and m != '__future__' and importlib.util.find_spec(m) is None]))"
+        try:
+            r = subprocess.run([py, "-c", probe, *sorted(mods)], capture_output=True, text=True, timeout=30, creationflags=NOWIN, env=dict(os.environ, PYTHONPATH=os.pathsep.join(p for p in (PKG_DIR, os.environ.get("PYTHONPATH", "")) if p)))
+            absent = json.loads(r.stdout.strip().splitlines()[-1]) if r.returncode == 0 and r.stdout.strip() else []
+        except Exception: absent = []
+        for m in absent:
+            pkg = PIP_NAMES.get(m, m.replace("_", "-"))
+            if PIP_SPEC_RE.match(pkg) and pkg not in missing: missing.append(pkg)
+        return missing, bool(mods & GUI_MODULES)
     if PKG_DIR not in sys.path: sys.path.insert(0, PKG_DIR)
     importlib.invalidate_caches()
     for m in sorted(mods):
@@ -355,7 +389,9 @@ def run_code(lang, code, analyze=False, install=False):
     if lang not in RUN_LANGS: return {"error": "Linguagem sem botao de rodar."}
     if not isinstance(code, str) or not code.strip() or len(code) > 200000: return {"error": "Codigo vazio ou grande demais."}
     exe, args, missing, gui = None, [], [], False
-    if lang == "python": exe, (missing, gui) = sys.executable, missing_python_packages(code)
+    if lang == "python":
+        exe = python_exe(); missing, gui = missing_python_packages(code)
+        if not exe: return {"error": "Python nao encontrado neste PC (instale em python.org para rodar blocos Python)."}
     elif lang == "javascript": exe = shutil.which("node")
     elif lang == "powershell": exe = shutil.which("powershell")
     elif lang == "bat": exe = shutil.which("cmd")
@@ -373,7 +409,7 @@ def run_code(lang, code, analyze=False, install=False):
         os.makedirs(PKG_DIR, exist_ok=True)
         log("CODIGO", "Instalando: " + ", ".join(missing), COLOR_YELLOW)
         try:
-            r = subprocess.run([sys.executable, "-m", "pip", "install", "--disable-pip-version-check", "--target", PKG_DIR, *missing], capture_output=True, text=True, timeout=600, creationflags=NOWIN, encoding="utf-8", errors="replace")
+            r = subprocess.run([python_exe(), "-m", "pip", "install", "--disable-pip-version-check", "--target", PKG_DIR, *missing], capture_output=True, text=True, timeout=600, creationflags=NOWIN, encoding="utf-8", errors="replace")
         except subprocess.TimeoutExpired: return {"error": "A instalacao demorou demais (mais de 10 minutos)."}
         if r.returncode != 0: return {"ok": False, "exit": r.returncode, "output": "Falha ao instalar " + ", ".join(missing) + ":\n" + (r.stderr or r.stdout)[-3000:], "seconds": 0, "installed": []}
         out_install = "Instalado: " + ", ".join(missing) + "\n\n"
@@ -1082,7 +1118,7 @@ def device_name(ua):
     return "Dispositivo"
 
 _icon_cache = {}
-CUSTOM_ICON = os.path.join(BASE_DIR, "icons", "qwen.png")   # se existir, e o icone do app (janela, iPhone, aba do navegador)
+CUSTOM_ICON = os.path.join(RES_DIR, "icons", "qwen.png")   # se existir, e o icone do app (janela, iPhone, aba do navegador)
 
 def make_icon_png(size=180):
     """Icone do app: icons/qwen.png se existir; senao um raio branco sobre azul gerado sem bibliotecas externas."""
@@ -1200,7 +1236,7 @@ def start_https_server():
     port = int(load_config().get("https_port", HTTPS_PORT))
     try:
         TLSServer.ssl_context = tls.server_context(CERTS_DIR, lan_ips())
-        srv = TLSServer(("0.0.0.0", port), functools.partial(AppHandler, directory=BASE_DIR))
+        srv = TLSServer(("0.0.0.0", port), functools.partial(AppHandler, directory=RES_DIR))
     except Exception as e:
         log("HTTPS", f"Nao consegui ligar o HTTPS na porta {port}: {e}", COLOR_RED); return
     https_httpd = srv
@@ -2054,7 +2090,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
 def start_server():
     global httpd
-    handler = functools.partial(AppHandler, directory=BASE_DIR)
+    handler = functools.partial(AppHandler, directory=RES_DIR)
     host = "0.0.0.0" if load_config().get("remote_enabled") else "127.0.0.1"
     srv = None
     for attempt in range(8):   # na troca de modo o socket antigo pode demorar um instante para liberar a porta
@@ -2109,8 +2145,52 @@ def github_repo():
     except Exception: pass
     return DEFAULT_REPO
 
+def parse_ver(v):
+    n = [int(x) for x in re.findall(r"\d+", v or "")][:4]; return tuple(n + [0] * (3 - len(n)))   # "1.7.03" -> (1, 7, 3)
+
+def check_release():
+    """Versao do .exe: compara com a ultima Release do GitHub (o CI sobe o Qwen.exe em cada tag v*)."""
+    try:
+        req = urllib.request.Request(f"https://api.github.com/repos/{DEFAULT_REPO}/releases/latest", headers={"Accept": "application/vnd.github+json", "User-Agent": "qwen-updater"})
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r: d = json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            if e.code == 404: return {"status": "unknown", "local": VERSION, "local_date": "exe", "version": VERSION}
+            raise
+        remote = str(d.get("tag_name", "")).lstrip("vV"); asset = next((a for a in d.get("assets", []) if a["name"].lower().endswith(".exe")), None)
+        newer = parse_ver(remote) > parse_ver(VERSION)
+        return {"status": "available" if (newer and asset) else "uptodate" if parse_ver(remote) == parse_ver(VERSION) else "ahead" if not newer else "unknown",
+                "local": VERSION, "local_date": "exe", "version": VERSION, "remote_version": remote, "behind_by": 1 if newer else 0,
+                "commits": [{"sha": "v" + remote, "msg": (d.get("name") or ("v" + remote))}] if newer else [], "asset": ({"url": asset["browser_download_url"], "size": asset.get("size", 0), "digest": asset.get("digest", "")} if asset else None)}
+    except Exception as e:
+        return {"status": "error", "error": str(e)[:200]}
+
+pending_update = {"new": "", "cmd": ""}
+
+def apply_release():
+    """Baixa o Qwen.exe novo da Release e prepara a troca; o reinicio (restart_app) faz a troca com o app fechado."""
+    if not update_lock.acquire(blocking=False): return {"ok": False, "error": "busy"}
+    try:
+        info = check_release()
+        if info.get("status") != "available" or not info.get("asset"): return {"ok": False, "error": "pull", "detail": "Nao ha versao nova para baixar."}
+        a = info["asset"]; new = os.path.join(tempfile.gettempdir(), "Qwen-update.exe"); h = hashlib.sha256()
+        with urllib.request.urlopen(urllib.request.Request(a["url"], headers={"User-Agent": "qwen-updater"}), timeout=60) as r, open(new, "wb") as f:
+            for chunk in iter(lambda: r.read(1 << 20), b""): f.write(chunk); h.update(chunk)
+        if a.get("size") and os.path.getsize(new) != a["size"]: os.remove(new); return {"ok": False, "error": "pull", "detail": "O download veio incompleto."}
+        if a.get("digest", "").startswith("sha256:") and a["digest"][7:].lower() != h.hexdigest().lower(): os.remove(new); return {"ok": False, "error": "pull", "detail": "O arquivo baixado nao confere com o GitHub (sha256)."}
+        cmd = os.path.join(tempfile.gettempdir(), "qwen-update.cmd"); exe = sys.executable
+        with open(cmd, "w", encoding="utf-8") as f:
+            f.write(f'@echo off\r\nping -n 4 127.0.0.1 >nul\r\nset n=0\r\n:retry\r\nmove /y "{new}" "{exe}" >nul 2>&1\r\nif errorlevel 1 (\r\n  set /a n+=1\r\n  if %n% GEQ 20 goto fim\r\n  ping -n 2 127.0.0.1 >nul\r\n  goto retry\r\n)\r\n:fim\r\nstart "" "{exe}"\r\n')
+        pending_update.update(new=new, cmd=cmd); log("UPDATE", f"Versao {info['remote_version']} baixada; a troca acontece ao reiniciar.", COLOR_GREEN)
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "error": "pull", "detail": str(e)[:300]}
+    finally:
+        update_lock.release()
+
 def check_update():
     """Compara a versao deste PC com o main do GitHub. status: uptodate | available | ahead | diverged | unknown | error."""
+    if FROZEN: return check_release()
     try:
         code, local, _ = _git("rev-parse", "HEAD")
         if code != 0: return {"status": "error", "error": "no_git"}
@@ -2141,6 +2221,7 @@ update_lock = threading.Lock()
 
 def apply_update():
     """git pull --ff-only (recusa se houver arquivos do programa alterados a mao) e instala dependencias novas."""
+    if FROZEN: return apply_release()
     if not update_lock.acquire(blocking=False): return {"ok": False, "error": "busy"}
     try:
         code, dirty, _ = _git("status", "--porcelain", "--untracked-files=no")
@@ -2151,7 +2232,7 @@ def apply_update():
         log("UPDATE", "Atualizado: " + (out.splitlines()[-1] if out else "ok"), COLOR_GREEN)
         req = os.path.join(BASE_DIR, "requirements.txt")
         if os.path.isfile(req):
-            try: subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-r", req], cwd=BASE_DIR, timeout=300, creationflags=NOWIN)
+            try: subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-r", req], cwd=BASE_DIR, timeout=300, creationflags=NOWIN)   # (so no modo fonte)
             except Exception as e: log("UPDATE", f"pip falhou (ignorado): {e}", COLOR_YELLOW)
         return {"ok": True}
     except Exception as e:
@@ -2163,8 +2244,10 @@ window_api = None
 
 def restart_app():
     """Fecha este app e abre outro depois de alguns segundos (a porta precisa ser liberada primeiro)."""
-    subprocess.Popen(f'cmd /c "ping -n 4 127.0.0.1 >nul & "{sys.executable}" app.py"', cwd=BASE_DIR, shell=True,
-                     creationflags=getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+    flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    if FROZEN and pending_update["cmd"]: subprocess.Popen(["cmd", "/c", pending_update["cmd"]], creationflags=flags)   # troca o .exe pelo novo e abre
+    elif FROZEN: subprocess.Popen(f'cmd /c "ping -n 4 127.0.0.1 >nul & start "" "{sys.executable}""', shell=True, creationflags=flags)
+    else: subprocess.Popen(f'cmd /c "ping -n 4 127.0.0.1 >nul & "{sys.executable}" app.py"', cwd=BASE_DIR, shell=True, creationflags=flags)
     if window_api and window_api._window: window_api._window.destroy()
 
 def restart_server():
@@ -2274,7 +2357,7 @@ class WindowApi:
 
 if __name__ == '__main__':
     log("INICIO", f"Pasta do programa: {BASE_DIR}", COLOR_BLUE)
-    PORT = int(load_config().get("port", PORT))
+    PORT = int(os.environ.get("QWEN_PORT") or load_config().get("port", PORT))
     log("INICIO", "Groq: " + ("biblioteca ok" if HAS_GROQ else "biblioteca NAO instalada (pip install groq)"), COLOR_GREEN if HAS_GROQ else COLOR_YELLOW)
     threading.Thread(target=start_server, daemon=True).start()
     threading.Thread(target=start_ollama, daemon=True).start()

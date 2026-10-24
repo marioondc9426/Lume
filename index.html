@@ -184,6 +184,28 @@
         #guest-off { display: none; position: fixed; inset: 0; z-index: 5000; background: rgba(8,10,14,0.94); color: #fff; align-items: center; justify-content: center; flex-direction: column; gap: 14px; padding: 30px; text-align: center; }
         #guest-off h2 { margin: 0; } #guest-off p { max-width: 420px; color: #cbd0d6; line-height: 1.5; margin: 0; } #guest-off button { padding: 8px 18px; border-radius: 8px; border: 1px solid #fff; background: transparent; color: #fff; cursor: pointer; }
         body.guest #set-tab-server, body.guest .tab[data-tab="code"], body.guest #btn-stats { display: none !important; }
+        #welcome { display: none; position: fixed; inset: 0; z-index: 4000; align-items: center; justify-content: center; padding: 18px; overflow-y: auto;
+            background: radial-gradient(1100px 560px at 12% -10%, rgba(120,100,255,0.38), transparent 60%), radial-gradient(900px 520px at 105% 108%, rgba(40,120,235,0.32), transparent 58%), var(--bg-main); }
+        #welcome.show { display: flex; }
+        .wl-card { width: min(760px, 100%); margin: auto; padding: 28px 30px 26px; border-radius: 20px; border: 1px solid var(--border-color); background: color-mix(in srgb, var(--bg-main) 82%, transparent);
+            backdrop-filter: blur(14px); box-shadow: 0 30px 80px rgba(0,0,0,0.45); animation: wlIn .55s cubic-bezier(.2,.8,.2,1) both; }
+        body.no-anim .wl-card, body.no-anim .wl-feat { animation: none !important; }
+        @keyframes wlIn { from { opacity: 0; transform: translateY(18px) scale(.98); } to { opacity: 1; transform: none; } }
+        .wl-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; } .wl-ver { color: var(--text-muted); font-size: 0.8em; }
+        .wl-top select { width: auto; padding: 5px 10px; font-size: 0.85em; border-radius: 8px; }
+        .wl-hero { text-align: center; padding: 6px 0 18px; } .wl-logo { display: flex; align-items: center; justify-content: center; margin-bottom: 8px; }
+        .wl-logo .brand-mark { height: 54px; } .wl-logo .brand-text { height: 36px; margin-left: 14px !important; }
+        .wl-hero h1 { margin: 6px 0 4px; font-size: 1.7em; } .wl-hero p { margin: 0; color: var(--text-muted); font-size: 1em; }
+        .wl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 18px; }
+        .wl-feat { display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border-radius: 14px; border: 1px solid var(--border-color); background: rgba(128,128,128,0.07); animation: wlIn .6s cubic-bezier(.2,.8,.2,1) both; }
+        .wl-feat:nth-child(2) { animation-delay: .06s; } .wl-feat:nth-child(3) { animation-delay: .12s; } .wl-feat:nth-child(4) { animation-delay: .18s; }
+        .wl-fi { font-size: 1.5em; line-height: 1; } .wl-feat b { font-size: 0.95em; } .wl-feat span:last-child { font-size: 0.82em; color: var(--text-muted); line-height: 1.4; }
+        .wl-check { display: grid; gap: 7px; margin-bottom: 18px; }
+        .wl-row { display: flex; align-items: center; gap: 10px; font-size: 0.86em; padding: 9px 12px; border-radius: 10px; background: rgba(128,128,128,0.08); }
+        .wl-row .dot { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75em; flex-shrink: 0; color: #fff; background: #3fb950; }
+        .wl-row.warn .dot { background: #d29922; } .wl-row .grow { flex: 1; } .wl-row button { margin: 0; padding: 3px 10px; font-size: 0.9em; }
+        .wl-go { width: 100%; margin: 0; padding: 12px; font-size: 1.02em; border-radius: 12px; }
+        @media (max-width: 640px) { .wl-grid { grid-template-columns: 1fr; } .wl-card { padding: 20px 16px; } }
         .mo-label { flex: 1; display: flex; align-items: center; min-width: 0; }
         .mo-badge { font-size: 0.75em; padding: 1px 7px; border-radius: 9px; background: rgba(63,185,80,0.2); color: #3fb950; margin-left: 8px; white-space: nowrap; font-weight: normal; }
         .mo-badge.busy { background: rgba(227,160,8,0.2); color: var(--warn); }
@@ -459,6 +481,24 @@
         </div>
     </div>
 
+    <div id="welcome" role="dialog" aria-modal="true" aria-labelledby="wl-title">
+        <div class="wl-card">
+            <div class="wl-top"><span class="wl-ver" id="wl-ver"></span><select id="wl-lang" onchange="setLang(this.value); renderWelcomeCheck();" aria-label="Idioma / Language"><option value="pt">Português (Brasil)</option><option value="en">English</option></select></div>
+            <div class="wl-hero">
+                <div class="wl-logo"><img class="brand-mark" src="icons/qwen-mark.png" alt=""><img class="ic brand-text" src="icons/qwen-text.png" alt="Qwen"></div>
+                <h1 id="wl-title">Bem-vindo!</h1>
+                <p>Seu chat de IA local: rápido, privado e do seu jeito.</p>
+            </div>
+            <div class="wl-grid">
+                <div class="wl-feat"><span class="wl-fi">🧠</span><b>Modelos locais e na nuvem</b><span>Rode no seu PC com o Ollama ou use modelos da nuvem quando precisar.</span></div>
+                <div class="wl-feat"><span class="wl-fi">🌐</span><b>Pesquisa, arquivos e imagens</b><span>A IA pesquisa na web, lê PDFs e textos e entende imagens.</span></div>
+                <div class="wl-feat"><span class="wl-fi">💻</span><b>Aba Code</b><span>Ela escreve, roda e corrige código no seu PC, sempre pedindo a sua aprovação.</span></div>
+                <div class="wl-feat"><span class="wl-fi">📱</span><b>Em qualquer lugar</b><span>Use pelo celular, de fora de casa, e convide amigos com um link.</span></div>
+            </div>
+            <div class="wl-check" id="wl-check"></div>
+            <button class="btn btn-primary wl-go" onclick="closeWelcome()">Começar</button>
+        </div>
+    </div>
     <div id="guest-banner"></div>
     <div id="guest-off"><h2 id="guest-off-title"></h2><p id="guest-off-msg"></p><button type="button" onclick="guestPoll()">Tentar de novo</button></div>
     <div id="update-banner"><span id="update-banner-text"></span><button onclick="applyUpdate()">Atualizar agora</button><button class="later" onclick="dismissUpdateBanner()">Depois</button></div>
@@ -695,6 +735,7 @@
             <span class="hint">A GPU em si só atualiza o uso a cada ~100–1000 ms; valores menores que isso não deixam o número mais preciso.</span>
         </div>
 
+        <div class="srv-actions host-only"><button class="btn btn-secondary" onclick="closeSettings(); showWelcome();">Rever a tela de boas-vindas</button></div>
         <div class="section-title">Atualizações</div>
         <div class="form-group host-only">
             <span class="hint" id="upd-version">...</span>
@@ -940,7 +981,14 @@
             'Overlay de desempenho': 'Performance overlay', 'Mostrar overlay no canto superior direito': 'Show overlay in the top-right corner', 'Estilo': 'Style',
             'Padrão (colorido)': 'Default (colored)', 'Cinza (discreto)': 'Gray (subtle)', 'Atualização:': 'Refresh:',
             'A GPU em si só atualiza o uso a cada ~100–1000 ms; valores menores que isso não deixam o número mais preciso.': 'The GPU itself only updates its usage every ~100–1000 ms; lower values do not make the number more precise.',
-            'Salvar Tudo': 'Save all', 'Baixar cloudflared (sem administrador)': 'Download cloudflared (no administrator)', 'Baixando...': 'Downloading...', 'cloudflared instalado. Agora clique em Abrir túnel.': 'cloudflared installed. Now click Open tunnel.',
+            'Salvar Tudo': 'Save all', 'Bem-vindo!': 'Welcome!', 'Seu chat de IA local: rápido, privado e do seu jeito.': 'Your local AI chat: fast, private and yours.', 'Começar': 'Get started', 'Rever a tela de boas-vindas': 'See the welcome screen again',
+            'Modelos locais e na nuvem': 'Local and cloud models', 'Rode no seu PC com o Ollama ou use modelos da nuvem quando precisar.': 'Run on your PC with Ollama or use cloud models when you need them.',
+            'Pesquisa, arquivos e imagens': 'Search, files and images', 'A IA pesquisa na web, lê PDFs e textos e entende imagens.': 'The AI searches the web, reads PDFs and text, and understands images.',
+            'Aba Code': 'Code tab', 'Ela escreve, roda e corrige código no seu PC, sempre pedindo a sua aprovação.': 'It writes, runs and fixes code on your PC, always asking for your approval.',
+            'Em qualquer lugar': 'Anywhere', 'Use pelo celular, de fora de casa, e convide amigos com um link.': 'Use it from your phone, away from home, and invite friends with a link.',
+            'O Ollama não foi encontrado ou está parado. Ele roda os modelos no seu PC.': 'Ollama was not found or is stopped. It runs the models on your PC.', 'Baixar o Ollama': 'Get Ollama',
+            'Ollama funcionando · {n} modelo(s) instalado(s) neste PC.': 'Ollama is running · {n} model(s) installed on this PC.', 'Ollama funcionando, mas ainda sem modelos. Instale um com o comando: ollama pull qwen3.5:4b': 'Ollama is running, but there are no models yet. Install one with: ollama pull qwen3.5:4b', 'Copiar comando': 'Copy command',
+            'Placa de vídeo detectada: {gb} GB de VRAM.': 'Graphics card detected: {gb} GB of VRAM.', 'Nenhuma placa NVIDIA detectada: os modelos vão rodar na CPU, bem mais devagar.': 'No NVIDIA graphics card detected: models will run on the CPU, much slower.', 'Baixar cloudflared (sem administrador)': 'Download cloudflared (no administrator)', 'Baixando...': 'Downloading...', 'cloudflared instalado. Agora clique em Abrir túnel.': 'cloudflared installed. Now click Open tunnel.',
             'O túnel grátis do Cloudflare precisa do programa cloudflared. Clique em "Baixar cloudflared (sem administrador)": ele é baixado para a pasta do app e conferido pela assinatura digital da Cloudflare.': 'The free Cloudflare tunnel needs the cloudflared program. Click "Download cloudflared (no administrator)": it is downloaded to the app folder and checked against Cloudflare’s digital signature.', 'Exigir senha na rede de casa / Wi-Fi (desligado: qualquer aparelho do seu Wi-Fi entra sem senha)': 'Require a password on the home network / Wi-Fi (off: any device on your Wi-Fi gets in without one)',
             'Exigir senha pela internet (túnel) (desligado: quem tiver o endereço do túnel entra como dono, sem senha)': 'Require a password over the internet (tunnel) (off: anyone with the tunnel address gets in as the owner, without one)',
             'Ligar uma senha que estava desligada desconecta todos os aparelhos na hora.': 'Turning a password back on disconnects all devices immediately.', 'Acesso root pelo link secreto': 'Root access through the secret link',
@@ -1122,7 +1170,9 @@
         };
         const DEFAULT_SYS = { pt: 'Você é um assistente direto.', en: 'You are a direct assistant.' };
         const DEFAULT_CODE = { pt: CODE_PROMPT_DEFAULT, en: 'You are a coding agent. Use the tools to read, write and run code on the user’s computer. Briefly explain what you did.' };
-        const curLang = () => (config.lang || ((navigator.language || 'pt').toLowerCase().startsWith('pt') ? 'pt' : 'en')) === 'en' ? 'en' : 'pt';
+        const LANGS = ['pt', 'en'];   // idiomas que o app tem; qualquer outro cai no ingles
+        const sysLang = () => { for (const l of (navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || 'en'])) { const c = String(l).toLowerCase().slice(0, 2); if (LANGS.includes(c)) return c; } return 'en'; };
+        const curLang = () => (LANGS.includes(config.lang) ? config.lang : sysLang());
         function tr(s, vars) {
             let out = s;
             if (curLang() === 'en' && EN[s] !== undefined) out = EN[s];
@@ -1173,7 +1223,27 @@
             if ($('settings-modal').style.display === 'flex' && $('set-server').style.display !== 'none') refreshServerTab();
         }
         function applyAnim() { document.body.classList.toggle('no-anim', config.animations === false); saveState(); }
-        function setLang(v) { config.lang = v; saveState(); applyLang(); }
+        // ---------- boas-vindas (aparece na primeira vez; Configuracoes > Geral tem um botao para rever) ----------
+        function maybeShowWelcome() { if (config.welcomeDone || isGuest() || !(auth.local || auth.authed)) return; showWelcome(); }
+        function showWelcome() {
+            $('wl-lang').value = curLang(); $('wl-ver').textContent = 'v' + (auth.version || '');
+            $('welcome').classList.add('show'); translateStatic(); renderWelcomeCheck();
+        }
+        function closeWelcome() { $('welcome').classList.remove('show'); config.welcomeDone = true; saveState(); }
+        async function renderWelcomeCheck() {   // o que ja esta pronto neste PC e o que falta
+            const box = $('wl-check'); box.innerHTML = '';
+            const row = (ok, text, btn) => { const r = document.createElement('div'); r.className = 'wl-row' + (ok ? '' : ' warn'); const d = document.createElement('span'); d.className = 'dot'; d.textContent = ok ? '✓' : '!'; const t = document.createElement('span'); t.className = 'grow'; t.textContent = text; r.append(d, t); if (btn) { const b = document.createElement('button'); b.className = 'btn btn-secondary'; b.textContent = btn[0]; b.onclick = btn[1]; r.appendChild(b); } box.appendChild(r); };
+            let st = {}, mt = {}; try { st = await (await fetch(API + '/api/models_status')).json(); } catch (e) {} try { mt = await (await fetch(API + '/api/metrics')).json(); } catch (e) {}
+            if (!st.running) row(false, tr('O Ollama não foi encontrado ou está parado. Ele roda os modelos no seu PC.'), [tr('Baixar o Ollama'), () => openExternal('https://ollama.com/download')]);
+            else {
+                const local = (st.installed || []).filter(n => !/(:|-)cloud$/.test(n));
+                if (local.length) row(true, tr('Ollama funcionando · {n} modelo(s) instalado(s) neste PC.', { n: local.length }));
+                else row(false, tr('Ollama funcionando, mas ainda sem modelos. Instale um com o comando: ollama pull qwen3.5:4b'), [tr('Copiar comando'), () => copyText('ollama pull qwen3.5:4b')]);
+            }
+            if (mt.vram_total) row(true, tr('Placa de vídeo detectada: {gb} GB de VRAM.', { gb: (mt.vram_total / 1024).toFixed(1) }));
+            else row(false, tr('Nenhuma placa NVIDIA detectada: os modelos vão rodar na CPU, bem mais devagar.'));
+        }
+        function setLang(v) { config.lang = v; saveState(); applyLang(); if ($('welcome').classList.contains('show')) { $('wl-lang').value = v; renderWelcomeCheck(); } }
         const OVERFLOW_OVERHEAD = 1.3, OVERFLOW_LIMIT = 0.85;   // estimativa: modelo novo ocupa gb*1.3 e o total nao deve passar de 85% da VRAM
 
         const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } };
@@ -1278,7 +1348,7 @@
             applyBaseTheme(config.theme);
             phoneSetup();
             if (auth.local && config.autoUpdate !== false) { setTimeout(() => checkUpdates(false), 4000); setInterval(() => { if (config.autoUpdate !== false) checkUpdates(false); }, 6 * 3600 * 1000); }   // ao abrir e a cada 6 h
-            translateStatic(); $('opt-lang').value = curLang();
+            translateStatic(); $('opt-lang').value = curLang(); setTimeout(maybeShowWelcome, 500);
             document.body.classList.toggle('no-anim', config.animations === false);
             if (window.pywebview && window.pywebview.api) setupResizeGrips(); else window.addEventListener('pywebviewready', setupResizeGrips, { once: true });
             updateScale(config.scale); $('ui-scale').value = config.scale;

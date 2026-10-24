@@ -6,6 +6,11 @@ Como numerar:
 - O número fica em `VERSION` no topo do `app.py` e aparece em Configurações > Atualizações.
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
+## v1.8
+- **Qwen.exe**: o app vira um programa único (`python build_exe.py` gera `dist/Qwen.exe`, com o ícone do Qwen e a versão do app). Os dados ficam em `%LOCALAPPDATA%\Qwen` e o log em `qwen.log`. O `.exe` usa o Python do PC só para os blocos de código.
+- O `.exe` é gerado sozinho a cada commit (gancho do Git em `.githooks`, ative com `setup-hooks.bat`) e no GitHub (Actions: em tags `v*` o `.exe` vai para uma Release, de onde o app se atualiza).
+- Tela de **boas-vindas** na primeira vez: o idioma vem do Windows (português ou inglês; qualquer outro idioma cai no inglês), com a checagem do Ollama, dos modelos e da placa de vídeo.
+
 ## v1.7.03
 - Logo do topo da barra lateral sem fundo branco: a estrela roxa e o texto "Qwen" (que acompanha o tema: branco nos escuros, preto no claro) são imagens transparentes separadas.
 

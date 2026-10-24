@@ -1,0 +1,9 @@
+#!/bin/sh
+# Depois de cada commit: gera o Qwen.exe por tras (dist/Qwen.exe), so se mudou algo que entra no programa.
+# Para ativar neste clone: git config core.hooksPath .githooks   (o setup-hooks.bat faz isso)
+changed=$(git diff-tree --no-commit-id --name-only -r HEAD 2>/dev/null)
+echo "$changed" | grep -E '\.(py|html|ico|png|svg)$|^icons/|^requirements|^CHANGELOG\.md$' >/dev/null 2>&1 || exit 0
+PY=$(command -v python || command -v py)
+[ -z "$PY" ] && exit 0
+( "$PY" build_exe.py --background >/dev/null 2>&1 & )
+exit 0
