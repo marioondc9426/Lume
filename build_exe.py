@@ -84,7 +84,10 @@ def build():
     cmd.append(os.path.join(ROOT, "app.py"))
     say(f"Gerando Qwen.exe v{version}...")
     t0 = time.time()
-    r = subprocess.run(cmd, cwd=ROOT, creationflags=NOWIN)
+    with open(os.path.join(BUILD, "pyinstaller.log"), "w", encoding="utf-8") as lf:   # a saida do PyInstaller fica aqui (ajuda a achar o motivo quando falha)
+        r = subprocess.run(cmd, cwd=ROOT, creationflags=NOWIN, stdout=lf, stderr=subprocess.STDOUT)
+    if r.returncode != 0:
+        with open(os.path.join(BUILD, "pyinstaller.log"), encoding="utf-8", errors="replace") as lf: say("Fim do log do PyInstaller:\n" + "".join(lf.readlines()[-15:]))
     exe = os.path.join(DIST, "Qwen.exe")
     if r.returncode != 0 or not os.path.exists(exe):
         say(f"FALHOU (codigo {r.returncode})"); return False
