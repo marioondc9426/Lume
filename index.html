@@ -905,7 +905,8 @@
                         <div class="srv-actions"><a class="btn btn-secondary" id="phone-ca-link" href="#">Baixar certificado</a><a class="btn btn-primary" id="phone-open-https" href="#">Abrir versão segura (https)</a></div>
                     </div>
                 </div>
-                <div id="ios-install" class="set-pane" style="display:none;">
+            </div>
+            <div id="ios-install" class="set-pane" style="display:none;">
                     <div class="section-title">Instalar app (iPhone)</div>
                     <span class="hint">Coloca na tela inicial um ícone que abre só este site, em tela cheia. Depois de instalar, conecte de novo no ícone novo, porque o iPhone guarda o login separado do Safari.</span>
                     <div class="srv-actions">
@@ -913,7 +914,6 @@
                         <button class="btn btn-secondary" onclick="showIosTutorial()">ou siga este tutorial</button>
                     </div>
                 </div>
-            </div>
         </div>
         <button class="btn btn-primary" id="settings-save" onclick="saveSettings()">Salvar</button>
     </div></div>
@@ -3458,11 +3458,11 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
         async function refreshServerTab() {
             $('srv-host').style.display = auth.local ? '' : 'none';
             $('srv-client').style.display = auth.local ? 'none' : '';
+            $('ios-install').style.display = (!auth.local || auth.root) && isIphone() && !isStandalone() ? '' : 'none';   // tambem para quem entrou como root pelo iPhone
             if (!auth.local) {
                 $('srv-conn-badge').textContent = tr(auth.authed ? 'conectado ✓' : 'não conectado'); $('srv-conn-badge').classList.toggle('ok', auth.authed);
                 $('srv-conn-host').textContent = location.host;
                 $('srv-connect-btn').style.display = auth.authed ? 'none' : ''; $('srv-disconnect-btn').style.display = auth.authed ? '' : 'none';
-                $('ios-install').style.display = isIphone() && !isStandalone() ? '' : 'none';
                 renderPhoneSection();   // some no iPhone que ja tem o app instalado
                 return;
             }

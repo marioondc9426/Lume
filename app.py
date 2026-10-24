@@ -1598,7 +1598,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 "devices": [{"id": t[:8], "name": i.get("name", ""), "ip": i.get("ip", ""), "created": i.get("created", 0), "last": i.get("last", 0)} for t, i in cfg["tokens"].items()],
             })
         if p == '/api/ios_profile':
-            if local:
+            if self.is_desktop():   # root vindo do iPhone usa o endereco que ele mesmo abriu (como qualquer celular), nao o IP do PC
                 host = (self.query.get('host') or [''])[0]
                 if not re.fullmatch(r'[\w.\-]+', host or ''): host = (lan_ips() or ['127.0.0.1'])[0]
                 base = f"https://{host}:{int(load_config().get('https_port', HTTPS_PORT))}" if (self.query.get('https') or [''])[0] == '1' and https_httpd is not None else f"http://{host}:{PORT}"
