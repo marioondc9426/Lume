@@ -72,7 +72,7 @@ guest_recent = {}       # id do amigo -> horarios das ultimas respostas (limite 
 guest_lock = threading.Lock()
 login_recent_fails = []  # horarios das senhas erradas de qualquer IP (trava global contra tentativas pela internet)
 # Versao: "1.2" = versao nova com novidades (o numero depois do ponto sobe); "1.2.01", "1.2.02"... = correcoes (patches) dessa versao.
-VERSION = "1.8.02"
+VERSION = "1.9"
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")     # chaves de API, pasta de trabalho, uso
 HISTORY_FILE = os.path.join(BASE_DIR, "history.json")   # chats
 STATE_FILE = os.path.join(BASE_DIR, "state.json")       # preferencias da interface + memorias
@@ -928,6 +928,8 @@ def shutdown_all():
     """Ao fechar o app: para a geracao, descarrega todos os modelos e encerra o que foi iniciado aqui."""
     stop_generation_flag.set()
     stop_tunnel()
+    try: set_terminal(False)   # fecha o terminal do log, se estiver aberto
+    except Exception: pass
     stop_gpu_stream()
     for m in ollama_ps():
         try:
@@ -1045,7 +1047,7 @@ STATIC_PAGES = ("/", "/index.html")
 PAGE_ALIAS = {"/share": "/share.html", "/dashboard": "/dashboard.html"}
 # So o proprio PC (janela do app) pode usar estas rotas
 LOCAL_ONLY_POST = ("/api/save_config", "/api/save_key", "/api/server_config", "/api/perf_interval",
-                   "/api/custom_theme", "/api/custom_theme_delete", "/api/resolve_pending", "/api/export", "/api/ios_profile_save", "/api/undo", "/api/stats_clear", "/api/open_url", "/api/update_apply", "/api/restart_app", "/api/run_code", "/api/tunnel_start", "/api/tunnel_stop", "/api/tunnel_install")
+                   "/api/custom_theme", "/api/custom_theme_delete", "/api/resolve_pending", "/api/export", "/api/ios_profile_save", "/api/undo", "/api/stats_clear", "/api/open_url", "/api/update_apply", "/api/restart_app", "/api/run_code", "/api/tunnel_start", "/api/tunnel_stop", "/api/tunnel_install", "/api/app_options")
 PUBLIC_POST = ("/api/auth/login", "/api/auth/logout", "/api/guest/register", "/api/guest/code")
 LOGIN_MAX_FAILS, LOGIN_LOCK_SECONDS = 5, 60
 login_failures = {}   # ip -> [falhas, inicio]
@@ -1361,6 +1363,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         if not p.startswith('/api/'):
             return self.serve_static(p)
         local = self.is_local()
+        if p == '/api/app_options':
+            if not local: return self.send_json({"error": "local_only"}, 403)
+            return self.send_json(app_options())
         if p == '/api/tunnel':
             if not local: return self.send_json({"error": "local_only"}, 403)
             return self.send_json({**tunnel_state, "cloudflared": bool(find_cloudflared()), "tailscale": bool(shutil.which("tailscale")), "port": PORT})
@@ -1619,6 +1624,14 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         if p == '/api/update_apply':
             return self.send_json(apply_update())
         if p == '/api/tunnel_install': return self.send_json(install_cloudflared())
+        if p == '/api/app_options':
+            cfg = load_config()
+            if "start_with_terminal" in data:
+                cfg["start_with_terminal"] = bool(data["start_with_terminal"]); save_config(cfg); set_terminal(cfg["start_with_terminal"])
+            if "start_with_windows" in data:
+                try: autostart_set(bool(data["start_with_windows"]))
+                except Exception as e: return self.send_json({"error": f"Nao consegui mudar: {e}"}, 500)
+            return self.send_json({"ok": True, **app_options()})
         if p == '/api/tunnel_start': return self.send_json(start_tunnel())
         if p == '/api/tunnel_stop': stop_tunnel(); return self.send_json({"ok": True})
         if p == '/api/restart_app':
@@ -2262,6 +2275,50 @@ def restart_server():
 
 WINDOW_TITLE = APP_NAME
 
+# ---------------------------------------------------------------- opcoes do .exe: terminal com o log e iniciar com o Windows
+terminal_proc = None
+
+def terminal_is_open():
+    return bool(terminal_proc and terminal_proc.poll() is None)
+
+def set_terminal(on):
+    """Abre/fecha uma janela de terminal que acompanha o log (qwen.log) ao vivo. E uma janela a parte: fechar o terminal nao fecha o app. So no .exe (pelo run.bat o terminal ja existe)."""
+    global terminal_proc
+    if os.name != "nt" or not FROZEN: return False
+    if on and not terminal_is_open():
+        lp = os.path.join(BASE_DIR, "qwen.log").replace("'", "''")
+        script = f"$Host.UI.RawUI.WindowTitle = '{APP_NAME} - log'; Get-Content -LiteralPath '{lp}' -Tail 200 -Wait -Encoding UTF8"
+        try: terminal_proc = subprocess.Popen(["powershell.exe", "-NoProfile", "-NoExit", "-Command", script], creationflags=0x00000010)   # CREATE_NEW_CONSOLE
+        except OSError as e:
+            log("TERMINAL", f"Nao consegui abrir o terminal: {e}", COLOR_RED); return False
+        log("TERMINAL", "Terminal do log aberto (pode fechar a janela sem fechar o app).", COLOR_CYAN)
+    elif not on and terminal_is_open():
+        subprocess.run(["taskkill", "/T", "/F", "/PID", str(terminal_proc.pid)], capture_output=True, creationflags=NOWIN); terminal_proc = None
+    return True
+
+RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
+
+def autostart_get():
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY) as k: return bool(winreg.QueryValueEx(k, APP_NAME)[0])
+    except Exception: return False
+
+def autostart_set(on):
+    """Iniciar com o Windows: um valor na chave Run do usuario (nao precisa de administrador). So vale para o .exe."""
+    if not FROZEN: return False
+    import winreg
+    with winreg.OpenKey(winreg.HKEY_CURRENT_USER, RUN_KEY, 0, winreg.KEY_SET_VALUE) as k:
+        if on: winreg.SetValueEx(k, APP_NAME, 0, winreg.REG_SZ, f'"{sys.executable}"')
+        else:
+            try: winreg.DeleteValue(k, APP_NAME)
+            except FileNotFoundError: pass
+    return True
+
+def app_options():
+    cfg = load_config()
+    return {"frozen": FROZEN, "start_with_terminal": bool(cfg.get("start_with_terminal")), "terminal_open": terminal_is_open(), "start_with_windows": autostart_get(), "remote_enabled": bool(cfg.get("remote_enabled"))}
+
 # ---------------------------------------------------------------- tunel para acessar de fora de casa
 tunnel_state = {"running": False, "url": "", "error": "", "tool": ""}
 _tunnel_proc = None
@@ -2358,6 +2415,7 @@ class WindowApi:
 if __name__ == '__main__':
     log("INICIO", f"Pasta do programa: {BASE_DIR}", COLOR_BLUE)
     PORT = int(os.environ.get("QWEN_PORT") or load_config().get("port", PORT))
+    if FROZEN and load_config().get("start_with_terminal"): set_terminal(True)
     log("INICIO", "Groq: " + ("biblioteca ok" if HAS_GROQ else "biblioteca NAO instalada (pip install groq)"), COLOR_GREEN if HAS_GROQ else COLOR_YELLOW)
     threading.Thread(target=start_server, daemon=True).start()
     threading.Thread(target=start_ollama, daemon=True).start()

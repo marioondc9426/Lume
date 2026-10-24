@@ -6,6 +6,12 @@ Como numerar:
 - O número fica em `VERSION` no topo do `app.py` e aparece em Configurações > Atualizações.
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
+## v1.9
+- A tela de boas-vindas ganhou a aba **Configurações**, com as opções mais usadas valendo na hora: idioma, tema, **iniciar com o terminal**, **iniciar com o Windows**, pesquisa na web, atualizações, animações, painel de desempenho e acesso pela rede.
+- **Iniciar com o terminal** (só no `Qwen.exe`): abre uma janela de terminal que acompanha o log ao vivo, como o `run.bat`. É uma janela à parte: fechá-la não fecha o app.
+- **Iniciar com o Windows** (só no `Qwen.exe`): grava na chave `Run` do seu usuário, sem precisar de administrador.
+- Corrigido: o botão de avisar sobre atualizações em Configurações não guardava a escolha.
+
 ## v1.8.02
 - `config.json` e os outros arquivos de dados abrem mesmo se foram salvos com BOM (acontece ao editar no Bloco de Notas ou no PowerShell).
 

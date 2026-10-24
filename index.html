@@ -205,6 +205,14 @@
         .wl-row .dot { width: 18px; height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75em; flex-shrink: 0; color: #fff; background: #3fb950; }
         .wl-row.warn .dot { background: #d29922; } .wl-row .grow { flex: 1; } .wl-row button { margin: 0; padding: 3px 10px; font-size: 0.9em; }
         .wl-go { width: 100%; margin: 0; padding: 12px; font-size: 1.02em; border-radius: 12px; }
+        .wl-tabs { display: flex; gap: 6px; padding: 4px; border-radius: 12px; background: rgba(128,128,128,0.12); margin: 0 auto 16px; width: fit-content; }
+        .wl-tabs button { border: 0; background: transparent; color: var(--text-muted); padding: 7px 20px; border-radius: 9px; cursor: pointer; font-size: 0.9em; transition: background .2s, color .2s; }
+        .wl-tabs button.on { background: var(--accent); color: #fff; }
+        .wl-opts { display: grid; gap: 8px; margin-bottom: 14px; max-height: 340px; overflow-y: auto; padding-right: 4px; }
+        .wl-opt { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--border-color); background: rgba(128,128,128,0.07); margin: 0; }
+        .wl-opt .wl-ot { flex: 1; display: flex; flex-direction: column; gap: 2px; font-size: 0.9em; } .wl-opt small { color: var(--text-muted); font-size: 0.82em; line-height: 1.35; }
+        .wl-opt.off { opacity: .5; } .wl-opt select { width: auto; padding: 5px 10px; font-size: 0.9em; border-radius: 8px; }
+        .wl-more { text-align: center; margin-bottom: 14px; } .wl-more .btn { margin: 0; }
         @media (max-width: 640px) { .wl-grid { grid-template-columns: 1fr; } .wl-card { padding: 20px 16px; } }
         .mo-label { flex: 1; display: flex; align-items: center; min-width: 0; }
         .mo-badge { font-size: 0.75em; padding: 1px 7px; border-radius: 9px; background: rgba(63,185,80,0.2); color: #3fb950; margin-left: 8px; white-space: nowrap; font-weight: normal; }
@@ -489,13 +497,15 @@
                 <h1 id="wl-title">Bem-vindo!</h1>
                 <p>Seu chat de IA local: rápido, privado e do seu jeito.</p>
             </div>
-            <div class="wl-grid">
+            <div class="wl-tabs"><button type="button" id="wl-tab-home" class="on" onclick="wlTab('home')">Início</button><button type="button" id="wl-tab-cfg" onclick="wlTab('cfg')">Configurações</button></div>
+            <div id="wl-home"><div class="wl-grid">
                 <div class="wl-feat"><span class="wl-fi">🧠</span><b>Modelos locais e na nuvem</b><span>Rode no seu PC com o Ollama ou use modelos da nuvem quando precisar.</span></div>
                 <div class="wl-feat"><span class="wl-fi">🌐</span><b>Pesquisa, arquivos e imagens</b><span>A IA pesquisa na web, lê PDFs e textos e entende imagens.</span></div>
                 <div class="wl-feat"><span class="wl-fi">💻</span><b>Aba Code</b><span>Ela escreve, roda e corrige código no seu PC, sempre pedindo a sua aprovação.</span></div>
                 <div class="wl-feat"><span class="wl-fi">📱</span><b>Em qualquer lugar</b><span>Use pelo celular, de fora de casa, e convide amigos com um link.</span></div>
             </div>
-            <div class="wl-check" id="wl-check"></div>
+            <div class="wl-check" id="wl-check"></div></div>
+            <div id="wl-cfg" style="display:none;"><div class="wl-opts" id="wl-opts"></div><div class="wl-more"><button class="btn btn-secondary" type="button" onclick="closeWelcome(); openSettings();">Mais opções em Configurações</button></div></div>
             <button class="btn btn-primary wl-go" onclick="closeWelcome()">Começar</button>
         </div>
     </div>
@@ -744,7 +754,7 @@
                 <button class="btn btn-primary" id="upd-apply-btn" style="display:none;" onclick="applyUpdate()">Atualizar agora</button>
             </div>
             <div id="upd-list" class="hint"></div>
-            <label class="toggle-container"><input type="checkbox" id="opt-autoupd" onchange="config.autoUpdate = this.checked; saveToStorage();"><div class="toggle-switch"></div> Avisar quando houver versão nova ao abrir o app</label>
+            <label class="toggle-container"><input type="checkbox" id="opt-autoupd" onchange="config.autoUpdate = this.checked; saveState();"><div class="toggle-switch"></div> Avisar quando houver versão nova ao abrir o app</label>
         </div>
         </div>
 
@@ -981,7 +991,13 @@
             'Overlay de desempenho': 'Performance overlay', 'Mostrar overlay no canto superior direito': 'Show overlay in the top-right corner', 'Estilo': 'Style',
             'Padrão (colorido)': 'Default (colored)', 'Cinza (discreto)': 'Gray (subtle)', 'Atualização:': 'Refresh:',
             'A GPU em si só atualiza o uso a cada ~100–1000 ms; valores menores que isso não deixam o número mais preciso.': 'The GPU itself only updates its usage every ~100–1000 ms; lower values do not make the number more precise.',
-            'Salvar Tudo': 'Save all', 'Bem-vindo!': 'Welcome!', 'Seu chat de IA local: rápido, privado e do seu jeito.': 'Your local AI chat: fast, private and yours.', 'Começar': 'Get started', 'Rever a tela de boas-vindas': 'See the welcome screen again',
+            'Salvar Tudo': 'Save all', 'Início': 'Home', 'Configurações': 'Settings', 'Mais opções em Configurações': 'More options in Settings', 'Idioma': 'Language', 'Tema': 'Theme',
+            'Começa com o idioma do Windows; se não tivermos o idioma, usa o inglês.': 'Starts with the Windows language; if we do not have it, English is used.', 'As cores do app. Dá para criar temas próprios em Configurações.': 'The app colors. You can create your own themes in Settings.',
+            'Iniciar com o terminal': 'Start with the terminal', 'Abre uma janela de terminal com o log do app, como o run.bat. Só no Qwen.exe.': 'Opens a terminal window with the app log, like run.bat. Qwen.exe only.',
+            'Iniciar com o Windows': 'Start with Windows', 'Abre o Qwen sozinho quando você entra no Windows. Só no Qwen.exe.': 'Opens Qwen by itself when you sign in to Windows. Qwen.exe only.',
+            'Pesquisar na web nas respostas': 'Search the web in answers', 'A IA pesquisa na internet quando a pergunta pede dados atuais.': 'The AI searches the internet when the question needs current data.',
+            'Verificar atualizações ao abrir': 'Check for updates on startup', 'Avisa quando há uma versão nova.': 'Tells you when there is a new version.', 'Animações': 'Animations', 'Desligue se a interface pesar na placa de vídeo.': 'Turn off if the interface is heavy on the graphics card.',
+            'Painel de desempenho': 'Performance panel', 'Mostra a VRAM e a velocidade no canto da tela.': 'Shows VRAM and speed in the corner of the screen.', 'Acesso pela rede (celular e amigos)': 'Network access (phone and friends)', 'Deixa outros aparelhos entrarem. A senha continua exigida pela internet.': 'Lets other devices in. The password is still required over the internet.', 'Bem-vindo!': 'Welcome!', 'Seu chat de IA local: rápido, privado e do seu jeito.': 'Your local AI chat: fast, private and yours.', 'Começar': 'Get started', 'Rever a tela de boas-vindas': 'See the welcome screen again',
             'Modelos locais e na nuvem': 'Local and cloud models', 'Rode no seu PC com o Ollama ou use modelos da nuvem quando precisar.': 'Run on your PC with Ollama or use cloud models when you need them.',
             'Pesquisa, arquivos e imagens': 'Search, files and images', 'A IA pesquisa na web, lê PDFs e textos e entende imagens.': 'The AI searches the web, reads PDFs and text, and understands images.',
             'Aba Code': 'Code tab', 'Ela escreve, roda e corrige código no seu PC, sempre pedindo a sua aprovação.': 'It writes, runs and fixes code on your PC, always asking for your approval.',
@@ -1224,10 +1240,42 @@
         }
         function applyAnim() { document.body.classList.toggle('no-anim', config.animations === false); saveState(); }
         // ---------- boas-vindas (aparece na primeira vez; Configuracoes > Geral tem um botao para rever) ----------
+        function wlTab(name) {
+            $('wl-home').style.display = name === 'home' ? '' : 'none'; $('wl-cfg').style.display = name === 'cfg' ? '' : 'none';
+            $('wl-tab-home').classList.toggle('on', name === 'home'); $('wl-tab-cfg').classList.toggle('on', name === 'cfg');
+            if (name === 'cfg') renderWelcomeOptions();
+        }
+        async function renderWelcomeOptions() {   // as opcoes mais usadas; cada uma vale na hora
+            const box = $('wl-opts'); box.innerHTML = '';
+            let ao = { frozen: false }; if (auth.local) { try { ao = await (await fetch(API + '/api/app_options')).json(); } catch (e) {} }
+            const post = async body => { try { const r = await (await fetch(API + '/api/app_options', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json(); if (r.error) showInfo(r.error, 7000); return r; } catch (e) { showInfo('Servidor não respondeu.'); return {}; } };
+            const toggle = (title, hint, on, change, enabled = true) => {
+                const l = document.createElement('label'); l.className = 'toggle-container wl-opt' + (enabled ? '' : ' off');
+                const i = document.createElement('input'); i.type = 'checkbox'; i.checked = !!on; i.disabled = !enabled; i.onchange = () => change(i.checked, i);
+                const sw = document.createElement('div'); sw.className = 'toggle-switch'; const t = document.createElement('span'); t.className = 'wl-ot';
+                const b = document.createElement('b'); b.textContent = tr(title); const h = document.createElement('small'); h.textContent = tr(hint); t.append(b, h); l.append(i, sw, t); box.appendChild(l);
+            };
+            const select = (title, hint, value, opts, change) => {
+                const l = document.createElement('div'); l.className = 'wl-opt'; const t = document.createElement('span'); t.className = 'wl-ot';
+                const b = document.createElement('b'); b.textContent = tr(title); const h = document.createElement('small'); h.textContent = tr(hint); t.append(b, h);
+                const s = document.createElement('select'); opts.forEach(([v, n]) => s.add(new Option(n, v))); s.value = value; s.onchange = () => change(s.value); l.append(t, s); box.appendChild(l);
+            };
+            select('Idioma', 'Começa com o idioma do Windows; se não tivermos o idioma, usa o inglês.', curLang(), [['pt', 'Português (Brasil)'], ['en', 'English']], v => { setLang(v); $('wl-lang').value = v; });
+            select('Tema', 'As cores do app. Dá para criar temas próprios em Configurações.', THEMES.includes(config.theme) ? config.theme : 'dark', THEMES.map(x => [x, x[0].toUpperCase() + x.slice(1)]), v => { config.theme = v; applyBaseTheme(v); saveState(); });
+            toggle('Iniciar com o terminal', 'Abre uma janela de terminal com o log do app, como o run.bat. Só no Qwen.exe.', ao.start_with_terminal, async (on, el) => { const r = await post({ start_with_terminal: on }); if (r.ok === undefined) el.checked = !on; }, !!ao.frozen);
+            toggle('Iniciar com o Windows', 'Abre o Qwen sozinho quando você entra no Windows. Só no Qwen.exe.', ao.start_with_windows, async (on, el) => { const r = await post({ start_with_windows: on }); if (r.ok === undefined) el.checked = !on; }, !!ao.frozen);
+            toggle('Pesquisar na web nas respostas', 'A IA pesquisa na internet quando a pergunta pede dados atuais.', config.webSearch, on => { config.webSearch = on; saveState(); });
+            toggle('Verificar atualizações ao abrir', 'Avisa quando há uma versão nova.', config.autoUpdate !== false, on => { config.autoUpdate = on; saveState(); });
+            toggle('Animações', 'Desligue se a interface pesar na placa de vídeo.', config.animations !== false, on => { config.animations = on; applyAnim(); }, true);
+            toggle('Painel de desempenho', 'Mostra a VRAM e a velocidade no canto da tela.', config.perfEnabled, on => setPerfEnabled(on));
+            toggle('Acesso pela rede (celular e amigos)', 'Deixa outros aparelhos entrarem. A senha continua exigida pela internet.', ao.remote_enabled, async (on, el) => {
+                try { await fetch(API + '/api/server_config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ remote_enabled: on }) }); showInfo(on ? 'Ligando o acesso pela rede...' : 'Desligando o acesso pela rede...', 3000); } catch (e) { el.checked = !on; }
+            }, !!auth.local);
+        }
         function maybeShowWelcome() { if (config.welcomeDone || isGuest() || !(auth.local || auth.authed)) return; showWelcome(); }
         function showWelcome() {
             $('wl-lang').value = curLang(); $('wl-ver').textContent = 'v' + (auth.version || '');
-            $('welcome').classList.add('show'); translateStatic(); renderWelcomeCheck();
+            $('welcome').classList.add('show'); wlTab('home'); translateStatic(); renderWelcomeCheck();
         }
         function closeWelcome() { $('welcome').classList.remove('show'); config.welcomeDone = true; saveState(); }
         async function renderWelcomeCheck() {   // o que ja esta pronto neste PC e o que falta
@@ -1243,7 +1291,7 @@
             if (mt.vram_total) row(true, tr('Placa de vídeo detectada: {gb} GB de VRAM.', { gb: (mt.vram_total / 1024).toFixed(1) }));
             else row(false, tr('Nenhuma placa NVIDIA detectada: os modelos vão rodar na CPU, bem mais devagar.'));
         }
-        function setLang(v) { config.lang = v; saveState(); applyLang(); if ($('welcome').classList.contains('show')) { $('wl-lang').value = v; renderWelcomeCheck(); } }
+        function setLang(v) { config.lang = v; saveState(); applyLang(); if ($('welcome').classList.contains('show')) { $('wl-lang').value = v; renderWelcomeCheck(); if ($('wl-cfg').style.display !== 'none') renderWelcomeOptions(); } }
         const OVERFLOW_OVERHEAD = 1.3, OVERFLOW_LIMIT = 0.85;   // estimativa: modelo novo ocupa gb*1.3 e o total nao deve passar de 85% da VRAM
 
         const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } };
