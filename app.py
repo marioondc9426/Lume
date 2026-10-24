@@ -53,7 +53,7 @@ BASE_DIR = os.environ.get("QWEN_DATA_DIR") or (os.path.join(os.environ.get("LOCA
 sys.path.insert(0, RES_DIR)
 if FROZEN:
     os.makedirs(BASE_DIR, exist_ok=True)
-    if not (sys.stdout and getattr(sys.stdout, "isatty", lambda: False)()):   # sem janela de console: o que seria impresso vai para o qwen.log
+    if not os.environ.get("QWEN_CONSOLE"):   # o .exe nao tem janela de console: o que seria impresso vai para o qwen.log (QWEN_CONSOLE=1 deixa no terminal)
         _lp = os.path.join(BASE_DIR, "qwen.log")
         try:
             if os.path.exists(_lp) and os.path.getsize(_lp) > 2_000_000: os.replace(_lp, _lp + ".old")
@@ -72,7 +72,7 @@ guest_recent = {}       # id do amigo -> horarios das ultimas respostas (limite 
 guest_lock = threading.Lock()
 login_recent_fails = []  # horarios das senhas erradas de qualquer IP (trava global contra tentativas pela internet)
 # Versao: "1.2" = versao nova com novidades (o numero depois do ponto sobe); "1.2.01", "1.2.02"... = correcoes (patches) dessa versao.
-VERSION = "1.8"
+VERSION = "1.8.01"
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")     # chaves de API, pasta de trabalho, uso
 HISTORY_FILE = os.path.join(BASE_DIR, "history.json")   # chats
 STATE_FILE = os.path.join(BASE_DIR, "state.json")       # preferencias da interface + memorias

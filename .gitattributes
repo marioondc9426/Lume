@@ -1,0 +1,3 @@
+# scripts de shell precisam de fim de linha LF mesmo no Windows
+.githooks/* text eol=lf
+*.sh text eol=lf
