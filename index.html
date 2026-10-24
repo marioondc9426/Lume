@@ -198,6 +198,17 @@
         .export-actions { display: flex; flex-wrap: wrap; gap: 8px; }
         .export-actions .btn { margin: 0; }
 
+        /* Barra de contexto */
+        #ctx-bar { display: flex; align-items: center; gap: 12px; padding: 6px 20px; border-bottom: 1px solid var(--border-color); font-size: 0.8em; color: var(--text-muted); }
+        .ctx-track { flex: 1; height: 8px; border-radius: 4px; background: var(--border-color); overflow: hidden; }
+        .ctx-fill { height: 100%; width: 0; border-radius: 4px; background: #3fb950; transition: width .35s ease, background .35s ease; }
+        .ctx-fill.warn { background: var(--warn); } .ctx-fill.bad { background: var(--danger); }
+        #ctx-text { white-space: nowrap; min-width: 130px; text-align: right; }
+        .ctx-btn { margin: 0 !important; padding: 4px 12px !important; font-size: 0.95em !important; white-space: nowrap; }
+        .ctx-btn:disabled { opacity: .4; cursor: default; }
+        .msg.summary { align-self: flex-start; border: 1px dashed var(--border-color); color: var(--text-muted); background: none; }
+        .sum-head { font-weight: bold; font-size: 0.8em; margin-bottom: 6px; }
+
         /* Imagens anexadas */
         #attach-strip { display: none; gap: 10px; padding: 10px 20px 0; background: var(--bg-sidebar); border-top: 1px solid var(--border-color); flex-wrap: wrap; }
         .thumb { position: relative; width: 64px; height: 64px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border-color); animation: chatFresh .2s ease-out; }
@@ -279,6 +290,12 @@
         </div>
 
         <div id="main">
+            <div id="ctx-bar">
+                <span>Contexto</span>
+                <div class="ctx-track"><div class="ctx-fill" id="ctx-fill"></div></div>
+                <span id="ctx-text">0 / 4K</span>
+                <button class="btn btn-secondary ctx-btn" id="ctx-compact" onclick="compactChat()" title="Resume as mensagens antigas para liberar contexto">Compactar</button>
+            </div>
             <div id="chat-header">
                 <span id="chat-header-title">Novo Chat</span>
                 <button class="icon-btn" onclick="openExport()" title="Copiar / exportar chat"><img class="ic" src="icons/copy.png" style="width:16px;height:16px;"></button>
@@ -369,6 +386,7 @@
             </select>
             <span class="hint">Quanto o modelo lembra da conversa. Contextos grandes usam MUITO mais VRAM e deixam tudo mais lento; aumente aos poucos. Cada modelo é limitado ao máximo que suporta (o CodeGemma só tem 8K). Trocar o valor recarrega o modelo.</span>
         </div>
+        <label class="toggle-container"><input type="checkbox" id="opt-ctxbar"><div class="toggle-switch"></div> Mostrar a barra de contexto no topo</label>
         <label class="toggle-container"><input type="checkbox" id="opt-web"><div class="toggle-switch"></div> Pesquisar na web nas respostas (aba Chat)</label>
         <label class="toggle-container"><input type="checkbox" id="opt-star"><div class="toggle-switch"></div> Trocar * sozinho no início da linha por •</label>
         <label class="toggle-container"><input type="checkbox" id="opt-autostop"><div class="toggle-switch"></div> Ao trocar de modelo, parar o anterior automaticamente se a VRAM não couber os dois</label>
@@ -476,14 +494,14 @@
             { id: 'qwen3.5:9b', label: 'Qwen 3.5 9B (Pesado)', icon: 'triangle-alert', tabs: ['chat', 'code'], gb: 6.6, heavy: true, vision: true, ctx: 262144 },
             { id: 'gemma3:4b', label: 'Gemma 3 4B (Local)', icon: 'zap', tabs: ['chat'], gb: 3.4, vision: true, ctx: 131072 },
             { id: 'codegemma:7b', label: 'CodeGemma 7B (Apenas Código)', icon: 'pen-line', tabs: ['code'], gb: 5.0, ctx: 8192 },
-            { id: 'groq-openai/gpt-oss-120b', label: 'Groq GPT-OSS 120B', icon: 'cloud', tabs: ['chat', 'code'], cloud: true },
-            { id: 'groq-openai/gpt-oss-20b', label: 'Groq GPT-OSS 20B', icon: 'cloud', tabs: ['chat', 'code'], cloud: true },
+            { id: 'groq-openai/gpt-oss-120b', label: 'Groq GPT-OSS 120B', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 131072 },
+            { id: 'groq-openai/gpt-oss-20b', label: 'Groq GPT-OSS 20B', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 131072 },
         ];
         const CODE_PROMPT_DEFAULT = 'Você é um agente de código. Use as ferramentas para ler, escrever e executar código no computador do usuário. Explique brevemente o que fez.';
         const OVERFLOW_OVERHEAD = 1.3, OVERFLOW_LIMIT = 0.85;   // estimativa: modelo novo ocupa gb*1.3 e o total nao deve passar de 85% da VRAM
 
         const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } };
-        let config = Object.assign({ theme: 'dark', systemPrompt: 'Você é um assistente direto.', codePrompt: CODE_PROMPT_DEFAULT, scale: 1, bgImage: '', bgOpacity: 0, perfEnabled: true, perfStyle: 'default', perfInterval: 50, numCtx: 4096, model: 'qwen3.5:4b', webSearch: true, starToDot: true, autoStopPrev: false }, load('thingmabobber_config', {}));
+        let config = Object.assign({ theme: 'dark', systemPrompt: 'Você é um assistente direto.', codePrompt: CODE_PROMPT_DEFAULT, scale: 1, bgImage: '', bgOpacity: 0, perfEnabled: true, perfStyle: 'default', perfInterval: 50, numCtx: 4096, showCtxBar: true, model: 'qwen3.5:4b', webSearch: true, starToDot: true, autoStopPrev: false }, load('thingmabobber_config', {}));
         let chats = load('thingmabobber_chats', {});
         let globalMemories = load('thingmabobber_memories', []);
         let currentChatId = null, currentTab = 'chat', selectedModel = config.model, lastLocalModel = 'qwen3.5:4b', busy = false;
@@ -613,6 +631,7 @@
             });
             const m = modelById(selectedModel);
             $('model-trigger-icon').src = `icons/${m.icon}.png`; $('model-trigger-text').textContent = m.label;
+            updateCtxBar();
         }
         async function refreshLoaded() {
             try {
@@ -731,8 +750,9 @@
             chatBox.innerHTML = '';
             if (chats[id].welcome === undefined) { chats[id].welcome = Math.floor(Math.random() * WELCOMES.length); saveToStorage(); }
             addMessageToUI('ai', WELCOMES[chats[id].welcome], { welcome: true, animate: false });
-            chats[id].messages.forEach(m => addMessageToUI(m.role, m.content, { animate: false, images: m.images }));
+            chats[id].messages.forEach(m => addMessageToUI(m.role, m.content, { animate: false, images: m.images, count: m.count }));
             chatBox.scrollTop = chatBox.scrollHeight;
+            updateCtxBar();
             if (isNew) { chatBox.classList.remove('fresh'); void chatBox.offsetWidth; chatBox.classList.add('fresh'); }
         }
 
@@ -754,6 +774,7 @@
                 opts.images.forEach(src => { const im = document.createElement('img'); im.src = src; box.appendChild(im); });
                 div.appendChild(box);
             }
+            if (role === 'summary') { const h = document.createElement('div'); h.className = 'sum-head'; h.textContent = `Conversa compactada (${opts.count || '?'} mensagens resumidas)`; div.appendChild(h); }
             if (role === 'ai') div.appendChild(think);
             div.appendChild(span);
             if (role === 'ai' && !opts.welcome) {
@@ -854,7 +875,7 @@
             if (!text && imgs.length) text = 'Descreva esta imagem.';
             if (chat.messages.length === 0) { chat.title = text.substring(0, 30) + (text.length > 30 ? '...' : ''); renderSidebar(); }
             addMessageToUI('user', text, { images: imgs }); chat.messages.push(imgs.length ? { role: 'user', content: text, images: imgs } : { role: 'user', content: text }); saveToStorage();
-            clearPrompt(); pendingImages = []; renderAttachments();
+            clearPrompt(); pendingImages = []; renderAttachments(); updateCtxBar();
 
             const aiDiv = addMessageToUI('ai', '<span class="loading-dots">Iniciando</span>', { html: true });
             const textSpan = aiDiv.querySelector('.final-text'), thinkDiv = aiDiv.querySelector('.think');
@@ -862,13 +883,15 @@
             stLine.innerHTML = '<span class="pulse"></span><span class="st-text"></span>'; aiDiv.insertBefore(stLine, aiDiv.querySelector('.copy-btn'));
             setBusy(true);
             const isCode = currentTab === 'code';
-            let fullResponse = '', gotText = false, chars = 0;
+            let fullResponse = '', gotText = false, chars = 0, lastStats = null;
             const status = s => { setOverlayStatus(s); stLine.querySelector('.st-text').textContent = s; if (!gotText) textSpan.innerHTML = `<span class="loading-dots">${esc(s)}</span>`; };
 
             try {
                 let sys = isCode ? config.codePrompt : config.systemPrompt;
+                const summaries = chat.messages.filter(m => m.role === 'summary').map(m => m.content);
+                if (summaries.length) sys += '\n\nRESUMO DA CONVERSA ANTERIOR (as mensagens antigas foram compactadas):\n' + summaries.join('\n') + '\n';
                 if (globalMemories.length > 0) sys += '\n\nFATOS QUE VOCÊ DEVE LEMBRAR:\n' + globalMemories.map(m => `- ${m}`).join('\n') + '\n';
-                const apiMessages = [{ role: 'system', content: sys }, ...chat.messages.map(m => { const o = { role: m.role === 'ai' ? 'assistant' : 'user', content: m.content }; if (m.images && m.images.length && model.vision) o.images = m.images.map(d => d.split(',')[1]); return o; })];
+                const apiMessages = [{ role: 'system', content: sys }, ...chat.messages.filter(m => m.role !== 'summary').map(m => { const o = { role: m.role === 'ai' ? 'assistant' : 'user', content: m.content }; if (m.images && m.images.length && model.vision) o.images = m.images.map(d => d.split(',')[1]); return o; })];
 
                 status('Iniciando'); showPerfStreaming();
                 const response = await fetch(API + '/api/chat', {
@@ -880,7 +903,7 @@
                 const handle = line => {
                     if (!line.trim()) return;
                     let data; try { data = JSON.parse(line); } catch (e) { return; }
-                    if (data.stats) { showRealPerf(data.stats); return; }
+                    if (data.stats) { lastStats = data.stats; showRealPerf(data.stats); return; }
                     if (data.status) { status(data.status); return; }
                     const msg = data.message || {};
                     if (msg.thinking) { thinkDiv.style.display = 'block'; thinkDiv.textContent += msg.thinking; thinkDiv.scrollTop = thinkDiv.scrollHeight; status('Pensando'); }
@@ -901,13 +924,15 @@
                 }
                 handle(buf);
                 if (!gotText) textSpan.textContent = '(sem resposta)';
-                chat.messages.push({ role: 'ai', content: fullResponse, model: selectedModel }); saveToStorage();
+                chat.messages.push({ role: 'ai', content: fullResponse, model: selectedModel });
+                if (lastStats) chat.ctxReal = { tokens: lastStats.prompt_tokens + lastStats.tokens, count: chat.messages.length };
+                saveToStorage();
                 fetch(API + '/api/usage').then(r => r.json()).then(updateUsageBadge).catch(() => {});
             } catch (error) {
                 aiDiv.className = 'msg error'; textSpan.textContent = 'Erro de conexão com o servidor.';
                 setOverlayStatus('Erro');
             } finally {
-                stLine.remove(); setBusy(false); promptInput.focus(); hidePerfStreaming();
+                stLine.remove(); setBusy(false); updateCtxBar(); promptInput.focus(); hidePerfStreaming();
                 if ($('mon-status').textContent !== 'Status: Erro') setOverlayStatus('Ocioso');
             }
         }
@@ -968,7 +993,7 @@
         async function openSettings() {
             $('system-prompt-input').value = config.systemPrompt;
             $('code-prompt-input').value = config.codePrompt;
-            $('opt-ctx').value = String(config.numCtx); $('opt-web').checked = config.webSearch; $('opt-star').checked = config.starToDot; $('opt-autostop').checked = config.autoStopPrev;
+            $('opt-ctx').value = String(config.numCtx); $('opt-ctxbar').checked = config.showCtxBar; $('opt-web').checked = config.webSearch; $('opt-star').checked = config.starToDot; $('opt-autostop').checked = config.autoStopPrev;
             $('perf-enabled').checked = config.perfEnabled;
             $('perf-style').value = config.perfStyle;
             $('perf-interval').value = config.perfInterval; $('perf-int-val').innerText = config.perfInterval;
@@ -1034,7 +1059,7 @@
         async function saveSettings() {
             config.systemPrompt = $('system-prompt-input').value;
             config.codePrompt = $('code-prompt-input').value || CODE_PROMPT_DEFAULT;
-            config.numCtx = +$('opt-ctx').value; config.webSearch = $('opt-web').checked; config.starToDot = $('opt-star').checked; config.autoStopPrev = $('opt-autostop').checked;
+            config.numCtx = +$('opt-ctx').value; config.showCtxBar = $('opt-ctxbar').checked; config.webSearch = $('opt-web').checked; config.starToDot = $('opt-star').checked; config.autoStopPrev = $('opt-autostop').checked;
             saveState();
             const body = { workdir: $('workdir-input').value.trim() };
             const key = $('groq-key-input').value.trim();
@@ -1044,6 +1069,7 @@
                 if (!r.ok) { alert((await r.json()).error || 'Erro ao salvar.'); return; }
             } catch (e) { alert('Servidor não respondeu.'); return; }
             closeSettings();
+            updateCtxBar();
             if (currentChatId) loadChat(currentChatId);   // re-renderiza com as opcoes de formatacao novas
         }
 
@@ -1067,7 +1093,7 @@
 
         // ---------- exportar chat ----------
         let exportMsgs = [];
-        const whoOf = m => m.role === 'user' ? 'Você' : ((modelById(m.model) || {}).label || 'IA');
+        const whoOf = m => m.role === 'user' ? 'Você' : m.role === 'summary' ? 'Resumo' : ((modelById(m.model) || {}).label || 'IA');
         function openExport() {
             exportMsgs = chats[currentChatId].messages;
             const list = $('export-list'); list.innerHTML = '';
@@ -1213,6 +1239,69 @@
             const ex = $('mon-extra'); ex.style.display = '';
             ex.innerHTML = '';
             [`Prompt: ${st.prompt_tokens} tok (${ptps} t/s)`, `Carga do modelo: ${st.load_seconds.toFixed(1)}s`, `Total: ${st.total_seconds.toFixed(1)}s`].forEach(t => { const d = document.createElement('div'); d.textContent = t; ex.appendChild(d); });
+        }
+
+        // ---------- barra de contexto + compactar ----------
+        const fmtK = n => n >= 1024 ? (n / 1024).toFixed(n % 1024 && n < 10240 ? 1 : 0) + 'K' : String(n);
+        const ctxMax = () => { const m = modelById(selectedModel); return m.cloud ? m.ctx : Math.min(config.numCtx, m.ctx); };
+        function ctxInfo(chat) {
+            const sys = (currentTab === 'code' ? config.codePrompt : config.systemPrompt).length + globalMemories.join('').length;
+            const msgTokens = ms => ms.reduce((a, m) => a + Math.ceil(m.content.length / 4) + (m.images ? m.images.length * 400 : 0), 0);   // ~4 caracteres por token, ~400 por imagem
+            const est = Math.ceil(sys / 4) + msgTokens(chat.messages);
+            const r = chat.ctxReal;
+            if (r && r.count <= chat.messages.length) {
+                const real = r.tokens + msgTokens(chat.messages.slice(r.count));
+                if (real >= est * 0.5) return { used: real, exact: true };   // o Ollama as vezes informa so os tokens novos (cache); nesse caso cai na estimativa
+            }
+            return { used: est, exact: false };
+        }
+        function updateCtxBar() {
+            const bar = $('ctx-bar');
+            bar.style.display = config.showCtxBar ? '' : 'none';
+            const chat = chats[currentChatId]; if (!chat || !config.showCtxBar) return;
+            const { used, exact } = ctxInfo(chat), max = ctxMax(), pct = Math.min(100, used / max * 100);
+            const fill = $('ctx-fill'); fill.style.width = pct + '%'; fill.className = 'ctx-fill' + (pct >= 90 ? ' bad' : pct >= 70 ? ' warn' : '');
+            $('ctx-text').textContent = `${exact ? '' : '~'}${fmtK(used)} / ${fmtK(max)} (${Math.round(pct)}%)`;
+            $('ctx-text').title = exact ? 'Contagem real informada pelo Ollama' : 'Estimativa (~4 caracteres por token)';
+            $('ctx-compact').disabled = busy || chat.messages.length < 4;
+        }
+        async function collectChat(body) {   // roda uma conversa e devolve so o texto final
+            const res = await fetch(API + '/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+            const reader = res.body.getReader(), dec = new TextDecoder(); let buf = '', text = '';
+            const handle = l => { try { const d = JSON.parse(l); if (d.message && d.message.content) text += d.message.content; } catch (e) {} };
+            while (true) { const { done, value } = await reader.read(); if (done) break; buf += dec.decode(value, { stream: true }); const ls = buf.split('\n'); buf = ls.pop(); ls.forEach(handle); }
+            handle(buf); return text;
+        }
+        async function compactChat() {
+            const chat = chats[currentChatId];
+            if (busy || !chat) return;
+            if (chat.messages.length < 4) { showInfo('Conversa curta demais para compactar.'); return; }
+            const model = modelById(selectedModel);
+            if (model.cloud && !(await hasGroqKey())) { await noKeyDialog(); return; }
+            if (!(await handleOverflow(model))) return;
+            const KEEP = 2, old = chat.messages.slice(0, -KEEP), tail = chat.messages.slice(-KEEP);
+            const r = await ask({ title: 'Compactar conversa?', body: `${old.length} mensagens mais antigas serão trocadas por um resumo gerado por ${model.label}. As ${KEEP} últimas continuam como estão. Isso não pode ser desfeito.`, buttons: ['Compactar', 'Cancelar'] });
+            if (r.index !== 0) return;
+            const before = ctxInfo(chat).used;
+            let transcript = old.map(m => m.role === 'summary' ? `Resumo anterior: ${m.content}` : `${whoOf(m)}: ${m.images && m.images.length ? `[${m.images.length} imagem(ns)] ` : ''}${plain(m.content)}`).join('\n\n');
+            const maxChars = ctxMax() * 3; if (transcript.length > maxChars) transcript = transcript.slice(-maxChars);
+            setBusy(true); setOverlayStatus('Compactando'); $('ctx-compact').textContent = 'Compactando...'; $('ctx-compact').disabled = true;
+            try {
+                const text = (await collectChat({
+                    model: selectedModel, stream: true, think: false, search_web: false, agent: false, num_ctx: model.cloud ? undefined : ctxMax(),
+                    messages: [
+                        { role: 'system', content: 'Você resume conversas. Escreva um resumo fiel e compacto, em português, preservando fatos, decisões, nomes, números, trechos de código importantes e o que o usuário pediu. Não invente nada. Responda apenas com o resumo.' },
+                        { role: 'user', content: 'Resuma a conversa abaixo:\n\n' + transcript }
+                    ]
+                })).trim();
+                if (!text || text.includes('[Geracao parada]')) { showInfo('Compactação cancelada.'); return; }
+                if (text.startsWith('[Erro:')) { showInfo('Falha ao compactar: ' + text.slice(0, 150)); return; }
+                const replaced = old.reduce((a, m) => a + (m.role === 'summary' ? (m.count || 1) : 1), 0);
+                chat.messages = [{ role: 'summary', content: text, count: replaced }, ...tail];
+                chat.ctxReal = null; saveToStorage(); loadChat(currentChatId);
+                showInfo(`Compactado: ${replaced} mensagens viraram um resumo. Contexto ${fmtK(before)} → ${fmtK(ctxInfo(chat).used)}.`, 8000);
+            } catch (e) { showInfo('Não consegui compactar a conversa.'); }
+            finally { setBusy(false); setOverlayStatus('Ocioso'); $('ctx-compact').textContent = 'Compactar'; updateCtxBar(); }
         }
 
         // ---------- editor de temas ----------
