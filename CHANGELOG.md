@@ -6,6 +6,9 @@ Como numerar:
 - O número fica em `VERSION` no topo do `app.py` e aparece em Configurações > Atualizações.
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
+## v1.1
+- Aviso fixo no topo quando a versão em uso está desatualizada (com botão Atualizar agora e Depois). Checa ao abrir o app e a cada 6 horas.
+
 ## v1.0
 Primeira versão numerada.
 - Chat local com Ollama e modelos da nuvem do Ollama (GPT-OSS, Gemma 4, Beam, Nemotron 3, DeepSeek), busca na web com Exa, aba Code com agente.

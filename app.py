@@ -38,7 +38,7 @@ PORT = 8000
 OLLAMA_URL = "http://127.0.0.1:11434"
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # Versao: "1.2" = versao nova com novidades (o numero depois do ponto sobe); "1.2.01", "1.2.02"... = correcoes (patches) dessa versao.
-VERSION = "1.0"
+VERSION = "1.1"
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")     # chaves de API, pasta de trabalho, uso
 HISTORY_FILE = os.path.join(BASE_DIR, "history.json")   # chats
 STATE_FILE = os.path.join(BASE_DIR, "state.json")       # preferencias da interface + memorias

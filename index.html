@@ -259,6 +259,9 @@
         .srv-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
         .srv-actions .btn { margin: 0; }
         #connect-banner { display: none; align-items: center; justify-content: center; gap: 12px; padding: 8px 14px; background: var(--warn); color: #111; font-size: 0.9em; z-index: 600; flex-shrink: 0; }
+        #update-banner { display: none; align-items: center; justify-content: center; gap: 12px; padding: 8px 14px; background: #1f6feb; color: #fff; font-size: 0.9em; z-index: 600; flex-shrink: 0; flex-wrap: wrap; }
+        #update-banner button { margin: 0; padding: 4px 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; background: #fff; color: #0b3d91; }
+        #update-banner button.later { background: transparent; color: #fff; border: 1px solid rgba(255,255,255,0.6); font-weight: normal; }
         #connect-banner button { margin: 0; padding: 4px 12px; background: #111; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
         #menu-btn { display: none; font-size: 22px; color: var(--text-main); margin-right: 8px; padding: 2px 8px; }
         #drawer-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 850; }
@@ -418,6 +421,7 @@
         </div>
     </div>
 
+    <div id="update-banner"><span id="update-banner-text"></span><button onclick="applyUpdate()">Atualizar agora</button><button class="later" onclick="dismissUpdateBanner()">Depois</button></div>
     <div id="connect-banner"><span id="connect-banner-text">Não conectado ao servidor.</span><button onclick="connectToServer()">Conectar</button></div>
     <div id="drawer-backdrop" onclick="closeDrawer()"></div>
 
@@ -855,7 +859,7 @@
             'Overlay de desempenho': 'Performance overlay', 'Mostrar overlay no canto superior direito': 'Show overlay in the top-right corner', 'Estilo': 'Style',
             'Padrão (colorido)': 'Default (colored)', 'Cinza (discreto)': 'Gray (subtle)', 'Atualização:': 'Refresh:',
             'A GPU em si só atualiza o uso a cada ~100–1000 ms; valores menores que isso não deixam o número mais preciso.': 'The GPU itself only updates its usage every ~100–1000 ms; lower values do not make the number more precise.',
-            'Salvar Tudo': 'Save all', 'Esconder os avisos de VRAM na janela (continuam aparecendo no terminal)': 'Hide VRAM warnings in the window (they still show in the terminal)', 'Roda na nuvem (precisa de internet)': 'Runs in the cloud (needs internet)', 'Funciona sem internet': 'Works offline', 'Roda no seu PC': 'Runs on your PC',
+            'Salvar Tudo': 'Save all', 'Versão desatualizada: você usa a v{a} e já existe a v{b}.': 'Outdated version: you are on v{a} and v{b} is available.', 'Versão desatualizada: há {n} atualização(ões) nova(s).': 'Outdated version: {n} new update(s) available.', 'Depois': 'Later', 'Esconder os avisos de VRAM na janela (continuam aparecendo no terminal)': 'Hide VRAM warnings in the window (they still show in the terminal)', 'Roda na nuvem (precisa de internet)': 'Runs in the cloud (needs internet)', 'Funciona sem internet': 'Works offline', 'Roda no seu PC': 'Runs on your PC',
             'Usar o contexto máximo de cada modelo': 'Use the maximum context of each model', 'Código': 'Code', 'Copiar': 'Copy', 'Copiado ✓': 'Copied ✓',
             'Com isso ligado, cada modelo usa tudo o que suporta (ex.: 256K) e o valor acima é ignorado. Cuidado: contextos enormes ocupam MUITA VRAM e deixam tudo mais lento.': 'When on, each model uses everything it supports (e.g. 256K) and the value above is ignored. Careful: huge contexts take A LOT of VRAM and slow everything down.', 'Salvar': 'Save', 'Atualizações': 'Updates', 'Verificar atualizações': 'Check for updates', 'Atualizar agora': 'Update now',
             'Avisar quando houver versão nova ao abrir o app': 'Notify me when a new version is available at startup', 'Verificando...': 'Checking...', 'Atualizando...': 'Updating...',
@@ -1134,7 +1138,7 @@
             if (auth.local || auth.authed) await loadFromServer(); else showConnectBanner();
             await loadCustomThemes();
             applyBaseTheme(config.theme);
-            if (auth.local && config.autoUpdate !== false) setTimeout(async () => { await checkUpdates(false); if (updInfo && updInfo.status === 'available') showInfo(tr('Atualização disponível! Veja em Configurações.'), 9000); }, 4000);
+            if (auth.local && config.autoUpdate !== false) { setTimeout(() => checkUpdates(false), 4000); setInterval(() => { if (config.autoUpdate !== false) checkUpdates(false); }, 6 * 3600 * 1000); }   // ao abrir e a cada 6 h
             translateStatic(); $('opt-lang').value = curLang();
             document.body.classList.toggle('no-anim', config.animations === false);
             if (window.pywebview && window.pywebview.api) setupResizeGrips(); else window.addEventListener('pywebviewready', setupResizeGrips, { once: true });
@@ -2133,6 +2137,15 @@
         // ---------- atualizacoes (GitHub) ----------
         let updInfo = null;
         function updateBadge(on) { $('upd-dot').style.display = on ? '' : 'none'; }
+        const updKey = r => `${r.remote_version || ''}|${r.behind_by || 0}`;
+        function dismissUpdateBanner() { if (updInfo) { config.updDismissed = updKey(updInfo); saveState(); } $('update-banner').style.display = 'none'; }
+        function showUpdateBanner(r) {   // aviso fixo no topo enquanto a versao em uso estiver desatualizada (o "Depois" esconde so ate sair outra novidade)
+            const on = r.status === 'available' && config.updDismissed !== updKey(r);
+            $('update-banner').style.display = on ? 'flex' : 'none';
+            if (on) $('update-banner-text').textContent = '🔔 ' + (r.remote_version && r.remote_version !== r.version
+                ? tr('Versão desatualizada: você usa a v{a} e já existe a v{b}.', { a: r.version, b: r.remote_version })
+                : tr('Versão desatualizada: há {n} atualização(ões) nova(s).', { n: r.behind_by }));
+        }
         async function checkUpdates(manual) {
             const ver = $('upd-version'), list = $('upd-list'), btn = $('upd-apply-btn');
             if (manual) { ver.textContent = tr('Verificando...'); $('upd-check-btn').disabled = true; }
@@ -2147,7 +2160,7 @@
             else if (r.status === 'diverged') ver.textContent = cur + ' — ' + tr('esta cópia mudou de um jeito que não dá para atualizar sozinho.');
             else if (r.status === 'unknown') ver.textContent = cur + ' — ' + tr('o GitHub não conhece esta versão.');
             else ver.textContent = r.error === 'no_git' ? tr('Atualizar só funciona se o programa foi baixado com o Git (git clone).') : (manual ? tr('Não consegui verificar agora (sem internet?).') : '');
-            updateBadge(r.status === 'available');
+            updateBadge(r.status === 'available'); showUpdateBanner(r);
         }
         async function applyUpdate() {
             const c = await ask({ title: 'Atualizar agora?', body: 'O app baixa a versão nova do GitHub e depois precisa reiniciar. Suas conversas e configurações não são mexidas.', buttons: ['Atualizar', 'Cancelar'] });
@@ -2161,6 +2174,7 @@
                 await ask({ title: 'Atualização não feita', body: why, buttons: ['Ok'] }); checkUpdates(false); return;
             }
             const rr = await ask({ title: 'Atualizado!', body: 'Reiniciar o app agora para usar a versão nova?', buttons: ['Reiniciar', 'Depois'] });
+            $('update-banner').style.display = 'none'; updateBadge(false);
             if (rr.index === 0) fetch(API + '/api/restart_app', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(() => {});
             else checkUpdates(false);
         }
