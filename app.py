@@ -11,6 +11,14 @@ import subprocess
 import os
 import atexit
 import base64
+import copy
+import hmac
+import secrets
+import socket
+import struct
+import uuid
+import zlib
+import plistlib
 import functools
 import webview
 
@@ -117,9 +125,18 @@ def _write_json(path, data):
     with open(tmp, 'w', encoding='utf-8') as f: json.dump(data, f, indent=2, ensure_ascii=False)
     os.replace(tmp, path)
 
+_cfg_cache = {"mtime": None, "data": None}
+
 def load_config():
+    """Le o config.json (com cache pelo horario de modificacao: o app consulta isso a cada requisicao)."""
+    try:
+        mtime = os.path.getmtime(CONFIG_FILE)
+        if _cfg_cache["mtime"] == mtime and _cfg_cache["data"] is not None:
+            return copy.deepcopy(_cfg_cache["data"])
+    except OSError:
+        mtime = None
     cfg = {}
-    if os.path.exists(CONFIG_FILE):
+    if mtime is not None:
         try:
             with open(CONFIG_FILE, 'r', encoding='utf-8') as f: cfg = json.load(f)
         except Exception as e:
@@ -129,10 +146,21 @@ def load_config():
     cfg.setdefault("groq_api_key", "")
     cfg.setdefault("workdir", "")
     cfg.setdefault("usage", {}).setdefault("groq", 0)
+    cfg.setdefault("remote_enabled", False)      # aceitar conexoes de outros aparelhos da rede
+    cfg.setdefault("allow_remote_code", False)   # deixar aparelhos remotos usarem a aba Code
+    cfg.setdefault("tokens", {})                 # aparelhos conectados
+    cfg.setdefault("port", PORT)
+    if not cfg.get("password"):
+        cfg["password"] = generate_password()
+        log("AUTH", "Senha do servidor gerada (veja em Configuracoes > Servidor).", COLOR_GREEN)
+        save_config(cfg)
+    _cfg_cache["mtime"] = os.path.getmtime(CONFIG_FILE) if os.path.exists(CONFIG_FILE) else None
+    _cfg_cache["data"] = copy.deepcopy(cfg)
     return cfg
 
 def save_config(config_data):
     with open(CONFIG_FILE, 'w', encoding='utf-8') as f: json.dump(config_data, f, indent=4)
+    _cfg_cache["mtime"] = None   # forca a releitura
 
 def load_history():
     """Chats: {id: {title, messages, tab, welcome}}. Aceita o formato antigo (lista)."""
@@ -195,6 +223,22 @@ Ferramentas:
 - powershell {"command": "Get-Date"} : executa no PowerShell (pede permissao)
 - search_web {"query": "texto"} : pesquisa na web
 Faca UMA chamada por vez; o resultado volta na proxima mensagem. Quando terminar, responda normalmente, sem ferramentas.
+"""
+
+TOOL_PROMPT_EN = """
+
+[AGENT MODE]
+You can use tools on the user's computer. Working folder: {workdir}
+To call a tool, write EXACTLY this format and STOP writing right after it:
+$$[TOOL: name] {"argument": "value"}$$
+Tools:
+- list_files {"path": "."} : list the files in a folder
+- read_file {"path": "file.txt"} : read a file
+- write_file {"path": "file.txt", "content": "text"} : create or overwrite a file (asks permission)
+- cmd {"command": "dir"} : run in CMD (asks permission)
+- powershell {"command": "Get-Date"} : run in PowerShell (asks permission)
+- search_web {"query": "text"} : search the web
+Make ONE call at a time; the result comes back in the next message. When you are done, answer normally, without tools.
 """
 
 PATH_TOOLS = ("list_files", "read_file", "write_file")
@@ -346,7 +390,7 @@ def shutdown_all():
 atexit.register(stop_ollama)
 
 # ---------------------------------------------------------------- monitor de memoria
-alert_state = {"id": 0, "kind": "", "text": "", "suggest": "", "count": 0, "max": MAX_ALERTS}
+alert_state = {"id": 0, "kind": "", "text": "", "suggest": "", "count": 0, "max": MAX_ALERTS, "used": 0, "total": 0, "partial": False}
 _vram_alerts = {"count": 0, "last": 0.0}
 _swap_alerts = {"count": 0, "last": 0.0}
 
@@ -365,8 +409,8 @@ def rank_models_to_stop(loaded):
         ranked.append((idle_min + 2 * gb - 0.5 * min(uses, 20), name, f"{name}: ocioso {idle_min:.1f} min, {gb:.1f} GB, {uses} uso(s)"))
     return sorted(ranked, reverse=True)
 
-def emit_alert(kind, text, suggest, count):
-    alert_state.update(id=alert_state["id"] + 1, kind=kind, text=text, suggest=suggest, count=count)
+def emit_alert(kind, text, suggest, count, used=0, total=0, partial=False):
+    alert_state.update(id=alert_state["id"] + 1, kind=kind, text=text, suggest=suggest, count=count, used=used, total=total, partial=partial)
     log("MEMORIA", f"{text} (aviso {count}/{MAX_ALERTS})", COLOR_YELLOW)
 
 def check_memory():
@@ -386,10 +430,10 @@ def check_memory():
         _swap_alerts["count"] += 1; _swap_alerts["last"] = now
         text = f"VRAM no limite ({used / 1024:.1f} de {total / 1024:.1f} GB)" + (", modelo vazando para a RAM/CPU" if partial else "")
         text += f". Recomendado desligar o modelo {suggest}." if suggest else "."
-        emit_alert("swap", text, suggest, _swap_alerts["count"])
+        emit_alert("swap", text, suggest, _swap_alerts["count"], used, total, partial)
     elif high and not swap and _vram_alerts["count"] < MAX_ALERTS and now - _vram_alerts["last"] >= 10:
         _vram_alerts["count"] += 1; _vram_alerts["last"] = now
-        emit_alert("vram", f"VRAM alta: {used / 1024:.1f} de {total / 1024:.1f} GB em uso.", "", _vram_alerts["count"])
+        emit_alert("vram", f"VRAM alta: {used / 1024:.1f} de {total / 1024:.1f} GB em uso.", "", _vram_alerts["count"], used, total)
 
 def monitor_loop():
     while True:
@@ -442,48 +486,195 @@ def stream_model(model, messages, think, cfg, num_ctx=None):
     return stream_groq(model, messages, cfg) if model.startswith("groq") else stream_ollama(model, messages, think, num_ctx)
 
 # ---------------------------------------------------------------- servidor
+LOOPBACK_IPS = ("127.0.0.1", "::1", "::ffff:127.0.0.1")
+LOCAL_HOSTS = ("127.0.0.1", "localhost")
+# So estes arquivos sao servidos (nunca config.json, history.json, app.py...)
+STATIC_PAGES = ("/", "/index.html")
+# So o proprio PC (janela do app) pode usar estas rotas
+LOCAL_ONLY_POST = ("/api/save_config", "/api/save_key", "/api/server_config", "/api/perf_interval",
+                   "/api/custom_theme", "/api/custom_theme_delete", "/api/resolve_pending", "/api/export", "/api/ios_profile_save")
+PUBLIC_POST = ("/api/auth/login", "/api/auth/logout")
+LOGIN_MAX_FAILS, LOGIN_LOCK_SECONDS = 5, 60
+login_failures = {}   # ip -> [falhas, inicio]
+httpd = None
+
+PASSWORD_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"   # sem 0/O/1/I/L para ninguem errar ao digitar no celular
+
+def generate_password():
+    raw = "".join(secrets.choice(PASSWORD_ALPHABET) for _ in range(10))
+    return raw[:5] + "-" + raw[5:]
+
+def norm_password(p):
+    return re.sub(r'[^A-Za-z0-9]', '', str(p or '')).upper()
+
+def lan_ips():
+    """IPs deste PC na rede local (o primeiro e o da rota principal)."""
+    ips = []
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("10.255.255.255", 1)); ips.append(s.getsockname()[0]); s.close()   # nao envia nada, so descobre a rota
+    except Exception:
+        pass
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            ip = info[4][0]
+            if ip not in ips and not ip.startswith(("127.", "169.254.")): ips.append(ip)
+    except Exception:
+        pass
+    return [ip for ip in ips if not ip.startswith("127.")]
+
+def device_name(ua):
+    ua = ua or ""
+    for key, name in (("iPhone", "iPhone"), ("iPad", "iPad"), ("Android", "Android"), ("Windows", "Windows"), ("Macintosh", "Mac"), ("Linux", "Linux")):
+        if key in ua: return name
+    return "Dispositivo"
+
+_icon_cache = {}
+def make_icon_png(size=180):
+    """Icone do app (raio branco sobre azul) gerado sem bibliotecas externas."""
+    if size in _icon_cache: return _icon_cache[size]
+    poly = [(58, 6), (22, 54), (46, 54), (38, 94), (78, 44), (54, 44)]   # raio em um quadro 100x100
+    def inside(x, y):
+        c = False
+        for i in range(len(poly)):
+            (x1, y1), (x2, y2) = poly[i], poly[(i + 1) % len(poly)]
+            if (y1 > y) != (y2 > y) and x < (x2 - x1) * (y - y1) / (y2 - y1) + x1: c = not c
+        return c
+    bg, fg = (0, 86, 179), (255, 255, 255)
+    rows = []
+    for py in range(size):
+        row = bytearray(b'\x00')
+        for px in range(size):
+            hits = sum(inside((px + (sx + .5) / 2) / size * 100, (py + (sy + .5) / 2) / size * 100) for sx in range(2) for sy in range(2))   # 2x2 suavizacao
+            a = hits / 4
+            row += bytes(int(bg[i] + (fg[i] - bg[i]) * a) for i in range(3))
+        rows.append(bytes(row))
+    def chunk(t, d): return struct.pack('>I', len(d)) + t + d + struct.pack('>I', zlib.crc32(t + d) & 0xffffffff)
+    png = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', size, size, 8, 2, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(b''.join(rows))) + chunk(b'IEND', b'')
+    _icon_cache[size] = png
+    return png
+
+def build_ios_profile(url, label="Thingmabobber"):
+    """Perfil .mobileconfig com um Web Clip: instala um icone na tela do iPhone que abre so o site."""
+    pid, wid = str(uuid.uuid4()).upper(), str(uuid.uuid4()).upper()
+    payload = {
+        "PayloadContent": [{
+            "PayloadType": "com.apple.webClip.managed", "PayloadVersion": 1, "PayloadUUID": wid,
+            "PayloadIdentifier": f"com.thingmabobber.webclip.{wid}", "PayloadDisplayName": label,
+            "Label": label, "URL": url, "FullScreen": True, "IsRemovable": True, "Precomposed": True,
+            "Icon": make_icon_png(),
+        }],
+        "PayloadType": "Configuration", "PayloadVersion": 1, "PayloadUUID": pid,
+        "PayloadIdentifier": f"com.thingmabobber.profile.{pid}", "PayloadDisplayName": label,
+        "PayloadDescription": f"Adiciona um atalho para {url} na tela inicial.", "PayloadOrganization": "Thingmabobber",
+        "PayloadRemovalDisallowed": False,
+    }
+    return plistlib.dumps(payload, fmt=plistlib.FMT_XML)
+
+ERR_EN = {
+    "Chave do Groq nao configurada": "Groq API key not set. Open Settings and paste your key.",
+    "Biblioteca Groq nao instalada": "Groq library not installed (pip install groq).",
+    "Nao consegui iniciar o Ollama": "Could not start Ollama. Is it installed?",
+}
+def localize_error(msg, lang):
+    if lang == 'en':
+        for k, v in ERR_EN.items():
+            if str(msg).startswith(k): return v
+    return str(msg)
+
 class ThreadingServer(socketserver.ThreadingTCPServer):
     allow_reuse_address = True
     daemon_threads = True
 
-class CORSRequestHandler(http.server.SimpleHTTPRequestHandler):
+class AppHandler(http.server.SimpleHTTPRequestHandler):
     def end_headers(self):
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.send_header('Cache-Control', 'no-cache')   # o celular nao pode ficar com uma versao antiga da pagina
+        self.send_header('X-Content-Type-Options', 'nosniff')
         super().end_headers()
 
     def log_message(self, format, *args): pass
 
-    def send_json(self, obj, code=200):
-        self.send_response(code); self.send_header('Content-Type', 'application/json'); self.end_headers()
-        self.wfile.write(json.dumps(obj).encode())
+    def send_json(self, obj, code=200, headers=None):
+        body = json.dumps(obj).encode()
+        self.send_response(code); self.send_header('Content-Type', 'application/json'); self.send_header('Content-Length', str(len(body)))
+        for k, v in (headers or {}).items(): self.send_header(k, v)
+        self.end_headers(); self.wfile.write(body)
+
+    # ---- quem esta chamando?
+    def host_only(self):
+        return urllib.parse.urlsplit('//' + (self.headers.get('Host') or '')).hostname or ''
+
+    def is_local(self):
+        """Janela do proprio app: conexao vinda do proprio PC E enderecada a 127.0.0.1/localhost (barra DNS rebinding)."""
+        return self.client_address[0] in LOOPBACK_IPS and self.host_only() in LOCAL_HOSTS
+
+    def get_token(self):
+        t = self.headers.get('X-Auth-Token')
+        if t: return t
+        for part in (self.headers.get('Cookie') or '').split(';'):
+            k, _, v = part.strip().partition('=')
+            if k == 'thing_token': return v
+        return ''
+
+    def is_authed(self):
+        if self.is_local(): return True
+        tok = self.get_token()
+        if not tok: return False
+        cfg = load_config(); info = cfg["tokens"].get(tok)
+        if not info: return False
+        if time.time() - info.get("last", 0) > 300:   # registra o "visto por ultimo" sem gravar a cada requisicao
+            info["last"] = time.time(); info["ip"] = self.client_address[0]; save_config(cfg)
+        return True
 
     def do_OPTIONS(self):
         self.send_response(204); self.end_headers()
 
+    def do_HEAD(self):
+        self.send_response(405); self.end_headers()
+
+    def serve_static(self, p):
+        if p == '/apple-touch-icon.png':
+            png = make_icon_png()
+            self.send_response(200); self.send_header('Content-Type', 'image/png'); self.send_header('Content-Length', str(len(png))); self.end_headers()
+            self.wfile.write(png); return
+        icon_ok = p.startswith('/icons/') and '/' not in p[len('/icons/'):] and '\\' not in p and '..' not in p
+        if p not in STATIC_PAGES and not icon_ok:
+            self.send_response(404); self.end_headers(); return
+        if p in STATIC_PAGES:
+            log("HTTP", "Interface carregada" + ("" if self.is_local() else f" (dispositivo remoto {self.client_address[0]})"), COLOR_BLUE)
+        super().do_GET()
+
     def do_GET(self):
-        if self.path == '/favicon.ico': self.send_response(404); self.end_headers(); return
-        if self.path in ('/', '/index.html'): log("HTTP", "Interface carregada", COLOR_BLUE)
-        if self.path == '/api/usage':
-            return self.send_json(load_config().get("usage", {}))
-        if self.path == '/api/check_pending':
-            return self.send_json({"cmd": pending_command["cmd"]})
-        if self.path == '/api/history':
-            return self.send_json(load_history())
-        if self.path == '/api/state':
-            return self.send_json(load_state())
-        if self.path == '/api/custom_themes':
-            return self.send_json(list_custom_themes())
-        if self.path == '/api/config_status':
+        parsed = urllib.parse.urlsplit(self.path)
+        self.query = urllib.parse.parse_qs(parsed.query); self.path = p = parsed.path
+        if not p.startswith('/api/'):
+            return self.serve_static(p)
+        local = self.is_local()
+        if p == '/api/auth/status':
             cfg = load_config()
-            return self.send_json({"groq_key_saved": bool(cfg.get("groq_api_key")), "workdir": get_workdir(cfg), "default_workdir": BASE_DIR})
-        if self.path == '/api/models_status':
+            return self.send_json({"local": local, "authed": self.is_authed(), "remote_enabled": cfg["remote_enabled"], "allow_remote_code": cfg["allow_remote_code"]})
+        if not self.is_authed():
+            return self.send_json({"error": "unauthorized"}, 401)
+        if p == '/api/usage':
+            return self.send_json(load_config().get("usage", {}))
+        if p == '/api/check_pending':
+            return self.send_json({"cmd": pending_command["cmd"] if local else ""})   # so o PC aprova comandos
+        if p == '/api/history':
+            return self.send_json(load_history())
+        if p == '/api/state':
+            st = load_state()
+            return self.send_json(st if local else {"memories": st.get("memories", [])})   # preferencias da interface sao de cada aparelho
+        if p == '/api/custom_themes':
+            return self.send_json(list_custom_themes())
+        if p == '/api/config_status':
+            cfg = load_config()
+            return self.send_json({"groq_key_saved": bool(cfg.get("groq_api_key")), "workdir": get_workdir(cfg) if local else "", "default_workdir": BASE_DIR if local else ""})
+        if p == '/api/models_status':
             running = ollama_is_running()
             used, total, _ = get_gpu_metrics()
             loaded = [{"name": m["name"], "size": m.get("size", 0), "size_vram": m.get("size_vram", 0)} for m in ollama_ps()] if running else []
             return self.send_json({"running": running, "loaded": loaded, "vram_total": total, "vram_used": used})
-        if self.path == '/api/metrics':
+        if p == '/api/metrics':
             vram_used, vram_total, gpu_util = get_gpu_metrics()
             vram_pct = None
             vram_warn = ''
@@ -496,15 +687,92 @@ class CORSRequestHandler(http.server.SimpleHTTPRequestHandler):
                 "vram_pct": vram_pct, "gpu": gpu_util, "vram_warn": vram_warn,
                 "generation_active": generation_active, "alert": alert_state
             })
-        super().do_GET()
+        if p == '/api/server_info':
+            if not local: return self.send_json({"error": "local_only"}, 403)
+            cfg = load_config()
+            return self.send_json({
+                "remote_enabled": cfg["remote_enabled"], "allow_remote_code": cfg["allow_remote_code"], "password": cfg["password"],
+                "port": PORT, "configured_port": cfg.get("port", PORT),
+                "listening": f"{'0.0.0.0' if cfg['remote_enabled'] else '127.0.0.1'}:{PORT}",
+                "addresses": [f"http://{ip}:{PORT}" for ip in lan_ips()],
+                "devices": [{"id": t[:8], "name": i.get("name", ""), "ip": i.get("ip", ""), "created": i.get("created", 0), "last": i.get("last", 0)} for t, i in cfg["tokens"].items()],
+            })
+        if p == '/api/ios_profile':
+            if local:
+                host = (self.query.get('host') or [''])[0]
+                if not re.fullmatch(r'[\w.\-]+', host or ''): host = (lan_ips() or ['127.0.0.1'])[0]
+                base = f"http://{host}:{PORT}"
+            else:
+                base = "http://" + (self.headers.get('Host') or f"127.0.0.1:{PORT}")   # o mesmo endereco que o celular usou para abrir o site
+            body = build_ios_profile(base + "/index.html")
+            log("IPHONE", f"Perfil gerado para {base}/index.html", COLOR_GREEN)
+            self.send_response(200); self.send_header('Content-Type', 'application/x-apple-aspen-config'); self.send_header('Content-Length', str(len(body)))
+            self.send_header('Content-Disposition', 'attachment; filename="Thingmabobber.mobileconfig"'); self.end_headers()
+            self.wfile.write(body); return
+        self.send_json({"error": "rota desconhecida"}, 404)
 
     def do_POST(self):
+        p = urllib.parse.urlsplit(self.path).path; self.path = p
         post_data = self.rfile.read(int(self.headers.get('Content-Length') or 0))
+        origin = self.headers.get('Origin')
+        if origin and urllib.parse.urlsplit(origin).netloc != (self.headers.get('Host') or ''):
+            log("SEGURANCA", f"Requisicao bloqueada: origem {origin} diferente do host", COLOR_RED)
+            return self.send_json({"error": "origin"}, 403)   # outro site tentando usar o servidor
+        local = self.is_local()
+        if p not in PUBLIC_POST and not self.is_authed():
+            return self.send_json({"error": "unauthorized"}, 401)
+        if p in LOCAL_ONLY_POST and not local:
+            log("SEGURANCA", f"Rota {p} recusada para dispositivo remoto {self.client_address[0]}", COLOR_RED)
+            return self.send_json({"error": "local_only"}, 403)
         quiet = ('/api/chat', '/api/history', '/api/state')
-        if self.path not in quiet: log("API", f"POST {self.path}", COLOR_BLUE)
-        data = {} if self.path == '/api/chat' else json.loads(post_data or b'{}')
+        if p not in quiet: log("API", f"POST {p}", COLOR_BLUE)
+        try:
+            data = {} if p == '/api/chat' else json.loads(post_data or b'{}')
+        except ValueError:
+            return self.send_json({"error": "json invalido"}, 400)
 
-        if self.path in ('/api/save_config', '/api/save_key'):
+        if p == '/api/auth/login':
+            return self.handle_login(data)
+
+        if p == '/api/auth/logout':
+            cfg = load_config(); tok = self.get_token()
+            if tok in cfg["tokens"]: del cfg["tokens"][tok]; save_config(cfg); log("AUTH", "Dispositivo desconectado", COLOR_YELLOW)
+            return self.send_json({"ok": True}, headers={"Set-Cookie": "thing_token=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax"})
+
+        if p == '/api/ios_profile_save':   # salva o perfil na pasta Downloads do PC (para mandar por AirDrop/e-mail)
+            host = str(data.get("host") or "")
+            if not re.fullmatch(r'[\w.\-]+', host): host = (lan_ips() or ['127.0.0.1'])[0]
+            folder = os.path.join(os.path.expanduser("~"), "Downloads"); os.makedirs(folder, exist_ok=True)
+            path = os.path.join(folder, "Thingmabobber-iPhone.mobileconfig"); n = 1
+            while os.path.exists(path):
+                path = os.path.join(folder, f"Thingmabobber-iPhone ({n}).mobileconfig"); n += 1
+            with open(path, 'wb') as f: f.write(build_ios_profile(f"http://{host}:{PORT}/index.html"))
+            log("IPHONE", f"Perfil salvo em {path}", COLOR_GREEN)
+            return self.send_json({"ok": True, "path": path})
+
+        if p == '/api/server_config':
+            cfg = load_config(); restart = False; port_changed = False
+            if "remote_enabled" in data and bool(data["remote_enabled"]) != cfg["remote_enabled"]:
+                cfg["remote_enabled"] = bool(data["remote_enabled"]); restart = True
+            if "allow_remote_code" in data: cfg["allow_remote_code"] = bool(data["allow_remote_code"])
+            if data.get("regenerate_password"):
+                cfg["password"] = generate_password(); cfg["tokens"] = {}
+                log("AUTH", "Nova senha gerada; todos os dispositivos foram desconectados.", COLOR_YELLOW)
+            if data.get("revoke_all"): cfg["tokens"] = {}; log("AUTH", "Todos os dispositivos desconectados.", COLOR_YELLOW)
+            if data.get("revoke"):
+                for t in [t for t in cfg["tokens"] if t.startswith(str(data["revoke"]))]: del cfg["tokens"][t]
+                log("AUTH", "Dispositivo desconectado.", COLOR_YELLOW)
+            if "port" in data:
+                port = int(data["port"])
+                if not 1024 <= port <= 65535: return self.send_json({"error": "A porta deve estar entre 1024 e 65535."}, 400)
+                port_changed = port != PORT; cfg["port"] = port
+            save_config(cfg)
+            log("SERVIDOR", f"Configuracao do servidor salva (acesso remoto {'LIGADO' if cfg['remote_enabled'] else 'desligado'})", COLOR_GREEN)
+            self.send_json({"ok": True, "restart_required": port_changed})
+            if restart: restart_server()
+            return
+
+        if p in ('/api/save_config', '/api/save_key'):
             cfg = load_config()
             if data.get("workdir") and not os.path.isdir(data["workdir"]):
                 log("CONFIG", f"Pasta de trabalho invalida: {data['workdir']}", COLOR_RED)
@@ -515,16 +783,18 @@ class CORSRequestHandler(http.server.SimpleHTTPRequestHandler):
             log("CONFIG", "Configuracoes salvas (" + ", ".join(k for k in data if k != "groq_api_key") + (", chave groq" if "groq_api_key" in data else "") + ")", COLOR_GREEN)
             return self.send_json({"ok": True})
 
-        if self.path == '/api/history':
+        if p == '/api/history':
             save_history(data)
             log("HISTORICO", f"{len(data)} chat(s) salvos", COLOR_GRAY)
             return self.send_json({"ok": True})
 
-        if self.path == '/api/state':
+        if p == '/api/state':
+            if not local:   # celular: so as memorias; o resto das preferencias fica no aparelho
+                st = load_state(); st["memories"] = data.get("memories", st.get("memories", [])); data = st
             save_state(data)
             return self.send_json({"ok": True})
 
-        if self.path == '/api/custom_theme':
+        if p == '/api/custom_theme':
             name = safe_theme_name(data.get("name"))
             os.makedirs(THEMES_DIR, exist_ok=True)
             path = os.path.join(THEMES_DIR, name + ".json")
@@ -532,28 +802,28 @@ class CORSRequestHandler(http.server.SimpleHTTPRequestHandler):
             log("TEMA", f"Tema '{name}' salvo em {path}", COLOR_GREEN)
             return self.send_json({"ok": True, "name": name, "path": path})
 
-        if self.path == '/api/custom_theme_delete':
+        if p == '/api/custom_theme_delete':
             name = safe_theme_name(data.get("name"))
             path = os.path.join(THEMES_DIR, name + ".json")
             if os.path.exists(path): os.remove(path); log("TEMA", f"Tema '{name}' apagado", COLOR_YELLOW)
             return self.send_json({"ok": True})
 
-        if self.path == '/api/resolve_pending':
+        if p == '/api/resolve_pending':
             approved = data.get("approved", False)
             log("PERMISSAO", "Aprovado pelo usuario" if approved else "Negado pelo usuario", COLOR_GREEN if approved else COLOR_RED)
             if pending_command["resolve"]:
                 pending_command["resolve"](approved)
             return self.send_json({"ok": True})
 
-        if self.path == '/api/stop':
+        if p == '/api/stop':
             log("STOP", "Parada solicitada pelo usuario", COLOR_YELLOW)
             stop_generation_flag.set()
             return self.send_json({"ok": True})
 
-        if self.path == '/api/start':
+        if p == '/api/start':
             return self.send_json({"running": start_ollama()})
 
-        if self.path == '/api/model_start':
+        if p == '/api/model_start':
             model = data.get("model", "")
             try:
                 if not start_ollama(): raise Exception("Ollama nao esta rodando.")
@@ -565,7 +835,7 @@ class CORSRequestHandler(http.server.SimpleHTTPRequestHandler):
                 log("MODELO", f"Falha ao carregar {model}: {e}", COLOR_RED)
                 return self.send_json({"ok": False, "error": str(e)}, 500)
 
-        if self.path == '/api/model_stop':
+        if p == '/api/model_stop':
             model = data.get("model", "")
             if generation_active and active_model == model: stop_generation_flag.set()
             try:
@@ -576,12 +846,12 @@ class CORSRequestHandler(http.server.SimpleHTTPRequestHandler):
                 log("MODELO", f"Falha ao desligar {model}: {e}", COLOR_RED)
                 return self.send_json({"ok": False, "error": str(e)}, 500)
 
-        if self.path == '/api/perf_interval':
+        if p == '/api/perf_interval':
             ms = max(50, min(5000, int(data.get("ms", 50))))
             if ms != gpu_interval_ms or not gpu_proc: start_gpu_stream(ms)
             return self.send_json({"ok": True, "ms": ms})
 
-        if self.path == '/api/export':
+        if p == '/api/export':
             name = re.sub(r'[^\w.\- ]', '_', data.get("filename", "chat.txt"))
             folder = os.path.join(os.path.expanduser("~"), "Downloads")
             os.makedirs(folder, exist_ok=True)
@@ -592,26 +862,54 @@ class CORSRequestHandler(http.server.SimpleHTTPRequestHandler):
             log("EXPORTAR", f"Salvo em {path}", COLOR_GREEN)
             return self.send_json({"ok": True, "path": path})
 
-        if self.path == '/api/chat':
-            return self.handle_chat(json.loads(post_data))
+        if p == '/api/chat':
+            return self.handle_chat(json.loads(post_data), local)
 
         self.send_json({"error": "rota desconhecida"}, 404)
 
-    def handle_chat(self, req_json):
+    def handle_login(self, data):
+        ip, now = self.client_address[0], time.time()
+        fails = login_failures.get(ip)
+        if fails and fails[0] >= LOGIN_MAX_FAILS and now - fails[1] < LOGIN_LOCK_SECONDS:
+            wait = int(LOGIN_LOCK_SECONDS - (now - fails[1]))
+            log("AUTH", f"Login bloqueado para {ip} (muitas tentativas)", COLOR_RED)
+            return self.send_json({"error": "locked", "wait": wait}, 429)
+        cfg = load_config()
+        given, real = norm_password(data.get("password")), norm_password(cfg["password"])
+        if given and hmac.compare_digest(given, real):
+            login_failures.pop(ip, None)
+            tok = secrets.token_hex(24)
+            cfg["tokens"][tok] = {"ip": ip, "name": device_name(self.headers.get('User-Agent')), "created": now, "last": now}
+            while len(cfg["tokens"]) > 20:   # mantem so os 20 mais recentes
+                del cfg["tokens"][min(cfg["tokens"], key=lambda t: cfg["tokens"][t]["last"])]
+            save_config(cfg)
+            log("AUTH", f"Dispositivo conectado: {cfg['tokens'][tok]['name']} ({ip})", COLOR_GREEN)
+            return self.send_json({"ok": True}, headers={"Set-Cookie": f"thing_token={tok}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Lax"})
+        if not fails or now - fails[1] >= LOGIN_LOCK_SECONDS: fails = login_failures[ip] = [0, now]
+        fails[0] += 1
+        log("AUTH", f"Senha incorreta de {ip} ({fails[0]}/{LOGIN_MAX_FAILS})", COLOR_RED)
+        return self.send_json({"error": "bad_password"}, 401)
+
+    def handle_chat(self, req_json, local=True):
         global generation_active, active_model
+        lang = 'en' if req_json.get('lang') == 'en' else 'pt'
+        L = lambda pt, en: en if lang == 'en' else pt
+        cfg = load_config()
+        agent = bool(req_json.get("agent"))
+        if agent and not local and not cfg.get("allow_remote_code"):
+            log("SEGURANCA", "Modo agente recusado para dispositivo remoto (desligado nas configuracoes do servidor)", COLOR_RED)
+            return self.send_json({"error": "remote_code_disabled"}, 403)
         stop_generation_flag.clear()
         generation_active = True
         started = time.time()
         model = req_json.get('model', 'qwen3.5:4b')
         active_model = model
         messages = req_json.get("messages", [])
-        agent = bool(req_json.get("agent"))
         think = bool(req_json.get("think"))
         num_ctx = req_json.get("num_ctx")
-        cfg = load_config()
         workdir = get_workdir(cfg)
         n_images = sum(len(m.get("images", [])) for m in messages)
-        log("CHAT", f"modelo={model} modo={'agente' if agent else 'chat'} mensagens={len(messages)} imagens={n_images} contexto={num_ctx or 'padrao'} pensar={think} web={bool(req_json.get('search_web'))}", COLOR_CYAN)
+        log("CHAT", f"modelo={model} modo={'agente' if agent else 'chat'} mensagens={len(messages)} imagens={n_images} contexto={num_ctx or 'padrao'} pensar={think} web={bool(req_json.get('search_web'))}" + ("" if local else f" origem={self.client_address[0]}"), COLOR_CYAN)
 
         self.send_response(200)
         self.send_header('Content-Type', 'application/x-ndjson')
@@ -636,13 +934,13 @@ class CORSRequestHandler(http.server.SimpleHTTPRequestHandler):
             if not messages or messages[0].get("role") != "system":
                 messages.insert(0, {"role": "system", "content": ""})
             if agent:
-                messages[0]["content"] += TOOL_PROMPT.replace("{workdir}", workdir)
+                messages[0]["content"] += (TOOL_PROMPT_EN if lang == 'en' else TOOL_PROMPT).replace("{workdir}", workdir)
             elif req_json.get("search_web"):
                 query = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")[:200]
                 if len(query.strip()) >= MIN_WEB_QUERY:
                     status("Pesquisando na web")
                     log("WEB", f"Pesquisando: {query}", COLOR_CYAN)
-                    messages[0]["content"] += "\n\n[PESQUISA NA WEB - use se for relevante e cite os links]" + search_web(query)
+                    messages[0]["content"] += L("\n\n[PESQUISA NA WEB - use se for relevante e cite os links]", "\n\n[WEB SEARCH - use it if relevant and cite the links]") + search_web(query)
                 else:
                     log("WEB", "Mensagem curta demais, pesquisa ignorada.", COLOR_GRAY)
 
@@ -665,7 +963,7 @@ class CORSRequestHandler(http.server.SimpleHTTPRequestHandler):
                     gen.close()
                 total_chars += len(full)
                 if stop_generation_flag.is_set():
-                    send("\n\n[Geracao parada]")
+                    send(L("\n\n[Geracao parada]", "\n\n[Generation stopped]"))
                     break
                 call = find_tool_call(full) if agent else None
                 if not call:
@@ -677,18 +975,18 @@ class CORSRequestHandler(http.server.SimpleHTTPRequestHandler):
                 if needs_permission(tool_name):
                     status("Aguardando permissão")
                     if not ask_permission(describe_tool(tool_name, tool_args)):
-                        send("\n\n[Acao negada pelo usuario]")
+                        send(L("\n\n[Acao negada pelo usuario]", "\n\n[Action denied by the user]"))
                         break
                 status(f"Executando: {tool_name}")
                 result = execute_tool(tool_name, tool_args, workdir)
                 log("TOOL", f"resultado de {tool_name}: {len(result)} caracteres", COLOR_GREEN if not result.startswith("Erro") else COLOR_RED)
-                send(f"\n\n[resultado de {tool_name}]\n{result}\n\n")
+                send(L(f"\n\n[resultado de {tool_name}]\n{result}\n\n", f"\n\n[result of {tool_name}]\n{result}\n\n"))
                 messages.append({"role": "assistant", "content": full})
-                messages.append({"role": "user", "content": f"Resultado da ferramenta {tool_name}:\n{result}"})
+                messages.append({"role": "user", "content": L(f"Resultado da ferramenta {tool_name}:\n{result}", f"Tool result for {tool_name}:\n{result}")})
                 status("Pensando")
             else:
                 if agent:
-                    send(f"\n\n[Limite de {MAX_AGENT_STEPS} chamadas de ferramenta atingido]")
+                    send(L(f"\n\n[Limite de {MAX_AGENT_STEPS} chamadas de ferramenta atingido]", f"\n\n[Limit of {MAX_AGENT_STEPS} tool calls reached]"))
                     log("AGENTE", "Limite de passos atingido", COLOR_YELLOW)
 
             if model.startswith("groq"):
@@ -700,19 +998,42 @@ class CORSRequestHandler(http.server.SimpleHTTPRequestHandler):
             log("CHAT", f"concluido: {total_chars} caracteres em {time.time() - started:.1f}s", COLOR_GREEN)
         except Exception as e:
             log("ERRO", f"{type(e).__name__}: {e}", COLOR_RED)
-            try: send(f"\n[Erro: {e}]")
+            try: send(L(f"\n[Erro: {localize_error(e, lang)}]", f"\n[Error: {localize_error(e, lang)}]"))
             except Exception: pass
         finally:
             generation_active = False
 
 def start_server():
-    handler = functools.partial(CORSRequestHandler, directory=BASE_DIR)
+    global httpd
+    handler = functools.partial(AppHandler, directory=BASE_DIR)
+    host = "0.0.0.0" if load_config().get("remote_enabled") else "127.0.0.1"
+    srv = None
+    for attempt in range(8):   # na troca de modo o socket antigo pode demorar um instante para liberar a porta
+        try:
+            srv = ThreadingServer((host, PORT), handler); break
+        except OSError as e:
+            if attempt == 7:
+                log("SERVIDOR", f"Nao foi possivel usar a porta {PORT}: {e}. Ja tem outra copia aberta?", COLOR_RED)
+                return
+            time.sleep(0.5)
+    httpd = srv
+    if host == "0.0.0.0":
+        log("SERVIDOR", f"ACESSO REMOTO LIGADO na porta {PORT}. Enderecos: " + ", ".join(f"http://{ip}:{PORT}" for ip in lan_ips()), COLOR_YELLOW)
+    else:
+        log("SERVIDOR", f"Rodando em http://127.0.0.1:{PORT} (somente neste PC)", COLOR_GREEN)
     try:
-        with ThreadingServer(("", PORT), handler) as httpd:
-            log("SERVIDOR", f"Rodando em http://127.0.0.1:{PORT}", COLOR_GREEN)
-            httpd.serve_forever()
-    except OSError as e:
-        log("SERVIDOR", f"Nao foi possivel usar a porta {PORT}: {e}. Ja tem outra copia aberta?", COLOR_RED)
+        srv.serve_forever()
+    finally:
+        srv.server_close()
+
+def restart_server():
+    """Reinicia o servidor HTTP (troca entre 'so neste PC' e 'rede local') sem fechar o app."""
+    def work():
+        old = httpd
+        if old: old.shutdown()
+        time.sleep(0.3)
+        threading.Thread(target=start_server, daemon=True).start()
+    threading.Thread(target=work, daemon=True).start()
 
 class WindowApi:
     """Botoes da barra de titulo propria (a janela nao tem a borda do Windows)."""
@@ -729,6 +1050,7 @@ class WindowApi:
 
 if __name__ == '__main__':
     log("INICIO", f"Pasta do programa: {BASE_DIR}", COLOR_BLUE)
+    PORT = int(load_config().get("port", PORT))
     log("INICIO", "Groq: " + ("biblioteca ok" if HAS_GROQ else "biblioteca NAO instalada (pip install groq)"), COLOR_GREEN if HAS_GROQ else COLOR_YELLOW)
     threading.Thread(target=start_server, daemon=True).start()
     threading.Thread(target=start_ollama, daemon=True).start()

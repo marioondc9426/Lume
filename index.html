@@ -2,6 +2,13 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Thingmabobber">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="theme-color" content="#111111">
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png">
     <title>AI Website Thingmabobber</title>
     <style>
         :root { --bg-main: #1e1e1e; --bg-sidebar: #111; --bg-msg-user: #0056b3; --bg-msg-ai: #2d2d2d; --bg-input: #2d2d2d; --text-main: #e0e0e0; --text-muted: #888; --border-color: #333; --accent: #0056b3; --icon-filter: invert(1); --font: 'Segoe UI', sans-serif; --custom-bg-image: none; --custom-bg-opacity: 0; --warn: #e3a008; --danger: #d64545; }
@@ -9,7 +16,7 @@
         [data-theme="kimi"] { --bg-main: #18181b; --bg-sidebar: #09090b; --bg-msg-user: #3f3f46; --bg-msg-ai: #27272a; --bg-input: #27272a; --text-main: #fafafa; --text-muted: #a1a1aa; --border-color: #3f3f46; --accent: #7c3aed; }
 
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font); }
-        body { background: var(--bg-main); color: var(--text-main); display: flex; flex-direction: column; height: 100vh; overflow: hidden; font-size: calc(16px * var(--scale, 1)); }
+        body { background: var(--bg-main); color: var(--text-main); display: flex; flex-direction: column; height: 100vh; height: 100dvh; overflow: hidden; font-size: calc(16px * var(--scale, 1)); }
         #bg-image-layer { position: absolute; inset: 0; background-image: var(--custom-bg-image); background-size: cover; background-position: center; opacity: var(--custom-bg-opacity); z-index: -1; pointer-events: none; }
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-thumb { background: var(--border-color); border-radius: 4px; }
@@ -198,6 +205,47 @@
         .export-actions { display: flex; flex-wrap: wrap; gap: 8px; }
         .export-actions .btn { margin: 0; }
 
+        /* Aba Servidor, aviso de conexao e layout de celular */
+        .set-tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--border-color); margin-top: -4px; }
+        .set-tab { background: none; border: none; color: var(--text-muted); padding: 8px 14px; cursor: pointer; font-size: 0.95em; border-bottom: 2px solid transparent; }
+        .set-tab.active { color: var(--text-main); border-bottom-color: var(--accent); font-weight: bold; }
+        .set-pane { display: flex; flex-direction: column; gap: 16px; }
+        .srv-list { display: flex; flex-direction: column; gap: 6px; }
+        .srv-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 10px; font-size: 0.85em; }
+        .srv-row code { font-family: Consolas, monospace; word-break: break-all; }
+        .srv-row .btn { margin: 0; padding: 4px 10px; font-size: 0.85em; white-space: nowrap; }
+        .srv-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+        .srv-actions .btn { margin: 0; }
+        #connect-banner { display: none; align-items: center; justify-content: center; gap: 12px; padding: 8px 14px; background: var(--warn); color: #111; font-size: 0.9em; z-index: 600; flex-shrink: 0; }
+        #connect-banner button { margin: 0; padding: 4px 12px; background: #111; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        #menu-btn { display: none; font-size: 22px; color: var(--text-main); margin-right: 8px; padding: 2px 8px; }
+        #drawer-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 850; }
+        body.remote .host-only { display: none !important; }
+        body.remote #titlebar { display: none; }
+        body.remote #settings-modal, body.remote #memory-modal, body.remote #export-modal, body.remote #dialog-overlay, body.remote #drop-overlay { inset: 0; }
+        @media (hover: none) { .chat-actions { opacity: 1; } .copy-btn { opacity: .75; } }
+        @media (max-width: 760px) {
+            #sidebar { position: fixed; top: 0; bottom: 0; left: 0; width: 82vw; max-width: 320px; transform: translateX(-100%); transition: transform .25s ease; z-index: 900; padding-top: env(safe-area-inset-top); }
+            body.drawer-open #sidebar { transform: none; box-shadow: 0 0 40px rgba(0,0,0,0.6); }
+            body.drawer-open #drawer-backdrop { display: block; }
+            #menu-btn { display: flex; }
+            #chat-header { padding: 6px 12px; padding-top: calc(6px + env(safe-area-inset-top)); }
+            #ctx-bar { padding: 6px 12px; gap: 8px; } #ctx-text { min-width: 0; font-size: 0.9em; }
+            #chat { padding: 14px 12px; gap: 14px; }
+            .msg { max-width: 94%; padding: 12px 14px; }
+            .controls { padding: 8px 10px; padding-bottom: calc(8px + env(safe-area-inset-bottom)); gap: 8px; flex-wrap: wrap; align-items: center; }
+            #prompt { order: 10; flex: 1 1 calc(100% - 56px); }
+            .send-circle { order: 11; }
+            #prompt, input, textarea, select { font-size: 16px; }
+            .custom-select { position: static; }   /* a lista de modelos se ancora na barra de digitacao inteira, nao no botao */
+            .select-options { left: 10px; right: 10px; min-width: 0; width: auto; transform-origin: bottom center; }
+            .perf-monitor { display: none !important; }
+            .modal-content { padding: 18px; max-height: 94%; }
+            #command-menu { width: 92vw; }
+            .toast { width: 92vw; } #toast-container { right: 4vw; bottom: calc(10px + env(safe-area-inset-bottom)); }
+            .msg-images img { max-width: 100%; }
+        }
+
         /* Barra de contexto */
         #ctx-bar { display: flex; align-items: center; gap: 12px; padding: 6px 20px; border-bottom: 1px solid var(--border-color); font-size: 0.8em; color: var(--text-muted); }
         .ctx-track { flex: 1; height: 8px; border-radius: 4px; background: var(--border-color); overflow: hidden; }
@@ -263,6 +311,9 @@
         </div>
     </div>
 
+    <div id="connect-banner"><span id="connect-banner-text">Não conectado ao servidor.</span><button onclick="connectToServer()">Conectar</button></div>
+    <div id="drawer-backdrop" onclick="closeDrawer()"></div>
+
     <div id="app">
         <!-- Overlay de desempenho -->
         <div id="perf-monitor" class="perf-monitor" style="display:none;">
@@ -297,7 +348,10 @@
                 <button class="btn btn-secondary ctx-btn" id="ctx-compact" onclick="compactChat()" title="Resume as mensagens antigas para liberar contexto">Compactar</button>
             </div>
             <div id="chat-header">
-                <span id="chat-header-title">Novo Chat</span>
+                <div style="display:flex; align-items:center; min-width:0;">
+                    <button class="icon-btn" id="menu-btn" onclick="toggleDrawer()" title="Menu">☰</button>
+                    <span id="chat-header-title">Novo Chat</span>
+                </div>
                 <button class="icon-btn" onclick="openExport()" title="Copiar / exportar chat"><img class="ic" src="icons/copy.png" style="width:16px;height:16px;"></button>
             </div>
             <div id="chat"></div>
@@ -339,7 +393,7 @@
     <div id="edit-ctx"><button onclick="selectCtxPart()">Selecionar e modificar</button></div>
     <div id="theme-panel">
         <h3>Editor de temas</h3>
-        <div class="tp-hint">Passe o mouse sobre a interface para ver cada parte. Clique com o <b>botão direito</b> &gt; <b>Selecionar e modificar</b> e ajuste a cor aqui.</div>
+        <div class="tp-hint" id="tp-hint">Passe o mouse sobre a interface para ver cada parte. Clique com o <b>botão direito</b> &gt; <b>Selecionar e modificar</b> e ajuste a cor aqui.</div>
         <div id="theme-rows" style="display:flex; flex-direction:column; gap:4px;"></div>
         <label class="tp-row" style="cursor:pointer;"><input type="checkbox" id="tp-icons" onchange="setIconLight(this.checked)"><label for="tp-icons" style="cursor:pointer;">Ícones claros (para fundos escuros)</label></label>
         <div class="tp-group">Salvar</div>
@@ -354,6 +408,7 @@
     <div id="dialog-overlay"><div class="modal-content" id="dialog">
         <h3 id="dlg-title"></h3>
         <p id="dlg-body"></p>
+        <input type="text" id="dlg-input" style="display:none;" autocomplete="off" spellcheck="false">
         <label class="toggle-container" id="dlg-toggle-wrap" style="display:none;"><input type="checkbox" id="dlg-toggle"><div class="toggle-switch"></div><span id="dlg-toggle-label"></span></label>
         <div id="dlg-buttons"></div>
     </div></div>
@@ -362,9 +417,19 @@
     <div id="settings-modal"><div class="modal-content">
         <button class="close-btn" onclick="closeSettings()">&times;</button>
         <h2>Configurações</h2>
+        <div class="set-tabs">
+            <button class="set-tab active" id="set-tab-general" onclick="showSettingsTab('general')">Geral</button>
+            <button class="set-tab" id="set-tab-server" onclick="showSettingsTab('server')">Servidor</button>
+        </div>
+        <div id="set-general" class="set-pane">
 
-        <div class="section-title">Chaves de API</div>
         <div class="form-group">
+            <label>Idioma / Language</label>
+            <select id="opt-lang" onchange="setLang(this.value)"><option value="pt">Português (Brasil)</option><option value="en">English</option></select>
+        </div>
+
+        <div class="section-title host-only">Chaves de API</div>
+        <div class="form-group host-only">
             <label>Groq API Key <span class="badge" id="groq-status">não salva</span></label>
             <div class="key-input">
                 <input type="password" id="groq-key-input" placeholder="gsk_..." autocomplete="off" spellcheck="false">
@@ -396,7 +461,7 @@
             <label>System Prompt (aba Code)</label>
             <textarea id="code-prompt-input" rows="3"></textarea>
         </div>
-        <div class="form-group">
+        <div class="form-group host-only">
             <label>Pasta de trabalho</label>
             <input type="text" id="workdir-input" placeholder="Pasta do programa (padrão)" spellcheck="false">
             <span class="hint">É onde a IA lista, lê e escreve arquivos e roda comandos. Escrever e executar sempre pedem sua permissão.</span>
@@ -411,7 +476,7 @@
             <label>Tema</label>
             <div style="display:flex; gap:8px;">
                 <select id="theme-base" onchange="applyBaseTheme(this.value)"></select>
-                <button class="btn btn-secondary" style="margin:0; white-space:nowrap;" onclick="openThemeEditor()">Editor de temas</button>
+                <button class="btn btn-secondary host-only" style="margin:0; white-space:nowrap;" onclick="openThemeEditor()">Editor de temas</button>
             </div>
         </div>
         <div class="form-group">
@@ -438,6 +503,54 @@
         </div>
 
         <button class="btn btn-primary" style="margin:0;" onclick="saveSettings()">Salvar Tudo</button>
+        </div>
+
+        <div id="set-server" class="set-pane" style="display:none;">
+            <!-- este PC (quem roda o servidor) -->
+            <div id="srv-host" class="set-pane">
+                <div class="section-title">Acesso pela rede</div>
+                <label class="toggle-container"><input type="checkbox" id="srv-remote" onchange="srvSet({ remote_enabled: this.checked })"><div class="toggle-switch"></div> Permitir que outros aparelhos da rede local usem este servidor</label>
+                <span class="hint" id="srv-listening"></span>
+                <div id="srv-addresses" class="srv-list"></div>
+                <span class="hint">Abra um destes endereços no navegador do outro aparelho (os dois precisam estar na mesma rede Wi-Fi). Na primeira vez o Windows pode pedir permissão no firewall: permita para redes privadas.</span>
+
+                <div class="section-title">Senha de acesso</div>
+                <div class="key-input"><input type="password" id="srv-password" readonly><button type="button" class="eye" onclick="toggleKey('srv-password', this)">Mostrar</button></div>
+                <div class="srv-actions">
+                    <button class="btn btn-secondary" onclick="copyText($('srv-password').value)">Copiar senha</button>
+                    <button class="btn btn-secondary" onclick="srvRegenerate()">Gerar nova senha</button>
+                </div>
+                <span class="hint">No outro aparelho: abra o endereço acima, vá em Configurações, aba Servidor, "Conectar ao servidor" e digite esta senha.</span>
+
+                <div class="section-title">Permissões dos aparelhos remotos</div>
+                <label class="toggle-container"><input type="checkbox" id="srv-code" onchange="srvSet({ allow_remote_code: this.checked })"><div class="toggle-switch"></div> Permitir a aba Code (a IA pode ler e escrever arquivos e rodar comandos NESTE PC; cada ação continua pedindo a sua aprovação aqui)</label>
+
+                <div class="section-title">Aparelhos conectados</div>
+                <div id="srv-devices" class="srv-list"></div>
+                <button class="btn btn-secondary" style="margin:0; align-self:flex-start;" onclick="srvSet({ revoke_all: true })">Desconectar todos</button>
+
+                <div class="section-title">iPhone</div>
+                <span class="hint">Gera um perfil (.mobileconfig) que coloca na tela inicial do iPhone um ícone que abre só este site. Também dá para abrir o site no Safari do iPhone e instalar por lá, em Configurações, aba Servidor.</span>
+                <div class="srv-actions"><select id="srv-ios-host" style="width:auto; flex:1;"></select><button class="btn btn-secondary" onclick="srvSaveProfile()">Salvar perfil do iPhone</button></div>
+
+                <div class="section-title">Porta</div>
+                <div class="srv-actions"><input type="text" id="srv-port" inputmode="numeric" style="width:110px;"><button class="btn btn-secondary" onclick="srvSetPort()">Aplicar</button></div>
+                <span class="hint" id="srv-port-hint">Vale na próxima vez que o app abrir.</span>
+            </div>
+
+            <!-- aparelho remoto (celular, outro PC) -->
+            <div id="srv-client" class="set-pane" style="display:none;">
+                <div class="section-title">Conexão com o servidor</div>
+                <div class="form-group"><label>Servidor <span class="badge" id="srv-conn-badge">...</span></label><span class="hint" id="srv-conn-host"></span></div>
+                <div class="srv-actions">
+                    <button class="btn btn-primary" id="srv-connect-btn" onclick="connectToServer()">Conectar ao servidor</button>
+                    <button class="btn btn-secondary" id="srv-disconnect-btn" onclick="disconnectFromServer()">Desconectar</button>
+                </div>
+                <div class="section-title">Instalar no iPhone</div>
+                <span class="hint">No Safari do iPhone, toque abaixo para baixar o perfil e depois abra Ajustes, "Perfil baixado", Instalar. Vai aparecer na tela inicial um ícone que abre só este site. Nesse ícone você precisa conectar de novo, porque o iPhone guarda o login separado do Safari.</span>
+                <div class="srv-actions"><button class="btn btn-secondary" onclick="installIphoneProfile()">Baixar perfil do iPhone</button></div>
+            </div>
+        </div>
     </div></div>
 
     <!-- Modal Memória -->
@@ -474,16 +587,17 @@
     </div></div>
 
     <script>
-        const API = 'http://127.0.0.1:8000';
+        const API = location.origin;   // o site e a API vem do mesmo servidor (PC ou, no celular, o PC pela rede)
         const $ = id => document.getElementById(id);
+        // quem esta usando: a janela do PC (local) ou outro aparelho (remoto, precisa de senha)
+        let auth = { local: true, authed: true, remote_enabled: false, allow_remote_code: false };
+        const _fetch = window.fetch.bind(window);
+        window.fetch = async (...args) => {
+            const r = await _fetch(...args);
+            if (r.status === 401 && !auth.local) onUnauthorized();
+            return r;
+        };
         const THEMES = ['dark', 'claude', 'kimi'];
-        const WELCOMES = [
-            'Olá! Sobre o que vamos conversar hoje?',
-            'Pronto para ajudar. É só mandar sua pergunta.',
-            'Bem-vindo de volta! Em que posso ajudar?',
-            'Oi! Me conte o que você precisa e eu dou um jeito.',
-            'Mente fresca, teclado pronto. Qual é o plano?'
-        ];
         // gb = tamanho aproximado na memoria (usado para prever estouro de VRAM)
         const MODELS = [
             { id: 'qwen3.5:2b', label: 'Qwen 3.5 2B (Básico)', icon: 'zap', tabs: ['chat'], gb: 2.7, vision: true, ctx: 262144 },
@@ -498,10 +612,210 @@
             { id: 'groq-openai/gpt-oss-20b', label: 'Groq GPT-OSS 20B', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 131072 },
         ];
         const CODE_PROMPT_DEFAULT = 'Você é um agente de código. Use as ferramentas para ler, escrever e executar código no computador do usuário. Explique brevemente o que fez.';
+
+        // ---------- idiomas: o texto-fonte esta em portugues; EN traduz pelo texto exato ----------
+        const EN = {
+            // barra de titulo / overlay / lateral
+            'Minimizar': 'Minimize', 'Maximizar': 'Maximize', 'Fechar': 'Close',
+            '📊 Desempenho': '📊 Performance', 'Status: Ocioso': 'Status: Idle', 'Palavras/s: --': 'Words/s: --',
+            'Palavras/s': 'Words/s', 'N/D': 'N/A', ' (est.)': ' (est.)',
+            'Não conectado ao servidor.': 'Not connected to the server.', 'Conectar': 'Connect',
+            '+ Novo Chat': '+ New Chat', 'Novo Chat': 'New Chat', '⚙️ Configurações': '⚙️ Settings', '🧠 Memória': '🧠 Memory',
+            'Contexto': 'Context', 'Compactar': 'Compact', 'Compactando...': 'Compacting...',
+            'Resume as mensagens antigas para liberar contexto': 'Summarizes older messages to free up context',
+            'Copiar / exportar chat': 'Copy / export chat', 'Anexar imagem (ou arraste / cole)': 'Attach image (or drag / paste)',
+            'Pensar': 'Think', 'Digite... (Shift+Enter quebra a linha, / para comandos)': 'Type... (Shift+Enter for a new line, / for commands)',
+            'Enviar': 'Send', 'Parar': 'Stop',
+            '- Renomeia o chat': '- Renames the chat', '- Limpa este chat': '- Clears this chat',
+            'Solte a imagem aqui': 'Drop the image here',
+            // editor de temas
+            'Selecionar e modificar': 'Select and edit', 'Editor de temas': 'Theme editor',
+            'Ícones claros (para fundos escuros)': 'Light icons (for dark backgrounds)', 'Salvar': 'Save',
+            'Nome do tema': 'Theme name', 'Salvar em "custom themes"': 'Save to "custom themes"', 'Sair sem salvar': 'Exit without saving', 'Temas salvos': 'Saved themes',
+            'Fundo principal': 'Main background', 'Barras (lateral, título, digitação)': 'Bars (side, title, typing)', 'Mensagem do usuário': 'User message',
+            'Mensagem da IA': 'AI message', 'Caixas de texto': 'Text boxes', 'Texto principal': 'Main text', 'Texto secundário': 'Secondary text', 'Bordas': 'Borders',
+            'Destaque e botões': 'Accent and buttons', 'Botões e destaque': 'Buttons and accent', 'Aba inativa': 'Inactive tab', 'Caixa de texto': 'Text box',
+            'Seletor de modelo': 'Model selector', 'Barra de título': 'Title bar', 'Barra lateral': 'Sidebar', 'Barra de digitação': 'Typing bar',
+            'Cabeçalho do chat': 'Chat header', 'Fundo do chat': 'Chat background', 'Fundo': 'Background', 'Todas as cores': 'All colors',
+            'Selecionado: {x}': 'Selected: {x}', 'Nenhum tema salvo ainda.': 'No saved themes yet.', 'Apagar tema': 'Delete theme', 'Apagar tema?': 'Delete theme?',
+            '"{name}" será removido da pasta custom themes.': '"{name}" will be removed from the custom themes folder.',
+            'Dê um nome ao tema.': 'Give the theme a name.', 'Tema salvo em {path}': 'Theme saved to {path}', 'Não consegui salvar o tema.': 'Could not save the theme.',
+            'Escuro': 'Dark', 'Personalizados': 'Custom',
+            // configuracoes
+            'Configurações': 'Settings', 'Geral': 'General', 'Servidor': 'Server', 'Chaves de API': 'API keys', 'não salva': 'not saved', 'chave salva ✓': 'key saved ✓',
+            'Mostrar': 'Show', 'Ocultar': 'Hide',
+            'Deixe vazio para manter a chave já salva. Chaves gratuitas em console.groq.com/keys': 'Leave empty to keep the saved key. Free keys at console.groq.com/keys',
+            'System Prompt (aba Chat)': 'System Prompt (Chat tab)', 'System Prompt (aba Code)': 'System Prompt (Code tab)',
+            'Contexto (memória da conversa)': 'Context (conversation memory)', '4K (padrão do Ollama, mais leve)': '4K (Ollama default, lighter)',
+            'Quanto o modelo lembra da conversa. Contextos grandes usam MUITO mais VRAM e deixam tudo mais lento; aumente aos poucos. Cada modelo é limitado ao máximo que suporta (o CodeGemma só tem 8K). Trocar o valor recarrega o modelo.':
+                'How much of the conversation the model remembers. Large contexts use MUCH more VRAM and make everything slower; increase gradually. Each model is capped at the maximum it supports (CodeGemma only has 8K). Changing the value reloads the model.',
+            'Mostrar a barra de contexto no topo': 'Show the context bar at the top',
+            'Pesquisar na web nas respostas (aba Chat)': 'Search the web when answering (Chat tab)',
+            'Trocar * sozinho no início da linha por •': 'Replace a lone * at the start of a line with •',
+            'Ao trocar de modelo, parar o anterior automaticamente se a VRAM não couber os dois': 'When switching models, automatically stop the previous one if both do not fit in VRAM',
+            'Pasta de trabalho': 'Working folder', 'Pasta do programa (padrão)': 'Program folder (default)',
+            'É onde a IA lista, lê e escreve arquivos e roda comandos. Escrever e executar sempre pedem sua permissão.': 'This is where the AI lists, reads and writes files and runs commands. Writing and running always ask for your permission.',
+            'Aparência': 'Appearance', 'Tema': 'Theme', 'Imagem de Fundo': 'Background image', 'Escolher Imagem': 'Choose image', 'Opacidade:': 'Opacity:',
+            'Overlay de desempenho': 'Performance overlay', 'Mostrar overlay no canto superior direito': 'Show overlay in the top-right corner', 'Estilo': 'Style',
+            'Padrão (colorido)': 'Default (colored)', 'Cinza (discreto)': 'Gray (subtle)', 'Atualização:': 'Refresh:',
+            'A GPU em si só atualiza o uso a cada ~100–1000 ms; valores menores que isso não deixam o número mais preciso.': 'The GPU itself only updates its usage every ~100–1000 ms; lower values do not make the number more precise.',
+            'Salvar Tudo': 'Save all', 'Erro ao salvar.': 'Error while saving.', 'Servidor não respondeu.': 'The server did not respond.',
+            'Pasta de trabalho nao existe.': 'Working folder does not exist.',
+            // aba servidor
+            'Acesso pela rede': 'Network access', 'Permitir que outros aparelhos da rede local usem este servidor': 'Allow other devices on the local network to use this server',
+            'Abra um destes endereços no navegador do outro aparelho (os dois precisam estar na mesma rede Wi-Fi). Na primeira vez o Windows pode pedir permissão no firewall: permita para redes privadas.':
+                'Open one of these addresses in the other device’s browser (both must be on the same Wi-Fi network). The first time, Windows may ask for firewall permission: allow it for private networks.',
+            'Senha de acesso': 'Access password', 'Copiar senha': 'Copy password', 'Gerar nova senha': 'Generate new password',
+            'No outro aparelho: abra o endereço acima, vá em Configurações, aba Servidor, "Conectar ao servidor" e digite esta senha.':
+                'On the other device: open the address above, go to Settings, Server tab, "Connect to server" and type this password.',
+            'Permissões dos aparelhos remotos': 'Remote device permissions',
+            'Permitir a aba Code (a IA pode ler e escrever arquivos e rodar comandos NESTE PC; cada ação continua pedindo a sua aprovação aqui)':
+                'Allow the Code tab (the AI can read and write files and run commands on THIS PC; every action still asks for your approval here)',
+            'Aparelhos conectados': 'Connected devices', 'Desconectar todos': 'Disconnect all', 'Desconectar': 'Disconnect', 'iPhone': 'iPhone',
+            'Gera um perfil (.mobileconfig) que coloca na tela inicial do iPhone um ícone que abre só este site. Também dá para abrir o site no Safari do iPhone e instalar por lá, em Configurações, aba Servidor.':
+                'Generates a profile (.mobileconfig) that puts an icon on the iPhone home screen that opens only this site. You can also open the site in the iPhone’s Safari and install it from there, in Settings, Server tab.',
+            'Salvar perfil do iPhone': 'Save iPhone profile', 'Porta': 'Port', 'Aplicar': 'Apply', 'Vale na próxima vez que o app abrir.': 'Takes effect the next time the app opens.',
+            'Conexão com o servidor': 'Connection to the server', 'Conectar ao servidor': 'Connect to server', 'Instalar no iPhone': 'Install on iPhone',
+            'No Safari do iPhone, toque abaixo para baixar o perfil e depois abra Ajustes, "Perfil baixado", Instalar. Vai aparecer na tela inicial um ícone que abre só este site. Nesse ícone você precisa conectar de novo, porque o iPhone guarda o login separado do Safari.':
+                'In the iPhone’s Safari, tap below to download the profile, then open Settings, "Profile Downloaded", Install. An icon that opens only this site will appear on the home screen. In that icon you must connect again, because the iPhone keeps its login separate from Safari.',
+            'Baixar perfil do iPhone': 'Download iPhone profile', 'não conectado': 'not connected', 'conectado ✓': 'connected ✓',
+            'Ouvindo em {addr} (rede local ligada)': 'Listening on {addr} (local network on)', 'Ouvindo em {addr} (somente neste PC)': 'Listening on {addr} (this PC only)',
+            'Nenhum endereço de rede encontrado. Conecte este PC ao Wi-Fi ou cabo.': 'No network address found. Connect this PC to Wi-Fi or a cable.',
+            'Nenhum aparelho conectado.': 'No connected devices.', 'Dispositivo': 'Device', 'Copiar': 'Copy', 'Copiado!': 'Copied!',
+            'agora há pouco': 'just now', 'há {n} min': '{n} min ago', 'há {n} h': '{n} h ago', 'há {n} dias': '{n} days ago',
+            'Porta salva: {a}. Feche e abra o app para usar (agora: {b}).': 'Saved port: {a}. Close and reopen the app to use it (now: {b}).',
+            'Ligando o acesso pela rede...': 'Turning on network access...', 'Desligando o acesso pela rede...': 'Turning off network access...',
+            'Gerar nova senha?': 'Generate a new password?', 'A senha atual deixa de valer e todos os aparelhos conectados serão desconectados.': 'The current password stops working and all connected devices will be disconnected.',
+            'Porta inválida.': 'Invalid port.', 'A porta deve estar entre 1024 e 65535.': 'The port must be between 1024 and 65535.',
+            'Porta salva. Feche e abra o app para usar a nova porta.': 'Port saved. Close and reopen the app to use the new port.',
+            'Perfil salvo em {path}. Mande para o iPhone (AirDrop, e-mail) e abra lá.': 'Profile saved to {path}. Send it to the iPhone (AirDrop, email) and open it there.',
+            'Não consegui salvar o perfil.': 'Could not save the profile.',
+            'Digite a senha que aparece no PC, em Configurações > Servidor.': 'Type the password shown on the PC, in Settings > Server.',
+            'Muitas tentativas. Aguarde {n} segundos.': 'Too many attempts. Wait {n} seconds.', 'Senha incorreta.': 'Wrong password.',
+            'A aba Code está desligada para aparelhos remotos. Ligue no PC em Configurações > Servidor.': 'The Code tab is turned off for remote devices. Turn it on at the PC in Settings > Server.',
+            'Não conectado ao servidor. Use Configurações > Servidor > Conectar.': 'Not connected to the server. Use Settings > Server > Connect.',
+            // memoria / exportar
+            '🧠 Memória Global': '🧠 Global Memory', 'Ex: Usuário odeia MSI Center': 'E.g. User hates MSI Center', 'Nenhuma memória salva.': 'No saved memories.',
+            '1. O que copiar': '1. What to copy', 'Tudo': 'All', 'Nada': 'None',
+            'Marque as mensagens e, se quiser só um pedaço, edite o texto abaixo.': 'Check the messages and, if you only want a piece, edit the text below.',
+            '2. Exportar como': '2. Export as', 'Copiar texto': 'Copy text', 'Texto puro (.txt)': 'Plain text (.txt)', 'Imagem (.png)': 'Image (.png)',
+            'Arquivos são salvos na sua pasta Downloads.': 'Files are saved to your Downloads folder.',
+            'Você': 'You', 'Resumo': 'Summary', 'IA': 'AI', '[{n} imagem(ns)] ': '[{n} image(s)] ',
+            'Este chat ainda não tem mensagens.': 'This chat has no messages yet.', 'Nada selecionado para exportar.': 'Nothing selected to export.',
+            'Texto copiado!': 'Text copied!', 'Salvo em {path}': 'Saved to {path}', 'Não consegui salvar o arquivo.': 'Could not save the file.',
+            // modelos
+            'Qwen 3.5 2B (Básico)': 'Qwen 3.5 2B (Basic)', 'Gemma 3 1B (Ultra leve)': 'Gemma 3 1B (Ultra light)', 'Qwen 2.5 1.5B (Ultra leve)': 'Qwen 2.5 1.5B (Ultra light)',
+            'Llama 3.2 3B (Leve)': 'Llama 3.2 3B (Light)', 'Qwen 3.5 9B (Pesado)': 'Qwen 3.5 9B (Heavy)', 'CodeGemma 7B (Apenas Código)': 'CodeGemma 7B (Code only)',
+            'visão': 'vision', 'nuvem': 'cloud', 'carregando': 'loading', 'desligando': 'stopping', 'na memória': 'in memory',
+            'Iniciar {label}': 'Start {label}', 'Parar {label}': 'Stop {label}',
+            'Modelo muito pesado': 'Model too heavy', 'Usar mesmo assim': 'Use anyway', 'Cancelar': 'Cancel',
+            '{label} é muito pesado para esta máquina e vai rodar super lento (pode estourar a VRAM e usar a RAM/CPU).': '{label} is too heavy for this machine and will run super slow (it may overflow VRAM and use RAM/CPU).',
+            'Nenhuma chave cadastrada': 'No key registered', 'Abrir Configurações': 'Open Settings', 'Ok': 'Ok',
+            'Para usar modelos da nuvem (Groq) você precisa cadastrar uma chave de API nas Configurações.\n\nContinuando com {label}.': 'To use cloud models (Groq) you need to register an API key in Settings.\n\nContinuing with {label}.',
+            'A VRAM não comporta dois modelos': 'VRAM cannot fit two models',
+            '{names} ainda está na memória ({a} GB). {label} precisa de ~{b} GB, e juntos passam do que cabe nos {c} GB de VRAM. Tudo ficaria lento.': '{names} is still in memory ({a} GB). {label} needs ~{b} GB, and together they exceed what fits in the {c} GB of VRAM. Everything would be slow.',
+            'Parar {who} e continuar': 'Stop {who} and continue', 'os anteriores': 'the previous ones', 'Continuar assim': 'Continue anyway',
+            'Fazer isso automaticamente nas próximas vezes': 'Do this automatically next time',
+            // chats / mensagens
+            'Novo nome:': 'New name:', 'Renomear': 'Rename', 'Apagar': 'Delete', 'Apagar chat?': 'Delete chat?', '"{title}" será apagado para sempre.': '"{title}" will be deleted forever.',
+            'Copiar resposta': 'Copy answer', 'Remover': 'Remove', 'Conversa compactada ({n} mensagens resumidas)': 'Compacted conversation ({n} messages summarized)',
+            'Só imagens são aceitas.': 'Only images are accepted.', 'Máximo de 6 imagens por mensagem.': 'Maximum of 6 images per message.', 'Não consegui ler essa imagem.': 'Could not read that image.',
+            'Este modelo não lê imagens': 'This model cannot read images', 'Enviar só o texto': 'Send text only',
+            '{label} só entende texto. Troque para um modelo com o selo "visão" na lista.': '{label} only understands text. Switch to a model with the "vision" badge in the list.',
+            'Trocar para {label}': 'Switch to {label}', 'Descreva esta imagem.': 'Describe this image.',
+            '\n\nRESUMO DA CONVERSA ANTERIOR (as mensagens antigas foram compactadas):\n': '\n\nSUMMARY OF THE PREVIOUS CONVERSATION (older messages were compacted):\n',
+            '\n\nFATOS QUE VOCÊ DEVE LEMBRAR:\n': '\n\nFACTS YOU MUST REMEMBER:\n',
+            '(sem resposta)': '(no answer)', 'Erro de conexão com o servidor.': 'Connection error with the server.',
+            // status
+            'Iniciando': 'Starting', 'Pensando': 'Thinking', 'Escrevendo': 'Writing', 'Parando': 'Stopping', 'Compactando': 'Compacting', 'Ocioso': 'Idle', 'Erro': 'Error',
+            'Carregando modelo': 'Loading model', 'Iniciando Ollama': 'Starting Ollama', 'Conectando ao Groq': 'Connecting to Groq', 'Pesquisando na web': 'Searching the web',
+            'Aguardando permissão': 'Waiting for permission', 'Executando: {x}': 'Running: {x}', 'Status: {s}': 'Status: {s}',
+            // permissoes / avisos
+            'Permissão necessária': 'Permission required', 'Negar': 'Deny', 'Permitir': 'Allow', 'Aviso': 'Notice', 'Memória de vídeo': 'Video memory',
+            'VRAM no limite ({used} de {total} GB)': 'VRAM at the limit ({used} of {total} GB)', ', modelo vazando para a RAM/CPU': ', model spilling into RAM/CPU',
+            '. Recomendado desligar o modelo {m}.': '. Recommended to stop the model {m}.', '.': '.', 'VRAM alta: {used} de {total} GB em uso.': 'High VRAM: {used} of {total} GB in use.',
+            '(aviso {c}/{max})': '(warning {c}/{max})', 'VRAM no limite ({pct}%)': 'VRAM at the limit ({pct}%)', 'VRAM alta ({gb} GB)': 'High VRAM ({gb} GB)',
+            // desempenho / contexto
+            'Lento': 'Slow', 'Normal': 'Normal', 'Rápido': 'Fast',
+            'Prompt: {n} tok ({tps} t/s)': 'Prompt: {n} tok ({tps} t/s)', 'Carga do modelo: {s}s': 'Model load: {s}s', 'Total: {s}s': 'Total: {s}s',
+            'Contagem real informada pelo Ollama': 'Real count reported by Ollama', 'Estimativa (~4 caracteres por token)': 'Estimate (~4 characters per token)',
+            // compactar
+            'Conversa curta demais para compactar.': 'Conversation too short to compact.', 'Compactar conversa?': 'Compact conversation?',
+            '{n} mensagens mais antigas serão trocadas por um resumo gerado por {label}. As {keep} últimas continuam como estão. Isso não pode ser desfeito.': '{n} older messages will be replaced by a summary generated by {label}. The last {keep} stay as they are. This cannot be undone.',
+            'Resumo anterior: ': 'Previous summary: ',
+            'Você resume conversas. Escreva um resumo fiel e compacto, em português, preservando fatos, decisões, nomes, números, trechos de código importantes e o que o usuário pediu. Não invente nada. Responda apenas com o resumo.':
+                'You summarize conversations. Write a faithful, compact summary, in English, preserving facts, decisions, names, numbers, important code snippets and what the user asked. Do not make anything up. Reply with the summary only.',
+            'Resuma a conversa abaixo:\n\n': 'Summarize the conversation below:\n\n',
+            'Compactação cancelada.': 'Compaction cancelled.', 'Falha ao compactar: {x}': 'Failed to compact: {x}',
+            'Compactado: {n} mensagens viraram um resumo. Contexto {a} → {b}.': 'Compacted: {n} messages became a summary. Context {a} → {b}.',
+            'Não consegui compactar a conversa.': 'Could not compact the conversation.',
+        };
+        // Regex para o que o servidor devolve em portugues dentro de chunks de texto nao e necessario: o servidor ja recebe `lang`.
+        const HINT_HTML = {
+            pt: 'Passe o mouse sobre a interface para ver cada parte. Clique com o <b>botão direito</b> &gt; <b>Selecionar e modificar</b> e ajuste a cor aqui.',
+            en: 'Hover over the interface to see each part. <b>Right-click</b> &gt; <b>Select and edit</b> and adjust the color here.'
+        };
+        const WELCOMES = {
+            pt: ['Olá! Sobre o que vamos conversar hoje?', 'Pronto para ajudar. É só mandar sua pergunta.', 'Bem-vindo de volta! Em que posso ajudar?', 'Oi! Me conte o que você precisa e eu dou um jeito.', 'Mente fresca, teclado pronto. Qual é o plano?'],
+            en: ['Hello! What shall we talk about today?', 'Ready to help. Just send your question.', 'Welcome back! How can I help?', 'Hi! Tell me what you need and I will figure it out.', 'Fresh mind, keyboard ready. What is the plan?']
+        };
+        const DEFAULT_SYS = { pt: 'Você é um assistente direto.', en: 'You are a direct assistant.' };
+        const DEFAULT_CODE = { pt: CODE_PROMPT_DEFAULT, en: 'You are a coding agent. Use the tools to read, write and run code on the user’s computer. Briefly explain what you did.' };
+        const curLang = () => (config.lang || ((navigator.language || 'pt').toLowerCase().startsWith('pt') ? 'pt' : 'en')) === 'en' ? 'en' : 'pt';
+        function tr(s, vars) {
+            let out = s;
+            if (curLang() === 'en' && EN[s] !== undefined) out = EN[s];
+            return vars ? out.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? vars[k] : m)) : out;
+        }
+        const trStatus = s => (String(s).startsWith('Executando: ') ? tr('Executando: {x}', { x: String(s).slice(12) }) : tr(s));
+        const dispTitle = t => (!t || t === 'Novo Chat') ? tr('Novo Chat') : t;
+        function sysPrompt(isCode) {   // se o usuario nunca editou o prompt, usa o padrao do idioma atual
+            const v = isCode ? config.codePrompt : config.systemPrompt, d = isCode ? DEFAULT_CODE : DEFAULT_SYS;
+            return (!v || v === d.pt || v === d.en) ? d[curLang()] : v;
+        }
+        // modelos: o rotulo e traduzido na hora da leitura
+        MODELS.forEach(m => { const pt = m.label; Object.defineProperty(m, 'label', { get: () => tr(pt), enumerable: true }); });
+        let curStatus = 'Ocioso';
+        const _skipI18n = '#chat, #chat-list, #export-list, #export-text, #memory-list, #model-options, #attach-strip, #theme-rows, #theme-saved, #srv-addresses, #srv-devices, script, style, textarea';
+        const _origText = new WeakMap();
+        function translateStatic() {
+            const en = curLang() === 'en';
+            document.documentElement.lang = en ? 'en' : 'pt-BR';
+            const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+            let n;
+            while ((n = walker.nextNode())) {
+                if (n.parentElement && n.parentElement.closest(_skipI18n)) continue;
+                if (!_origText.has(n)) { if (!n.nodeValue.trim()) continue; _origText.set(n, n.nodeValue); }
+                const orig = _origText.get(n), key = orig.trim();
+                const lead = orig.slice(0, orig.length - orig.trimStart().length), trail = orig.slice(orig.trimEnd().length);
+                const next = lead + (en && EN[key] !== undefined ? EN[key] : key) + trail;
+                if (n.nodeValue !== next) n.nodeValue = next;
+            }
+            document.querySelectorAll('[placeholder], [title]').forEach(el => {
+                if (el.closest(_skipI18n)) return;
+                ['placeholder', 'title'].forEach(a => {
+                    if (!el.hasAttribute(a)) return;
+                    const k = 'pt' + a; if (!el.dataset[k]) el.dataset[k] = el.getAttribute(a);
+                    const pt = el.dataset[k]; el.setAttribute(a, en && EN[pt] !== undefined ? EN[pt] : pt);
+                });
+            });
+            const hint = $('tp-hint'); if (hint) hint.innerHTML = HINT_HTML[curLang()];
+        }
+        function applyLang() {
+            translateStatic();
+            renderThemeOptions(); renderModelOptions();
+            if (currentChatId && chats[currentChatId]) { renderSidebar(); loadChat(currentChatId); }
+            setOverlayStatus(curStatus);
+            $('ctx-compact').textContent = tr('Compactar');
+            $('opt-lang').value = curLang();
+            if ($('settings-modal').style.display === 'flex') { $('system-prompt-input').value = sysPrompt(false); $('code-prompt-input').value = sysPrompt(true); }
+            if ($('settings-modal').style.display === 'flex' && $('set-server').style.display !== 'none') refreshServerTab();
+        }
+        function setLang(v) { config.lang = v; saveState(); applyLang(); }
         const OVERFLOW_OVERHEAD = 1.3, OVERFLOW_LIMIT = 0.85;   // estimativa: modelo novo ocupa gb*1.3 e o total nao deve passar de 85% da VRAM
 
         const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } };
-        let config = Object.assign({ theme: 'dark', systemPrompt: 'Você é um assistente direto.', codePrompt: CODE_PROMPT_DEFAULT, scale: 1, bgImage: '', bgOpacity: 0, perfEnabled: true, perfStyle: 'default', perfInterval: 50, numCtx: 4096, showCtxBar: true, model: 'qwen3.5:4b', webSearch: true, starToDot: true, autoStopPrev: false }, load('thingmabobber_config', {}));
+        let config = Object.assign({ theme: 'dark', systemPrompt: 'Você é um assistente direto.', codePrompt: CODE_PROMPT_DEFAULT, scale: 1, bgImage: '', bgOpacity: 0, perfEnabled: true, perfStyle: 'default', perfInterval: 50, numCtx: 4096, showCtxBar: true, lang: '', model: 'qwen3.5:4b', webSearch: true, starToDot: true, autoStopPrev: false }, load('thingmabobber_config', {}));
         let chats = load('thingmabobber_chats', {});
         let globalMemories = load('thingmabobber_memories', []);
         let currentChatId = null, currentTab = 'chat', selectedModel = config.model, lastLocalModel = 'qwen3.5:4b', busy = false;
@@ -526,9 +840,11 @@
         async function loadFromServer() {
             try {
                 const s = await (await fetch(API + '/api/state')).json();
-                if (s.config) Object.assign(config, s.config);
+                if (auth.local) {                           // preferencias da interface: so a janela do PC usa as do servidor
+                    if (s.config) Object.assign(config, s.config);
+                    if (!s.config) saveState();             // primeira vez: migra o que estava so no navegador
+                }
                 if (Array.isArray(s.memories)) globalMemories = s.memories;
-                if (!s.config) saveState();                 // primeira vez: migra o que estava so no navegador
             } catch (e) {}
             try {
                 const h = await (await fetch(API + '/api/history')).json();
@@ -538,10 +854,19 @@
             selectedModel = modelById(config.model) ? config.model : 'qwen3.5:4b';
         }
 
+        async function checkAuth() {
+            try { auth = await (await _fetch(API + '/api/auth/status')).json(); } catch (e) {}
+            document.body.classList.toggle('remote', !auth.local);
+        }
+        function onUnauthorized() { auth.authed = false; showConnectBanner(); }
+        function showConnectBanner() { $('connect-banner').style.display = 'flex'; }
         async function init() {
-            await loadFromServer();
+            await checkAuth();
+            if (!auth.local && !auth.allow_remote_code) document.querySelector('.tab[data-tab="code"]').style.display = 'none';
+            if (auth.local || auth.authed) await loadFromServer(); else showConnectBanner();
             await loadCustomThemes();
             applyBaseTheme(config.theme);
+            translateStatic(); $('opt-lang').value = curLang();
             updateScale(config.scale); $('ui-scale').value = config.scale;
             if (config.bgImage) {
                 document.documentElement.style.setProperty('--custom-bg-image', `url(${config.bgImage})`);
@@ -549,8 +874,8 @@
                 document.documentElement.style.setProperty('--custom-bg-opacity', config.bgOpacity / 100);
             }
             applyPerf();
-            fetch(API + '/api/perf_interval', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ms: config.perfInterval }) }).catch(() => {});
-            fetch(API + '/api/usage').then(r => r.json()).then(updateUsageBadge).catch(() => {});
+            if (auth.local) fetch(API + '/api/perf_interval', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ms: config.perfInterval }) }).catch(() => {});
+            if (auth.local || auth.authed) fetch(API + '/api/usage').then(r => r.json()).then(updateUsageBadge).catch(() => {});
             switchTab('chat');
             startPolling();
             metricsLoop();
@@ -570,18 +895,20 @@
         $('titlebar').addEventListener('dblclick', e => { if (!e.target.closest('.tb-btns')) $('btn-max').click(); });
 
         // ---------- dialogo generico ----------
-        function ask({ title, body, buttons, primary = 0, danger = false, toggle = null }) {
+        function ask({ title, body, buttons, primary = 0, danger = false, toggle = null, input = null }) {
             return new Promise(resolve => {
-                $('dlg-title').textContent = title; $('dlg-body').textContent = body;
+                $('dlg-title').textContent = tr(title); $('dlg-body').textContent = tr(body);
                 $('dlg-toggle-wrap').style.display = toggle ? '' : 'none';
-                $('dlg-toggle').checked = false; $('dlg-toggle-label').textContent = toggle || '';
+                $('dlg-toggle').checked = false; $('dlg-toggle-label').textContent = toggle ? tr(toggle) : '';
+                const inp = $('dlg-input'); inp.style.display = input ? '' : 'none'; inp.value = '';
+                if (input) { inp.type = input.type || 'text'; inp.placeholder = input.placeholder || ''; setTimeout(() => inp.focus(), 60); }
                 const box = $('dlg-buttons'); box.innerHTML = '';
-                const done = index => { $('dialog-overlay').style.display = 'none'; document.removeEventListener('keydown', onKey); resolve({ index, checked: $('dlg-toggle').checked }); };
-                const onKey = e => { if (e.key === 'Escape') done(-1); };
+                const done = index => { $('dialog-overlay').style.display = 'none'; document.removeEventListener('keydown', onKey); resolve({ index, checked: $('dlg-toggle').checked, value: inp.value.trim() }); };
+                const onKey = e => { if (e.key === 'Escape') done(-1); else if (e.key === 'Enter' && input) done(primary); };
                 buttons.forEach((label, i) => {
                     const b = document.createElement('button');
                     b.className = 'btn ' + (i === primary ? (danger ? 'btn-danger' : 'btn-primary') : 'btn-secondary');
-                    b.textContent = label; b.onclick = () => done(i); box.appendChild(b);
+                    b.textContent = tr(label); b.onclick = () => done(i); box.appendChild(b);
                 });
                 document.addEventListener('keydown', onKey);
                 $('dialog-overlay').style.display = 'flex';
@@ -617,16 +944,16 @@
                 label.innerHTML = `<img class="ic" src="icons/${m.icon}.png">`;
                 label.appendChild(document.createTextNode(m.label));
                 const info = loadedModels[m.id], pend = pendingModel[m.id];
-                if (m.vision) { const v = document.createElement('span'); v.className = 'mo-badge vision'; v.textContent = 'visão'; label.appendChild(v); }
-                if (m.cloud) { const b = document.createElement('span'); b.className = 'mo-badge cloud'; b.textContent = 'nuvem'; label.appendChild(b); }
-                else if (pend) { const b = document.createElement('span'); b.className = 'mo-badge busy'; b.textContent = pend + '...'; label.appendChild(b); }
-                else if (info) { const b = document.createElement('span'); b.className = 'mo-badge'; b.textContent = 'na memória · ' + fmtGB(info.size); label.appendChild(b); }
+                if (m.vision) { const v = document.createElement('span'); v.className = 'mo-badge vision'; v.textContent = tr('visão'); label.appendChild(v); }
+                if (m.cloud) { const b = document.createElement('span'); b.className = 'mo-badge cloud'; b.textContent = tr('nuvem'); label.appendChild(b); }
+                else if (pend) { const b = document.createElement('span'); b.className = 'mo-badge busy'; b.textContent = tr(pend) + '...'; label.appendChild(b); }
+                else if (info) { const b = document.createElement('span'); b.className = 'mo-badge'; b.textContent = tr('na memória') + ' · ' + fmtGB(info.size); label.appendChild(b); }
                 el.appendChild(label);
                 if (!m.cloud) {   // controle individual de cada modelo local
-                    const play = document.createElement('button'); play.className = 'mo-btn'; play.title = 'Iniciar ' + m.label;
+                    const play = document.createElement('button'); play.className = 'mo-btn'; play.title = tr('Iniciar {label}', { label: m.label });
                     play.innerHTML = '<img class="ic" src="icons/circle-play.png">'; play.disabled = !!info || !!pend;
                     play.onclick = e => { e.stopPropagation(); modelStart(m); };
-                    const stop = document.createElement('button'); stop.className = 'mo-btn'; stop.title = 'Parar ' + m.label;
+                    const stop = document.createElement('button'); stop.className = 'mo-btn'; stop.title = tr('Parar {label}', { label: m.label });
                     stop.innerHTML = '<img class="ic" src="icons/circle-stop.png">'; stop.disabled = !info || !!pend;
                     stop.onclick = e => { e.stopPropagation(); modelStop(m); };
                     el.append(play, stop);
@@ -664,7 +991,7 @@
             $('model-select').classList.remove('open'); clearInterval(openTimer);
             if (m.cloud && !(await hasGroqKey())) { await noKeyDialog(); return; }   // continua no modelo anterior
             if (m.heavy) {
-                const r = await ask({ title: 'Modelo muito pesado', body: `${m.label} é muito pesado para esta máquina e vai rodar super lento (pode estourar a VRAM e usar a RAM/CPU).`, buttons: ['Usar mesmo assim', 'Cancelar'], danger: true });
+                const r = await ask({ title: 'Modelo muito pesado', body: tr('{label} é muito pesado para esta máquina e vai rodar super lento (pode estourar a VRAM e usar a RAM/CPU).', { label: m.label }), buttons: ['Usar mesmo assim', 'Cancelar'], danger: true });
                 if (r.index !== 0) return;
             }
             selectedModel = id; config.model = id; if (!m.cloud) lastLocalModel = id;
@@ -688,7 +1015,7 @@
         }
         async function noKeyDialog() {
             const prev = modelById(lastLocalModel);
-            const r = await ask({ title: 'Nenhuma chave cadastrada', body: `Para usar modelos da nuvem (Groq) você precisa cadastrar uma chave de API nas Configurações.\n\nContinuando com ${prev.label}.`, buttons: ['Abrir Configurações', 'Ok'] });
+            const r = await ask({ title: 'Nenhuma chave cadastrada', body: tr('Para usar modelos da nuvem (Groq) você precisa cadastrar uma chave de API nas Configurações.\n\nContinuando com {label}.', { label: prev.label }), buttons: ['Abrir Configurações', 'Ok'] });
             selectedModel = lastLocalModel; config.model = lastLocalModel; saveState(); renderModelOptions();
             if (r.index === 0) openSettings();
         }
@@ -707,8 +1034,8 @@
             if (config.autoStopPrev) { await stopOthers(); return true; }
             const r = await ask({
                 title: 'A VRAM não comporta dois modelos',
-                body: `${names} ainda está na memória (${loadedGB.toFixed(1)} GB). ${m.label} precisa de ~${needGB.toFixed(1)} GB, e juntos passam do que cabe nos ${totalGB.toFixed(0)} GB de VRAM. Tudo ficaria lento.`,
-                buttons: [`Parar ${others.length > 1 ? 'os anteriores' : names} e continuar`, 'Continuar assim', 'Cancelar'],
+                body: tr('{names} ainda está na memória ({a} GB). {label} precisa de ~{b} GB, e juntos passam do que cabe nos {c} GB de VRAM. Tudo ficaria lento.', { names, a: loadedGB.toFixed(1), label: m.label, b: needGB.toFixed(1), c: totalGB.toFixed(0) }),
+                buttons: [tr('Parar {who} e continuar', { who: others.length > 1 ? tr('os anteriores') : names }), 'Continuar assim', 'Cancelar'],
                 toggle: 'Fazer isso automaticamente nas próximas vezes'
             });
             if (r.index === 0) { if (r.checked) { config.autoStopPrev = true; saveState(); } await stopOthers(); return true; }
@@ -716,37 +1043,40 @@
         }
 
         // ---------- chats ----------
-        function updateHeader() { $('chat-header-title').textContent = currentChatId && chats[currentChatId] ? chats[currentChatId].title : ''; }
+        function updateHeader() { $('chat-header-title').textContent = currentChatId && chats[currentChatId] ? dispTitle(chats[currentChatId].title) : ''; }
         function renderSidebar(newId) {
             const list = $('chat-list'); list.innerHTML = '';
             Object.keys(chats).filter(id => tabOf(id) === currentTab).reverse().forEach(id => {
                 const item = document.createElement('div');
                 item.className = 'chat-item' + (id === currentChatId ? ' active' : '') + (id === newId ? ' new-chat' : '');
-                const title = document.createElement('span'); title.className = 'title'; title.textContent = chats[id].title || 'Novo Chat';
+                const title = document.createElement('span'); title.className = 'title'; title.textContent = dispTitle(chats[id].title);
                 const actions = document.createElement('span'); actions.className = 'chat-actions';
-                const edit = document.createElement('button'); edit.className = 'icon-btn'; edit.title = 'Renomear'; edit.innerHTML = '<img class="ic" src="icons/pen-line.png">';
+                const edit = document.createElement('button'); edit.className = 'icon-btn'; edit.title = tr('Renomear'); edit.innerHTML = '<img class="ic" src="icons/pen-line.png">';
                 edit.onclick = e => renameChatPrompt(id, e);
-                const del = document.createElement('button'); del.className = 'icon-btn'; del.title = 'Apagar'; del.innerHTML = '<img class="ic" src="icons/trash.png">';
+                const del = document.createElement('button'); del.className = 'icon-btn'; del.title = tr('Apagar'); del.innerHTML = '<img class="ic" src="icons/trash.png">';
                 del.onclick = e => deleteChat(id, e);
                 actions.append(edit, del); item.append(title, actions);
-                item.onclick = () => loadChat(id);
+                item.onclick = () => { closeDrawer(); loadChat(id); };
                 list.appendChild(item);
             });
             updateHeader();
         }
-        function renameChatPrompt(id, event) { event.stopPropagation(); const n = prompt('Novo nome:', chats[id].title); if (n) { chats[id].title = n; saveToStorage(); renderSidebar(); } }
+        function renameChatPrompt(id, event) { event.stopPropagation(); const n = prompt(tr('Novo nome:'), chats[id].title); if (n) { chats[id].title = n; saveToStorage(); renderSidebar(); } }
         async function deleteChat(id, event) {
             event.stopPropagation();
-            const r = await ask({ title: 'Apagar chat?', body: `"${chats[id].title}" será apagado para sempre.`, buttons: ['Apagar', 'Cancelar'], danger: true });
+            const r = await ask({ title: 'Apagar chat?', body: tr('"{title}" será apagado para sempre.', { title: dispTitle(chats[id].title) }), buttons: ['Apagar', 'Cancelar'], danger: true });
             if (r.index !== 0) return;
             delete chats[id]; saveToStorage();
             if (id !== currentChatId) { renderSidebar(); return; }
             const ids = Object.keys(chats).filter(i => tabOf(i) === currentTab);
             if (ids.length) loadChat(ids[ids.length - 1]); else createNewChat();
         }
+        function toggleDrawer() { document.body.classList.toggle('drawer-open'); }
+        function closeDrawer() { document.body.classList.remove('drawer-open'); }
         function createNewChat() {
+            closeDrawer();
             const id = Date.now().toString();
-            chats[id] = { title: 'Novo Chat', messages: [], tab: currentTab, welcome: Math.floor(Math.random() * WELCOMES.length) };
+            chats[id] = { title: 'Novo Chat', messages: [], tab: currentTab, welcome: Math.floor(Math.random() * 5) };
             saveToStorage();
             loadChat(id, true);
             promptInput.focus();
@@ -755,8 +1085,8 @@
             currentChatId = id;
             renderSidebar(isNew ? id : null);
             chatBox.innerHTML = '';
-            if (chats[id].welcome === undefined) { chats[id].welcome = Math.floor(Math.random() * WELCOMES.length); saveToStorage(); }
-            addMessageToUI('ai', WELCOMES[chats[id].welcome], { welcome: true, animate: false });
+            if (chats[id].welcome === undefined) { chats[id].welcome = Math.floor(Math.random() * 5); saveToStorage(); }
+            addMessageToUI('ai', WELCOMES[curLang()][chats[id].welcome], { welcome: true, animate: false });
             chats[id].messages.forEach(m => addMessageToUI(m.role, m.content, { animate: false, images: m.images, count: m.count }));
             chatBox.scrollTop = chatBox.scrollHeight;
             updateCtxBar();
@@ -781,11 +1111,11 @@
                 opts.images.forEach(src => { const im = document.createElement('img'); im.src = src; box.appendChild(im); });
                 div.appendChild(box);
             }
-            if (role === 'summary') { const h = document.createElement('div'); h.className = 'sum-head'; h.textContent = `Conversa compactada (${opts.count || '?'} mensagens resumidas)`; div.appendChild(h); }
+            if (role === 'summary') { const h = document.createElement('div'); h.className = 'sum-head'; h.textContent = tr('Conversa compactada ({n} mensagens resumidas)', { n: opts.count || '?' }); div.appendChild(h); }
             if (role === 'ai') div.appendChild(think);
             div.appendChild(span);
             if (role === 'ai' && !opts.welcome) {
-                const btn = document.createElement('button'); btn.className = 'copy-btn'; btn.title = 'Copiar resposta';
+                const btn = document.createElement('button'); btn.className = 'copy-btn'; btn.title = tr('Copiar resposta');
                 btn.innerHTML = '<img class="ic" src="icons/clipboard-copy.png">';
                 btn.onclick = () => { navigator.clipboard.writeText(span.innerText); btn.classList.add('done'); setTimeout(() => btn.classList.remove('done'), 1200); };
                 div.appendChild(btn);
@@ -836,7 +1166,7 @@
             pendingImages.forEach((src, i) => {
                 const t = document.createElement('div'); t.className = 'thumb';
                 const im = document.createElement('img'); im.src = src;
-                const x = document.createElement('button'); x.textContent = '×'; x.title = 'Remover'; x.onclick = () => { pendingImages.splice(i, 1); renderAttachments(); };
+                const x = document.createElement('button'); x.textContent = '×'; x.title = tr('Remover'); x.onclick = () => { pendingImages.splice(i, 1); renderAttachments(); };
                 t.append(im, x); strip.appendChild(t);
             });
         }
@@ -853,7 +1183,7 @@
 
         function setBusy(on) {
             busy = on;
-            const b = $('send-btn'); b.classList.toggle('stop', on); b.title = on ? 'Parar' : 'Enviar';
+            const b = $('send-btn'); b.classList.toggle('stop', on); b.title = tr(on ? 'Parar' : 'Enviar');
             $('send-icon').src = on ? 'icons/circle-stop.png' : 'icons/send-horizontal.png';
         }
         function onSendClick() { if (busy) stopGeneration(); else sendMessage(); }
@@ -869,7 +1199,7 @@
             let imgs = pendingImages.slice();
             if (imgs.length && !modelById(selectedModel).vision) {
                 const vm = modelById('qwen3.5:4b');
-                const r = await ask({ title: 'Este modelo não lê imagens', body: `${modelById(selectedModel).label} só entende texto. Troque para um modelo com o selo "visão" na lista.`, buttons: [`Trocar para ${vm.label}`, 'Enviar só o texto', 'Cancelar'] });
+                const r = await ask({ title: 'Este modelo não lê imagens', body: tr('{label} só entende texto. Troque para um modelo com o selo "visão" na lista.', { label: modelById(selectedModel).label }), buttons: [tr('Trocar para {label}', { label: vm.label }), 'Enviar só o texto', 'Cancelar'] });
                 if (r.index === 0) { selectedModel = vm.id; config.model = vm.id; lastLocalModel = vm.id; saveState(); renderModelOptions(); }
                 else if (r.index === 1) imgs = [];
                 else return;
@@ -879,32 +1209,33 @@
             if (model.cloud && !(await hasGroqKey())) { await noKeyDialog(); return; }
             if (!(await handleOverflow(model))) return;
 
-            if (!text && imgs.length) text = 'Descreva esta imagem.';
+            if (!text && imgs.length) text = tr('Descreva esta imagem.');
             if (chat.messages.length === 0) { chat.title = text.substring(0, 30) + (text.length > 30 ? '...' : ''); renderSidebar(); }
             addMessageToUI('user', text, { images: imgs }); chat.messages.push(imgs.length ? { role: 'user', content: text, images: imgs } : { role: 'user', content: text }); saveToStorage();
             clearPrompt(); pendingImages = []; renderAttachments(); updateCtxBar();
 
-            const aiDiv = addMessageToUI('ai', '<span class="loading-dots">Iniciando</span>', { html: true });
+            const aiDiv = addMessageToUI('ai', `<span class="loading-dots">${tr('Iniciando')}</span>`, { html: true });
             const textSpan = aiDiv.querySelector('.final-text'), thinkDiv = aiDiv.querySelector('.think');
             const stLine = document.createElement('div'); stLine.className = 'msg-status';
             stLine.innerHTML = '<span class="pulse"></span><span class="st-text"></span>'; aiDiv.insertBefore(stLine, aiDiv.querySelector('.copy-btn'));
             setBusy(true);
             const isCode = currentTab === 'code';
             let fullResponse = '', gotText = false, chars = 0, lastStats = null;
-            const status = s => { setOverlayStatus(s); stLine.querySelector('.st-text').textContent = s; if (!gotText) textSpan.innerHTML = `<span class="loading-dots">${esc(s)}</span>`; };
+            const status = s => { setOverlayStatus(s); const t = trStatus(s); stLine.querySelector('.st-text').textContent = t; if (!gotText) textSpan.innerHTML = `<span class="loading-dots">${esc(t)}</span>`; };
 
             try {
-                let sys = isCode ? config.codePrompt : config.systemPrompt;
+                let sys = sysPrompt(isCode);
                 const summaries = chat.messages.filter(m => m.role === 'summary').map(m => m.content);
-                if (summaries.length) sys += '\n\nRESUMO DA CONVERSA ANTERIOR (as mensagens antigas foram compactadas):\n' + summaries.join('\n') + '\n';
-                if (globalMemories.length > 0) sys += '\n\nFATOS QUE VOCÊ DEVE LEMBRAR:\n' + globalMemories.map(m => `- ${m}`).join('\n') + '\n';
+                if (summaries.length) sys += tr('\n\nRESUMO DA CONVERSA ANTERIOR (as mensagens antigas foram compactadas):\n') + summaries.join('\n') + '\n';
+                if (globalMemories.length > 0) sys += tr('\n\nFATOS QUE VOCÊ DEVE LEMBRAR:\n') + globalMemories.map(m => `- ${m}`).join('\n') + '\n';
                 const apiMessages = [{ role: 'system', content: sys }, ...chat.messages.filter(m => m.role !== 'summary').map(m => { const o = { role: m.role === 'ai' ? 'assistant' : 'user', content: m.content }; if (m.images && m.images.length && model.vision) o.images = m.images.map(d => d.split(',')[1]); return o; })];
 
                 status('Iniciando'); showPerfStreaming();
                 const response = await fetch(API + '/api/chat', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ model: selectedModel, messages: apiMessages, stream: true, think: $('use-thinking').checked, search_web: !isCode && config.webSearch, agent: isCode, num_ctx: model.cloud ? undefined : Math.min(config.numCtx, model.ctx) })
+                    body: JSON.stringify({ model: selectedModel, messages: apiMessages, stream: true, think: $('use-thinking').checked, search_web: !isCode && config.webSearch, agent: isCode, lang: curLang(), num_ctx: model.cloud ? undefined : Math.min(config.numCtx, model.ctx) })
                 });
+                if (!response.ok) { let err = {}; try { err = await response.json(); } catch (e) {} throw new Error(err.error || ('HTTP ' + response.status)); }
                 const reader = response.body.getReader(), decoder = new TextDecoder();
                 let buf = '';
                 const handle = line => {
@@ -930,20 +1261,21 @@
                     lines.forEach(handle);
                 }
                 handle(buf);
-                if (!gotText) textSpan.textContent = '(sem resposta)';
+                if (!gotText) textSpan.textContent = tr('(sem resposta)');
                 chat.messages.push({ role: 'ai', content: fullResponse, model: selectedModel });
                 if (lastStats) chat.ctxReal = { tokens: lastStats.prompt_tokens + lastStats.tokens, count: chat.messages.length };
                 saveToStorage();
                 fetch(API + '/api/usage').then(r => r.json()).then(updateUsageBadge).catch(() => {});
             } catch (error) {
-                aiDiv.className = 'msg error'; textSpan.textContent = 'Erro de conexão com o servidor.';
+                aiDiv.className = 'msg error';
+                textSpan.textContent = tr(error.message === 'remote_code_disabled' ? 'A aba Code está desligada para aparelhos remotos. Ligue no PC em Configurações > Servidor.' : error.message === 'unauthorized' ? 'Não conectado ao servidor. Use Configurações > Servidor > Conectar.' : 'Erro de conexão com o servidor.');
                 setOverlayStatus('Erro');
             } finally {
                 stLine.remove(); setBusy(false); updateCtxBar(); promptInput.focus(); hidePerfStreaming();
-                if ($('mon-status').textContent !== 'Status: Erro') setOverlayStatus('Ocioso');
+                if (curStatus !== 'Erro') setOverlayStatus('Ocioso');
             }
         }
-        function setOverlayStatus(s) { $('mon-status').textContent = 'Status: ' + s; }
+        function setOverlayStatus(s) { curStatus = s; $('mon-status').textContent = tr('Status: {s}', { s: trStatus(s) }); }
 
         function updateUsageBadge(data) {
             const gq = (data && data.groq) || 0;
@@ -952,6 +1284,7 @@
 
         // ---------- permissoes / avisos (toast) ----------
         function startPolling() {
+            if (!auth.local) return;   // aprovar comandos so e possivel no proprio PC
             setInterval(async () => {
                 try {
                     const data = await (await fetch(API + '/api/check_pending')).json();
@@ -963,10 +1296,10 @@
         }
         function showToast(cmd) {
             const toast = document.createElement('div'); toast.className = 'toast perm';
-            toast.innerHTML = `<div class="toast-header"><img class="ic" src="icons/triangle-alert.png">Permissão necessária</div><div class="toast-body"></div>
+            toast.innerHTML = `<div class="toast-header"><img class="ic" src="icons/triangle-alert.png">${tr('Permissão necessária')}</div><div class="toast-body"></div>
                 <div class="toast-actions">
-                    <button class="btn btn-secondary" style="margin:0; padding: 5px 10px;" onclick="resolvePending(false)">Negar</button>
-                    <button class="btn btn-primary" style="margin:0; padding: 5px 10px;" onclick="resolvePending(true)">Permitir</button>
+                    <button class="btn btn-secondary" style="margin:0; padding: 5px 10px;" onclick="resolvePending(false)">${tr('Negar')}</button>
+                    <button class="btn btn-primary" style="margin:0; padding: 5px 10px;" onclick="resolvePending(true)">${tr('Permitir')}</button>
                 </div>`;
             toast.querySelector('.toast-body').textContent = cmd;
             $('toast-container').appendChild(toast);
@@ -977,45 +1310,59 @@
         }
         function showInfo(text, ms = 6000) {
             const t = document.createElement('div'); t.className = 'toast info';
-            t.innerHTML = '<div class="toast-header"><img class="ic" src="icons/info.png">Aviso</div><div class="toast-body"></div>';
-            t.querySelector('.toast-body').textContent = text;
+            t.innerHTML = `<div class="toast-header"><img class="ic" src="icons/info.png">${tr('Aviso')}</div><div class="toast-body"></div>`;
+            t.querySelector('.toast-body').textContent = tr(text);
             $('toast-container').appendChild(t); setTimeout(() => t.remove(), ms);
         }
         function showAlert(a) {
             const t = document.createElement('div'); t.className = 'toast alert';
-            t.innerHTML = '<div class="toast-header"><img class="ic" src="icons/triangle-alert.png">Memória de vídeo</div><div class="toast-body"></div><div class="toast-actions"></div>';
-            t.querySelector('.toast-body').textContent = `${a.text} (aviso ${a.count}/${a.max})`;
+            t.innerHTML = `<div class="toast-header"><img class="ic" src="icons/triangle-alert.png">${tr('Memória de vídeo')}</div><div class="toast-body"></div><div class="toast-actions"></div>`;
+            const gb = n => (n / 1024).toFixed(1);
+            const msg = a.kind === 'swap'
+                ? tr('VRAM no limite ({used} de {total} GB)', { used: gb(a.used), total: gb(a.total) }) + (a.partial ? tr(', modelo vazando para a RAM/CPU') : '') + (a.suggest ? tr('. Recomendado desligar o modelo {m}.', { m: a.suggest }) : tr('.'))
+                : tr('VRAM alta: {used} de {total} GB em uso.', { used: gb(a.used), total: gb(a.total) });
+            t.querySelector('.toast-body').textContent = msg + ' ' + tr('(aviso {c}/{max})', { c: a.count, max: a.max });
             const actions = t.querySelector('.toast-actions');
             if (a.kind === 'swap' && a.suggest) {
                 const stop = document.createElement('button'); stop.className = 'btn btn-primary'; stop.style.cssText = 'margin:0;padding:5px 10px;';
-                stop.textContent = `Parar ${a.suggest}`; stop.onclick = () => { t.remove(); modelStopByName(a.suggest); };
+                stop.textContent = tr('Parar {label}', { label: a.suggest }); stop.onclick = () => { t.remove(); modelStopByName(a.suggest); };
                 actions.appendChild(stop);
             }
             const ok = document.createElement('button'); ok.className = 'btn btn-secondary'; ok.style.cssText = 'margin:0;padding:5px 10px;';
-            ok.textContent = 'Ok'; ok.onclick = () => t.remove(); actions.appendChild(ok);
+            ok.textContent = tr('Ok'); ok.onclick = () => t.remove(); actions.appendChild(ok);
             $('toast-container').appendChild(t); setTimeout(() => t.remove(), 20000);
         }
 
         // ---------- configuracoes ----------
         async function openSettings() {
-            $('system-prompt-input').value = config.systemPrompt;
-            $('code-prompt-input').value = config.codePrompt;
+            $('system-prompt-input').value = sysPrompt(false);
+            $('code-prompt-input').value = sysPrompt(true);
+            $('opt-lang').value = curLang();
             $('opt-ctx').value = String(config.numCtx); $('opt-ctxbar').checked = config.showCtxBar; $('opt-web').checked = config.webSearch; $('opt-star').checked = config.starToDot; $('opt-autostop').checked = config.autoStopPrev;
             $('perf-enabled').checked = config.perfEnabled;
             $('perf-style').value = config.perfStyle;
             $('perf-interval').value = config.perfInterval; $('perf-int-val').innerText = config.perfInterval;
             $('groq-key-input').value = '';
             $('settings-modal').style.display = 'flex';
+            showSettingsTab('general');
+            if (!auth.local && !auth.authed) { showSettingsTab('server'); return; }
             try {
                 const st = await (await fetch(API + '/api/config_status')).json();
                 $('workdir-input').value = st.workdir === st.default_workdir ? '' : st.workdir;
                 $('workdir-input').placeholder = st.default_workdir;
-                $('groq-status').textContent = st.groq_key_saved ? 'chave salva ✓' : 'não salva';
+                $('groq-status').textContent = tr(st.groq_key_saved ? 'chave salva ✓' : 'não salva');
                 $('groq-status').classList.toggle('ok', st.groq_key_saved);
             } catch (e) {}
         }
         function closeSettings() { $('settings-modal').style.display = 'none'; }
-        function toggleKey(id, btn) { const i = $(id); i.type = i.type === 'password' ? 'text' : 'password'; btn.textContent = i.type === 'password' ? 'Mostrar' : 'Ocultar'; }
+        function showSettingsTab(name) {
+            $('set-general').style.display = name === 'general' ? '' : 'none';
+            $('set-server').style.display = name === 'server' ? '' : 'none';
+            $('set-tab-general').classList.toggle('active', name === 'general');
+            $('set-tab-server').classList.toggle('active', name === 'server');
+            if (name === 'server') refreshServerTab();
+        }
+        function toggleKey(id, btn) { const i = $(id); i.type = i.type === 'password' ? 'text' : 'password'; btn.textContent = tr(i.type === 'password' ? 'Mostrar' : 'Ocultar'); }
         // ---------- temas (embutidos + personalizados da pasta "custom themes") ----------
         const THEME_VARS = ['--bg-main', '--bg-sidebar', '--bg-msg-user', '--bg-msg-ai', '--bg-input', '--text-main', '--text-muted', '--border-color', '--accent'];
         const VAR_LABELS = { '--bg-main': 'Fundo principal', '--bg-sidebar': 'Barras (lateral, título, digitação)', '--bg-msg-user': 'Mensagem do usuário', '--bg-msg-ai': 'Mensagem da IA', '--bg-input': 'Caixas de texto', '--text-main': 'Texto principal', '--text-muted': 'Texto secundário', '--border-color': 'Bordas', '--accent': 'Destaque e botões' };
@@ -1026,9 +1373,9 @@
         }
         function renderThemeOptions() {
             const sel = $('theme-base'); sel.innerHTML = '';
-            [['dark', 'Escuro'], ['claude', 'Claude'], ['kimi', 'Kimi']].forEach(([v, l]) => sel.add(new Option(l, v)));
+            [['dark', 'Escuro'], ['claude', 'Claude'], ['kimi', 'Kimi']].forEach(([v, l]) => sel.add(new Option(tr(l), v)));
             if (customThemes.length) {
-                const g = document.createElement('optgroup'); g.label = 'Personalizados';
+                const g = document.createElement('optgroup'); g.label = tr('Personalizados');
                 customThemes.forEach(t => g.appendChild(new Option(t.name, 'custom:' + t.name)));
                 sel.appendChild(g);
             }
@@ -1060,7 +1407,7 @@
         function setPerfStyle(s) { config.perfStyle = s; applyPerf(); }
         function setPerfInterval(ms) {
             config.perfInterval = ms; saveState();
-            fetch(API + '/api/perf_interval', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ms }) }).catch(() => {});
+            if (auth.local) fetch(API + '/api/perf_interval', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ms }) }).catch(() => {});
         }
 
         async function saveSettings() {
@@ -1068,13 +1415,15 @@
             config.codePrompt = $('code-prompt-input').value || CODE_PROMPT_DEFAULT;
             config.numCtx = +$('opt-ctx').value; config.showCtxBar = $('opt-ctxbar').checked; config.webSearch = $('opt-web').checked; config.starToDot = $('opt-star').checked; config.autoStopPrev = $('opt-autostop').checked;
             saveState();
-            const body = { workdir: $('workdir-input').value.trim() };
-            const key = $('groq-key-input').value.trim();
-            if (key) body.groq_api_key = key;
-            try {
-                const r = await fetch(API + '/api/save_config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-                if (!r.ok) { alert((await r.json()).error || 'Erro ao salvar.'); return; }
-            } catch (e) { alert('Servidor não respondeu.'); return; }
+            if (auth.local) {
+                const body = { workdir: $('workdir-input').value.trim() };
+                const key = $('groq-key-input').value.trim();
+                if (key) body.groq_api_key = key;
+                try {
+                    const r = await fetch(API + '/api/save_config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+                    if (!r.ok) { alert(tr((await r.json()).error || 'Erro ao salvar.')); return; }
+                } catch (e) { alert(tr('Servidor não respondeu.')); return; }
+            }
             closeSettings();
             updateCtxBar();
             if (currentChatId) loadChat(currentChatId);   // re-renderiza com as opcoes de formatacao novas
@@ -1085,7 +1434,7 @@
         function closeMemory() { $('memory-modal').style.display = 'none'; }
         function renderMemoryList() {
             const list = $('memory-list'); list.innerHTML = '';
-            if (globalMemories.length === 0) { list.innerHTML = '<small style="color: var(--text-muted); text-align: center;">Nenhuma memória salva.</small>'; return; }
+            if (globalMemories.length === 0) { list.innerHTML = `<small style="color: var(--text-muted); text-align: center;">${tr('Nenhuma memória salva.')}</small>`; return; }
             globalMemories.forEach((mem, index) => {
                 const div = document.createElement('div');
                 div.style.cssText = 'background: var(--bg-input); padding: 8px; border-radius: 4px; border: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center;';
@@ -1100,11 +1449,11 @@
 
         // ---------- exportar chat ----------
         let exportMsgs = [];
-        const whoOf = m => m.role === 'user' ? 'Você' : m.role === 'summary' ? 'Resumo' : ((modelById(m.model) || {}).label || 'IA');
+        const whoOf = m => m.role === 'user' ? tr('Você') : m.role === 'summary' ? tr('Resumo') : ((modelById(m.model) || {}).label || tr('IA'));
         function openExport() {
             exportMsgs = chats[currentChatId].messages;
             const list = $('export-list'); list.innerHTML = '';
-            if (!exportMsgs.length) { list.innerHTML = '<div class="export-item"><span class="prev">Este chat ainda não tem mensagens.</span></div>'; }
+            if (!exportMsgs.length) { list.innerHTML = `<div class="export-item"><span class="prev">${tr('Este chat ainda não tem mensagens.')}</span></div>`; }
             exportMsgs.forEach((m, i) => {
                 const row = document.createElement('label'); row.className = 'export-item';
                 const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = true; cb.dataset.i = i; cb.onchange = rebuildExportText;
@@ -1119,7 +1468,7 @@
         function exportSelectAll(on) { document.querySelectorAll('#export-list input').forEach(c => c.checked = on); rebuildExportText(); }
         function rebuildExportText() {
             const parts = [];
-            document.querySelectorAll('#export-list input').forEach(c => { if (c.checked) { const m = exportMsgs[+c.dataset.i]; parts.push(`${whoOf(m)}: ${m.images && m.images.length ? `[${m.images.length} imagem(ns)] ` : ''}${plain(m.content)}`); } });
+            document.querySelectorAll('#export-list input').forEach(c => { if (c.checked) { const m = exportMsgs[+c.dataset.i]; parts.push(`${whoOf(m)}: ${m.images && m.images.length ? tr('[{n} imagem(ns)] ', { n: m.images.length }) : ''}${plain(m.content)}`); } });
             $('export-text').value = parts.join('\n\n');
         }
         function wrapLines(text, max) {
@@ -1174,6 +1523,12 @@
             lines.forEach((l, i) => ctx.fillText(l, PAD, PAD + i * LH));
             return c.toDataURL('image/png').split(',')[1];
         }
+        function downloadB64(filename, b64, mime) {   // aparelho remoto: o arquivo vai para o proprio aparelho
+            const bin = atob(b64), bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([bytes], { type: mime })); a.download = filename;
+            document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+        }
         async function doExport(kind) {
             const text = $('export-text').value;
             if (!text.trim()) { showInfo('Nada selecionado para exportar.'); return; }
@@ -1186,9 +1541,10 @@
             if (kind === 'txt') { b64 = btoa(unescape(encodeURIComponent(text))); ext = 'txt'; }
             else if (kind === 'pdf') { b64 = buildPdf(text); ext = 'pdf'; }
             else { b64 = buildPng(text); ext = 'png'; }
+            if (!auth.local) { downloadB64(`${name}.${ext}`, b64, { txt: 'text/plain', pdf: 'application/pdf', png: 'image/png' }[ext]); return; }
             try {
                 const r = await (await fetch(API + '/api/export', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ filename: `${name}.${ext}`, b64 }) })).json();
-                showInfo('Salvo em ' + r.path, 10000);
+                showInfo(tr('Salvo em {path}', { path: r.path }), 10000);
             } catch (e) { showInfo('Não consegui salvar o arquivo.'); }
         }
 
@@ -1196,7 +1552,7 @@
         let streaming = false, streamStart = 0, perfHideTimer = null, realTps = null, lastAlertId = null;
         const perfMonitor = $('perf-monitor');
         const speedClass = t => t < 5 ? 'slow' : t < 15 ? 'normal' : 'fast';
-        const speedLabel = t => t < 5 ? 'Lento' : t < 15 ? 'Normal' : 'Rápido';
+        const speedLabel = t => tr(t < 5 ? 'Lento' : t < 15 ? 'Normal' : 'Rápido');
 
         // o overlay fica no canto superior direito, mas logo abaixo das barras do topo (nao cobre Compactar nem o botao de copiar)
         function placePerf() { perfMonitor.style.top = ($('chat-header').getBoundingClientRect().bottom + 8) + 'px'; }
@@ -1210,12 +1566,18 @@
         // Um laco so: atualiza o overlay no intervalo escolhido e (mesmo com overlay oculto) fica de olho nos avisos de memoria
         async function metricsLoop() {
             let delay = 2000;
+            if (!auth.local && !auth.authed) { setTimeout(metricsLoop, 3000); return; }
             try {
                 const m = await (await fetch(API + '/api/metrics')).json();
                 if (config.perfEnabled) {
-                    $('mon-vram').textContent = 'VRAM: ' + (m.vram != null ? `${m.vram} MB` : 'N/D');
-                    $('mon-gpu').textContent = 'GPU: ' + (m.gpu != null ? `${m.gpu}%` : 'N/D');
-                    $('mon-vram-warn').textContent = m.vram_warn || '';
+                    $('mon-vram').textContent = 'VRAM: ' + (m.vram != null ? `${m.vram} MB` : tr('N/D'));
+                    $('mon-gpu').textContent = 'GPU: ' + (m.gpu != null ? `${m.gpu}%` : tr('N/D'));
+                    let warn = '';
+                    if (m.vram != null && m.vram_total) {
+                        if (m.vram >= m.vram_total - 300) warn = tr('VRAM no limite ({pct}%)', { pct: m.vram_pct });
+                        else if (m.vram > 6144) warn = tr('VRAM alta ({gb} GB)', { gb: (m.vram / 1024).toFixed(1) });
+                    }
+                    $('mon-vram-warn').textContent = warn;
                 }
                 if (m.alert && m.alert.id !== lastAlertId) { if (lastAlertId !== null) showAlert(m.alert); lastAlertId = m.alert.id; }
                 delay = config.perfEnabled ? config.perfInterval : 2000;
@@ -1232,8 +1594,8 @@
             perfHideTimer = setTimeout(() => ['mon-tokens', 'mon-wpm', 'mon-speed', 'mon-extra'].forEach(id => $(id).style.display = 'none'), 8000);   // deixa o resultado visivel um tempo
         }
         function renderPerf(tps, wps, real) {
-            $('mon-tokens').textContent = `Tokens/s: ${tps}${real ? ' ✓' : ' (est.)'}`;
-            $('mon-wpm').textContent = `Palavras/s: ${wps}`;
+            $('mon-tokens').textContent = `Tokens/s: ${tps}${real ? ' ✓' : tr(' (est.)')}`;
+            $('mon-wpm').textContent = `${tr('Palavras/s')}: ${wps}`;
             const s = $('mon-speed'); s.className = 'perf-speed ' + speedClass(+tps);
             s.textContent = `${speedLabel(+tps)} (${tps} t/s)`;
         }
@@ -1249,8 +1611,91 @@
             const ptps = st.prompt_seconds ? Math.round(st.prompt_tokens / st.prompt_seconds) : 0;
             const ex = $('mon-extra'); ex.style.display = '';
             ex.innerHTML = '';
-            [`Prompt: ${st.prompt_tokens} tok (${ptps} t/s)`, `Carga do modelo: ${st.load_seconds.toFixed(1)}s`, `Total: ${st.total_seconds.toFixed(1)}s`].forEach(t => { const d = document.createElement('div'); d.textContent = t; ex.appendChild(d); });
+            [tr('Prompt: {n} tok ({tps} t/s)', { n: st.prompt_tokens, tps: ptps }), tr('Carga do modelo: {s}s', { s: st.load_seconds.toFixed(1) }), tr('Total: {s}s', { s: st.total_seconds.toFixed(1) })].forEach(t => { const d = document.createElement('div'); d.textContent = t; ex.appendChild(d); });
         }
+
+        // ---------- servidor: acesso pela rede, senha, aparelhos, perfil do iPhone ----------
+        const sleep = ms => new Promise(r => setTimeout(r, ms));
+        async function copyText(t) {
+            try { await navigator.clipboard.writeText(t); } catch (e) { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }
+            showInfo('Copiado!', 2500);
+        }
+        const ago = ts => { if (!ts) return '—'; const s = Math.max(0, Date.now() / 1000 - ts); return s < 90 ? tr('agora há pouco') : s < 5400 ? tr('há {n} min', { n: Math.round(s / 60) }) : s < 129600 ? tr('há {n} h', { n: Math.round(s / 3600) }) : tr('há {n} dias', { n: Math.round(s / 86400) }); };
+        async function refreshServerTab() {
+            $('srv-host').style.display = auth.local ? '' : 'none';
+            $('srv-client').style.display = auth.local ? 'none' : '';
+            if (!auth.local) {
+                $('srv-conn-badge').textContent = tr(auth.authed ? 'conectado ✓' : 'não conectado'); $('srv-conn-badge').classList.toggle('ok', auth.authed);
+                $('srv-conn-host').textContent = location.host;
+                $('srv-connect-btn').style.display = auth.authed ? 'none' : ''; $('srv-disconnect-btn').style.display = auth.authed ? '' : 'none';
+                return;
+            }
+            let i; try { i = await (await fetch(API + '/api/server_info')).json(); } catch (e) { return; }
+            $('srv-remote').checked = i.remote_enabled; $('srv-code').checked = i.allow_remote_code;
+            $('srv-listening').textContent = tr(i.remote_enabled ? 'Ouvindo em {addr} (rede local ligada)' : 'Ouvindo em {addr} (somente neste PC)', { addr: i.listening });
+            $('srv-password').value = i.password;
+            const addr = $('srv-addresses'); addr.innerHTML = '';
+            if (!i.addresses.length) addr.innerHTML = `<span class="hint">${tr('Nenhum endereço de rede encontrado. Conecte este PC ao Wi-Fi ou cabo.')}</span>`;
+            i.addresses.forEach(u => {
+                const row = document.createElement('div'); row.className = 'srv-row';
+                const code = document.createElement('code'); code.textContent = u;
+                const b = document.createElement('button'); b.className = 'btn btn-secondary'; b.textContent = tr('Copiar'); b.onclick = () => copyText(u);
+                row.append(code, b); addr.appendChild(row);
+            });
+            const sel = $('srv-ios-host'); sel.innerHTML = '';
+            i.addresses.forEach(u => sel.add(new Option(u.replace(/^http:\/\//, '').replace(/:\d+$/, ''), u.replace(/^http:\/\//, '').replace(/:\d+$/, ''))));
+            const dev = $('srv-devices'); dev.innerHTML = '';
+            if (!i.devices.length) dev.innerHTML = `<span class="hint">${tr('Nenhum aparelho conectado.')}</span>`;
+            i.devices.forEach(d => {
+                const row = document.createElement('div'); row.className = 'srv-row';
+                const txt = document.createElement('span'); txt.textContent = `${tr(d.name || 'Dispositivo')} · ${d.ip} · ${ago(d.last)}`;
+                const b = document.createElement('button'); b.className = 'btn btn-secondary'; b.textContent = tr('Desconectar'); b.onclick = () => srvSet({ revoke: d.id });
+                row.append(txt, b); dev.appendChild(row);
+            });
+            $('srv-port').value = i.configured_port;
+            $('srv-port-hint').textContent = i.configured_port !== i.port ? tr('Porta salva: {a}. Feche e abra o app para usar (agora: {b}).', { a: i.configured_port, b: i.port }) : tr('Vale na próxima vez que o app abrir.');
+        }
+        async function srvSet(obj) {
+            try { await fetch(API + '/api/server_config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) }); } catch (e) { showInfo('Servidor não respondeu.'); return; }
+            if ('remote_enabled' in obj) { showInfo(obj.remote_enabled ? 'Ligando o acesso pela rede...' : 'Desligando o acesso pela rede...', 2500); await sleep(1800); }
+            refreshServerTab();
+        }
+        async function srvRegenerate() {
+            const r = await ask({ title: 'Gerar nova senha?', body: 'A senha atual deixa de valer e todos os aparelhos conectados serão desconectados.', buttons: ['Gerar nova senha', 'Cancelar'], danger: true });
+            if (r.index === 0) srvSet({ regenerate_password: true });
+        }
+        async function srvSetPort() {
+            const port = parseInt($('srv-port').value, 10);
+            try {
+                const r = await fetch(API + '/api/server_config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ port }) });
+                const d = await r.json();
+                if (!r.ok) { showInfo(d.error || 'Porta inválida.'); return; }
+                showInfo('Porta salva. Feche e abra o app para usar a nova porta.', 7000);
+            } catch (e) { showInfo('Servidor não respondeu.'); }
+            refreshServerTab();
+        }
+        async function srvSaveProfile() {
+            try {
+                const r = await (await fetch(API + '/api/ios_profile_save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ host: $('srv-ios-host').value }) })).json();
+                showInfo(tr('Perfil salvo em {path}. Mande para o iPhone (AirDrop, e-mail) e abra lá.', { path: r.path }), 12000);
+            } catch (e) { showInfo('Não consegui salvar o perfil.'); }
+        }
+        // aparelho remoto
+        async function connectToServer() {
+            const r = await ask({ title: 'Conectar ao servidor', body: 'Digite a senha que aparece no PC, em Configurações > Servidor.', buttons: ['Conectar', 'Cancelar'], input: { type: 'password', placeholder: 'XXXXX-XXXXX' } });
+            if (r.index !== 0 || !r.value) return;
+            let res; try { res = await _fetch(API + '/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: r.value }) }); } catch (e) { showInfo('Servidor não respondeu.'); return; }
+            if (res.ok) { location.reload(); return; }
+            const e = await res.json().catch(() => ({}));
+            if (res.status === 429) { showInfo(tr('Muitas tentativas. Aguarde {n} segundos.', { n: e.wait || 60 }), 8000); return; }
+            showInfo('Senha incorreta.', 4000);
+            connectToServer();
+        }
+        async function disconnectFromServer() {
+            try { await _fetch(API + '/api/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); } catch (e) {}
+            location.reload();
+        }
+        function installIphoneProfile() { location.href = '/api/ios_profile'; }
 
         // ---------- barra de contexto + compactar ----------
         const fmtK = n => n >= 1024 ? (n / 1024).toFixed(n % 1024 && n < 10240 ? 1 : 0) + 'K' : String(n);
@@ -1274,7 +1719,7 @@
             const { used, exact } = ctxInfo(chat), max = ctxMax(), pct = Math.min(100, used / max * 100);
             const fill = $('ctx-fill'); fill.style.width = pct + '%'; fill.className = 'ctx-fill' + (pct >= 90 ? ' bad' : pct >= 70 ? ' warn' : '');
             $('ctx-text').textContent = `${exact ? '' : '~'}${fmtK(used)} / ${fmtK(max)} (${Math.round(pct)}%)`;
-            $('ctx-text').title = exact ? 'Contagem real informada pelo Ollama' : 'Estimativa (~4 caracteres por token)';
+            $('ctx-text').title = tr(exact ? 'Contagem real informada pelo Ollama' : 'Estimativa (~4 caracteres por token)');
             $('ctx-compact').disabled = busy || chat.messages.length < 4;
         }
         async function collectChat(body) {   // roda uma conversa e devolve so o texto final
@@ -1292,28 +1737,28 @@
             if (model.cloud && !(await hasGroqKey())) { await noKeyDialog(); return; }
             if (!(await handleOverflow(model))) return;
             const KEEP = 2, old = chat.messages.slice(0, -KEEP), tail = chat.messages.slice(-KEEP);
-            const r = await ask({ title: 'Compactar conversa?', body: `${old.length} mensagens mais antigas serão trocadas por um resumo gerado por ${model.label}. As ${KEEP} últimas continuam como estão. Isso não pode ser desfeito.`, buttons: ['Compactar', 'Cancelar'] });
+            const r = await ask({ title: 'Compactar conversa?', body: tr('{n} mensagens mais antigas serão trocadas por um resumo gerado por {label}. As {keep} últimas continuam como estão. Isso não pode ser desfeito.', { n: old.length, label: model.label, keep: KEEP }), buttons: ['Compactar', 'Cancelar'] });
             if (r.index !== 0) return;
             const before = ctxInfo(chat).used;
-            let transcript = old.map(m => m.role === 'summary' ? `Resumo anterior: ${m.content}` : `${whoOf(m)}: ${m.images && m.images.length ? `[${m.images.length} imagem(ns)] ` : ''}${plain(m.content)}`).join('\n\n');
+            let transcript = old.map(m => m.role === 'summary' ? tr('Resumo anterior: ') + m.content : `${whoOf(m)}: ${m.images && m.images.length ? tr('[{n} imagem(ns)] ', { n: m.images.length }) : ''}${plain(m.content)}`).join('\n\n');
             const maxChars = ctxMax() * 3; if (transcript.length > maxChars) transcript = transcript.slice(-maxChars);
-            setBusy(true); setOverlayStatus('Compactando'); $('ctx-compact').textContent = 'Compactando...'; $('ctx-compact').disabled = true;
+            setBusy(true); setOverlayStatus('Compactando'); $('ctx-compact').textContent = tr('Compactando...'); $('ctx-compact').disabled = true;
             try {
                 const text = (await collectChat({
-                    model: selectedModel, stream: true, think: false, search_web: false, agent: false, num_ctx: model.cloud ? undefined : ctxMax(),
+                    model: selectedModel, stream: true, think: false, search_web: false, agent: false, lang: curLang(), num_ctx: model.cloud ? undefined : ctxMax(),
                     messages: [
-                        { role: 'system', content: 'Você resume conversas. Escreva um resumo fiel e compacto, em português, preservando fatos, decisões, nomes, números, trechos de código importantes e o que o usuário pediu. Não invente nada. Responda apenas com o resumo.' },
-                        { role: 'user', content: 'Resuma a conversa abaixo:\n\n' + transcript }
+                        { role: 'system', content: tr('Você resume conversas. Escreva um resumo fiel e compacto, em português, preservando fatos, decisões, nomes, números, trechos de código importantes e o que o usuário pediu. Não invente nada. Responda apenas com o resumo.') },
+                        { role: 'user', content: tr('Resuma a conversa abaixo:\n\n') + transcript }
                     ]
                 })).trim();
-                if (!text || text.includes('[Geracao parada]')) { showInfo('Compactação cancelada.'); return; }
-                if (text.startsWith('[Erro:')) { showInfo('Falha ao compactar: ' + text.slice(0, 150)); return; }
+                if (!text || /\[(Geracao parada|Generation stopped)\]/.test(text)) { showInfo('Compactação cancelada.'); return; }
+                if (/^\[(Erro|Error):/.test(text)) { showInfo(tr('Falha ao compactar: {x}', { x: text.slice(0, 150) })); return; }
                 const replaced = old.reduce((a, m) => a + (m.role === 'summary' ? (m.count || 1) : 1), 0);
                 chat.messages = [{ role: 'summary', content: text, count: replaced }, ...tail];
                 chat.ctxReal = null; saveToStorage(); loadChat(currentChatId);
-                showInfo(`Compactado: ${replaced} mensagens viraram um resumo. Contexto ${fmtK(before)} → ${fmtK(ctxInfo(chat).used)}.`, 8000);
+                showInfo(tr('Compactado: {n} mensagens viraram um resumo. Contexto {a} → {b}.', { n: replaced, a: fmtK(before), b: fmtK(ctxInfo(chat).used) }), 8000);
             } catch (e) { showInfo('Não consegui compactar a conversa.'); }
-            finally { setBusy(false); setOverlayStatus('Ocioso'); $('ctx-compact').textContent = 'Compactar'; updateCtxBar(); }
+            finally { setBusy(false); setOverlayStatus('Ocioso'); $('ctx-compact').textContent = tr('Compactar'); updateCtxBar(); }
         }
 
         // ---------- editor de temas ----------
@@ -1332,6 +1777,7 @@
             { sel: '#chat, #main', label: 'Fundo do chat', vars: ['--bg-main', '--text-main'] },
             { sel: 'body, #app', label: 'Fundo', vars: ['--bg-main'] },
         ];
+        THEME_PARTS.forEach(d => { const pt = d.label; Object.defineProperty(d, 'label', { get: () => tr(pt), enumerable: true }); });
         let editing = false, editWork = null, editPrev = null, editSel = null, ctxPart = null;
 
         function normHex(c) {
@@ -1366,7 +1812,7 @@
 
         function themeRow(v, highlight) {
             const row = document.createElement('div'); row.className = 'tp-row' + (highlight ? ' hl' : '');
-            const label = document.createElement('label'); label.textContent = VAR_LABELS[v];
+            const label = document.createElement('label'); label.textContent = tr(VAR_LABELS[v]);
             const color = document.createElement('input'); color.type = 'color'; color.value = editWork.vars[v]; color.dataset.var = v;
             const hex = document.createElement('input'); hex.type = 'text'; hex.value = editWork.vars[v]; hex.maxLength = 7; hex.spellcheck = false; hex.dataset.var = v;
             color.oninput = () => setThemeVar(v, color.value);
@@ -1376,12 +1822,12 @@
         function renderThemePanel() {
             const box = $('theme-rows'); box.innerHTML = '';
             const group = t => { const g = document.createElement('div'); g.className = 'tp-group'; g.textContent = t; box.appendChild(g); return g; };
-            if (editSel) { group('Selecionado: ' + editSel.label).classList.add('tp-selected'); editSel.vars.forEach(v => box.appendChild(themeRow(v, true))); }
-            group('Todas as cores'); THEME_VARS.forEach(v => box.appendChild(themeRow(v, false)));
+            if (editSel) { group(tr('Selecionado: {x}', { x: editSel.label })).classList.add('tp-selected'); editSel.vars.forEach(v => box.appendChild(themeRow(v, true))); }
+            group(tr('Todas as cores')); THEME_VARS.forEach(v => box.appendChild(themeRow(v, false)));
         }
         function renderSavedThemes() {
             const box = $('theme-saved'); box.innerHTML = '';
-            if (!customThemes.length) { box.innerHTML = '<div class="tp-hint">Nenhum tema salvo ainda.</div>'; return; }
+            if (!customThemes.length) { box.innerHTML = `<div class="tp-hint">${tr('Nenhum tema salvo ainda.')}</div>`; return; }
             customThemes.forEach(t => {
                 const row = document.createElement('div'); row.className = 'tp-saved';
                 const load = document.createElement('button'); load.className = 'tp-btn'; load.textContent = t.name;
@@ -1391,9 +1837,9 @@
                     Object.entries(editWork.vars).forEach(([k, v]) => document.body.style.setProperty(k, v));
                     setIconLight(editWork.iconLight); $('tp-icons').checked = editWork.iconLight; $('theme-name').value = t.name; renderThemePanel();
                 };
-                const del = document.createElement('button'); del.className = 'tp-btn'; del.textContent = '×'; del.title = 'Apagar tema';
+                const del = document.createElement('button'); del.className = 'tp-btn'; del.textContent = '×'; del.title = tr('Apagar tema');
                 del.onclick = async () => {
-                    const r = await ask({ title: 'Apagar tema?', body: `"${t.name}" será removido da pasta custom themes.`, buttons: ['Apagar', 'Cancelar'], danger: true });
+                    const r = await ask({ title: 'Apagar tema?', body: tr('"{name}" será removido da pasta custom themes.', { name: t.name }), buttons: ['Apagar', 'Cancelar'], danger: true });
                     if (r.index !== 0) return;
                     await fetch(API + '/api/custom_theme_delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: t.name }) });
                     await loadCustomThemes(); renderSavedThemes();
@@ -1407,7 +1853,7 @@
             try {
                 const r = await (await fetch(API + '/api/custom_theme', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, theme: { base: editWork.base, vars: editWork.vars, iconLight: editWork.iconLight } }) })).json();
                 await loadCustomThemes(); config.theme = 'custom:' + r.name;
-                exitThemeEditor(true); showInfo('Tema salvo em ' + r.path, 10000);
+                exitThemeEditor(true); showInfo(tr('Tema salvo em {path}', { path: r.path }), 10000);
             } catch (e) { showInfo('Não consegui salvar o tema.'); }
         }
 
