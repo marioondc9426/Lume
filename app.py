@@ -1251,14 +1251,16 @@ def device_name(ua):
     return "Dispositivo"
 
 _icon_cache = {}
-CUSTOM_ICON = os.path.join(RES_DIR, "icons", "qwen.png")   # se existir, e o icone do app (janela, iPhone, aba do navegador)
+CUSTOM_ICON = os.path.join(RES_DIR, "icons", "qwen.png")   # se existir, e o icone do app (janela, .exe, bandeja): a logo com fundo transparente
+MOBILE_ICON = os.path.join(RES_DIR, "icons", "qwen-mobile.png")   # icone do iPhone / aba do navegador: logo menor sobre um gradiente (tools/make_icons.py)
 
 def make_icon_png(size=180):
     """Icone do app: icons/qwen.png se existir; senao um raio branco sobre azul gerado sem bibliotecas externas."""
-    if os.path.isfile(CUSTOM_ICON):
-        try:
-            with open(CUSTOM_ICON, "rb") as f: return f.read()
-        except OSError: pass
+    for path in (MOBILE_ICON, CUSTOM_ICON):
+        if os.path.isfile(path):
+            try:
+                with open(path, "rb") as f: return f.read()
+            except OSError: pass
     if size in _icon_cache: return _icon_cache[size]
     poly = [(58, 6), (22, 54), (46, 54), (38, 94), (78, 44), (54, 44)]   # raio em um quadro 100x100
     def inside(x, y):
