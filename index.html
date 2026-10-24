@@ -568,7 +568,7 @@
             </select>
             <label class="toggle-container"><input type="checkbox" id="opt-maxctx" onchange="$('opt-ctx').disabled = this.checked"><div class="toggle-switch"></div> Usar o contexto máximo de cada modelo</label>
             <span class="hint">Com isso ligado, cada modelo usa tudo o que suporta (ex.: 256K) e o valor acima é ignorado. Cuidado: contextos enormes ocupam MUITA VRAM e deixam tudo mais lento.</span>
-            <span class="hint">Quanto o modelo lembra da conversa. Contextos grandes usam MUITO mais VRAM e deixam tudo mais lento; aumente aos poucos. Cada modelo é limitado ao máximo que suporta (o CodeGemma só tem 8K). Trocar o valor recarrega o modelo.</span>
+            <span class="hint">Quanto o modelo lembra da conversa. Contextos grandes usam MUITO mais VRAM e deixam tudo mais lento; aumente aos poucos. Cada modelo é limitado ao máximo que suporta (modelos menores podem suportar menos). Trocar o valor recarrega o modelo.</span>
         </div>
         <label class="toggle-container"><input type="checkbox" id="opt-ctxbar"><div class="toggle-switch"></div> Mostrar a barra de contexto no topo</label>
         <label class="toggle-container"><input type="checkbox" id="opt-web"><div class="toggle-switch"></div> Pesquisar na web nas respostas (aba Chat)</label>
@@ -797,7 +797,6 @@
             { id: 'gemma3:4b', fam: 'gemma3', famName: 'Gemma 3', params: '4B', rec: true, label: 'Gemma 3 4B (Local)', icon: 'zap', tabs: ['chat'], gb: 3.4, vision: true, ctx: 131072 },
             { id: 'llama3.2:3b', fam: 'llama3.2', famName: 'Llama 3.2', params: '3B', rec: true, label: 'Llama 3.2 3B (Leve)', icon: 'zap', tabs: ['chat'], gb: 2.2, ctx: 131072 },
             { id: 'qwen2.5:1.5b', fam: 'qwen2.5', famName: 'Qwen 2.5', params: '1.5B', rec: true, label: 'Qwen 2.5 1.5B (Ultra leve)', icon: 'zap', tabs: ['chat'], gb: 1.1, ctx: 32768 },
-            { id: 'codegemma:7b', fam: 'codegemma', famName: 'CodeGemma', params: '7B', rec: true, label: 'CodeGemma 7B (Apenas Código)', icon: 'pen-line', tabs: ['code'], gb: 5.0, ctx: 8192 },
             { id: 'nemotron-3-nano:4b', fam: 'nemotron-3-nano', famName: 'Nemotron 3', params: '4B', rec: true, label: 'Nemotron 3 4B (Local)', icon: 'zap', tabs: ['chat', 'code'], gb: 2.9, ctx: 262144 },
             { id: 'nemotron-3-nano:30b-cloud', fam: 'nemotron-3-nano', famName: 'Nemotron 3', params: '30B', label: 'Nemotron 3 30B (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 1048576 },
             { id: 'nemotron-3-super:cloud', fam: 'nemotron-3-nano', famName: 'Nemotron 3', params: '120B', label: 'Nemotron 3 Super 120B (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 262144 },
@@ -844,8 +843,8 @@
             'Deixe vazio para manter a chave já salva. Chaves gratuitas em console.groq.com/keys': 'Leave empty to keep the saved key. Free keys at console.groq.com/keys',
             'System Prompt (aba Chat)': 'System Prompt (Chat tab)', 'System Prompt (aba Code)': 'System Prompt (Code tab)',
             'Contexto (memória da conversa)': 'Context (conversation memory)', '4K (padrão do Ollama, mais leve)': '4K (Ollama default, lighter)',
-            'Quanto o modelo lembra da conversa. Contextos grandes usam MUITO mais VRAM e deixam tudo mais lento; aumente aos poucos. Cada modelo é limitado ao máximo que suporta (o CodeGemma só tem 8K). Trocar o valor recarrega o modelo.':
-                'How much of the conversation the model remembers. Large contexts use MUCH more VRAM and make everything slower; increase gradually. Each model is capped at the maximum it supports (CodeGemma only has 8K). Changing the value reloads the model.',
+            'Quanto o modelo lembra da conversa. Contextos grandes usam MUITO mais VRAM e deixam tudo mais lento; aumente aos poucos. Cada modelo é limitado ao máximo que suporta (modelos menores podem suportar menos). Trocar o valor recarrega o modelo.':
+                'How much of the conversation the model remembers. Large contexts use MUCH more VRAM and make everything slower; increase gradually. Each model is capped at the maximum it supports (smaller models may support less). Changing the value reloads the model.',
             'Mostrar a barra de contexto no topo': 'Show the context bar at the top',
             'Pesquisar na web nas respostas (aba Chat)': 'Search the web when answering (Chat tab)',
             'Trocar * sozinho no início da linha por •': 'Replace a lone * at the start of a line with •',
@@ -917,7 +916,7 @@
             'Texto copiado!': 'Text copied!', 'Salvo em {path}': 'Saved to {path}', 'Não consegui salvar o arquivo.': 'Could not save the file.',
             // modelos
             'Qwen 3.5 2B (Básico)': 'Qwen 3.5 2B (Basic)', 'Gemma 3 1B (Ultra leve)': 'Gemma 3 1B (Ultra light)', 'Qwen 2.5 1.5B (Ultra leve)': 'Qwen 2.5 1.5B (Ultra light)',
-            'Llama 3.2 3B (Leve)': 'Llama 3.2 3B (Light)', 'Qwen 3.5 9B (Pesado)': 'Qwen 3.5 9B (Heavy)', 'CodeGemma 7B (Apenas Código)': 'CodeGemma 7B (Code only)',
+            'Llama 3.2 3B (Leve)': 'Llama 3.2 3B (Light)', 'Qwen 3.5 9B (Pesado)': 'Qwen 3.5 9B (Heavy)',
             'visão': 'vision', 'nuvem': 'cloud', 'carregando': 'loading', 'desligando': 'stopping', 'na memória': 'in memory',
             'Iniciar {label}': 'Start {label}', 'Parar {label}': 'Stop {label}',
             'Modelo muito pesado': 'Model too heavy', 'Usar mesmo assim': 'Use anyway', 'Cancelar': 'Cancel',
