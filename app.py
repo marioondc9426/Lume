@@ -869,7 +869,7 @@ LOCAL_HOSTS = ("127.0.0.1", "localhost")
 STATIC_PAGES = ("/", "/index.html")
 # So o proprio PC (janela do app) pode usar estas rotas
 LOCAL_ONLY_POST = ("/api/save_config", "/api/save_key", "/api/server_config", "/api/perf_interval",
-                   "/api/custom_theme", "/api/custom_theme_delete", "/api/resolve_pending", "/api/export", "/api/ios_profile_save", "/api/undo", "/api/stats_clear", "/api/open_url")
+                   "/api/custom_theme", "/api/custom_theme_delete", "/api/resolve_pending", "/api/export", "/api/ios_profile_save", "/api/undo", "/api/stats_clear", "/api/open_url", "/api/update_apply", "/api/restart_app")
 PUBLIC_POST = ("/api/auth/login", "/api/auth/logout")
 LOGIN_MAX_FAILS, LOGIN_LOCK_SECONDS = 5, 60
 login_failures = {}   # ip -> [falhas, inicio]
@@ -942,8 +942,14 @@ def device_name(ua):
     return "Dispositivo"
 
 _icon_cache = {}
+CUSTOM_ICON = os.path.join(BASE_DIR, "icons", "qwen.png")   # se existir, e o icone do app (janela, iPhone, aba do navegador)
+
 def make_icon_png(size=180):
-    """Icone do app (raio branco sobre azul) gerado sem bibliotecas externas."""
+    """Icone do app: icons/qwen.png se existir; senao um raio branco sobre azul gerado sem bibliotecas externas."""
+    if os.path.isfile(CUSTOM_ICON):
+        try:
+            with open(CUSTOM_ICON, "rb") as f: return f.read()
+        except OSError: pass
     if size in _icon_cache: return _icon_cache[size]
     poly = [(58, 6), (22, 54), (46, 54), (38, 94), (78, 44), (54, 44)]   # raio em um quadro 100x100
     def inside(x, y):
@@ -1062,6 +1068,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         if not p.startswith('/api/'):
             return self.serve_static(p)
         local = self.is_local()
+        if p == '/api/update_check':
+            if not local: return self.send_json({"error": "local_only"}, 403)
+            return self.send_json(check_update())
         if p == '/api/ping':   # publico: so diz que isto e o app e se pede senha
             cfg = load_config()
             return self.send_json({"app": "ai-thing", "name": socket.gethostname(), "password_required": cfg.get("password_required", True)})
@@ -1260,6 +1269,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             try: return self.send_json({"ok": True, "message": do_undo(str(data.get("id", "")))})
             except Exception as e: return self.send_json({"error": str(e)}, 400)
 
+        if p == '/api/update_apply':
+            return self.send_json(apply_update())
+        if p == '/api/restart_app':
+            self.send_json({"ok": True}); threading.Thread(target=restart_app, daemon=True).start(); return
         if p == '/api/stats_clear':
             _write_json(STATS_FILE, {"events": []}); log("STATS", "Estatisticas apagadas.", COLOR_YELLOW)
             return self.send_json({"ok": True})
@@ -1538,6 +1551,87 @@ def start_server():
     finally:
         srv.server_close()
 
+def custom_icon_ico():
+    """Converte icons/qwen.png em .ico (o Windows aceita PNG dentro do .ico) para o icone da janela. None se nao houver."""
+    if not os.path.isfile(CUSTOM_ICON): return None
+    try:
+        data = open(CUSTOM_ICON, "rb").read()
+        if data[:8] != b"\x89PNG\r\n\x1a\n": return None
+        w, hgt = struct.unpack(">II", data[16:24])
+        out = os.path.join(BASE_DIR, "webview_data", "app.ico"); os.makedirs(os.path.dirname(out), exist_ok=True)
+        entry = struct.pack("<BBBBHHII", w if w < 256 else 0, hgt if hgt < 256 else 0, 0, 0, 1, 32, len(data), 22)
+        with open(out, "wb") as f: f.write(struct.pack("<HHH", 0, 1, 1) + entry + data)
+        return out
+    except Exception as e:
+        log("ICONE", f"Nao consegui usar icons/qwen.png: {e}", COLOR_YELLOW); return None
+
+# ---------------- atualizacoes (GitHub) ----------------
+DEFAULT_REPO = "marioondc9426/ai-thing-idk"
+NOWIN = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+def _git(*args, timeout=60):
+    r = subprocess.run(["git", *args], cwd=BASE_DIR, capture_output=True, text=True, timeout=timeout, encoding="utf-8", errors="replace", creationflags=NOWIN)
+    return r.returncode, (r.stdout or "").strip(), (r.stderr or "").strip()
+
+def github_repo():
+    try:
+        code, out, _ = _git("remote", "get-url", "origin")
+        m = re.search(r"github\.com[:/]+([^/]+/[^/]+?)(?:\.git)?/?$", out) if code == 0 else None
+        if m: return m.group(1)
+    except Exception: pass
+    return DEFAULT_REPO
+
+def check_update():
+    """Compara a versao deste PC com o main do GitHub. status: uptodate | available | ahead | diverged | unknown | error."""
+    try:
+        code, local, _ = _git("rev-parse", "HEAD")
+        if code != 0: return {"status": "error", "error": "no_git"}
+        _, when, _ = _git("log", "-1", "--format=%cd", "--date=short")
+        _, subj, _ = _git("log", "-1", "--format=%s")
+        info = {"local": local[:7], "local_date": when, "local_subject": subj}
+        req = urllib.request.Request(f"https://api.github.com/repos/{github_repo()}/compare/{local}...main",
+                                     headers={"Accept": "application/vnd.github+json", "User-Agent": "ai-thing-updater"})
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r: d = json.loads(r.read())
+        except urllib.error.HTTPError as e:
+            if e.code == 404: return {**info, "status": "unknown"}   # commit local que o GitHub nao conhece
+            raise
+        status = {"identical": "uptodate", "ahead": "available", "behind": "ahead", "diverged": "diverged"}.get(d.get("status"), "unknown")
+        commits = [{"sha": c["sha"][:7], "msg": c["commit"]["message"].split("\n")[0]} for c in d.get("commits", [])][-15:]
+        return {**info, "status": status, "behind_by": d.get("ahead_by", 0) if status == "available" else 0, "commits": commits[::-1]}
+    except Exception as e:
+        return {"status": "error", "error": str(e)[:200]}
+
+update_lock = threading.Lock()
+
+def apply_update():
+    """git pull --ff-only (recusa se houver arquivos do programa alterados a mao) e instala dependencias novas."""
+    if not update_lock.acquire(blocking=False): return {"ok": False, "error": "busy"}
+    try:
+        code, dirty, _ = _git("status", "--porcelain", "--untracked-files=no")
+        if code != 0: return {"ok": False, "error": "no_git"}
+        if dirty: return {"ok": False, "error": "dirty", "files": dirty.splitlines()[:10]}
+        code, out, err = _git("pull", "--ff-only", timeout=180)
+        if code != 0: return {"ok": False, "error": "pull", "detail": (err or out)[-400:]}
+        log("UPDATE", "Atualizado: " + (out.splitlines()[-1] if out else "ok"), COLOR_GREEN)
+        req = os.path.join(BASE_DIR, "requirements.txt")
+        if os.path.isfile(req):
+            try: subprocess.run([sys.executable, "-m", "pip", "install", "-q", "-r", req], cwd=BASE_DIR, timeout=300, creationflags=NOWIN)
+            except Exception as e: log("UPDATE", f"pip falhou (ignorado): {e}", COLOR_YELLOW)
+        return {"ok": True}
+    except Exception as e:
+        return {"ok": False, "error": "pull", "detail": str(e)[:300]}
+    finally:
+        update_lock.release()
+
+window_api = None
+
+def restart_app():
+    """Fecha este app e abre outro depois de alguns segundos (a porta precisa ser liberada primeiro)."""
+    subprocess.Popen(f'cmd /c "ping -n 4 127.0.0.1 >nul & "{sys.executable}" app.py"', cwd=BASE_DIR, shell=True,
+                     creationflags=getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0))
+    if window_api and window_api._window: window_api._window.destroy()
+
 def restart_server():
     """Reinicia o servidor HTTP (troca entre 'so neste PC' e 'rede local') sem fechar o app."""
     def work():
@@ -1578,7 +1672,8 @@ if __name__ == '__main__':
     api = WindowApi()
     api._window = webview.create_window('AI Website Thingmabobber', f'http://127.0.0.1:{PORT}/index.html', width=1100, height=800, min_size=(800, 520), frameless=True, easy_drag=False, js_api=api)
     # private_mode=False: sem isso o localStorage some toda vez que o app fecha
-    webview.start(private_mode=False, storage_path=os.path.join(BASE_DIR, "webview_data"))
+    window_api = api
+    webview.start(private_mode=False, storage_path=os.path.join(BASE_DIR, "webview_data"), icon=custom_icon_ico())
     log("SAIDA", "Janela fechada. Desligando as IAs...", COLOR_YELLOW)
     shutdown_all()
     log("SAIDA", "Tudo desligado.", COLOR_GREEN)

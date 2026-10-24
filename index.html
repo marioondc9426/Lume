@@ -9,6 +9,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black">
     <meta name="theme-color" content="#111111">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+    <link rel="icon" type="image/png" href="/apple-touch-icon.png">
     <title>AI Website Thingmabobber</title>
     <style>
         :root { --bg-main: #1e1e1e; --bg-sidebar: #111; --bg-msg-user: #0056b3; --bg-msg-ai: #2d2d2d; --bg-input: #2d2d2d; --text-main: #e0e0e0; --text-muted: #888; --border-color: #333; --accent: #0056b3; --icon-filter: invert(1); --font: 'Segoe UI', sans-serif; --custom-bg-image: none; --custom-bg-opacity: 0; --warn: #e3a008; --danger: #d64545; }
@@ -199,6 +200,7 @@
 
         /* Exportar chat */
         #export-modal .modal-content { width: 720px; }
+        #settings-save { position: sticky; bottom: 0; align-self: flex-end; margin: 0; padding: 6px 16px; font-size: 13px; border-radius: 8px; box-shadow: 0 4px 14px rgba(0,0,0,0.45); z-index: 5; flex-shrink: 0; }
         #export-list { max-height: 190px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 10px; }
         .export-item { display: flex; gap: 10px; align-items: flex-start; padding: 8px 12px; border-bottom: 1px solid var(--border-color); font-size: 0.85em; cursor: pointer; }
         .export-item:last-child { border-bottom: none; }
@@ -420,7 +422,7 @@
                 <div class="tab" data-tab="code" onclick="switchTab('code')">Code</div>
             </div>
             <button class="btn btn-primary" onclick="createNewChat()">+ Novo Chat</button>
-            <button class="btn btn-secondary" onclick="openSettings()">⚙️ Configurações</button>
+            <button class="btn btn-secondary" onclick="openSettings()">⚙️ Configurações <span id="upd-dot" title="Atualização disponível" style="display:none; color:#4ade80;">●</span></button>
             <button class="btn btn-secondary" onclick="openMemory()">🧠 Memória</button>
             <button class="btn btn-secondary" onclick="openStats()">📊 Estatísticas</button>
             <input type="text" id="chat-search" placeholder="Pesquisar nos chats..." autocomplete="off" spellcheck="false">
@@ -624,7 +626,16 @@
             <span class="hint">A GPU em si só atualiza o uso a cada ~100–1000 ms; valores menores que isso não deixam o número mais preciso.</span>
         </div>
 
-        <button class="btn btn-primary" style="margin:0;" onclick="saveSettings()">Salvar Tudo</button>
+        <div class="section-title">Atualizações</div>
+        <div class="form-group host-only">
+            <span class="hint" id="upd-version">...</span>
+            <div class="srv-actions">
+                <button class="btn btn-secondary" id="upd-check-btn" onclick="checkUpdates(true)">Verificar atualizações</button>
+                <button class="btn btn-primary" id="upd-apply-btn" style="display:none;" onclick="applyUpdate()">Atualizar agora</button>
+            </div>
+            <div id="upd-list" class="hint"></div>
+            <label class="toggle-container"><input type="checkbox" id="opt-autoupd" onchange="config.autoUpdate = this.checked; saveToStorage();"><div class="toggle-switch"></div> Avisar quando houver versão nova ao abrir o app</label>
+        </div>
         </div>
 
         <div id="set-server" class="set-pane" style="display:none;">
@@ -685,6 +696,7 @@
                 </div>
             </div>
         </div>
+        <button class="btn btn-primary" id="settings-save" onclick="saveSettings()">Salvar</button>
     </div></div>
 
     <!-- Modal Estatisticas -->
@@ -814,7 +826,16 @@
             'Overlay de desempenho': 'Performance overlay', 'Mostrar overlay no canto superior direito': 'Show overlay in the top-right corner', 'Estilo': 'Style',
             'Padrão (colorido)': 'Default (colored)', 'Cinza (discreto)': 'Gray (subtle)', 'Atualização:': 'Refresh:',
             'A GPU em si só atualiza o uso a cada ~100–1000 ms; valores menores que isso não deixam o número mais preciso.': 'The GPU itself only updates its usage every ~100–1000 ms; lower values do not make the number more precise.',
-            'Salvar Tudo': 'Save all', 'Erro ao salvar.': 'Error while saving.', 'Servidor não respondeu.': 'The server did not respond.',
+            'Salvar Tudo': 'Save all', 'Salvar': 'Save', 'Atualizações': 'Updates', 'Verificar atualizações': 'Check for updates', 'Atualizar agora': 'Update now',
+            'Avisar quando houver versão nova ao abrir o app': 'Notify me when a new version is available at startup', 'Verificando...': 'Checking...', 'Atualizando...': 'Updating...',
+            'Versão atual: {v} ({d})': 'Current version: {v} ({d})', '{n} atualização(ões) disponível(is)': '{n} update(s) available', 'você está na versão mais recente ✓': 'you are on the latest version ✓',
+            'esta versão é mais nova que a do GitHub (ainda não enviada).': 'this version is newer than the one on GitHub (not pushed yet).', 'esta cópia mudou de um jeito que não dá para atualizar sozinho.': 'this copy has changed in a way that cannot be updated automatically.',
+            'o GitHub não conhece esta versão.': 'GitHub does not know this version.', 'Atualizar só funciona se o programa foi baixado com o Git (git clone).': 'Updating only works if the program was downloaded with Git (git clone).',
+            'Não consegui verificar agora (sem internet?).': 'Could not check right now (no internet?).', 'Já está atualizando.': 'Already updating.', 'Não consegui atualizar.': 'Could not update.',
+            'Você mexeu nestes arquivos do programa, então não atualizei para não perder suas mudanças:': 'You changed these program files, so I did not update to avoid losing your changes:',
+            'Atualizar agora?': 'Update now?', 'O app baixa a versão nova do GitHub e depois precisa reiniciar. Suas conversas e configurações não são mexidas.': 'The app downloads the new version from GitHub and then needs to restart. Your chats and settings are not touched.',
+            'Atualizar': 'Update', 'Atualização não feita': 'Update not done', 'Atualizado!': 'Updated!', 'Reiniciar o app agora para usar a versão nova?': 'Restart the app now to use the new version?', 'Reiniciar': 'Restart', 'Depois': 'Later',
+            'Atualização disponível! Veja em Configurações.': 'Update available! See Settings.', 'Atualização disponível': 'Update available', 'Erro ao salvar.': 'Error while saving.', 'Servidor não respondeu.': 'The server did not respond.',
             'Pasta de trabalho nao existe.': 'Working folder does not exist.',
             // aba servidor
             'Acesso pela rede': 'Network access', 'Permitir que outros aparelhos da rede local usem este servidor': 'Allow other devices on the local network to use this server',
@@ -1019,7 +1040,7 @@
         const OVERFLOW_OVERHEAD = 1.3, OVERFLOW_LIMIT = 0.85;   // estimativa: modelo novo ocupa gb*1.3 e o total nao deve passar de 85% da VRAM
 
         const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } };
-        let config = Object.assign({ theme: 'dark', systemPrompt: 'Você é um assistente direto.', codePrompt: CODE_PROMPT_DEFAULT, scale: 1, bgImage: '', bgOpacity: 0, perfEnabled: true, perfStyle: 'default', perfInterval: 50, numCtx: 4096, showCtxBar: true, lang: '', animations: true, model: 'qwen3.5:4b', webSearch: true, starToDot: true, autoStopPrev: false }, load('thingmabobber_config', {}));
+        let config = Object.assign({ theme: 'dark', systemPrompt: 'Você é um assistente direto.', codePrompt: CODE_PROMPT_DEFAULT, scale: 1, bgImage: '', bgOpacity: 0, perfEnabled: true, perfStyle: 'default', perfInterval: 50, numCtx: 4096, showCtxBar: true, lang: '', animations: true, model: 'qwen3.5:4b', webSearch: true, starToDot: true, autoStopPrev: false, autoUpdate: true }, load('thingmabobber_config', {}));
         let chats = load('thingmabobber_chats', {});
         let globalMemories = load('thingmabobber_memories', []);
         let currentChatId = null, currentTab = 'chat', selectedModel = config.model, lastLocalModel = 'qwen3.5:4b', busy = false;
@@ -1081,6 +1102,7 @@
             if (auth.local || auth.authed) await loadFromServer(); else showConnectBanner();
             await loadCustomThemes();
             applyBaseTheme(config.theme);
+            if (auth.local && config.autoUpdate !== false) setTimeout(async () => { await checkUpdates(false); if (updInfo && updInfo.status === 'available') showInfo(tr('Atualização disponível! Veja em Configurações.'), 9000); }, 4000);
             translateStatic(); $('opt-lang').value = curLang();
             document.body.classList.toggle('no-anim', config.animations === false);
             if (window.pywebview && window.pywebview.api) setupResizeGrips(); else window.addEventListener('pywebviewready', setupResizeGrips, { once: true });
@@ -1834,7 +1856,9 @@
             $('code-prompt-input').value = sysPrompt(true);
             $('opt-lang').value = curLang(); $('opt-anim').checked = config.animations !== false;
             $('opt-ctx').value = String(config.numCtx); $('opt-ctxbar').checked = config.showCtxBar; $('opt-web').checked = config.webSearch; $('opt-star').checked = config.starToDot; $('opt-autostop').checked = config.autoStopPrev;
-            $('perf-enabled').checked = config.perfEnabled;
+            $('perf-enabled').checked = config.perfEnabled; $('opt-autoupd').checked = config.autoUpdate !== false;
+            $('perf-style').value = config.perfStyle;
+            if (auth.local) checkUpdates(false);
             $('perf-style').value = config.perfStyle;
             $('perf-interval').value = config.perfInterval; $('perf-int-val').innerText = config.perfInterval;
             $('groq-key-input').value = ''; $('exa-key-input').value = '';
@@ -1931,6 +1955,41 @@
             closeSettings();
             updateCtxBar();
             if (currentChatId) loadChat(currentChatId);   // re-renderiza com as opcoes de formatacao novas
+        }
+
+        // ---------- atualizacoes (GitHub) ----------
+        let updInfo = null;
+        function updateBadge(on) { $('upd-dot').style.display = on ? '' : 'none'; }
+        async function checkUpdates(manual) {
+            const ver = $('upd-version'), list = $('upd-list'), btn = $('upd-apply-btn');
+            if (manual) { ver.textContent = tr('Verificando...'); $('upd-check-btn').disabled = true; }
+            let r; try { r = await (await fetch(API + '/api/update_check')).json(); } catch (e) { r = { status: 'error', error: String(e) }; }
+            $('upd-check-btn').disabled = false; updInfo = r; list.innerHTML = ''; btn.style.display = 'none';
+            const cur = r.local ? tr('Versão atual: {v} ({d})', { v: r.local, d: r.local_date }) : '';
+            if (r.status === 'available') {
+                ver.textContent = cur + ' — ' + tr('{n} atualização(ões) disponível(is)', { n: r.behind_by }); btn.style.display = '';
+                (r.commits || []).forEach(c => { const d = document.createElement('div'); d.textContent = `• ${c.msg}`; list.appendChild(d); });
+            } else if (r.status === 'uptodate') ver.textContent = cur + ' — ' + tr('você está na versão mais recente ✓');
+            else if (r.status === 'ahead') ver.textContent = cur + ' — ' + tr('esta versão é mais nova que a do GitHub (ainda não enviada).');
+            else if (r.status === 'diverged') ver.textContent = cur + ' — ' + tr('esta cópia mudou de um jeito que não dá para atualizar sozinho.');
+            else if (r.status === 'unknown') ver.textContent = cur + ' — ' + tr('o GitHub não conhece esta versão.');
+            else ver.textContent = r.error === 'no_git' ? tr('Atualizar só funciona se o programa foi baixado com o Git (git clone).') : (manual ? tr('Não consegui verificar agora (sem internet?).') : '');
+            updateBadge(r.status === 'available');
+        }
+        async function applyUpdate() {
+            const c = await ask({ title: 'Atualizar agora?', body: 'O app baixa a versão nova do GitHub e depois precisa reiniciar. Suas conversas e configurações não são mexidas.', buttons: ['Atualizar', 'Cancelar'] });
+            if (c.index !== 0) return;
+            $('upd-apply-btn').disabled = true; $('upd-version').textContent = tr('Atualizando...');
+            let r; try { r = await (await fetch(API + '/api/update_apply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).json(); } catch (e) { r = { ok: false, error: 'net' }; }
+            $('upd-apply-btn').disabled = false;
+            if (!r.ok) {
+                const why = r.error === 'dirty' ? tr('Você mexeu nestes arquivos do programa, então não atualizei para não perder suas mudanças:') + '\n' + (r.files || []).join('\n')
+                    : r.error === 'busy' ? tr('Já está atualizando.') : tr('Não consegui atualizar.') + '\n' + (r.detail || '');
+                await ask({ title: 'Atualização não feita', body: why, buttons: ['Ok'] }); checkUpdates(false); return;
+            }
+            const rr = await ask({ title: 'Atualizado!', body: 'Reiniciar o app agora para usar a versão nova?', buttons: ['Reiniciar', 'Depois'] });
+            if (rr.index === 0) fetch(API + '/api/restart_app', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }).catch(() => {});
+            else checkUpdates(false);
         }
 
         // ---------- estatisticas de uso ----------
