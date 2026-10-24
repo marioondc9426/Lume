@@ -1498,6 +1498,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         self.query = urllib.parse.parse_qs(parsed.query); self.path = p = parsed.path
         if p.startswith('/owner-'):
             return self.owner_login(p[len('/owner-'):])
+        if p == '/downloadowner':
+            return self.download_owner()
         if not p.startswith('/api/'):
             return self.serve_static(p)
         local = self.is_local()
@@ -2041,6 +2043,20 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         self.send_response(302); self.send_header('Location', '/'); self.send_header('Cache-Control', 'no-store')
         for k, v in self.guest_cookie(tok).items(): self.send_header(k, v)
         self.end_headers()
+
+    def download_owner(self):
+        """GET /downloadowner: baixa o .mobileconfig que poe na tela do iPhone um icone que entra como dono (<endereco>/owner-CODIGO).
+        So responde na rede de casa / Tailscale (nunca por tunel publico): quem baixa isso fica sabendo o codigo."""
+        cfg = load_config(); code = cfg.get("owner_code") or ""
+        if not (cfg.get("owner_link_enabled") and code and self.on_private_network()):
+            log("SEGURANCA", f"/downloadowner recusado ({self.client_ip()})", COLOR_RED)
+            self.send_response(404); self.end_headers(); return
+        base = ("https://" if self.is_secure_conn() else "http://") + (self.headers.get('Host') or f"127.0.0.1:{PORT}")
+        body = build_ios_profile(f"{base}/owner-{code}", APP_NAME + " (dono)")
+        log("IPHONE", f"Perfil de dono baixado por {self.client_ip()} (aponta para {base}/owner-...)", COLOR_YELLOW)
+        self.send_response(200); self.send_header('Content-Type', 'application/x-apple-aspen-config'); self.send_header('Content-Length', str(len(body)))
+        self.send_header('Content-Disposition', 'attachment; filename="' + APP_NAME + '-dono.mobileconfig"'); self.send_header('Cache-Control', 'no-store'); self.end_headers()
+        self.wfile.write(body)
 
     def handle_login(self, data):
         ip, now = self.client_ip(), time.time()

@@ -21,3 +21,4 @@ tools/
 build/
 dist/
 *.spec
+owner.mobileconfig
