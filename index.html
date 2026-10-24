@@ -66,7 +66,7 @@
         @keyframes chatFresh { from { opacity: 0; transform: scale(0.97); } to { opacity: 1; transform: scale(1); } }
 
         /* Overlay de desempenho (canto superior direito) */
-        .perf-monitor { position: fixed; top: 46px; right: 12px; background: rgba(20,20,20,0.92); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px 14px; font-size: 0.82em; color: #0f0; z-index: 200; min-width: 170px; box-shadow: 0 4px 12px rgba(0,0,0,0.6); backdrop-filter: blur(6px); pointer-events: none; }
+        .perf-monitor { position: fixed; top: 46px; right: 12px; background: rgba(20,20,20,0.92); border: 1px solid var(--border-color); border-radius: 10px; padding: 12px 14px; font-size: 0.82em; color: #0f0; z-index: 200; min-width: 170px; box-shadow: 0 4px 12px rgba(0,0,0,0.6); pointer-events: none; contain: layout paint style; }
         .perf-title { font-weight: bold; margin-bottom: 6px; font-size: 0.9em; color: #fff; }
         .perf-line { margin: 2px 0; display: flex; justify-content: space-between; }
         .perf-speed { margin-top: 6px; font-size: 1.1em; font-weight: bold; text-align: center; }
@@ -162,7 +162,7 @@
         #usage-badge { position: fixed; bottom: 20px; left: 20px; background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 20px; padding: 5px 15px; font-size: 0.75em; color: var(--text-muted); z-index: 1000; display: none; }
 
         /* Modais e dialogo */
-        #settings-modal, #memory-modal, #export-modal, #dialog-overlay { position: fixed; inset: 36px 0 0 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); display: none; justify-content: center; align-items: center; z-index: 1000; }
+        #settings-modal, #memory-modal, #export-modal, #dialog-overlay { position: fixed; inset: 36px 0 0 0; background: rgba(0,0,0,0.7); display: none; justify-content: center; align-items: center; z-index: 1000; }
         #dialog-overlay { z-index: 3000; }
         .modal-content { background: var(--bg-main); padding: 25px; border-radius: 14px; width: 540px; max-width: 94vw; border: 1px solid var(--border-color); display: flex; flex-direction: column; gap: 16px; max-height: 90%; overflow-y: auto; position: relative; }
         #dialog { width: 460px; gap: 14px; animation: chatFresh .2s ease-out; }
@@ -204,6 +204,22 @@
         .export-item .prev { color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .export-actions { display: flex; flex-wrap: wrap; gap: 8px; }
         .export-actions .btn { margin: 0; }
+
+        .msg.noanim { animation: none; opacity: 1; }   /* historico carregado de uma vez nao anima (pesava na GPU) */
+        body.no-anim *, body.no-anim *::before, body.no-anim *::after { animation: none !important; transition: none !important; }
+        body.no-anim .msg { opacity: 1; }
+
+        /* Alcas para redimensionar a janela sem borda */
+        .rz { position: fixed; z-index: 6000; }
+        body.maximized .rz { display: none; }
+        .rz-n { top: 0; left: 10px; right: 10px; height: 4px; cursor: ns-resize; }
+        .rz-s { bottom: 0; left: 10px; right: 10px; height: 5px; cursor: ns-resize; }
+        .rz-e { right: 0; top: 10px; bottom: 10px; width: 5px; cursor: ew-resize; }
+        .rz-w { left: 0; top: 10px; bottom: 10px; width: 5px; cursor: ew-resize; }
+        .rz-nw { top: 0; left: 0; width: 10px; height: 10px; cursor: nwse-resize; }
+        .rz-se { bottom: 0; right: 0; width: 10px; height: 10px; cursor: nwse-resize; }
+        .rz-ne { top: 0; right: 0; width: 10px; height: 10px; cursor: nesw-resize; }
+        .rz-sw { bottom: 0; left: 0; width: 10px; height: 10px; cursor: nesw-resize; }
 
         /* Aba Servidor, aviso de conexao e layout de celular */
         .set-tabs { display: flex; gap: 6px; border-bottom: 1px solid var(--border-color); margin-top: -4px; }
@@ -266,7 +282,7 @@
         .msg-images { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
         .msg-images img { max-width: 220px; max-height: 160px; border-radius: 8px; display: block; }
         #drop-overlay { position: fixed; inset: 36px 0 0 0; z-index: 2500; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); border: 3px dashed var(--accent); font-size: 1.3em; color: #fff; pointer-events: none; }
-        .attach-btn { height: 42px; width: 42px; border-radius: 50%; flex-shrink: 0; justify-content: center; }
+        .attach-btn { height: 42px; width: 42px; border-radius: 50%; flex-shrink: 0; margin: 0; padding: 0; display: flex; align-items: center; justify-content: center; }
         .attach-btn .ic { width: 18px; height: 18px; margin: 0; }
         .mo-badge.vision { background: rgba(77,163,255,0.2); color: #4da3ff; }
 
@@ -363,7 +379,7 @@
 
             <div id="attach-strip"></div>
             <div class="controls" id="controls">
-                <button class="btn btn-secondary attach-btn" onclick="$('file-input').click()" title="Anexar imagem (ou arraste / cole)"><img class="ic" src="icons/image-plus.svg"></button>
+                <button class="btn btn-secondary attach-btn" onclick="$('file-input').click()" title="Anexar imagem (ou arraste / cole)"><img class="ic" src="icons/plus.svg"></button>
                 <input type="file" id="file-input" accept="image/*" multiple style="display:none" onchange="addImageFiles(this.files); this.value = ''">
                 <div class="custom-select" id="model-select">
                     <div class="select-trigger" onclick="toggleCustomSelect()">
@@ -468,6 +484,7 @@
         </div>
 
         <div class="section-title">Aparência</div>
+        <label class="toggle-container"><input type="checkbox" id="opt-anim" onchange="config.animations = this.checked; applyAnim()"><div class="toggle-switch"></div> Animações (desligue se a interface pesar na GPU)</label>
         <div class="form-group">
             <label>UI Scaling (<span id="scale-val">1.0</span>x)</label>
             <input type="range" id="ui-scale" min="0.7" max="1.5" step="0.1" value="1" oninput="updateScale(this.value)">
@@ -546,9 +563,14 @@
                     <button class="btn btn-primary" id="srv-connect-btn" onclick="connectToServer()">Conectar ao servidor</button>
                     <button class="btn btn-secondary" id="srv-disconnect-btn" onclick="disconnectFromServer()">Desconectar</button>
                 </div>
-                <div class="section-title">Instalar no iPhone</div>
-                <span class="hint">No Safari do iPhone, toque abaixo para baixar o perfil e depois abra Ajustes, "Perfil baixado", Instalar. Vai aparecer na tela inicial um ícone que abre só este site. Nesse ícone você precisa conectar de novo, porque o iPhone guarda o login separado do Safari.</span>
-                <div class="srv-actions"><button class="btn btn-secondary" onclick="installIphoneProfile()">Baixar perfil do iPhone</button></div>
+                <div id="ios-install" class="set-pane" style="display:none;">
+                    <div class="section-title">Instalar app (iPhone)</div>
+                    <span class="hint">Coloca na tela inicial um ícone que abre só este site, em tela cheia. Depois de instalar, conecte de novo no ícone novo, porque o iPhone guarda o login separado do Safari.</span>
+                    <div class="srv-actions">
+                        <button class="btn btn-primary" onclick="installIphoneProfile()">Instalar app</button>
+                        <button class="btn btn-secondary" onclick="showIosTutorial()">ou siga este tutorial</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div></div>
@@ -607,6 +629,10 @@
             { id: 'qwen3.5:4b', label: 'Qwen 3.5 4B (Local)', icon: 'zap', tabs: ['chat', 'code'], gb: 3.3, vision: true, ctx: 262144 },
             { id: 'qwen3.5:9b', label: 'Qwen 3.5 9B (Pesado)', icon: 'triangle-alert', tabs: ['chat', 'code'], gb: 6.6, heavy: true, vision: true, ctx: 262144 },
             { id: 'gemma3:4b', label: 'Gemma 3 4B (Local)', icon: 'zap', tabs: ['chat'], gb: 3.4, vision: true, ctx: 131072 },
+            { id: 'bonsai-2:2b', label: 'Bonsai 2 2B (Ultra leve)', icon: 'zap', tabs: ['chat'], gb: 0.9, vision: true, ctx: 262144 },
+            { id: 'bonsai-2:4b', label: 'Bonsai 2 4B (Leve)', icon: 'zap', tabs: ['chat', 'code'], gb: 1.6, vision: true, ctx: 262144 },
+            { id: 'bonsai-2:9b', label: 'Bonsai 2 9B (Local)', icon: 'zap', tabs: ['chat', 'code'], gb: 3.2, vision: true, ctx: 262144 },
+            { id: 'bonsai-2:27b', label: 'Bonsai 2 27B (Pesado)', icon: 'triangle-alert', tabs: ['chat', 'code'], gb: 8.3, heavy: true, vision: true, ctx: 262144 },
             { id: 'codegemma:7b', label: 'CodeGemma 7B (Apenas Código)', icon: 'pen-line', tabs: ['code'], gb: 5.0, ctx: 8192 },
             { id: 'groq-openai/gpt-oss-120b', label: 'Groq GPT-OSS 120B', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 131072 },
             { id: 'groq-openai/gpt-oss-20b', label: 'Groq GPT-OSS 20B', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 131072 },
@@ -749,6 +775,14 @@
             'Compactação cancelada.': 'Compaction cancelled.', 'Falha ao compactar: {x}': 'Failed to compact: {x}',
             'Compactado: {n} mensagens viraram um resumo. Contexto {a} → {b}.': 'Compacted: {n} messages became a summary. Context {a} → {b}.',
             'Não consegui compactar a conversa.': 'Could not compact the conversation.',
+            'Animações (desligue se a interface pesar na GPU)': 'Animations (turn off if the interface is heavy on the GPU)',
+            'Instalar app (iPhone)': 'Install app (iPhone)', 'Instalar app': 'Install app', 'ou siga este tutorial': 'or follow this tutorial',
+            'Coloca na tela inicial um ícone que abre só este site, em tela cheia. Depois de instalar, conecte de novo no ícone novo, porque o iPhone guarda o login separado do Safari.':
+                'Puts an icon on the home screen that opens only this site, full screen. After installing, connect again in the new icon, because the iPhone keeps its login separate from Safari.',
+            'Instalar no iPhone (sem perfil)': 'Install on iPhone (no profile)', 'Entendi': 'Got it',
+            '1. No Safari, toque no botão Compartilhar (o quadrado com uma seta para cima).\n2. Role a lista e toque em "Adicionar à Tela de Início".\n3. Toque em "Adicionar".\n\nDepois abra o ícone novo e conecte de novo com a senha.':
+                '1. In Safari, tap the Share button (the square with an arrow pointing up).\n2. Scroll the list and tap "Add to Home Screen".\n3. Tap "Add".\n\nThen open the new icon and connect again with the password.',
+            'Bonsai 2 2B (Ultra leve)': 'Bonsai 2 2B (Ultra light)', 'Bonsai 2 4B (Leve)': 'Bonsai 2 4B (Light)', 'Bonsai 2 27B (Pesado)': 'Bonsai 2 27B (Heavy)',
         };
         // Regex para o que o servidor devolve em portugues dentro de chunks de texto nao e necessario: o servidor ja recebe `lang`.
         const HINT_HTML = {
@@ -811,11 +845,12 @@
             if ($('settings-modal').style.display === 'flex') { $('system-prompt-input').value = sysPrompt(false); $('code-prompt-input').value = sysPrompt(true); }
             if ($('settings-modal').style.display === 'flex' && $('set-server').style.display !== 'none') refreshServerTab();
         }
+        function applyAnim() { document.body.classList.toggle('no-anim', config.animations === false); saveState(); }
         function setLang(v) { config.lang = v; saveState(); applyLang(); }
         const OVERFLOW_OVERHEAD = 1.3, OVERFLOW_LIMIT = 0.85;   // estimativa: modelo novo ocupa gb*1.3 e o total nao deve passar de 85% da VRAM
 
         const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } };
-        let config = Object.assign({ theme: 'dark', systemPrompt: 'Você é um assistente direto.', codePrompt: CODE_PROMPT_DEFAULT, scale: 1, bgImage: '', bgOpacity: 0, perfEnabled: true, perfStyle: 'default', perfInterval: 50, numCtx: 4096, showCtxBar: true, lang: '', model: 'qwen3.5:4b', webSearch: true, starToDot: true, autoStopPrev: false }, load('thingmabobber_config', {}));
+        let config = Object.assign({ theme: 'dark', systemPrompt: 'Você é um assistente direto.', codePrompt: CODE_PROMPT_DEFAULT, scale: 1, bgImage: '', bgOpacity: 0, perfEnabled: true, perfStyle: 'default', perfInterval: 50, numCtx: 4096, showCtxBar: true, lang: '', animations: true, model: 'qwen3.5:4b', webSearch: true, starToDot: true, autoStopPrev: false }, load('thingmabobber_config', {}));
         let chats = load('thingmabobber_chats', {});
         let globalMemories = load('thingmabobber_memories', []);
         let currentChatId = null, currentTab = 'chat', selectedModel = config.model, lastLocalModel = 'qwen3.5:4b', busy = false;
@@ -867,6 +902,8 @@
             await loadCustomThemes();
             applyBaseTheme(config.theme);
             translateStatic(); $('opt-lang').value = curLang();
+            document.body.classList.toggle('no-anim', config.animations === false);
+            if (window.pywebview && window.pywebview.api) setupResizeGrips(); else window.addEventListener('pywebviewready', setupResizeGrips, { once: true });
             updateScale(config.scale); $('ui-scale').value = config.scale;
             if (config.bgImage) {
                 document.documentElement.style.setProperty('--custom-bg-image', `url(${config.bgImage})`);
@@ -887,12 +924,41 @@
         $('btn-max').onclick = async () => {
             if (!winApi()) return;
             const max = await winApi().toggle_maximize();
+            document.body.classList.toggle('maximized', max);
             $('btn-max').innerHTML = max
                 ? '<svg viewBox="0 0 12 12"><rect x="1.5" y="3.5" width="7" height="7"/><path d="M3.5 3.5V1.5h7v7h-2"/></svg>'
                 : '<svg viewBox="0 0 12 12"><rect x="1.5" y="1.5" width="9" height="9"/></svg>';
         };
         $('btn-close').onclick = () => winApi() ? winApi().close() : window.close();
         $('titlebar').addEventListener('dblclick', e => { if (!e.target.closest('.tb-btns')) $('btn-max').click(); });
+
+        function setupResizeGrips() {
+            const api = winApi(); if (!api || !auth.local || document.querySelector('.rz')) return;
+            const MIN_W = 800, MIN_H = 520;
+            ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'].forEach(edge => {
+                const g = document.createElement('div'); g.className = 'rz rz-' + edge; document.body.appendChild(g);
+                g.addEventListener('pointerdown', ev => {
+                    if (document.body.classList.contains('maximized') || ev.button !== 0) return;
+                    ev.preventDefault(); try { g.setPointerCapture(ev.pointerId); } catch (e) {}
+                    const st = { mx: ev.screenX, my: ev.screenY, x: window.screenX, y: window.screenY, w: window.outerWidth, h: window.outerHeight };
+                    let pending = null, inflight = false;
+                    const flush = () => { if (!pending || inflight) return; const t = pending; pending = null; inflight = true; api.set_geom(t.x, t.y, t.w, t.h).finally(() => { inflight = false; flush(); }); };
+                    const move = e => {
+                        const dx = e.screenX - st.mx, dy = e.screenY - st.my;
+                        let { x, y, w, h } = st;
+                        if (edge.includes('e')) w = st.w + dx;
+                        if (edge.includes('s')) h = st.h + dy;
+                        if (edge.includes('w')) { w = st.w - dx; x = st.x + dx; }
+                        if (edge.includes('n')) { h = st.h - dy; y = st.y + dy; }
+                        if (w < MIN_W) { if (edge.includes('w')) x = st.x + st.w - MIN_W; w = MIN_W; }
+                        if (h < MIN_H) { if (edge.includes('n')) y = st.y + st.h - MIN_H; h = MIN_H; }
+                        pending = { x, y, w, h }; flush();
+                    };
+                    const up = () => { g.removeEventListener('pointermove', move); g.removeEventListener('pointerup', up); g.removeEventListener('pointercancel', up); };
+                    g.addEventListener('pointermove', move); g.addEventListener('pointerup', up); g.addEventListener('pointercancel', up);
+                });
+            });
+        }
 
         // ---------- dialogo generico ----------
         function ask({ title, body, buttons, primary = 0, danger = false, toggle = null, input = null }) {
@@ -1102,7 +1168,7 @@
         // ---------- mensagens ----------
         function addMessageToUI(role, text, opts = {}) {
             const div = document.createElement('div');
-            div.className = `msg ${role}` + (opts.welcome ? ' welcome' : '');
+            div.className = `msg ${role}` + (opts.welcome ? ' welcome' : '') + (opts.animate === false ? ' noanim' : '');
             const think = document.createElement('div'); think.className = 'think';
             const span = document.createElement('span'); span.className = 'final-text';
             if (opts.html) span.innerHTML = text; else span.innerHTML = fmt(text);
@@ -1337,7 +1403,7 @@
         async function openSettings() {
             $('system-prompt-input').value = sysPrompt(false);
             $('code-prompt-input').value = sysPrompt(true);
-            $('opt-lang').value = curLang();
+            $('opt-lang').value = curLang(); $('opt-anim').checked = config.animations !== false;
             $('opt-ctx').value = String(config.numCtx); $('opt-ctxbar').checked = config.showCtxBar; $('opt-web').checked = config.webSearch; $('opt-star').checked = config.starToDot; $('opt-autostop').checked = config.autoStopPrev;
             $('perf-enabled').checked = config.perfEnabled;
             $('perf-style').value = config.perfStyle;
@@ -1557,6 +1623,7 @@
         // o overlay fica no canto superior direito, mas logo abaixo das barras do topo (nao cobre Compactar nem o botao de copiar)
         function placePerf() { perfMonitor.style.top = ($('chat-header').getBoundingClientRect().bottom + 8) + 'px'; }
         window.addEventListener('resize', placePerf);
+        function setText(id, t) { const e = $(id); if (e.textContent !== t) e.textContent = t; }
         function applyPerf() {
             placePerf();
             saveState();
@@ -1570,14 +1637,14 @@
             try {
                 const m = await (await fetch(API + '/api/metrics')).json();
                 if (config.perfEnabled) {
-                    $('mon-vram').textContent = 'VRAM: ' + (m.vram != null ? `${m.vram} MB` : tr('N/D'));
-                    $('mon-gpu').textContent = 'GPU: ' + (m.gpu != null ? `${m.gpu}%` : tr('N/D'));
+                    setText('mon-vram', 'VRAM: ' + (m.vram != null ? `${m.vram} MB` : tr('N/D')));
+                    setText('mon-gpu', 'GPU: ' + (m.gpu != null ? `${m.gpu}%` : tr('N/D')));
                     let warn = '';
                     if (m.vram != null && m.vram_total) {
                         if (m.vram >= m.vram_total - 300) warn = tr('VRAM no limite ({pct}%)', { pct: m.vram_pct });
                         else if (m.vram > 6144) warn = tr('VRAM alta ({gb} GB)', { gb: (m.vram / 1024).toFixed(1) });
                     }
-                    $('mon-vram-warn').textContent = warn;
+                    setText('mon-vram-warn', warn);
                 }
                 if (m.alert && m.alert.id !== lastAlertId) { if (lastAlertId !== null) showAlert(m.alert); lastAlertId = m.alert.id; }
                 delay = config.perfEnabled ? config.perfInterval : 2000;
@@ -1628,6 +1695,7 @@
                 $('srv-conn-badge').textContent = tr(auth.authed ? 'conectado ✓' : 'não conectado'); $('srv-conn-badge').classList.toggle('ok', auth.authed);
                 $('srv-conn-host').textContent = location.host;
                 $('srv-connect-btn').style.display = auth.authed ? 'none' : ''; $('srv-disconnect-btn').style.display = auth.authed ? '' : 'none';
+                $('ios-install').style.display = isIphone() && !isStandalone() ? '' : 'none';   // some no iPhone que ja tem o app instalado
                 return;
             }
             let i; try { i = await (await fetch(API + '/api/server_info')).json(); } catch (e) { return; }
@@ -1695,7 +1763,12 @@
             try { await _fetch(API + '/api/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); } catch (e) {}
             location.reload();
         }
-        function installIphoneProfile() { location.href = '/api/ios_profile'; }
+        const isIphone = () => /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        const isStandalone = () => window.navigator.standalone === true || window.matchMedia('(display-mode: standalone)').matches;
+        function installIphoneProfile() { if (!auth.authed) { connectToServer(); return; } location.href = '/api/ios_profile'; }
+        function showIosTutorial() {
+            ask({ title: 'Instalar no iPhone (sem perfil)', body: '1. No Safari, toque no botão Compartilhar (o quadrado com uma seta para cima).\n2. Role a lista e toque em "Adicionar à Tela de Início".\n3. Toque em "Adicionar".\n\nDepois abra o ícone novo e conecte de novo com a senha.', buttons: ['Entendi'] });
+        }
 
         // ---------- barra de contexto + compactar ----------
         const fmtK = n => n >= 1024 ? (n / 1024).toFixed(n % 1024 && n < 10240 ? 1 : 0) + 'K' : String(n);

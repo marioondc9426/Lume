@@ -146,14 +146,17 @@ def load_config():
     cfg.setdefault("groq_api_key", "")
     cfg.setdefault("workdir", "")
     cfg.setdefault("usage", {}).setdefault("groq", 0)
-    cfg.setdefault("remote_enabled", False)      # aceitar conexoes de outros aparelhos da rede
+    cfg.setdefault("remote_enabled", True)       # aceitar conexoes de outros aparelhos da rede (ligado por padrao; exige senha)
     cfg.setdefault("allow_remote_code", False)   # deixar aparelhos remotos usarem a aba Code
     cfg.setdefault("tokens", {})                 # aparelhos conectados
     cfg.setdefault("port", PORT)
+    changed = False
     if not cfg.get("password"):
-        cfg["password"] = generate_password()
+        cfg["password"] = generate_password(); changed = True
         log("AUTH", "Senha do servidor gerada (veja em Configuracoes > Servidor).", COLOR_GREEN)
-        save_config(cfg)
+    if not cfg.get("net_default_on_v1"):   # migracao unica: quem ja tinha config antiga passa a ter a rede ligada por padrao
+        cfg["remote_enabled"] = True; cfg["net_default_on_v1"] = True; changed = True
+    if changed: save_config(cfg)
     _cfg_cache["mtime"] = os.path.getmtime(CONFIG_FILE) if os.path.exists(CONFIG_FILE) else None
     _cfg_cache["data"] = copy.deepcopy(cfg)
     return cfg
@@ -1041,6 +1044,11 @@ class WindowApi:
         self._window = None   # com "_" o pywebview nao expoe ao JavaScript
         self._maximized = False
     def minimize(self): self._window.minimize()
+    def set_geom(self, x, y, w, h):
+        """Usada pelas alcas de redimensionar da pagina (a janela nao tem a borda do Windows)."""
+        win = self._window
+        if (int(w), int(h)) != (win.width, win.height): win.resize(int(w), int(h))
+        if (int(x), int(y)) != (win.x, win.y): win.move(int(x), int(y))
     def toggle_maximize(self):
         if self._maximized: self._window.restore()
         else: self._window.maximize()

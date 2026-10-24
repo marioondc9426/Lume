@@ -1,0 +1,15 @@
+{
+  "base": "dark",
+  "vars": {
+    "--bg-main": "#1e1e1e",
+    "--bg-sidebar": "#111111",
+    "--bg-msg-user": "#0056b3",
+    "--bg-msg-ai": "#2d2d2d",
+    "--bg-input": "#2d2d2d",
+    "--text-main": "#e0e0e0",
+    "--text-muted": "#888888",
+    "--border-color": "#333333",
+    "--accent": "#fa9e00"
+  },
+  "iconLight": true
+}
