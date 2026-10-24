@@ -1,7 +1,7 @@
 """Desenha a logo do Lume e gera todos os icones (nao precisa de nenhuma imagem de origem):
 
     icons/lume-mark.png    a marca (hexagono aberto em "catavento" com o centro aceso), fundo transparente
-    icons/lume-text.png    a palavra "lume" em preto, fundo transparente (o tema deixa branca nos escuros)
+    icons/lume-text.png    a palavra "Lume" em preto, fundo transparente (o tema deixa branca nos escuros)
     icons/lume.png         icone do app (janela, .exe, bandeja), fundo transparente
     icons/lume-mobile.png  icone do celular / aba do navegador: marca branca menor sobre um gradiente "mesh" distorcido
 
@@ -64,7 +64,7 @@ def crop_pad(im, pad=0.04, square=False):
     out = Image.new("RGBA", (cw + 2 * p, ch + 2 * p), (0, 0, 0, 0)); out.paste(im, ((cw - w) // 2 + p, (ch - h) // 2 + p)); return out
 
 
-def wordmark(text="lume", height=128):
+def wordmark(text="Lume", height=128):
     font = ImageFont.truetype("C:/Windows/Fonts/bahnschrift.ttf", 400)
     try: font.set_variation_by_name("SemiBold")
     except Exception: pass
