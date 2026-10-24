@@ -9,3 +9,5 @@ backup/
 # temas do editor: so o tema demo e versionado
 custom themes/*
 !custom themes/orange.json
+stats.json
+undo/

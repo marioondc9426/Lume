@@ -12,6 +12,10 @@ import os
 import atexit
 import base64
 import html as html_mod
+import io
+import difflib
+import ipaddress
+import webbrowser
 import copy
 import hmac
 import secrets
@@ -35,6 +39,10 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")     # chaves de API, pasta de trabalho, uso
 HISTORY_FILE = os.path.join(BASE_DIR, "history.json")   # chats
 STATE_FILE = os.path.join(BASE_DIR, "state.json")       # preferencias da interface + memorias
+STATS_FILE = os.path.join(BASE_DIR, "stats.json")       # uso: tokens/s por modelo, gasto do Exa
+UNDO_DIR = os.path.join(BASE_DIR, "undo")               # copias dos arquivos que a IA sobrescreveu (botao Desfazer)
+MAX_BODY_BYTES = 60 * 1024 * 1024   # tamanho maximo de uma requisicao (anexos)
+MAX_FILE_CHARS = 60000              # texto maximo extraido de um arquivo anexado
 THEMES_DIR = os.path.join(BASE_DIR, "custom themes")    # temas criados no editor de temas
 MAX_AGENT_STEPS = 8        # limite de chamadas de ferramenta por mensagem
 MAX_TOOL_OUTPUT = 8000     # caracteres devolvidos a IA por ferramenta
@@ -210,7 +218,128 @@ def _clean_html(text):
 
 def _fetch(url, data=None, headers=None):
     req = urllib.request.Request(url, data=data, headers={**SEARCH_UA, **(headers or {})})
-    with urllib.request.urlopen(req, timeout=10) as r: return r.read().decode('utf-8', 'replace')
+    with urllib.request.urlopen(req, timeout=10) as r: return r.read(2_000_000).decode('utf-8', 'replace')
+
+# ---------------------------------------------------------------- estatisticas de uso
+_stats_lock = threading.Lock()
+
+def record_event(ev):
+    ev["ts"] = time.time()
+    try:
+        with _stats_lock:
+            data = _read_json(STATS_FILE, {"events": []})
+            evs = data.get("events", []); evs.append(ev)
+            data["events"] = evs[-5000:]
+            _write_json(STATS_FILE, data)
+    except Exception as e:
+        log("STATS", f"Nao consegui gravar estatistica: {e}", COLOR_RED)
+
+def build_stats(days=30):
+    now = time.time()
+    evs = [e for e in _read_json(STATS_FILE, {"events": []}).get("events", []) if e.get("ts", 0) >= now - days * 86400]
+    models, daily = {}, {}
+    exa = {"searches": 0, "reads": 0, "cost": 0.0}
+    tot = {"requests": 0, "tokens": 0, "seconds": 0.0}
+    for e in evs:
+        d = daily.setdefault(time.strftime("%Y-%m-%d", time.localtime(e["ts"])), {"requests": 0, "tokens": 0, "exa_cost": 0.0})
+        if e.get("type") == "chat":
+            m = models.setdefault(e.get("model", "?"), {"requests": 0, "tokens": 0, "seconds": 0.0, "best_tps": 0.0, "cloud": bool(e.get("cloud"))})
+            tk, sec = e.get("tokens", 0), e.get("seconds", 0.0)
+            m["requests"] += 1; m["tokens"] += tk; m["seconds"] += sec
+            if sec > 0.2 and tk: m["best_tps"] = max(m["best_tps"], tk / sec)
+            d["requests"] += 1; d["tokens"] += tk
+            tot["requests"] += 1; tot["tokens"] += tk; tot["seconds"] += sec
+        elif e.get("type") == "exa":
+            exa["reads" if e.get("kind") == "contents" else "searches"] += 1
+            exa["cost"] += e.get("cost") or 0.0; d["exa_cost"] += e.get("cost") or 0.0
+    for m in models.values(): m["avg_tps"] = m["tokens"] / m["seconds"] if m["seconds"] > 0 else 0.0
+    series = []
+    for i in range(min(days, 14) - 1, -1, -1):
+        day = time.strftime("%Y-%m-%d", time.localtime(now - i * 86400))
+        series.append({"day": day, **daily.get(day, {"requests": 0, "tokens": 0, "exa_cost": 0.0})})
+    return {"days": days, "totals": tot, "models": models, "exa": exa, "series": series, "since": min((e["ts"] for e in evs), default=None)}
+
+# ---------------------------------------------------------------- desfazer (backup antes de a IA sobrescrever um arquivo)
+def save_undo(path, existed, old_bytes):
+    os.makedirs(UNDO_DIR, exist_ok=True)
+    uid = uuid.uuid4().hex[:8]
+    _write_json(os.path.join(UNDO_DIR, uid + ".json"), {"path": path, "existed": existed, "old_b64": base64.b64encode(old_bytes or b"").decode(), "ts": time.time()})
+    files = sorted((os.path.join(UNDO_DIR, f) for f in os.listdir(UNDO_DIR) if f.endswith(".json")), key=os.path.getmtime)
+    for old in files[:-50]:   # guarda so os 50 mais recentes
+        try: os.remove(old)
+        except OSError: pass
+    return uid
+
+def do_undo(uid):
+    f = os.path.join(UNDO_DIR, uid + ".json")
+    if not re.fullmatch(r'[0-9a-f]{8}', uid) or not os.path.exists(f): raise Exception("Backup nao encontrado (ja foi desfeito ou expirou).")
+    d = _read_json(f, {})
+    if d.get("existed"):
+        with open(d["path"], "wb") as fh: fh.write(base64.b64decode(d.get("old_b64", "")))
+        msg = "Arquivo restaurado para a versao anterior."
+    else:
+        try: os.remove(d["path"]); msg = "Arquivo criado pela IA foi apagado."
+        except FileNotFoundError: msg = "O arquivo ja nao existia."
+    os.remove(f)
+    log("DESFAZER", f"{msg} {d.get('path')}", COLOR_YELLOW)
+    return msg
+
+# ---------------------------------------------------------------- arquivos anexados
+def extract_file_text(filename, data):
+    """Retorna (texto, cortado?, paginas). Aceita texto/codigo (qualquer codificacao comum) e PDF."""
+    ext = os.path.splitext(filename.lower())[1]
+    pages = None
+    if ext == ".pdf":
+        try: from pypdf import PdfReader
+        except ImportError: raise Exception("Para ler PDF instale o pypdf: pip install pypdf")
+        reader = PdfReader(io.BytesIO(data)); pages = len(reader.pages); parts = []; total = 0
+        for i, page in enumerate(reader.pages, 1):
+            t = (page.extract_text() or "").strip()
+            if t: parts.append(f"--- pagina {i} ---\n{t}"); total += len(t)
+            if total > MAX_FILE_CHARS: break
+        text = "\n\n".join(parts)
+        if not text.strip(): raise Exception("Este PDF nao tem texto selecionavel (talvez seja escaneado).")
+    else:
+        if b"\x00" in data[:8000]: raise Exception("Arquivo binario nao suportado (use texto, codigo ou PDF).")
+        try: text = data.decode("utf-8-sig")
+        except UnicodeDecodeError: text = data.decode("latin-1")
+    return text[:MAX_FILE_CHARS], len(text) > MAX_FILE_CHARS, pages
+
+# ---------------------------------------------------------------- ler uma pagina da web
+def _is_public_url(url):
+    """Evita que a IA use a ferramenta para acessar a rede interna (SSRF)."""
+    try:
+        for info in socket.getaddrinfo(urllib.parse.urlsplit(url).hostname or "", None):
+            ip = ipaddress.ip_address(info[4][0])
+            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast: return False
+        return True
+    except Exception:
+        return False
+
+def read_url_text(url, max_chars=12000):
+    """Retorna (titulo, texto) da pagina. Usa o Exa /contents (texto limpo) e, sem chave ou se falhar, baixa direto."""
+    url = (url or "").strip()
+    if not re.match(r'^https?://', url, re.I): raise Exception("URL invalida (use http:// ou https://)")
+    key = exa_api_key()
+    if key:
+        try:
+            req = urllib.request.Request("https://api.exa.ai/contents", data=json.dumps({"urls": [url], "text": {"maxCharacters": max_chars}}).encode(),
+                                         headers={"x-api-key": key, "Content-Type": "application/json", "User-Agent": "thingmabobber/1.0"})
+            with urllib.request.urlopen(req, timeout=30) as r: data = json.load(r)
+            record_event({"type": "exa", "kind": "contents", "cost": (data.get("costDollars") or {}).get("total")})
+            r0 = (data.get("results") or [None])[0]
+            if r0 and (r0.get("text") or "").strip(): return r0.get("title") or url, r0["text"].strip()
+        except Exception as e:
+            log("WEB", f"Exa /contents falhou ({e}); baixando a pagina direto.", COLOR_YELLOW)
+    if not _is_public_url(url): raise Exception("endereco bloqueado (rede privada)")
+    page = _fetch(url)
+    title = re.search(r'<title[^>]*>(.*?)</title>', page, re.S | re.I)
+    body = re.sub(r'(?is)<(script|style|noscript|svg|head)[^>]*>.*?</\1>', ' ', page)
+    body = re.sub(r'(?i)<br\s*/?>|</(p|div|li|tr|h[1-6]|section|article)>', '\n', body)
+    text = html_mod.unescape(re.sub(r'<[^>]+>', '', body))
+    text = re.sub(r'[ \t]+', ' ', text); text = re.sub(r'\n\s*\n+', '\n\n', text).strip()
+    if not text: raise Exception("a pagina nao tem texto legivel")
+    return (_clean_html(title.group(1)) if title else url), text[:max_chars]
 
 def _search_ddg(query):
     """DuckDuckGo 'lite' (o endpoint /html/ passou a exigir verificacao anti-robo)."""
@@ -250,6 +379,7 @@ def _search_exa(query, key, kind="auto"):
         date = (r.get("publishedDate") or "")[:10]
         out.append((r.get("title") or r.get("url", ""), (f"[{date}] " if date else "") + _clean_html(text)[:900], r.get("url", "")))
     cost = (data.get("costDollars") or {}).get("total")
+    record_event({"type": "exa", "kind": "search", "cost": cost if isinstance(cost, (int, float)) else 0.0})
     log("WEB", f"Exa ({kind}) em {time.time() - t:.1f}s" + (f", custo US$ {cost:.4f}" if isinstance(cost, (int, float)) else ""), COLOR_GRAY)
     return out
 
@@ -286,11 +416,13 @@ def format_search(results, source):
     for i, (title, snippet, link) in enumerate(results, 1): out += f"[{i}] {title}\n{snippet}\nLink: {link}\n\n"
     return out
 
+SEARCH_UNAVAILABLE = ("Pesquisa na web indisponivel agora / Web search unavailable right now. "
+                      "NAO invente a resposta: diga ao usuario que nao foi possivel pesquisar. / Do NOT make up an answer: tell the user the search was not possible.")
+
 def search_web(query):
     results, source = search_web_results(query)
     if not results:
-        return ("Pesquisa na web indisponivel agora / Web search unavailable right now. "
-                "NAO invente a resposta: diga ao usuario que nao foi possivel pesquisar. / Do NOT make up an answer: tell the user the search was not possible.")
+        return SEARCH_UNAVAILABLE
     log("WEB", f"{len(results)} resultado(s) via {source}", COLOR_GREEN)
     return format_search(results, source)
 
@@ -307,6 +439,7 @@ Ferramentas:
 - cmd {"command": "dir"} : executa no CMD (pede permissao)
 - powershell {"command": "Get-Date"} : executa no PowerShell (pede permissao)
 - search_web {"query": "texto"} : pesquisa na web
+- read_url {"url": "https://..."} : le o texto de uma pagina da web (use depois de search_web para ler uma fonte)
 Faca UMA chamada por vez; o resultado volta na proxima mensagem. Quando terminar, responda normalmente, sem ferramentas.
 """
 
@@ -323,6 +456,7 @@ Tools:
 - cmd {"command": "dir"} : run in CMD (asks permission)
 - powershell {"command": "Get-Date"} : run in PowerShell (asks permission)
 - search_web {"query": "text"} : search the web
+- read_url {"url": "https://..."} : read the text of a web page (use after search_web to read a source)
 Make ONE call at a time; the result comes back in the next message. When you are done, answer normally, without tools.
 """
 
@@ -331,7 +465,7 @@ PATH_TOOLS = ("list_files", "read_file", "write_file")
 def normalize_args(name, args):
     """Aceita argumentos mal formados (chave errada) pegando o primeiro valor."""
     if not isinstance(args, dict): args = {}
-    key = "command" if name in ("cmd", "powershell") else "query" if name == "search_web" else "path" if name in PATH_TOOLS else None
+    key = "command" if name in ("cmd", "powershell") else "query" if name == "search_web" else "url" if name == "read_url" else "path" if name in PATH_TOOLS else None
     if key and key not in args and args:
         args[key] = list(args.values())[0]
     return args
@@ -358,10 +492,17 @@ def execute_tool(tool_name, tool_args, workdir):
         if tool_name == "read_file":
             with open(full(tool_args["path"]), 'r', encoding='utf-8', errors='replace') as f: return truncate(f.read())
         if tool_name == "write_file":
-            path = full(tool_args["path"])
+            path = full(tool_args["path"]); new = tool_args.get("content", "")
+            existed = os.path.exists(path); old_bytes = b""
+            if existed:
+                with open(path, "rb") as f: old_bytes = f.read(5_000_000)
             os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-            with open(path, 'w', encoding='utf-8') as f: f.write(tool_args.get("content", ""))
-            return "Arquivo escrito com sucesso."
+            with open(path, 'w', encoding='utf-8') as f: f.write(new)
+            uid = save_undo(path, existed, old_bytes)
+            if b"\x00" in old_bytes[:8000]: return f"Arquivo binario substituido. [undo:{uid}]"
+            diff = list(difflib.unified_diff(old_bytes.decode("utf-8", "replace").splitlines(), new.splitlines(), "antes" if existed else "(novo arquivo)", "depois", lineterm="", n=2))
+            shown = "\n".join(diff[:120]) + (f"\n... (+{len(diff) - 120} linhas)" if len(diff) > 120 else "")
+            return f"Arquivo escrito com sucesso. [undo:{uid}]\n```diff\n{shown}\n```"
         if tool_name in ("cmd", "powershell"):
             cmd = tool_args["command"]
             argv = cmd if tool_name == "cmd" else ["powershell", "-NoProfile", "-Command", cmd]
@@ -371,6 +512,9 @@ def execute_tool(tool_name, tool_args, workdir):
             return truncate(out.strip() or "(sem saida)")
         if tool_name == "search_web":
             return truncate(search_web(tool_args.get("query", "")))
+        if tool_name == "read_url":
+            title, page = read_url_text(tool_args.get("url", ""))
+            return truncate(f"{title}\n\n{page}")
         return f"Ferramenta desconhecida: {tool_name}"
     except subprocess.TimeoutExpired:
         return f"Erro: comando passou de {TOOL_TIMEOUT}s e foi cancelado."
@@ -379,13 +523,13 @@ def execute_tool(tool_name, tool_args, workdir):
     except Exception as e:
         return f"Erro: {e}"
 
-TOOL_NAMES = ("list_files", "read_file", "write_file", "cmd", "powershell", "search_web")
+TOOL_NAMES = ("list_files", "read_file", "write_file", "cmd", "powershell", "search_web", "read_url")
 TOOL_MARK = re.compile(r'(?:\$\$\s*)?\[\s*TOOL\s*[:\s]\s*(\w+)[^\]]*\]', re.IGNORECASE)   # "$$" na frente e opcional
 TOOL_MARK_SHORT = re.compile(r'\$\$\s*\[\s*(' + "|".join(TOOL_NAMES) + r')\s*\]', re.IGNORECASE)   # "$$[cmd] {...}$$" (sem a palavra TOOL)
-TOOL_INLINE = re.compile(r'\$\$\s*\[\s*(cmd|powershell|search_web|read_file|list_files)\s*[:=]\s*(.+?)\s*\]\s*\$\$', re.IGNORECASE | re.DOTALL)   # "$$[cmd: "dir"]$$"
-INLINE_KEY = {"cmd": "command", "powershell": "command", "search_web": "query", "read_file": "path", "list_files": "path"}   # write_file nunca (precisa do conteudo)
+TOOL_INLINE = re.compile(r'\$\$\s*\[\s*(cmd|powershell|search_web|read_url|read_file|list_files)\s*[:=]\s*(.+?)\s*\]\s*\$\$', re.IGNORECASE | re.DOTALL)   # "$$[cmd: "dir"]$$"
+INLINE_KEY = {"cmd": "command", "powershell": "command", "search_web": "query", "read_url": "url", "read_file": "path", "list_files": "path"}   # write_file nunca (precisa do conteudo)
 FENCE_MARK = re.compile(r'```[ \t]*(' + "|".join(TOOL_NAMES) + r')\b', re.IGNORECASE)    # modelos pequenos as vezes usam ```powershell {...}```
-ARG_KEYS = {"command", "path", "content", "query"}
+ARG_KEYS = {"command", "path", "content", "query", "url"}
 
 def _decode_json(rest):
     for candidate in (rest, rest.replace("'", '"')):
@@ -442,6 +586,7 @@ NATIVE_TOOLS = [
     _schema("cmd", "Run a command in the Windows CMD", {"command": {"type": "string"}}, ["command"]),
     _schema("powershell", "Run a command in PowerShell", {"command": {"type": "string"}}, ["command"]),
     _schema("search_web", "Search the web", {"query": {"type": "string"}}, ["query"]),
+    _schema("read_url", "Read the text of a web page", {"url": {"type": "string"}}, ["url"]),
 ]
 
 def _clean_arg(v):
@@ -674,7 +819,7 @@ LOCAL_HOSTS = ("127.0.0.1", "localhost")
 STATIC_PAGES = ("/", "/index.html")
 # So o proprio PC (janela do app) pode usar estas rotas
 LOCAL_ONLY_POST = ("/api/save_config", "/api/save_key", "/api/server_config", "/api/perf_interval",
-                   "/api/custom_theme", "/api/custom_theme_delete", "/api/resolve_pending", "/api/export", "/api/ios_profile_save")
+                   "/api/custom_theme", "/api/custom_theme_delete", "/api/resolve_pending", "/api/export", "/api/ios_profile_save", "/api/undo", "/api/stats_clear", "/api/open_url")
 PUBLIC_POST = ("/api/auth/login", "/api/auth/logout")
 LOGIN_MAX_FAILS, LOGIN_LOCK_SECONDS = 5, 60
 login_failures = {}   # ip -> [falhas, inicio]
@@ -848,6 +993,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return self.send_json(st if local else {"memories": st.get("memories", [])})   # preferencias da interface sao de cada aparelho
         if p == '/api/custom_themes':
             return self.send_json(list_custom_themes())
+        if p == '/api/stats':
+            try: days = max(1, min(365, int((self.query.get('days') or ['30'])[0])))
+            except ValueError: days = 30
+            return self.send_json(build_stats(days))
         if p == '/api/config_status':
             cfg = load_config()
             return self.send_json({"groq_key_saved": bool(cfg.get("groq_api_key")), "exa_key_saved": bool(exa_api_key(cfg)), "search_provider": cfg.get("search_provider", "auto"), "exa_type": cfg.get("exa_type", "auto"), "workdir": get_workdir(cfg) if local else "", "default_workdir": BASE_DIR if local else ""})
@@ -901,7 +1050,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
     def do_POST(self):
         p = urllib.parse.urlsplit(self.path).path; self.path = p
-        post_data = self.rfile.read(int(self.headers.get('Content-Length') or 0))
+        length = int(self.headers.get('Content-Length') or 0)
+        if length > MAX_BODY_BYTES: return self.send_json({"error": "Requisicao grande demais."}, 413)
+        post_data = self.rfile.read(length)
         origin = self.headers.get('Origin')
         if origin and urllib.parse.urlsplit(origin).netloc != (self.headers.get('Host') or ''):
             log("SEGURANCA", f"Requisicao bloqueada: origem {origin} diferente do host", COLOR_RED)
@@ -998,6 +1149,27 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             path = os.path.join(THEMES_DIR, name + ".json")
             if os.path.exists(path): os.remove(path); log("TEMA", f"Tema '{name}' apagado", COLOR_YELLOW)
             return self.send_json({"ok": True})
+
+        if p == '/api/extract_text':
+            try:
+                text, truncated, pages = extract_file_text(str(data.get("filename", "")), base64.b64decode(data.get("b64", "")))
+            except Exception as e:
+                return self.send_json({"error": str(e)}, 400)
+            log("ARQUIVO", f"{data.get('filename')}: {len(text)} caracteres" + (" (cortado)" if truncated else ""), COLOR_GRAY)
+            return self.send_json({"text": text, "truncated": truncated, "chars": len(text), "pages": pages})
+
+        if p == '/api/undo':
+            try: return self.send_json({"ok": True, "message": do_undo(str(data.get("id", "")))})
+            except Exception as e: return self.send_json({"error": str(e)}, 400)
+
+        if p == '/api/stats_clear':
+            _write_json(STATS_FILE, {"events": []}); log("STATS", "Estatisticas apagadas.", COLOR_YELLOW)
+            return self.send_json({"ok": True})
+
+        if p == '/api/open_url':   # abre um link no navegador do PC (a janela do app nao navega para fora)
+            url = str(data.get("url", ""))
+            if not re.match(r'^https?://', url, re.I): return self.send_json({"error": "url invalida"}, 400)
+            webbrowser.open(url); return self.send_json({"ok": True})
 
         if p == '/api/resolve_pending':
             approved = data.get("approved", False)
@@ -1133,6 +1305,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     log("WEB", f"Pesquisando: {query}", COLOR_CYAN)
                     results, source = search_web_results(query)
                     if results:
+                        emit({"sources": [{"title": t, "url": u} for t, _, u in results], "provider": source})
                         messages[0]["content"] += L("\n\n[PESQUISA NA WEB - use se for relevante e cite os links]", "\n\n[WEB SEARCH - use it if relevant and cite the links]") + format_search(results, source)
                     else:
                         status("Pesquisa na web indisponível")
@@ -1142,6 +1315,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     log("WEB", "Mensagem curta demais, pesquisa ignorada.", COLOR_GRAY)
 
             corrections = 0; native_tries = 0
+            req_tokens = req_prompt = 0; req_seconds = 0.0   # para as estatisticas
             clean = list(messages)   # conversa sem as tentativas falhas e sem os pedidos de correcao (o plano B usa esta)
             failed_pending = False   # a ultima tentativa de chamar ferramenta falhou e ainda nao houve uma boa
             for step in range(MAX_AGENT_STEPS if agent else 1):
@@ -1155,6 +1329,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                         if kind == "stats":
                             ptps = piece['prompt_tokens'] / piece['prompt_seconds'] if piece['prompt_seconds'] else 0
                             log("OLLAMA", f"{piece['tokens']} tokens em {piece['seconds']:.1f}s = {piece['tokens'] / piece['seconds']:.1f} t/s | prompt {piece['prompt_tokens']} tokens ({ptps:.0f} t/s) | carga do modelo {piece['load_seconds']:.1f}s | total {piece['total_seconds']:.1f}s", COLOR_GREEN)
+                            req_tokens += piece["tokens"]; req_seconds += piece["seconds"]; req_prompt += piece["prompt_tokens"]
                             emit({"stats": piece}); continue
                         full += piece
                         send(piece)
@@ -1202,9 +1377,21 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                         send(L("\n\n[Acao negada pelo usuario]", "\n\n[Action denied by the user]"))
                         break
                 status(f"Executando: {tool_name}")
-                result = execute_tool(tool_name, tool_args, workdir)
+                if tool_name == "search_web":   # emite as fontes para a interface mostrar os cartoes
+                    results, src = search_web_results(tool_args.get("query", ""))
+                    result = format_search(results, src) if results else SEARCH_UNAVAILABLE
+                    if results: emit({"sources": [{"title": t, "url": u} for t, _, u in results], "provider": src})
+                elif tool_name == "read_url":
+                    try:
+                        page_title, page = read_url_text(tool_args.get("url", ""))
+                        result = truncate(f"{page_title}\n\n{page}")
+                        emit({"sources": [{"title": page_title, "url": tool_args.get("url", "")}], "provider": "read_url"})
+                    except Exception as e:
+                        result = f"Erro: {e}"
+                else:
+                    result = execute_tool(tool_name, tool_args, workdir)
                 log("TOOL", f"resultado de {tool_name}: {len(result)} caracteres", COLOR_GREEN if not result.startswith("Erro") else COLOR_RED)
-                send(L(f"\n\n[resultado de {tool_name}]\n{result}\n\n", f"\n\n[result of {tool_name}]\n{result}\n\n"))
+                send(L(f"\n\n[resultado de {tool_name}]\n{result}\n[/resultado]\n\n", f"\n\n[result of {tool_name}]\n{result}\n[/result]\n\n"))
                 pair = [{"role": "assistant", "content": full},
                         {"role": "user", "content": L(f"Resultado da ferramenta {tool_name}:\n{result}", f"Tool result for {tool_name}:\n{result}")}]
                 messages.extend(pair); clean.extend(pair)
@@ -1218,6 +1405,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 cfg = load_config()
                 cfg["usage"]["groq"] += total_chars
                 save_config(cfg)
+            record_event({"type": "chat", "model": model, "cloud": model.startswith("groq"), "tab": "code" if agent else "chat",
+                          "tokens": req_tokens or total_chars // 4, "seconds": req_seconds or (time.time() - started), "prompt_tokens": req_prompt, "chars": total_chars})
             u = model_usage.setdefault(model, {"uses": 0, "chars": 0})
             u["uses"] += 1; u["chars"] += total_chars; u["last_used"] = time.time()
             log("CHAT", f"concluido: {total_chars} caracteres em {time.time() - started:.1f}s", COLOR_GREEN)
