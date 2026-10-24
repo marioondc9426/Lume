@@ -26,6 +26,7 @@ import zlib
 import plistlib
 import functools
 import webview
+import concurrent.futures
 
 try:
     from groq import Groq
@@ -883,6 +884,41 @@ def generate_password():
 def norm_password(p):
     return re.sub(r'[^A-Za-z0-9]', '', str(p or '')).upper()
 
+def lan_subnets():
+    """Prefixos /24 das redes em que este PC esta (ex.: '192.168.0.')."""
+    out = []
+    for ip in lan_ips():
+        pre = ip.rsplit(".", 1)[0] + "."
+        if pre not in out: out.append(pre)
+    return out
+
+_discover_cache = {"t": 0, "data": []}
+
+def discover_servers():
+    """Procura outros PCs com este app ligado na rede (testa /api/ping em cada IP dos /24 locais). Cache de 20 s."""
+    if time.time() - _discover_cache["t"] < 20: return _discover_cache["data"]
+    mine = set(lan_ips()); found = []; lock = threading.Lock()
+    def probe(ip):
+        try:
+            with socket.create_connection((ip, PORT), timeout=0.5) as sk:
+                sk.settimeout(1.0)
+                sk.sendall(f"GET /api/ping HTTP/1.0\r\nHost: {ip}:{PORT}\r\n\r\n".encode())
+                buf = b""
+                while len(buf) < 4096:
+                    ch = sk.recv(1024)
+                    if not ch: break
+                    buf += ch
+            d = json.loads(buf.split(b"\r\n\r\n", 1)[1])
+            if d.get("app") == "ai-thing":
+                with lock: found.append({"url": f"http://{ip}:{PORT}", "ip": ip, "name": d.get("name", ip), "password_required": bool(d.get("password_required", True)), "remote_enabled": True})
+        except Exception:
+            pass
+    ips = [p + str(n) for p in lan_subnets() for n in range(1, 255) if p + str(n) not in mine]
+    with concurrent.futures.ThreadPoolExecutor(max_workers=96) as ex: list(ex.map(probe, ips))
+    found.sort(key=lambda x: [int(n) for n in x["ip"].split(".")])
+    _discover_cache.update(t=time.time(), data=found)
+    return found
+
 def lan_ips():
     """IPs deste PC na rede local (o primeiro e o da rota principal)."""
     ips = []
@@ -1026,9 +1062,15 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         if not p.startswith('/api/'):
             return self.serve_static(p)
         local = self.is_local()
+        if p == '/api/ping':   # publico: so diz que isto e o app e se pede senha
+            cfg = load_config()
+            return self.send_json({"app": "ai-thing", "name": socket.gethostname(), "password_required": cfg.get("password_required", True)})
+        if p == '/api/discover':   # publico: lista de servidores por perto (nomes e enderecos da propria rede)
+            if not (local or self.client_address[0] in LOOPBACK_IPS or ipaddress.ip_address(self.client_address[0]).is_private): return self.send_json({"error": "forbidden"}, 403)
+            return self.send_json({"servers": discover_servers()})
         if p == '/api/auth/status':
             cfg = load_config()
-            return self.send_json({"local": local, "authed": self.is_authed(), "remote_enabled": cfg["remote_enabled"], "allow_remote_code": cfg["allow_remote_code"]})
+            return self.send_json({"local": local, "authed": self.is_authed(), "remote_enabled": cfg["remote_enabled"], "allow_remote_code": cfg["allow_remote_code"], "password_required": cfg.get("password_required", True)})
         if not self.is_authed():
             return self.send_json({"error": "unauthorized"}, 401)
         if p == '/api/usage':

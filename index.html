@@ -662,6 +662,11 @@
                 <span class="hint" id="srv-port-hint">Vale na próxima vez que o app abrir.</span>
             </div>
 
+            <div class="section-title">Servidores por perto</div>
+            <span class="hint">Procura na rede Wi-Fi outros PCs com este app ligado e mostra se pedem senha.</span>
+            <div class="srv-actions"><button class="btn btn-secondary" id="srv-scan-btn" onclick="scanServers()">Procurar servidores</button></div>
+            <div id="srv-found" class="srv-list"></div>
+
             <!-- aparelho remoto (celular, outro PC) -->
             <div id="srv-client" class="set-pane" style="display:none;">
                 <div class="section-title">Conexão com o servidor</div>
@@ -819,6 +824,9 @@
             'No outro aparelho: abra o endereço acima, vá em Configurações, aba Servidor, "Conectar ao servidor" e digite esta senha.':
                 'On the other device: open the address above, go to Settings, Server tab, "Connect to server" and type this password.',
             'Permissões dos aparelhos remotos': 'Remote device permissions',
+            'Servidores por perto': 'Servers nearby', 'Procura na rede Wi-Fi outros PCs com este app ligado e mostra se pedem senha.': 'Looks on the Wi-Fi network for other PCs running this app and shows whether they ask for a password.',
+            'Procurar servidores': 'Search for servers', 'Procurando...': 'Searching...', '🔒 pede senha': '🔒 password required', '🔓 sem senha': '🔓 no password',
+            'Nenhum servidor encontrado por perto. Confira se o outro PC está com o app aberto e a rede local ligada.': 'No servers found nearby. Check that the other PC has the app open and local network access on.',
             'Exigir senha nos outros aparelhos (desligado: qualquer um na sua rede entra sem senha)': 'Require a password on other devices (off: anyone on your network gets in without one)',
             'Permitir a aba Code (a IA pode ler e escrever arquivos e rodar comandos NESTE PC; cada ação continua pedindo a sua aprovação aqui)':
                 'Allow the Code tab (the AI can read and write files and run commands on THIS PC; every action still asks for your approval here)',
@@ -2203,6 +2211,21 @@
             } catch (e) { showInfo('Não consegui salvar o perfil.'); }
         }
         // aparelho remoto
+        async function scanServers() {
+            const btn = $('srv-scan-btn'), box = $('srv-found'); btn.disabled = true; btn.textContent = tr('Procurando...');
+            box.innerHTML = '';
+            let list = []; try { list = (await (await _fetch(API + '/api/discover')).json()).servers || []; } catch (e) { showInfo('Servidor não respondeu.'); }
+            btn.disabled = false; btn.textContent = tr('Procurar servidores');
+            if (!list.length) { box.innerHTML = `<span class="hint">${tr('Nenhum servidor encontrado por perto. Confira se o outro PC está com o app aberto e a rede local ligada.')}</span>`; return; }
+            list.forEach(sv => {
+                const row = document.createElement('div'); row.className = 'srv-row'; row.style.cursor = 'pointer';
+                const a = document.createElement('span'); a.textContent = `${sv.name} — ${sv.url}`; a.style.flex = '1';
+                const b = document.createElement('span'); b.className = 'badge' + (sv.password_required ? '' : ' ok'); b.textContent = tr(sv.password_required ? '🔒 pede senha' : '🔓 sem senha');
+                row.append(a, b);
+                row.onclick = () => { if (auth.local) openExternal(sv.url); else location.href = sv.url; };
+                box.appendChild(row);
+            });
+        }
         async function connectToServer() {
             const r = await ask({ title: 'Conectar ao servidor', body: 'Digite a senha que aparece no PC, em Configurações > Servidor.', buttons: ['Conectar', 'Cancelar'], input: { type: 'password', placeholder: 'XXXXX-XXXXX' } });
             if (r.index !== 0 || !r.value) return;
