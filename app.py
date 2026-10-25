@@ -1283,9 +1283,11 @@ def _sse_chat(response, t0, err_map, first_timeout=None, idle_timeout=None):
             if j.get("usage"): usage = j["usage"]
             for ch in j.get("choices") or []:
                 delta = ch.get("delta") or {}
+                # a Cloudflare as vezes manda um trecho que e so numero ("10") ja convertido em int pelo JSON: sempre vira texto
                 rs = delta.get("reasoning") or delta.get("reasoning_content")
-                if rs: first = first or time.time(); yield "thinking", rs
-                if delta.get("content"): first = first or time.time(); yield "content", delta["content"]
+                if rs not in (None, ""): first = first or time.time(); yield "thinking", str(rs)
+                ct = delta.get("content")
+                if ct not in (None, ""): first = first or time.time(); yield "content", str(ct)
                 if ch.get("finish_reason") == "length": cut = True
     except Exception:
         if state["timed"]: raise Exception(f"O provedor parou de responder (sem dados por {state['limit']} s).") from None
