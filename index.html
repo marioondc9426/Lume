@@ -396,7 +396,7 @@
         body.root #root-chip { display: block; }
         body.remote #titlebar { display: none; }
         body.remote #settings-modal, body.remote #memory-modal, body.remote #export-modal, body.remote #stats-modal, body.remote #dialog-overlay, body.remote #drop-overlay { inset: 0; }
-        @media (hover: none) { .chat-actions { opacity: 1; } .msg-actions { opacity: .75; } }
+        @media (hover: none) { .chat-actions { opacity: 1; } .msg-actions { opacity: 0; pointer-events: none; } .msg.show-actions .msg-actions { opacity: 1; pointer-events: auto; } }   /* toque na mensagem: os botoes aparecem por 5 s */
         @media (max-width: 760px) {
             #sidebar { position: fixed; top: 0; bottom: 0; left: 0; width: 82vw; max-width: 320px; transform: translateX(-100%); transition: transform .25s ease; z-index: 900; padding-top: env(safe-area-inset-top); }
             body.drawer-open #sidebar { transform: none; box-shadow: 0 0 40px rgba(0,0,0,0.6); }
@@ -921,6 +921,15 @@
         .acct-item.on { border-color: var(--accent); } .acct-item .grow { flex: 1; } .acct-item button { margin: 0; padding: 4px 10px; font-size: 0.85em; }
         .acct-sheet input { width: 100%; }
         .acct-sheet .btn { margin: 0; padding: 12px; border-radius: 12px; }
+
+        /* ===== lote L: celular/iPhone ===== */
+        @media (max-width: 760px) {
+            body:not(.chat-empty) #main > #ctx-bar:not([style*="none"]) { padding-top: calc(6px + env(safe-area-inset-top)) !important; }   /* a barra de contexto nao fica embaixo do notch */
+            body:not(.chat-empty) #main:has(> #ctx-bar:not([style*="none"])) > #chat-header { padding-top: 8px !important; }
+        }
+        .perf-monitor { touch-action: none; cursor: grab; } .perf-monitor:active { cursor: grabbing; }
+        html.is-ios .ios-hide { display: none !important; }
+        #ollama-login-box .ol-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; } #ollama-login-box .ol-row input { flex: 1 1 100%; } #ollama-login-box .ol-row .btn { margin: 0; white-space: nowrap; }
     </style>
 </head>
 <body data-ui="modern" data-theme="deepseek" data-bubbles="soft" data-input="card" data-logo="mark" data-hero="center" data-sidebar="left" style="--scale: 1;">
@@ -1092,6 +1101,11 @@
         </div>
 
         <div class="section-title host-only">Chaves de API</div>
+        <div class="form-group" id="ollama-login-box" style="display:none">
+            <label>Ollama (modelos "Nuvem Ollama") <span class="badge" id="ollama-login-status">não logado</span></label>
+            <div class="ol-row"><button type="button" class="btn btn-secondary" id="ollama-login-btn">Logar com o Ollama</button><input type="password" id="ollama-key-input" placeholder="cole a chave do Ollama aqui" autocomplete="off" spellcheck="false"></div>
+            <span class="hint">Toque em "Logar com o Ollama": abre ollama.com/settings/keys no Safari. Crie uma chave, copie e cole aqui. Se você estiver numa conta do Lume, o login do Ollama fica nela (troca de conta, troca de login). A chave fica só neste aparelho.</span>
+        </div>
         <div class="form-group" id="pc-url-box" style="display:none">
             <label>PC do Lume (cópia das contas) <span class="badge" id="pc-sync-status">desligado</span></label>
             <input type="text" id="pc-url-input" placeholder="http://192.168.0.10:8000" autocomplete="off" spellcheck="false">
@@ -4262,8 +4276,31 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
         const speedLabel = t => tr(t < 5 ? 'Lento' : t < 15 ? 'Normal' : 'Rápido');
 
         // o overlay fica no canto superior direito, mas logo abaixo das barras do topo (nao cobre Compactar nem o botao de copiar)
-        function placePerf() { perfMonitor.style.top = ($('chat-header').getBoundingClientRect().bottom + 8) + 'px'; }
-        window.addEventListener('resize', placePerf);
+        function placePerf() {
+            const p = config.perfPos;
+            if (p && p.length === 2) { perfMonitor.style.left = Math.max(0, Math.min(innerWidth - 60, p[0])) + 'px'; perfMonitor.style.top = Math.max(0, Math.min(innerHeight - 40, p[1])) + 'px'; perfMonitor.style.right = 'auto'; return; }
+            perfMonitor.style.left = ''; perfMonitor.style.right = ''; perfMonitor.style.top = ($('chat-header').getBoundingClientRect().bottom + 8) + 'px';
+        }
+        window.addEventListener('resize', () => { placePerf(); if (innerWidth <= 760 || config.uiLegacy) document.querySelectorAll('#set-general .sec-hidden').forEach(e => e.classList.remove('sec-hidden')); else if ($('settings-modal') && $('settings-modal').style.display === 'flex') buildSettingsNav(); });   // girar o celular nao deixa as configuracoes presas numa secao
+        (() => {   // o overlay pode ser arrastado a qualquer momento (duplo toque volta ao lugar de origem)
+            let drag = false, sx = 0, sy = 0, ox = 0, oy = 0;
+            perfMonitor.addEventListener('pointerdown', e => { if (e.target.closest('button, select, input')) return; drag = true; const r = perfMonitor.getBoundingClientRect(); sx = e.clientX; sy = e.clientY; ox = r.left; oy = r.top; try { perfMonitor.setPointerCapture(e.pointerId); } catch (x) {} });
+            perfMonitor.addEventListener('pointermove', e => { if (!drag) return; perfMonitor.style.right = 'auto'; perfMonitor.style.left = Math.max(0, Math.min(innerWidth - perfMonitor.offsetWidth, ox + e.clientX - sx)) + 'px'; perfMonitor.style.top = Math.max(0, Math.min(innerHeight - 30, oy + e.clientY - sy)) + 'px'; });
+            const end = () => { if (!drag) return; drag = false; config.perfPos = [parseInt(perfMonitor.style.left, 10) || 0, parseInt(perfMonitor.style.top, 10) || 0]; saveState(); };
+            perfMonitor.addEventListener('pointerup', end); perfMonitor.addEventListener('pointercancel', end);
+            perfMonitor.addEventListener('dblclick', () => { delete config.perfPos; saveState(); placePerf(); });
+        })();
+        // no celular os botoes de copiar/editar/apagar ficam escondidos: tocar na mensagem mostra por 5 s
+        (() => {
+            let t = null, cur = null;
+            document.addEventListener('click', e => {
+                if (!window.matchMedia('(hover: none)').matches) return;
+                if (e.target.closest('.msg-actions, a, button, input, textarea, select, .codeblock, .md-table-wrap')) return;
+                const m = e.target.closest('.msg'); if (cur && cur !== m) cur.classList.remove('show-actions');
+                if (!m) { cur = null; return; }
+                clearTimeout(t); m.classList.add('show-actions'); cur = m; t = setTimeout(() => { m.classList.remove('show-actions'); if (cur === m) cur = null; }, 5000);
+            });
+        })();
         function setText(id, t) { const e = $(id); if (e.textContent !== t) e.textContent = t; }
         function applyPerf() {
             placePerf();

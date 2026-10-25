@@ -26,7 +26,7 @@ const LS = {
     set(k, v) { try { localStorage.setItem('lume.' + k, JSON.stringify(v)); } catch (e) { /* cheio */ } },
 };
 // contas: sem senha, so separam as conversas, memorias, temas e estatisticas de quem usa o aparelho (as chaves de API sao do aparelho)
-const ACCT_KEYS = ['history', 'state', 'stats', 'themes'];
+const ACCT_KEYS = ['history', 'state', 'stats', 'themes', 'ollama_key'];
 let ACCT = String(LS.get('account', '') || '');
 const scoped = k => (ACCT && ACCT_KEYS.includes(k)) ? 'a:' + ACCT + ':' + k : k;
 const kv = (() => {
@@ -291,13 +291,29 @@ async function* streamTomdacat(model, messages, cfg, maxTokens, signal) {
     }
     yield* sseChat(r, now(), {});
 }
-async function* streamOllama(model, messages, think, numCtx, maxTokens, cfg, signal) {
-    const base = (cfg.ollama_url || '').trim().replace(/\/+$/, '');
+const isOllamaCloud = m => /(:|-)cloud$/.test(m || '');
+async function* streamOllamaCloud(model, messages, think, numCtx, maxTokens, signal) {
+    // modelos "Nuvem Ollama": a API da nuvem (ollama.com) com a chave da conta do Ollama; o nome na nuvem nao leva o "-cloud"
+    const key = String(await kv.get('ollama_key', '') || '').trim();
+    if (!key) throw new Error('Este modelo e da Nuvem Ollama. Entre com o Ollama em Configuracoes > Chaves de API > "Logar com o Ollama" (crie a chave em ollama.com/settings/keys).');
+    const names = [...new Set([model.replace(/-cloud$/, ''), model.replace(/:cloud$/, ''), model.replace(/:cloud$/, ':latest')])];
+    let lastErr = null;
+    for (const name of names) {
+        let got = false;
+        try { for await (const ev of streamOllama(name, messages, think, numCtx, maxTokens, {}, signal, { base: 'https://ollama.com', headers: { Authorization: 'Bearer ' + key }, label: 'A nuvem do Ollama' })) { got = true; yield ev; } return; }
+        catch (e) { if (got || e.status !== 404) throw e; lastErr = e; }
+    }
+    throw lastErr || new Error('A nuvem do Ollama nao achou este modelo.');
+}
+async function* streamOllama(model, messages, think, numCtx, maxTokens, cfg, signal, via) {
+    const base = via ? via.base : (cfg.ollama_url || '').trim().replace(/\/+$/, '');
     if (!base) throw new Error('Este modelo roda no Ollama de um PC. Em Configuracoes > Ollama no PC, coloque o endereco do seu PC (ex.: http://192.168.0.10:11434). Os modelos da nuvem funcionam sem PC.');
     const payload = { model, messages, stream: true }; if (think) payload.think = true;
     const opts = {}; if (numCtx) opts.num_ctx = +numCtx; if (maxTokens) opts.num_predict = +maxTokens; if (Object.keys(opts).length) payload.options = opts;
-    const r = await fetchT(base + '/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal }, 30000, 'O Ollama do PC');
-    if (!r.ok) throw new Error(`O Ollama respondeu ${r.status}: ${(await r.text().catch(() => '')).slice(0, 200)}`);
+    const r = await fetchT(base + '/api/chat', { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, via ? via.headers : {}), body: JSON.stringify(payload), signal }, 30000, via ? via.label : 'O Ollama do PC');
+    if (!r.ok) {
+        const txt = (await r.text().catch(() => '')).slice(0, 200), e = new Error(r.status === 401 || r.status === 403 ? 'A chave do Ollama nao foi aceita (' + r.status + '). Entre de novo em Configuracoes > Chaves de API.' : `O Ollama respondeu ${r.status}: ${txt}`); e.status = r.status; throw e;
+    }
     const reader = r.body.getReader(), dec = new TextDecoder(); let buf = '', tFirst = null;
     try {
         for (;;) {
@@ -328,6 +344,7 @@ function streamOnce(model, messages, o) {
     if (model.startsWith('or:')) return streamOpenrouter(model, messages, think, cfg, maxTokens, signal);
     if (model.startsWith('cf:')) return (async function* () { throw new Error('O Cloudflare Workers AI ainda nao esta disponivel no iPhone. Use os outros provedores.'); })();
     if (model.startsWith('groq')) return streamGroq(model, messages, cfg, maxTokens, signal);
+    if (isOllamaCloud(model)) return streamOllamaCloud(model, messages, think, numCtx, maxTokens, signal);
     return streamOllama(model, messages, think, numCtx, maxTokens, cfg, signal);
 }
 async function* streamModel(model, messages, o) {
@@ -387,7 +404,7 @@ function handleChat(req) {
                 if (req.agent) { send(L('A aba Code (ferramentas no computador) precisa do PC e nao existe no iPhone. Use a aba Chat.', 'The Code tab (computer tools) needs a PC and is not available on iPhone. Use the Chat tab.')); return; }
                 if (!messages.length || messages[0].role !== 'system') messages.unshift({ role: 'system', content: '' });
                 if (CLOUD_PREFIX.test(model)) emit({ status: model.startsWith('vc:') ? 'Esperando a Vercel responder' : model.startsWith('l7:') ? 'Esperando o LLM7 responder' : model.startsWith('tdc:') ? 'Esperando o tomdacat responder' : model.startsWith('pol:') ? 'Esperando o Pollinations responder' : 'Conectando' });
-                else emit({ status: 'Conectando ao Ollama do PC' });
+                else emit({ status: isOllamaCloud(model) ? 'Conectando a nuvem do Ollama' : 'Conectando ao Ollama do PC' });
                 if (req.search_web) {
                     const query = String([...messages].reverse().find(m => m.role === 'user' && m.content) ?.content || '').slice(0, 200);
                     if (needsWeb(query)) {
@@ -540,6 +557,28 @@ async function pcSync() {
     } catch (e) { setPcStatus('PC fora do ar'); }
 }
 function schedulePcSync() { clearTimeout(pcTimer); pcTimer = setTimeout(pcSync, 4000); }
+
+// o iPhone nao tem terminal, Windows, GPU nem pasta de trabalho: some o que so existe no PC
+function iosTrim() {
+    const gen = document.getElementById('set-general'); if (!gen) return;
+    const hideTitles = ['Code', 'Overlay de desempenho', 'Aplicativo', 'Modelos do Ollama', 'Atualizações'];
+    let hide = false;
+    [...gen.children].forEach(el => { if (el.classList.contains('section-title')) hide = hideTitles.includes(el.textContent.trim()); if (hide) el.classList.add('ios-hide'); });
+    ['opt-winbtn', 'winbtn-custom', 'opt-autostop', 'opt-hidevram', 'opt-legacy'].forEach(id => { const e = document.getElementById(id); const w = e && e.closest('.form-group, .toggle-container, .srv-actions'); if (w) w.classList.add('ios-hide'); });
+    ['set-tab-server', 'set-server'].forEach(id => { const e = document.getElementById(id); if (e) e.classList.add('ios-hide'); });
+    const tabs = document.querySelector('.set-tabs'); if (tabs) tabs.classList.add('ios-hide');
+}
+if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', iosTrim);
+
+// "Logar com o Ollama": a chave fica na conta do Lume (ou no aparelho, sem conta)
+if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', () => {
+    const box = document.getElementById('ollama-login-box'); if (!box) return; box.style.display = '';
+    const inp = document.getElementById('ollama-key-input'), st = document.getElementById('ollama-login-status'), btn = document.getElementById('ollama-login-btn');
+    const show = async () => { const k = String(await kv.get('ollama_key', '') || ''); st.textContent = k ? 'logado ✓' + (ACCT ? ' (' + ACCT + ')' : '') : 'não logado'; inp.placeholder = k ? '••••••••• (colar outra troca a chave)' : 'cole a chave do Ollama aqui'; };
+    show();
+    btn.addEventListener('click', () => window.open('https://ollama.com/settings/keys', '_blank'));
+    inp.addEventListener('change', async () => { const v = inp.value.trim(); if (v) await kv.set('ollama_key', v); inp.value = ''; show(); });
+});
 
 // botao "Logar" no topo das configuracoes
 function accountUi() {
