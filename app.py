@@ -1289,7 +1289,7 @@ def _kill_response(response):
 def _sse_chat(response, t0, err_map, first_timeout=None, idle_timeout=None):
     """Le a resposta em stream (SSE) de uma API compativel com OpenAI e gera ('content'|'thinking'|'stats', valor).
     Se nao chegar nenhum dado dentro do tempo (first_timeout no comeco, idle_timeout depois), a conexao e cortada e vira um erro."""
-    first = None; usage = None; cut = False
+    first = None; usage = None; cut = False; tcalls = {}
     first_timeout = first_timeout or CLOUD_FIRST_TIMEOUT; idle_timeout = idle_timeout or CLOUD_IDLE_TIMEOUT
     state = {"timed": False, "limit": first_timeout}
     def arm(secs):
@@ -1316,6 +1316,9 @@ def _sse_chat(response, t0, err_map, first_timeout=None, idle_timeout=None):
                 if rs not in (None, ""): first = first or time.time(); yield "thinking", str(rs)
                 ct = delta.get("content")
                 if ct not in (None, ""): first = first or time.time(); yield "content", str(ct)
+                for tc in delta.get("tool_calls") or []:   # chamada de ferramenta nativa: o nome e os argumentos chegam em pedacos
+                    first = first or time.time(); fn = tc.get("function") or {}; c = tcalls.setdefault(tc.get("index", 0), {"name": "", "args": ""})
+                    c["name"] += str(fn.get("name") or ""); c["args"] += str(fn.get("arguments") or "")
                 if ch.get("finish_reason") == "length": cut = True
     except Exception:
         if state["timed"]: raise Exception(f"O provedor parou de responder (sem dados por {state['limit']} s).") from None
@@ -1324,6 +1327,8 @@ def _sse_chat(response, t0, err_map, first_timeout=None, idle_timeout=None):
         timer.cancel()
     if state["timed"]: raise Exception(f"O provedor parou de responder (sem dados por {state['limit']} s).")
     if cut: yield "content", "\n\n[Cortado: o modelo atingiu o limite de tokens da resposta]"
+    for _, c in sorted(tcalls.items())[:1]:   # uma ferramenta por passo
+        if c["name"] in TOOL_NAMES: yield "content", "$$[TOOL: %s] %s$$" % (c["name"], c["args"] or "{}")
     if usage and usage.get("completion_tokens"):
         now = time.time(); win = max(0.001, now - (first or t0)); total = max(0.001, now - t0)
         # alguns provedores (Pollinations) seguram a resposta e soltam tudo de uma vez no fim: o tempo entre o 1o e o ultimo pedaco nao e o de geracao (dava 7.000 t/s).
@@ -1523,7 +1528,7 @@ def pol_chain(slug, cfg):
 
 POL_HTTP_ERRORS = {401: "Chave do Pollinations invalida (401). Confira a chave em Configuracoes.", 403: "A chave do Pollinations nao tem permissao (403).", 402: "Saldo de pollen insuficiente (402). Ganhe pollen nas missoes ou compre mais.", 429: "Limite do Pollinations atingido (429). Espere um pouco."}
 
-def stream_pollinations(model, messages, think, cfg, max_tokens=None):
+def stream_pollinations(model, messages, think, cfg, max_tokens=None, agent=False):
     """Gera ('content'|'thinking'|'stats'|'status', valor) pela API compativel com OpenAI do Pollinations; no DeepSeek V4.1, se o provedor cair antes de responder tenta o proximo mais barato."""
     key = (cfg.get("pollinations_api_key") or "").strip()
     if not key: raise Exception("Chave do Pollinations nao configurada. Abra Configuracoes e cole sua chave.")
@@ -1539,14 +1544,16 @@ def stream_pollinations(model, messages, think, cfg, max_tokens=None):
         payload = {"model": cand, "messages": msgs, "stream": True, "stream_options": {"include_usage": True}}
         if max_tokens: payload["max_tokens"] = int(max_tokens)
         # os GPT 5/6 "pensam" em silencio antes da 1a palavra (a Pollinations nao mostra esse raciocinio): sem o botao Pensar, pede o minimo (era 10+ s de "Conectando")
-        if re.search(r"(^|/)gpt-[56]", cand) and "oss" not in cand: payload["reasoning_effort"] = "medium" if think else ("none" if re.search(r"(^|/)gpt-6", cand) else "minimal")   # GPT-6 aceita "none"; GPT-5, "minimal"
+        if re.search(r"(^|/)gpt-[56]", cand) and "oss" not in cand: payload["reasoning_effort"] = "medium" if think else ("none" if re.search(r"(^|/)gpt-(6|5\.[6-9])", cand) else "minimal")   # GPT-6 e 5.6+ aceitam "none"; GPT-5 e 5.4, "minimal"
+        if agent: payload["tools"] = NATIVE_TOOLS   # aba Code: chamada de ferramenta nativa (os GPT "Luna" nao seguem o formato de texto e diziam que nao conseguiram gravar)
         t0 = time.time()
         try:
             hdr = {"Authorization": "Bearer " + key, "Content-Type": "application/json", "User-Agent": "lume-app"}
             try: response = _cloud_open(urllib.request.Request(POL_API + "/v1/chat/completions", data=json.dumps(payload).encode(), headers=hdr), "O Pollinations")
             except urllib.error.HTTPError as e0:
-                if e0.code != 400 or "reasoning_effort" not in payload: raise
-                payload.pop("reasoning_effort")   # este modelo nao aceita o ajuste: tenta de novo sem ele
+                if e0.code != 400 or not ("reasoning_effort" in payload or "tools" in payload): raise
+                if "reasoning_effort" in payload: payload.pop("reasoning_effort")   # este modelo nao aceita o ajuste: tenta de novo sem ele
+                else: payload.pop("tools")   # nem ferramentas nativas: volta ao formato de texto
                 response = _cloud_open(urllib.request.Request(POL_API + "/v1/chat/completions", data=json.dumps(payload).encode(), headers=hdr), "O Pollinations")
         except urllib.error.HTTPError as e:
             body = e.read().decode("utf-8", "replace"); msg = body[:200]
@@ -1571,8 +1578,8 @@ def stream_pollinations(model, messages, think, cfg, max_tokens=None):
             if n + 1 < len(chain): yield "status", "Provedor fora do ar; tentando o proximo"
     raise last or Exception("O Pollinations nao respondeu.")
 
-def stream_model(model, messages, think, cfg, num_ctx=None, max_tokens=None):
-    if model.startswith("pol:"): return stream_pollinations(model, messages, think, cfg, max_tokens)
+def stream_model(model, messages, think, cfg, num_ctx=None, max_tokens=None, agent=False):
+    if model.startswith("pol:"): return stream_pollinations(model, messages, think, cfg, max_tokens, agent)
     if model.startswith("or:"): return stream_openrouter(model, messages, think, cfg, max_tokens)
     if model.startswith("cf:"): return stream_cloudflare(model, messages, think, cfg, max_tokens)
     return stream_groq(model, messages, cfg) if model.startswith("groq") else stream_ollama(model, messages, think, num_ctx, max_tokens)
@@ -2683,7 +2690,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             for step in range(MAX_AGENT_STEPS if agent else 1):
                 if step: emit({"step": step})   # a interface separa o pensamento de cada rodada em um bloco
                 full = ""
-                gen = stream_model(model, messages, think, cfg, num_ctx, gmax); splitter = ThinkSplitter()
+                gen = (stream_model(model, messages, think, cfg, num_ctx, gmax, agent=True) if agent else stream_model(model, messages, think, cfg, num_ctx, gmax)); splitter = ThinkSplitter()
                 try:
                     for kind, piece in gen:
                         if stopped(): break
