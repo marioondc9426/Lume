@@ -1178,6 +1178,18 @@ def stream_groq(model, messages, cfg):
 
 # ---------------------------------------------------------------- OpenRouter (so modelos GRATIS)
 OR_URL = "https://openrouter.ai/api/v1"
+# Tempos maximos das APIs na nuvem (OpenRouter, Cloudflare, Pollinations): sem isso um provedor travado deixava o "Conectando..." para sempre.
+CLOUD_CONNECT_TIMEOUT = 45   # segundos para conectar e o provedor comecar a responder
+CLOUD_FIRST_TIMEOUT = 60     # segundos ate chegar o primeiro dado da resposta (modelos que pensam demoram)
+CLOUD_IDLE_TIMEOUT = 60      # segundos sem nenhum dado no meio da resposta
+
+def _cloud_open(req, label, timeout=None):
+    """urlopen com tempo maximo e erros em portugues (o erro de rede cru era "timed out")."""
+    try: return urllib.request.urlopen(req, timeout=timeout or CLOUD_CONNECT_TIMEOUT)
+    except urllib.error.HTTPError: raise
+    except Exception as e:
+        if "timed out" in str(e).lower(): raise Exception(f"{label} nao respondeu em {timeout or CLOUD_CONNECT_TIMEOUT} s (sem conexao ou fora do ar).") from None
+        raise Exception(f"Sem conexao com {label}: {str(e)[:100]}") from None
 # Fora das listas (OpenRouter e Cloudflare): Llama, MiniMax, Krea, Z.ai/GLM e a Cloudflare em si; modelos de moderacao (nao conversam); LoRA (precisam de adaptador); e os pouco conhecidos / fracos.
 MODEL_EXCLUDE = re.compile(r"llama|minimax|krea|zai|glm|cloudflare/|safety|guard|lora|phonellm|sea-lion|granite|apertus|eurollm|dots-studio|recursive/|xingchen|liquid/|lfm|mistral|cohere|north-mini|poolside|laguna|thinkingmachines|inkling", re.I)
 _or_cache = {"t": 0, "models": []}
@@ -1222,7 +1234,7 @@ def stream_openrouter(model, messages, think, cfg, max_tokens=None):
     t0 = time.time()
     for attempt in range(2):
         req = urllib.request.Request(OR_URL + "/chat/completions", data=json.dumps(payload).encode("utf-8"), headers=headers)
-        try: response = urllib.request.urlopen(req, timeout=120)
+        try: response = _cloud_open(req, "O OpenRouter")
         except urllib.error.HTTPError as e:
             body = e.read().decode("utf-8", "replace")
             if attempt == 0 and payload.get("reasoning") and e.code == 400: payload.pop("reasoning"); continue   # o modelo nao aceita "pensar": tenta sem
@@ -1234,11 +1246,26 @@ def stream_openrouter(model, messages, think, cfg, max_tokens=None):
 CF_API = "https://api.cloudflare.com/client/v4"
 _cf_cache = {"t": 0, "acc": "", "models": []}
 
-def _sse_chat(response, t0, err_map):
-    """Le a resposta em stream (SSE) de uma API compativel com OpenAI e gera ('content'|'thinking'|'stats', valor)."""
+def _kill_response(response):
+    """Corta a conexao de outra thread (fechar o arquivo travaria junto com a leitura; o shutdown do socket destrava)."""
+    try: response.fp.raw._sock.shutdown(socket.SHUT_RDWR)
+    except Exception:
+        try: response.close()
+        except Exception: pass
+
+def _sse_chat(response, t0, err_map, first_timeout=None, idle_timeout=None):
+    """Le a resposta em stream (SSE) de uma API compativel com OpenAI e gera ('content'|'thinking'|'stats', valor).
+    Se nao chegar nenhum dado dentro do tempo (first_timeout no comeco, idle_timeout depois), a conexao e cortada e vira um erro."""
     first = None; usage = None
-    with response:
+    first_timeout = first_timeout or CLOUD_FIRST_TIMEOUT; idle_timeout = idle_timeout or CLOUD_IDLE_TIMEOUT
+    state = {"timed": False, "limit": first_timeout}
+    def arm(secs):
+        tm = threading.Timer(secs, lambda: (state.update(timed=True), _kill_response(response))); tm.daemon = True; tm.start(); state["limit"] = secs; return tm
+    timer = arm(first_timeout)
+    try:
+      with response:
         for raw in response:
+            timer.cancel(); timer = arm(idle_timeout)
             line = raw.decode("utf-8", "replace").strip()
             if not line.startswith("data:"): continue   # linhas ": OPENROUTER PROCESSING" sao so para manter a conexao
             d = line[5:].strip()
@@ -1254,6 +1281,12 @@ def _sse_chat(response, t0, err_map):
                 rs = delta.get("reasoning") or delta.get("reasoning_content")
                 if rs: yield "thinking", rs
                 if delta.get("content"): first = first or time.time(); yield "content", delta["content"]
+    except Exception:
+        if state["timed"]: raise Exception(f"O provedor parou de responder (sem dados por {state['limit']} s).") from None
+        raise
+    finally:
+        timer.cancel()
+    if state["timed"]: raise Exception(f"O provedor parou de responder (sem dados por {state['limit']} s).")
     if usage and usage.get("completion_tokens"):
         now = time.time(); gen = max(0.001, now - (first or t0))
         yield "stats", {"tokens": usage["completion_tokens"], "seconds": gen, "prompt_tokens": usage.get("prompt_tokens", 0), "prompt_seconds": (first - t0) if first else 0, "load_seconds": 0, "total_seconds": now - t0}
@@ -1386,7 +1419,7 @@ def stream_cloudflare(model, messages, think, cfg, max_tokens=None):
     req = urllib.request.Request(f"{CF_API}/accounts/{urllib.parse.quote(acc)}/ai/v1/chat/completions", data=json.dumps(payload).encode("utf-8"),
                                  headers={"Authorization": "Bearer " + token, "Content-Type": "application/json", "User-Agent": "lume-app"})
     t0 = time.time()
-    try: response = urllib.request.urlopen(req, timeout=120)
+    try: response = _cloud_open(req, "A Cloudflare")
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", "replace"); code = None; msg = body[:200]
         try: err = (json.loads(body).get("errors") or [{}])[0]; code, msg = err.get("code"), str(err.get("message") or msg)[:200]
@@ -1464,7 +1497,7 @@ def stream_pollinations(model, messages, think, cfg, max_tokens=None):
         if max_tokens: payload["max_tokens"] = int(max_tokens)
         t0 = time.time()
         try:
-            response = _pol_req("/v1/chat/completions", key, payload, timeout=120)
+            response = _cloud_open(urllib.request.Request(POL_API + "/v1/chat/completions", data=json.dumps(payload).encode(), headers={"Authorization": "Bearer " + key, "Content-Type": "application/json", "User-Agent": "lume-app"}), "O Pollinations")
         except urllib.error.HTTPError as e:
             body = e.read().decode("utf-8", "replace"); msg = body[:200]
             try: j = json.loads(body); msg = str((j.get("error") or {}).get("message") or msg)[:200]

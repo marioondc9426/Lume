@@ -2897,8 +2897,13 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 }
                 return curThink;
             };
-            const status = s => { if (isCur()) setOverlayStatus(s); const t = trStatus(s); stLine.querySelector('.st-text').textContent = t; if (!gotText) textSpan.innerHTML = `<span class="loading-dots">${esc(t)}</span>`; };
+            let curSt = 'Iniciando', tStart = Date.now();
+            const status = s => { curSt = s; if (isCur()) setOverlayStatus(s); const t = trStatus(s); stLine.querySelector('.st-text').textContent = t; if (!gotText) textSpan.innerHTML = `<span class="loading-dots">${esc(t)}</span>`; };
 
+            const waitTick = setInterval(() => {   // enquanto nao chega texto, mostra ha quantos segundos esta esperando (assim da para ver que nao travou)
+                if (gotText) return; const secs = Math.round((Date.now() - tStart) / 1000); if (secs < 4) return;
+                const t = trStatus(curSt) + ' · ' + secs + ' s'; stLine.querySelector('.st-text').textContent = t; textSpan.innerHTML = `<span class="loading-dots">${esc(t)}</span>`;
+            }, 1000);
             try {
                 let sys = sysPrompt(isCode);
                 const summaries = chat.messages.filter(m => m.role === 'summary').map(m => m.content);
@@ -2934,7 +2939,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                         note.textContent = '⚠ ' + tr('{a} falhou: {e}. Recomeçando com {b}...', { a: providerName(active), e: String(why).replace(/\s+/g, ' ').slice(0, 170), b: providerName(nx) });
                         aiDiv.insertBefore(note, textSpan);
                         ci++; active = nx; aiDiv.dataset.model = nx.id; const tg0 = aiDiv.querySelector('.msg-tag'); if (tg0) tg0.replaceWith(modelTag(nx.id));
-                        fullResponse = ''; gotText = false; chars = 0; lastStats = null; textSpan.innerHTML = `<span class="loading-dots">${esc(tr('Iniciando'))}</span>`;
+                        tStart = Date.now(); fullResponse = ''; gotText = false; chars = 0; lastStats = null; textSpan.innerHTML = `<span class="loading-dots">${esc(tr('Iniciando'))}</span>`;
                         return true;
                     };
                     try {
@@ -2986,7 +2991,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 textSpan.textContent = em;
                 if (isCur()) setOverlayStatus('Erro'); else showInfo(em);
             } finally {
-                stLine.remove(); delete gens[chatId]; if (active.cf) refreshCfUsage(true); if (active.pol) refreshPolUsage(true);
+                clearInterval(waitTick); stLine.remove(); delete gens[chatId]; if (active.cf) refreshCfUsage(true); if (active.pol) refreshPolUsage(true);
                 if (isCur()) { syncBusy(); updateCtxBar(); promptInput.focus(); if (fork && !failed) loadChat(chatId); }   // recarrega para mostrar o seletor de versoes
                 else if (chats[chatId] && !failed) { unread.add(chatId); showInfo(tr('"{t}" terminou de responder.', { t: dispTitle(chat.title) })); }
                 if (!Object.keys(gens).length) hidePerfStreaming();
