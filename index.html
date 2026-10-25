@@ -929,6 +929,14 @@
         }
         .perf-monitor { touch-action: none; cursor: grab; } .perf-monitor:active { cursor: grabbing; }
         html.is-ios .ios-hide { display: none !important; }
+        /* iPhone deitado: as configuracoes continuam numa folha so, com tudo (sem o menu lateral de secoes) */
+        @media (min-width: 761px) {
+            html.is-ios body[data-ui="modern"] #settings-modal .modal-content { display: block !important; width: min(680px, 94vw) !important; height: auto !important; max-height: 90vh !important; overflow-y: auto !important; padding: 18px 22px 70px !important; }
+            html.is-ios body[data-ui="modern"] #settings-modal .modal-content > h2 { padding: 4px 0 10px !important; }
+            html.is-ios body[data-ui="modern"] #settings-modal #set-nav { display: none !important; }
+            html.is-ios body[data-ui="modern"] #settings-modal #set-general, html.is-ios body[data-ui="modern"] #settings-modal #set-server { padding: 0 !important; overflow: visible !important; }
+            html.is-ios body[data-ui="modern"] #settings-modal #set-general > .section-title:not(.ios-hide) { display: block !important; }
+        }
         #ollama-login-box .ol-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; } #ollama-login-box .ol-row input { flex: 1 1 100%; } #ollama-login-box .ol-row .btn { margin: 0; white-space: nowrap; }
     </style>
 </head>
@@ -3757,7 +3765,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             $('groq-key-input').value = ''; $('or-key-input').value = ''; $('cf-token-input').value = ''; $('cf-acc-input').value = ''; $('pol-key-input').value = ''; $('tdc-key-input').value = ''; $('vc-key-input').value = ''; $('l7-key-input').value = ''; $('exa-key-input').value = '';
             showModal('settings-modal');
             showSettingsTab('general');
-            if (!config.uiLegacy && innerWidth > 760) buildSettingsNav(); else document.querySelectorAll('#set-general .sec-hidden').forEach(e => e.classList.remove('sec-hidden'));   // classica e celular: tudo numa rolagem so
+            if (!config.uiLegacy && innerWidth > 760 && !window.__LUME_IOS) buildSettingsNav(); else document.querySelectorAll('#set-general .sec-hidden').forEach(e => e.classList.remove('sec-hidden'));   // classica e celular: tudo numa rolagem so
             if (auth.local) { renderAppSettings(); refreshModelManager(); }
             if (!auth.local && !auth.authed) { showSettingsTab('server'); return; }
             try {
@@ -4281,7 +4289,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             if (p && p.length === 2) { perfMonitor.style.left = Math.max(0, Math.min(innerWidth - 60, p[0])) + 'px'; perfMonitor.style.top = Math.max(0, Math.min(innerHeight - 40, p[1])) + 'px'; perfMonitor.style.right = 'auto'; return; }
             perfMonitor.style.left = ''; perfMonitor.style.right = ''; perfMonitor.style.top = ($('chat-header').getBoundingClientRect().bottom + 8) + 'px';
         }
-        window.addEventListener('resize', () => { placePerf(); if (innerWidth <= 760 || config.uiLegacy) document.querySelectorAll('#set-general .sec-hidden').forEach(e => e.classList.remove('sec-hidden')); else if ($('settings-modal') && $('settings-modal').style.display === 'flex') buildSettingsNav(); });   // girar o celular nao deixa as configuracoes presas numa secao
+        window.addEventListener('resize', () => { placePerf(); if (innerWidth <= 760 || config.uiLegacy || window.__LUME_IOS) document.querySelectorAll('#set-general .sec-hidden').forEach(e => e.classList.remove('sec-hidden')); else if ($('settings-modal') && $('settings-modal').style.display === 'flex') buildSettingsNav(); });   // girar o celular nao deixa as configuracoes presas numa secao
         (() => {   // o overlay pode ser arrastado a qualquer momento (duplo toque volta ao lugar de origem)
             let drag = false, sx = 0, sy = 0, ox = 0, oy = 0;
             perfMonitor.addEventListener('pointerdown', e => { if (e.target.closest('button, select, input')) return; drag = true; const r = perfMonitor.getBoundingClientRect(); sx = e.clientX; sy = e.clientY; ox = r.left; oy = r.top; try { perfMonitor.setPointerCapture(e.pointerId); } catch (x) {} });
