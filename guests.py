@@ -39,6 +39,7 @@ class Guests:
         self._tok = {}                   # token -> id (indice em memoria)
         self.data = self._load()
         self._reindex()
+        for uid in list(self.data["users"]): self.user_dir(uid)   # contas antigas ganham a pasta (guest_data/<id> vira accounts/<nome>)
 
     # ---------- arquivo ----------
     def _load(self):
@@ -92,6 +93,7 @@ class Guests:
             self.data["users"][uid] = {"name": name, "created": now, "last": now, "enabled": True, "tokens": {}, "disable_at": None, "message": "", "message_id": 0,
                                        "blocked_models": list(s["default_blocked_models"]), "blocked_features": list(s["default_blocked_features"]), "daily_limit": None, "note": ""}
             tok = self._new_token(uid, ip, ua); self.save()
+            self.user_dir(uid)   # a pasta accounts/<nome> ja aparece na hora
             return uid, tok
 
     def new_code(self, uid):
