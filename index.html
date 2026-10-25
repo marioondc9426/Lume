@@ -1893,12 +1893,11 @@
         const famKind = ms => ms.every(m => m.paid) ? 'paid' : ms.some(isLocalM) ? 'local' : 'cloud';
         const pollenPerMsg = m => (500 * (m.priceIn || 0) + 500 * (m.priceOut || 0)) / 1e6;
         const providerName = m => m.pol ? 'Pollinations · ' + (m.provider || '') : m.groq ? 'Groq' : m.cf ? 'Cloudflare' : m.or ? 'OpenRouter' : m.phone ? tr('Celular') : isLocalM(m) ? tr('Ollama (local)') : tr('Ollama (nuvem)');
-        const provInfo = m => !m.pol ? '' : (m.free ? ' · ' + tr('grátis') : ' · ≈' + pollenPerMsg(m).toFixed(5) + ' ' + tr('pollen/msg')) + (m.lat ? ' · ' + m.lat.toFixed(1) + ' s' : '') + (m.health === 'degraded' || m.health === 'down' || m.warn ? ' ⚠' : '');
+        const provInfo = m => !m.pol ? '' : (m.free ? ' · ' + tr('grátis') : ' · ≈' + pollenPerMsg(m).toFixed(5) + ' ' + tr('pollen/msg')) + (m.lat ? ' · ' + m.lat.toFixed(1) + ' s' : '') + (m.success != null ? ' · ' + Math.round(m.success) + '%' : '') + ((m.success != null ? m.success < 80 : m.health === 'down') || m.warn ? ' ⚠' : '');
         // qual provedor usar por padrao: o que voce escolheu antes; senao local > nuvem do Ollama > Cloudflare > OpenRouter > Pollinations gratis (se estiver bem) > Pollinations pago mais barato > gratis instavel
-        const variantRank = m => m.prio ? -100 : isLocalM(m) ? 0 : (!m.or && !m.cf && !m.pol) ? 1 : m.cf ? 2 : m.or ? 3 : !m.pol ? 4 : m.free ? (effHealth(m) === 'down' ? 40 : effHealth(m) === 'degraded' ? ((m.success || 0) >= 90 ? 6 : 30) : 5) : 10 + pollenPerMsg(m) * 1000 + (effHealth(m) === 'down' ? 20 : 0);   // pago: o mais barato vira o padrao mesmo "instavel"; o mais caro fica de reserva (so fora do ar de verdade vai para o fim)
+        const variantRank = m => m.prio ? -100 : isLocalM(m) ? 0 : (!m.or && !m.cf && !m.pol) ? 1 : m.cf ? 2 : m.or ? 3 : !m.pol ? 4 : m.free ? 5 : 10 + pollenPerMsg(m) * 1000;   // o padrao e sempre o mais barato, sem olhar a estabilidade: se falhar, o Lume troca para o proximo
         const bestVariant = items => items.find(m => (config.provPref || {})[m.grp + '|' + m.pk] === m.id) || [...items].sort((a, b) => variantRank(a) - variantRank(b))[0];
-        const effHealth = m => m.health === 'down' && (m.success || 0) >= 50 ? 'degraded' : m.health;   // o catalogo as vezes marca "fora do ar" com 60-80% de sucesso: aqui vale como instavel
-        const costRank = m => (m.prio ? -100 : 0) + (m.pol && !m.free ? pollenPerMsg(m) : 0) + (effHealth(m) === 'down' ? 1 : effHealth(m) === 'degraded' ? 0.5 : 0);   // gratis = 0; instavel vai para o fim, fora do ar mais ainda
+        const costRank = m => (m.prio ? -100 : 0) + (m.pol && !m.free ? pollenPerMsg(m) : 0);   // ordem de reserva: gratis primeiro, depois do mais barato ao mais caro
         function fallbackChain(m, tab) {   // se o provedor escolhido falhar: os outros provedores do MESMO modelo (menos o local), do mais barato ao mais caro
             fin(m); return MODELS.filter(x => x !== m && fin(x).grp === m.grp && x.pk === m.pk && !isLocalM(x) && !x.phone && x.tabs.includes(tab) && isAvail(x)).sort((a, b) => costRank(a) - costRank(b));
         }
