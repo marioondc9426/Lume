@@ -206,6 +206,7 @@ def load_config():
     cfg.setdefault("openrouter_api_key", "")     # chave do OpenRouter (so modelos gratis)
     cfg.setdefault("cloudflare_api_token", "")   # Cloudflare Workers AI: token + id da conta
     cfg.setdefault("cloudflare_account_id", "")
+    cfg.setdefault("pollinations_api_key", "")   # Pollinations: modelos que gastam pollen
     cfg.setdefault("workdir", "")
     cfg.setdefault("usage", {}).setdefault("groq", 0)
     cfg.setdefault("remote_enabled", True)       # aceitar conexoes de outros aparelhos da rede (ligado por padrao; exige senha)
@@ -307,7 +308,7 @@ def build_stats(days=30):
     # Ollama: a conta so mede o uso da nuvem por tempo de GPU em janelas de 5 h e 7 dias; aqui e a soma do que passou por este app
     oll = {"h5": {"requests": 0, "seconds": 0.0, "tokens": 0}, "d7": {"requests": 0, "seconds": 0.0, "tokens": 0}, "month": {}, "local": {"requests": 0, "seconds": 0.0, "tokens": 0}}
     for e in allev:
-        if e.get("type") != "chat" or str(e.get("model", "")).startswith(("groq", "or:", "cf:")) or e.get("ts", 0) < now - 30 * 86400: continue
+        if e.get("type") != "chat" or str(e.get("model", "")).startswith(("groq", "or:", "cf:", "pol:")) or e.get("ts", 0) < now - 30 * 86400: continue
         sec, tk, age = e.get("seconds", 0.0), e.get("tokens", 0), now - e["ts"]
         if is_ollama_cloud(e.get("model")):
             if age <= 5 * 3600: oll["h5"]["requests"] += 1; oll["h5"]["seconds"] += sec; oll["h5"]["tokens"] += tk
@@ -1394,7 +1395,108 @@ def stream_cloudflare(model, messages, think, cfg, max_tokens=None):
         raise Exception(CF_HTTP_ERRORS.get(code) or CF_HTTP_ERRORS.get(e.code) or f"Cloudflare respondeu {e.code}: {msg}")
     yield from _sse_chat(response, t0, CF_HTTP_ERRORS)
 
+# ---------------------------------------------------------------- Pollinations (pollen: saldo gratis por missoes; os modelos gastam pollen)
+POL_API = "https://gen.pollinations.ai"
+POL_CURATED = ("openai/gpt-5.4-nano", "openai/gpt-5.6-luna", "openai/gpt-5-nano", "openai/gpt-6-luna", "community/YoannDev90/qwen3.7-flash")
+POL_DS = "deepseek-v4.1-flash"   # modelo com varios provedores (oficial + comunitarios); o gratis pode estar fora do ar
+POL_DS_FREE = ["community/Lorodn4x/deepseek-v4.1-flash"]
+_pol_cache = {"t": 0, "key": "", "cat": {}}
+
+def _pol_req(path, key, body=None, timeout=30):
+    req = urllib.request.Request(POL_API + path, data=json.dumps(body).encode() if body is not None else None,
+                                 headers={"Authorization": "Bearer " + key, "Content-Type": "application/json", "User-Agent": "lume-app"})
+    return urllib.request.urlopen(req, timeout=timeout)
+
+def pollinations_catalog(key, force=False):
+    if not force and _pol_cache["cat"] and _pol_cache["key"] == key and time.time() - _pol_cache["t"] < 1800: return _pol_cache["cat"]
+    with _pol_req("/v1/models", key) as r: data = json.load(r).get("data", [])
+    _pol_cache.update(t=time.time(), key=key, cat={m["id"]: m for m in data if m.get("id")})
+    return _pol_cache["cat"]
+
+def _pol_price(m):
+    p = (m or {}).get("pricing") or {}
+    try: return float(p.get("promptTextTokens") or 0) * 1e6, float(p.get("completionTextTokens") or 0) * 1e6
+    except (TypeError, ValueError): return 0.0, 0.0
+
+def pol_providers(cat):
+    """Provedores do DeepSeek V4.1 Flash, do mais barato (por mensagem de 500+500 tokens) ao mais caro; os gratis ficam por ultimo."""
+    ids = [i for i in cat if i.split("/")[-1] == POL_DS and not i.endswith(":free")] + [i for i in POL_DS_FREE if i not in cat]
+    out = []
+    for i in ids:
+        pin, pout = _pol_price(cat.get(i)); free = (pin == 0 and pout == 0)
+        out.append({"id": i, "label": "oficial" if i.startswith("deepseek/") else i.split("/")[1], "pin": pin, "pout": pout, "free": free,
+                    "health": ((cat.get(i) or {}).get("health") or {}).get("status", "?"), "cost": (500 * pin + 500 * pout) / 1e6})
+    out.sort(key=lambda p: (p["free"], p["cost"]))
+    return out
+
+def pollinations_models(cfg):
+    key = cfg.get("pollinations_api_key") or ""
+    cat = pollinations_catalog(key); out = []
+    def base(mid, m):
+        pin, pout = _pol_price(m); inm = m.get("input_modalities") or ["text"]
+        return {"id": mid, "name": m.get("title") or mid, "ctx": m.get("context_length") or 0, "vision": "image" in inm, "pin": pin, "pout": pout, "health": (m.get("health") or {}).get("status", "?")}
+    for mid in POL_CURATED:
+        if mid in cat: out.append(base(mid, cat[mid]))
+    provs = pol_providers(cat)
+    if provs:
+        main = cat.get("deepseek/deepseek-v4.1-flash") or cat.get(provs[0]["id"]) or {}
+        paid = [p for p in provs if not p["free"]]
+        default = next((p for p in paid if p["health"] == "healthy"), (paid or provs)[0])
+        e = base("deepseek/deepseek-v4.1-flash", main); e.update(providers=provs, provider_default=default["id"]); out.append(e)
+    return out
+
+def pol_chain(slug, cfg):
+    """Ordem de tentativa: o escolhido; se cair, os pagos do mais barato ao mais caro; por fim os gratis. So o DeepSeek V4.1 tem provedores."""
+    if slug.split("/")[-1] != POL_DS: return [slug]
+    try: provs = [p["id"] for p in pol_providers(pollinations_catalog(cfg.get("pollinations_api_key") or ""))]
+    except Exception: provs = []
+    return [slug] + [p for p in provs if p != slug]
+
+POL_HTTP_ERRORS = {401: "Chave do Pollinations invalida (401). Confira a chave em Configuracoes.", 403: "A chave do Pollinations nao tem permissao (403).", 402: "Saldo de pollen insuficiente (402). Ganhe pollen nas missoes ou compre mais.", 429: "Limite do Pollinations atingido (429). Espere um pouco."}
+
+def stream_pollinations(model, messages, think, cfg, max_tokens=None):
+    """Gera ('content'|'thinking'|'stats'|'status', valor) pela API compativel com OpenAI do Pollinations; no DeepSeek V4.1, se o provedor cair antes de responder tenta o proximo mais barato."""
+    key = (cfg.get("pollinations_api_key") or "").strip()
+    if not key: raise Exception("Chave do Pollinations nao configurada. Abra Configuracoes e cole sua chave.")
+    slug = model[4:]
+    if not re.fullmatch(r"[\w.\-/:]+", slug): raise Exception("Modelo do Pollinations invalido.")
+    msgs = []
+    for m in messages:
+        imgs = m.get("images") or []
+        if imgs and m["role"] == "user": msgs.append({"role": "user", "content": [{"type": "text", "text": m["content"]}] + [{"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + b}} for b in imgs]})
+        else: msgs.append({"role": m["role"], "content": m["content"]})
+    chain = pol_chain(slug, cfg); last = None
+    for n, cand in enumerate(chain):
+        payload = {"model": cand, "messages": msgs, "stream": True, "stream_options": {"include_usage": True}}
+        if max_tokens: payload["max_tokens"] = int(max_tokens)
+        t0 = time.time()
+        try:
+            response = _pol_req("/v1/chat/completions", key, payload, timeout=120)
+        except urllib.error.HTTPError as e:
+            body = e.read().decode("utf-8", "replace"); msg = body[:200]
+            try: j = json.loads(body); msg = str((j.get("error") or {}).get("message") or msg)[:200]
+            except (ValueError, AttributeError): pass
+            last = Exception(POL_HTTP_ERRORS.get(e.code) or f"Pollinations respondeu {e.code}: {msg}")
+            if e.code in (401, 403, 402): raise last   # chave ruim ou sem saldo: trocar de provedor nao adianta
+            if n + 1 < len(chain): yield "status", f"Provedor {cand.split('/')[1] if '/' in cand else cand} fora do ar; tentando o proximo"
+            continue
+        except Exception as e:
+            last = e
+            if n + 1 < len(chain): yield "status", "Provedor fora do ar; tentando o proximo"
+            continue
+        got = False
+        try:
+            for item in _sse_chat(response, t0, {}):
+                got = True; yield item
+            return
+        except Exception as e:
+            if got: raise
+            last = e
+            if n + 1 < len(chain): yield "status", "Provedor fora do ar; tentando o proximo"
+    raise last or Exception("O Pollinations nao respondeu.")
+
 def stream_model(model, messages, think, cfg, num_ctx=None, max_tokens=None):
+    if model.startswith("pol:"): return stream_pollinations(model, messages, think, cfg, max_tokens)
     if model.startswith("or:"): return stream_openrouter(model, messages, think, cfg, max_tokens)
     if model.startswith("cf:"): return stream_cloudflare(model, messages, think, cfg, max_tokens)
     return stream_groq(model, messages, cfg) if model.startswith("groq") else stream_ollama(model, messages, think, num_ctx, max_tokens)
@@ -1799,6 +1901,19 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             if not has: return self.send_json({"key_saved": False, "models": []})
             try: return self.send_json({"key_saved": True, "models": openrouter_free_models()})
             except Exception as e: return self.send_json({"key_saved": True, "models": [], "error": str(e)[:200]})
+        if p == '/api/pollinations_models':
+            if not local: return self.send_json({"error": "local_only"}, 403)
+            cfg = load_config()
+            if not cfg.get("pollinations_api_key"): return self.send_json({"saved": False, "models": []})
+            try: return self.send_json({"saved": True, "models": pollinations_models(cfg)})
+            except Exception as e: return self.send_json({"saved": True, "models": [], "error": str(e)[:200]})
+        if p == '/api/pollinations_usage':
+            if not local: return self.send_json({"error": "local_only"}, 403)
+            key = load_config().get("pollinations_api_key") or ""
+            if not key: return self.send_json({"error": "sem chave"}, 400)
+            try:
+                with _pol_req("/account/balance", key, timeout=15) as r: return self.send_json({"balance": json.load(r).get("balance")})
+            except Exception as e: return self.send_json({"error": str(e)[:160]}, 502)
         if p == '/api/cloudflare_usage':
             if not local: return self.send_json({"error": "local_only"}, 403)
             return self.send_json(cf_usage())
@@ -1815,7 +1930,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             except Exception as e: return self.send_json({"saved": True, "models": [], "error": str(e)[:200]})
         if p == '/api/config_status':
             cfg = load_config()
-            return self.send_json({"groq_key_saved": bool(cfg.get("groq_api_key")), "openrouter_key_saved": bool(cfg.get("openrouter_api_key")), "cloudflare_saved": all(cf_creds(cfg)), "exa_key_saved": bool(exa_api_key(cfg)), "search_provider": cfg.get("search_provider", "auto"), "exa_type": cfg.get("exa_type", "lite"), "search_results": max_results(), "search_daily_limit": cfg.get("search_daily_limit", 100), "exa_today": exa_searches_today(), "workdir": get_workdir(cfg) if local else "", "default_workdir": BASE_DIR if local else ""})
+            return self.send_json({"groq_key_saved": bool(cfg.get("groq_api_key")), "openrouter_key_saved": bool(cfg.get("openrouter_api_key")), "cloudflare_saved": all(cf_creds(cfg)), "pollinations_saved": bool(cfg.get("pollinations_api_key")), "exa_key_saved": bool(exa_api_key(cfg)), "search_provider": cfg.get("search_provider", "auto"), "exa_type": cfg.get("exa_type", "lite"), "search_results": max_results(), "search_daily_limit": cfg.get("search_daily_limit", 100), "exa_today": exa_searches_today(), "workdir": get_workdir(cfg) if local else "", "default_workdir": BASE_DIR if local else ""})
         if p == '/api/models_status':
             tags = ollama_tags(); running = tags is not None
             used, total, _ = get_gpu_metrics()
@@ -1968,10 +2083,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 if k in data:
                     try: data[k] = max(lo, min(hi, int(data[k])))
                     except (TypeError, ValueError): return self.send_json({"error": "Opcao de pesquisa invalida."}, 400)
-            for k in ("groq_api_key", "openrouter_api_key", "cloudflare_api_token", "cloudflare_account_id", "exa_api_key", "workdir", "search_provider", "exa_type", "search_results", "search_daily_limit"):
+            for k in ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "cloudflare_api_token", "cloudflare_account_id", "exa_api_key", "workdir", "search_provider", "exa_type", "search_results", "search_daily_limit"):
                 if k in data: cfg[k] = data[k].strip() if k.endswith(("_key", "_token", "_id")) else data[k]
             save_config(cfg)
-            secrets_sent = [k for k in ("groq_api_key", "openrouter_api_key", "cloudflare_api_token", "exa_api_key") if k in data]
+            secrets_sent = [k for k in ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "cloudflare_api_token", "exa_api_key") if k in data]
             log("CONFIG", "Configuracoes salvas (" + ", ".join([k for k in data if k not in secrets_sent] + [f"chave {k.split('_')[0]}" for k in secrets_sent]) + ")", COLOR_GREEN)
             return self.send_json({"ok": True})
 
@@ -2162,7 +2277,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         if p == '/api/models_status':
             tags = ollama_tags(); running = tags is not None
             return self.send_json({"running": running, "loaded": [], "vram_total": 0, "vram_used": 0, "installed": [m["name"] for m in tags] if running else None, "installed_sizes": {m["name"]: m.get("size", 0) for m in tags} if running else {}})
-        if p == '/api/config_status': return self.send_json({"guest": True, "groq_key_saved": False, "openrouter_key_saved": False, "cloudflare_saved": False, "exa_key_saved": False})
+        if p == '/api/config_status': return self.send_json({"guest": True, "groq_key_saved": False, "openrouter_key_saved": False, "cloudflare_saved": False, "pollinations_saved": False, "exa_key_saved": False})
         if p == '/api/model_info':
             name = (self.query.get('name') or [''])[0]
             if not re.fullmatch(r'[\w.:\-/]+', name): return self.send_json({"error": "nome invalido"}, 400)
@@ -2419,14 +2534,14 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
         total_chars = 0
         try:
-            if not model.startswith(("groq", "or:", "cf:")):
+            if not model.startswith(("groq", "or:", "cf:", "pol:")):
                 if not ollama_is_running():
                     status("Iniciando Ollama")
                     if not start_ollama(): raise Exception("Nao consegui iniciar o Ollama. Ele esta instalado?")
                 if model not in [m["name"] for m in ollama_ps()]:
                     status("Carregando modelo")
             else:
-                status("Conectando ao OpenRouter" if model.startswith("or:") else "Conectando ao Cloudflare" if model.startswith("cf:") else "Conectando ao Groq")
+                status("Conectando ao OpenRouter" if model.startswith("or:") else "Conectando ao Cloudflare" if model.startswith("cf:") else "Conectando ao Pollinations" if model.startswith("pol:") else "Conectando ao Groq")
 
             if not messages or messages[0].get("role") != "system":
                 messages.insert(0, {"role": "system", "content": ""})
@@ -2459,6 +2574,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 try:
                     for kind, piece in gen:
                         if stopped(): break
+                        if kind == "status": status(piece); continue
                         if kind == "thinking":
                             send(piece, "thinking"); continue
                         if kind == "stats":
@@ -2540,7 +2656,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 cfg = load_config()
                 cfg["usage"]["groq"] += total_chars
                 save_config(cfg)
-            record_event({"type": "chat", **({"user": gid} if gid else {}), "model": model, "cloud": model.startswith(("groq", "or:", "cf:")), "tab": "code" if agent else "chat",
+            record_event({"type": "chat", **({"user": gid} if gid else {}), "model": model, "cloud": model.startswith(("groq", "or:", "cf:", "pol:")), "tab": "code" if agent else "chat",
                           "tokens": req_tokens or total_chars // 4, "seconds": req_seconds or (time.time() - started), "prompt_tokens": req_prompt, "chars": total_chars})
             if model.startswith("cf:") and not gid:
                 try: cf_add_neurons(model[3:], req_prompt, req_tokens or total_chars // 4)

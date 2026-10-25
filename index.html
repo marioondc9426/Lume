@@ -98,6 +98,8 @@
         #cf-badge { display: none; font-size: 0.78em; padding: 3px 10px; border-radius: 12px; background: rgba(128,128,128,0.15); cursor: pointer; white-space: nowrap; color: var(--text-muted); }
         #cf-badge i { display: inline-block; width: 46px; height: 5px; border-radius: 3px; background: rgba(128,128,128,0.3); margin-left: 7px; vertical-align: middle; overflow: hidden; } #cf-badge i b { display: block; height: 100%; background: #3fb950; transition: width .3s; }
         #cf-badge.warn i b { background: #d29922; } #cf-badge.bad i b { background: #f85149; }
+        .mo-list { max-height: calc(8 * 42px); overflow-y: auto; } .mo-group { padding: 6px 12px 4px; font-size: 0.68em; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); border-top: 1px solid var(--border-color); background: rgba(128,128,128,0.07); }
+        #pol-badge { display: none; font-size: 0.78em; padding: 3px 10px; border-radius: 12px; background: rgba(128,128,128,0.15); cursor: pointer; white-space: nowrap; color: var(--text-muted); } #pol-badge.warn { color: #d29922; } #pol-badge.bad { color: #f85149; }
         .mem-suggest { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
         .mem-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 7px 10px; border-radius: 10px; border: 1px dashed var(--border-color); background: rgba(128,128,128,0.08); font-size: 0.85em; }
         .mem-row .grow { flex: 1; min-width: 140px; } .mem-row .btn { margin: 0; padding: 3px 10px; font-size: 0.9em; }
@@ -611,6 +613,7 @@
                     <span id="chat-header-title">Novo Chat</span>
                 </div>
                 <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                    <span id="pol-badge" onclick="polBadgeClick()"></span>
                     <span id="cf-badge" onclick="cfBadgeClick()"></span>
                     <button class="icon-btn" onclick="openExport()" title="Copiar / exportar chat"><img class="ic" src="icons/copy.png" style="width:16px;height:16px;"></button>
                 </div>
@@ -705,6 +708,14 @@
                 <button type="button" class="eye" onclick="toggleKey('or-key-input', this)">Mostrar</button>
             </div>
             <span class="hint">Com a chave salva, os modelos GRATUITOS do OpenRouter aparecem na lista de modelos (aba Chat). O Lume nunca usa um modelo pago. Chave em openrouter.ai/keys. O plano grátis tem limite de pedidos por minuto e por dia.</span>
+        </div>
+        <div class="form-group host-only">
+            <label>Pollinations API Key <span class="badge" id="pol-status">não salva</span></label>
+            <div class="key-input">
+                <input type="password" id="pol-key-input" placeholder="sk_..." autocomplete="off" spellcheck="false">
+                <button type="button" class="eye" onclick="toggleKey('pol-key-input', this)">Mostrar</button>
+            </div>
+            <span class="hint">Deixe vazio para manter a chave já salva. Com a chave salva aparece, no fim da lista de modelos, o grupo "Pagos": modelos que gastam pollen, o saldo do Pollinations (dá para ganhar mais nas missões do painel). O saldo aparece no topo do chat. A chave precisa da permissão de ver o saldo.</span>
         </div>
         <div class="form-group host-only">
             <label>Cloudflare Workers AI <span class="badge" id="cf-status">não salvo</span></label>
@@ -1095,7 +1106,10 @@
             'Iniciar com o Windows': 'Start with Windows', 'Abre o Lume sozinho quando você entra no Windows. Só no Lume.exe.': 'Opens Lume by itself when you sign in to Windows. Lume.exe only.',
             'Pesquisar na web nas respostas': 'Search the web in answers', 'A IA pesquisa na internet quando a pergunta pede dados atuais.': 'The AI searches the internet when the question needs current data.',
             'Verificar atualizações ao abrir': 'Check for updates on startup', 'Avisa quando há uma versão nova.': 'Tells you when there is a new version.', 'Animações': 'Animations', 'Desligue se a interface pesar na placa de vídeo.': 'Turn off if the interface is heavy on the graphics card.',
-            'Painel de desempenho': 'Performance panel', 'Mostra a VRAM e a velocidade no canto da tela.': 'Shows VRAM and speed in the corner of the screen.', 'Acesso pela rede (celular e amigos)': 'Network access (phone and friends)', 'Deixa outros aparelhos entrarem. A senha continua exigida pela internet.': 'Lets other devices in. The password is still required over the internet.', 'Bem-vindo!': 'Welcome!', 'e': 'and', 'Neurônios do Cloudflare usados hoje (medido pela própria Cloudflare). Zera às 00:00 UTC.': 'Cloudflare neurons used today (measured by Cloudflare itself). Resets at 00:00 UTC.',
+            'Painel de desempenho': 'Performance panel', 'Mostra a VRAM e a velocidade no canto da tela.': 'Shows VRAM and speed in the corner of the screen.', 'Acesso pela rede (celular e amigos)': 'Network access (phone and friends)', 'Deixa outros aparelhos entrarem. A senha continua exigida pela internet.': 'Lets other devices in. The password is still required over the internet.', 'Bem-vindo!': 'Welcome!', 'Pagos (gastam pollen)': 'Paid (they spend pollen)', 'Provedor': 'Provider', 'grátis (pode estar fora do ar)': 'free (may be down)', 'pollen/mensagem': 'pollen/message', 'Conectando ao Pollinations': 'Connecting to Pollinations',
+            'Não consegui carregar os modelos do Pollinations: {e}': 'Could not load the Pollinations models: {e}', 'Saldo de pollen do Pollinations.': 'Pollinations pollen balance.', 'Uma mensagem média neste modelo custa ≈{c} pollen (uns {n} mensagens com o saldo).': 'An average message on this model costs ≈{c} pollen (about {n} messages with the balance).', 'Clique para abrir o Pollinations.': 'Click to open Pollinations.',
+            'Provedor fora do ar; tentando o proximo': 'Provider is down; trying the next one',
+            'Deixe vazio para manter a chave já salva. Com a chave salva aparece, no fim da lista de modelos, o grupo "Pagos": modelos que gastam pollen, o saldo do Pollinations (dá para ganhar mais nas missões do painel). O saldo aparece no topo do chat. A chave precisa da permissão de ver o saldo.': 'Leave empty to keep the saved key. With the key saved, a "Paid" group shows up at the end of the model list: models that spend pollen, the Pollinations balance (you can earn more from the dashboard quests). The balance shows at the top of the chat. The key needs the permission to read the balance.', 'e': 'and', 'Neurônios do Cloudflare usados hoje (medido pela própria Cloudflare). Zera às 00:00 UTC.': 'Cloudflare neurons used today (measured by Cloudflare itself). Resets at 00:00 UTC.',
             'Neurônios do Cloudflare usados hoje, ESTIMADOS pelo Lume (só conta o que passou por aqui). Clique para ajustar ao número do painel da Cloudflare.': 'Cloudflare neurons used today, ESTIMATED by Lume (it only counts what went through here). Click to match the number on the Cloudflare dashboard.',
             'Neurônios hoje: {n} de {l} ({s}). Zera às 00:00 UTC.': 'Neurons today: {n} of {l} ({s}). Resets at 00:00 UTC.', 'medido pela Cloudflare': 'measured by Cloudflare', 'estimado pelo Lume': 'estimated by Lume',
             'O contador já vem direto da Cloudflare: não precisa ajustar.': 'The counter already comes straight from Cloudflare: no need to adjust.', 'Ajustar o contador de neurônios': 'Adjust the neuron counter', 'Ajustar': 'Adjust', 'ex.: 135,62': 'e.g. 135.62', 'Número inválido.': 'Invalid number.',
@@ -1447,19 +1461,20 @@
         const modelById = id => MODELS.find(m => m.id === id);
         // so aparece o que esta instalado no Ollama (nuvem sempre aparece); installed = null enquanto nao sabemos
         let installed = null, installedSize = {}, vramTotalMB = 0, modelInfo = {};
-        const guestBlocks = m => isGuest() && !!auth.guest && (m.groq || m.or || m.cf || auth.guest.blocked_models.includes(m.id) || (m.cloud && auth.guest.blocked_features.includes('cloud')) || (!m.cloud && !m.phone && auth.guest.blocked_features.includes('local')));
-        const isAvail = m => guestBlocks(m) ? false : m.phone ? phoneMode() : (phoneMode() && !m.cloud ? false : (m.groq || m.or || m.cf || installed === null || installed.has(m.id)));   // no modo celular os locais do PC saem da lista
+        const guestBlocks = m => isGuest() && !!auth.guest && (m.groq || m.or || m.cf || m.pol || auth.guest.blocked_models.includes(m.id) || (m.cloud && auth.guest.blocked_features.includes('cloud')) || (!m.cloud && !m.phone && auth.guest.blocked_features.includes('local')));
+        const isAvail = m => guestBlocks(m) ? false : m.phone ? phoneMode() : (phoneMode() && !m.cloud ? false : (m.groq || m.or || m.cf || m.pol || installed === null || installed.has(m.id)));   // no modo celular os locais do PC saem da lista
         const availIn = tab => MODELS.filter(m => m.tabs.includes(tab) && isAvail(m));
         const pickDefault = list => list.find(m => m.rec && !m.cloud) || list.find(m => !m.cloud && !m.heavy) || list.find(m => !m.cloud) || list[0];
         // ---------- familias: todas as versoes e provedores de uma marca ficam num lugar so ("Qwen 2.5, 3 e 3.5"); a lista de parametros traz "versao, tamanho"
-        const PROV_TAG = m => m.or ? ' · OpenRouter' : m.cf ? ' · Cloudflare' : '';
+        const PROV_TAG = m => m.or ? ' · OpenRouter' : m.cf ? ' · Cloudflare' : m.pol ? ' · Pollinations' : '';
         function parseDyn(slug, fallbackBase) {   // 'google/gemma-4-31b-it:free', '@cf/qwen/qwen3.8-27b', 'gemma2:9b'... -> { base, ver, psize }
             const raw = String(slug).replace(/^@(cf|hf)\//, '').replace(/:free$/, ''), prov = raw.includes('/') ? raw.split('/')[0] : '';
             const s = raw.split('/').pop().toLowerCase(), sz = (s.match(/(?:^|[-_:])(\d+(?:\.\d+)?)b(?![a-z])/) || [])[1], SZ = sz ? sz + 'B' : '';
             let m;
             if ((m = s.match(/^gemma-?(\d+(?:\.\d+)?)/))) return { base: 'Gemma', ver: m[1], psize: SZ || 'Cloud' };
             if (/^qwq/.test(s)) return { base: 'Qwen', ver: 'QwQ', psize: SZ };
-            if ((m = s.match(/^qwen-?(\d+(?:\.\d+)?)/))) return { base: 'Qwen', ver: m[1], psize: (SZ + (/coder/.test(s) ? ' Coder' : '')).trim() };
+            const tier = (s.match(/-(flash|plus|max|turbo|lite|mini|nano|luna|sol|terra|pro)$/) || [])[1], TIER = tier ? tier[0].toUpperCase() + tier.slice(1) : '';
+            if ((m = s.match(/^qwen-?(\d+(?:\.\d+)?)/))) return { base: 'Qwen', ver: m[1], psize: [SZ + (/coder/.test(s) ? ' Coder' : ''), TIER].filter(Boolean).join(' ').trim() };
             if ((m = s.match(/^nemotron-(\d+(?:\.\d+)?)(?:-(.*))?$/))) {
                 const tiers = (m[2] || '').split('-').filter(w => /^(nano|omni|vl|lightning|super|ultra)$/.test(w));
                 let ver = m[1]; if (ver === '3' && tiers.includes('ultra')) ver = '4';   // do jeito do Ollama: o Ultra de 550B e o "4"
@@ -1467,6 +1482,8 @@
                 return { base: 'Nemotron', ver, psize: [SZ, ...keep].filter(Boolean).join(' ') || 'Cloud' };
             }
             if ((m = s.match(/^gpt-oss-(\d+)b/))) return { base: 'GPT-OSS', ver: '', psize: m[1] + 'B' };
+            if ((m = s.match(/^gpt-(\d+(?:\.\d+)?)(?:-(.+))?$/))) return { base: 'GPT', ver: m[1], psize: (m[2] || '').split('-').map(w => w[0].toUpperCase() + w.slice(1)).join(' ') || 'Base' };
+            if ((m = s.match(/^deepseek-v(\d+(?:\.\d+)?)-(\w+)/))) return { base: 'DeepSeek', ver: 'V' + m[1], psize: m[2][0].toUpperCase() + m[2].slice(1) };
             if (/^deepseek-r1/.test(s)) return { base: 'DeepSeek', ver: 'R1', psize: s.replace(/^deepseek-r1-?/, '').split('-').filter(Boolean).map(w => /^\d+b$/.test(w) ? w.toUpperCase() : w[0].toUpperCase() + w.slice(1)).join(' ') };
             if (raw === 'openrouter/free') return { base: 'OpenRouter', ver: '', psize: 'Free' };
             const [b, tag] = raw.split(':');
@@ -1474,7 +1491,7 @@
         }
         function finalizeModel(m) {   // base/versao/tamanho (os de lista fixa saem do famName "Qwen 3.5"), grupo da marca e os textos da lista
             if (m.base === undefined) { const x = /^(.*?)\s+(\d[\w.]*)$/.exec(m.famName || ''); m.base = x ? x[1] : (m.famName || ''); m.ver = x ? x[2] : ''; m.psize = m.params; }
-            m.grp = String(m.base).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || m.fam;
+            m.grp = (String(m.base).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || m.fam) + (m.paid ? '-pagos' : '');   // os pagos ficam num grupo a parte, no fim da lista
             m.plabel = [m.ver, m.psize].filter(Boolean).join(', ') + PROV_TAG(m);
             m.short = [m.base, m.ver, m.psize].filter(Boolean).join(' ');
             return m;
@@ -1482,7 +1499,7 @@
         const fin = m => m.grp ? m : finalizeModel(m);
         const verKey = v => { const n = parseFloat(v); return isNaN(n) ? 1e9 : n; };
         const sizeNum = m => { const x = /(\d+(?:\.\d+)?)\s*([bk]?)/i.exec(m.psize || ''); return x ? parseFloat(x[1]) * (x[2].toLowerCase() === 'k' ? 0.001 : 1) : 1e9; };
-        const provOrd = m => m.cf ? 1 : m.or ? 2 : 0;
+        const provOrd = m => m.cf ? 1 : m.or ? 2 : m.pol ? 3 : 0;
         function famTitle(ms) {   // "Gemma 3 e 4", "Qwen 2.5, 3 e 3.5"
             const vs = [...new Set(ms.map(m => m.ver).filter(Boolean))].sort((a, b) => verKey(a) - verKey(b) || a.localeCompare(b));
             const list = vs.length > 1 ? vs.slice(0, -1).join(', ') + ' ' + tr('e') + ' ' + vs[vs.length - 1] : vs[0] || '';
@@ -1491,7 +1508,7 @@
         function familiesIn(tab) {   // marcas com algum modelo local primeiro, depois as so da nuvem; cada grupo em ordem alfabetica
             const map = new Map(); availIn(tab).forEach(m => { fin(m); if (!map.has(m.grp)) map.set(m.grp, []); map.get(m.grp).push(m); });
             map.forEach(ms => ms.sort((a, b) => verKey(a.ver) - verKey(b.ver) || sizeNum(a) - sizeNum(b) || provOrd(a) - provOrd(b) || a.plabel.localeCompare(b.plabel)));
-            const key = ([, ms]) => (ms.some(m => !m.cloud) ? '0' : '1') + ms[0].base.toLowerCase();
+            const key = ([, ms]) => (ms.every(m => m.paid) ? '2' : ms.some(m => !m.cloud) ? '0' : '1') + ms[0].base.toLowerCase();
             return new Map([...map.entries()].sort((a, b) => key(a).localeCompare(key(b), 'pt', { numeric: true })));
         }
         function ensureSelected() {
@@ -1587,7 +1604,7 @@
             applyPerf();
             if (auth.local) fetch(API + '/api/perf_interval', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ms: config.perfInterval }) }).catch(() => {});
             if (auth.local || auth.authed) fetch(API + '/api/usage').then(r => r.json()).then(updateUsageBadge).catch(() => {});
-            if (auth.local || auth.authed) { await refreshLoaded(); loadOpenRouterModels(); loadCloudflareModels(); }   // descobre o que esta instalado
+            if (auth.local || auth.authed) { await refreshLoaded(); loadOpenRouterModels(); loadCloudflareModels(); loadPollinationsModels(); }   // descobre o que esta instalado
             switchTab('chat');
             startPolling();
             metricsLoop();
@@ -1749,8 +1766,9 @@
             lastModelSig = sig;
             const box = $('model-options'); box.innerHTML = '';
             const fams = familiesIn(currentTab), cur = modelById(selectedModel);
-            let i = 0;
+            let i = 0, paidHead = false; const list = document.createElement('div'); list.className = 'mo-list'; box.appendChild(list);   // 8 linhas visiveis; o resto rola
             fams.forEach((sizes, fam) => {
+                if (!paidHead && sizes.every(m => m.paid)) { paidHead = true; const h = document.createElement('div'); h.className = 'mo-group'; h.textContent = tr('Pagos (gastam pollen)'); list.appendChild(h); }
                 const rec = sizes.find(m => m.rec) || sizes[0];
                 const el = document.createElement('div');
                 el.className = 'select-option' + (fam === fin(cur).grp ? ' selected' : '') + (sizes.every(phoneBlocked) ? ' disabled' : '');
@@ -1764,7 +1782,7 @@
                 else if (sizes.some(m => loadedModels[m.id])) { const b = document.createElement('span'); b.className = 'mo-badge'; b.textContent = tr('na memória'); label.appendChild(b); }
                 el.appendChild(label);
                 el.onclick = () => { if (!el.classList.contains('disabled')) selectFamily(fam); };
-                box.appendChild(el);
+                list.appendChild(el);
             });
             if (!fams.size) { const e = document.createElement('div'); e.className = 'select-option'; e.textContent = tr('Nenhum modelo disponível.'); box.appendChild(e); }
             // linha de parametros do modelo da familia escolhida
@@ -1776,7 +1794,7 @@
                 sizes.forEach(m => { const o = new Option(fin(m).plabel + (m.heavy ? ' ⚠' : '') + (phoneBlocked(m) ? ' ✕' : ''), m.id); o.disabled = phoneBlocked(m); sel.add(o); });
                 sel.value = cur.id; sel.onchange = () => pickSize(sel.value);
                 const info = document.createElement('span'); info.className = 'size-info'; info.id = 'size-info'; info.dataset.id = cur.id; info.textContent = sizeInfoText(cur);
-                row.append(lab, sel);
+                row.append(lab, sel); if (cur.providers) row.appendChild(providerSelect(cur));
                 if (sizes.some(m => m.cloud) && sizes.some(m => !m.cloud)) {   // familia com versao local e na nuvem (ex.: Nemotron): casa = local, nuvem = nuvem
                     const mi = document.createElement('img'); mi.className = 'ic'; mi.style.margin = '0'; mi.src = cur.cloud ? 'icons/cloud.png' : 'icons/house.svg';
                     mi.title = tr(cur.cloud ? 'Roda na nuvem (precisa de internet)' : 'Roda no seu PC'); row.append(mi);
@@ -1802,6 +1820,14 @@
             $('model-trigger-text').textContent = br && br.wordmark ? [cur.ver, cur.psize].filter(Boolean).join(' ') : cur.short;
             updateCtxBar();
         }
+        function providerSelect(m) {   // provedores do mesmo modelo (ex.: DeepSeek V4.1): o padrao e o mais barato que nao e gratis; se cair, o Lume tenta o proximo
+            const sel = document.createElement('select'); sel.id = 'prov-select'; sel.title = tr('Provedor');
+            m.providers.forEach(p => sel.add(new Option(`${p.label} · ${p.free ? tr('grátis (pode estar fora do ar)') : '≈' + p.cost.toFixed(5) + ' ' + tr('pollen/mensagem')}${p.health === 'degraded' ? ' ⚠' : ''}`, p.id)));
+            sel.value = (config.polProv || {})[m.id] || m.provider_default;
+            sel.onchange = () => { config.polProv = Object.assign({}, config.polProv, { [m.id]: sel.value }); saveState(); };
+            return sel;
+        }
+        const apiModelId = m => m.providers ? 'pol:' + ((config.polProv || {})[m.id] || m.provider_default) : m.id;   // o que vai para o servidor
         async function selectFamily(fam) {
             const sizes = familiesIn(currentTab).get(fam); if (!sizes || fin(modelById(selectedModel)).grp === fam) return;
             const usable = sizes.filter(m => !phoneBlocked(m)); if (!usable.length) return;
@@ -1852,6 +1878,38 @@
             try { const d = await (await fetch(API + '/api/cloudflare_usage_set', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ neurons: r.value }) })).json(); if (d.error) { showInfo('Número inválido.'); return; } cfUsage = d; paintCfUsage(); } catch (e) { showInfo('Servidor não respondeu.'); }
         }
         setInterval(() => { if (modelById(selectedModel) && modelById(selectedModel).cf) refreshCfUsage(true); }, 60000);
+        // ---------- Pollinations: modelos que gastam "pollen" (saldo grande de graca nas missoes); o saldo aparece no topo do chat ----------
+        async function loadPollinationsModels() {
+            if (!(auth.local || auth.authed) || isGuest()) return;
+            let d; try { d = await (await fetch(API + '/api/pollinations_models')).json(); } catch (e) { return; }
+            for (let i = MODELS.length - 1; i >= 0; i--) if (MODELS[i].pol) MODELS.splice(i, 1);
+            if (d.error && !(d.models || []).length) showInfo(tr('Não consegui carregar os modelos do Pollinations: {e}', { e: d.error }), 8000);
+            (d.models || []).forEach(x => {
+                MODELS.push(Object.assign({ id: 'pol:' + x.id, fam: 'pol:' + x.id, famName: x.name, params: x.name, label: x.name + ' (Pollinations · pollen)', icon: 'cloud', tabs: ['chat'], cloud: true, pol: true, paid: true, vision: !!x.vision, ctx: x.ctx || 32768, priceIn: x.pin, priceOut: x.pout,
+                    ...(x.providers ? { providers: x.providers, provider_default: x.provider_default } : {}) }, parseDyn(x.id, x.name)));
+            });
+            if (String(config.model).startsWith('pol:') && modelById(config.model) && currentTab === 'chat') selectedModel = config.model;
+            renderModelOptions();
+        }
+        let polUsage = null, polUsageAt = 0;
+        async function refreshPolUsage(force) {
+            const m = modelById(selectedModel), badge = $('pol-badge');
+            const show = !!(m && m.pol && auth.local); badge.style.display = show ? 'inline-block' : 'none';
+            if (!show) return;
+            if (!force && Date.now() - polUsageAt < 20000) { if (polUsage) paintPolUsage(); return; }
+            polUsageAt = Date.now();
+            try { polUsage = await (await fetch(API + '/api/pollinations_usage')).json(); } catch (e) { return; }
+            paintPolUsage();
+        }
+        function paintPolUsage() {
+            const u = polUsage; if (!u || u.balance == null) return;
+            const b = $('pol-badge'), m = modelById(selectedModel); b.className = u.balance < 0.03 ? 'bad' : u.balance < 0.1 ? 'warn' : '';
+            b.style.display = m && m.pol ? 'inline-block' : 'none'; b.textContent = '🌸 ' + u.balance.toFixed(3) + ' pollen';
+            const per = m && m.priceIn != null ? (500 * m.priceIn + 500 * m.priceOut) / 1e6 : 0;
+            b.title = tr('Saldo de pollen do Pollinations.') + (per ? ' ' + tr('Uma mensagem média neste modelo custa ≈{c} pollen (uns {n} mensagens com o saldo).', { c: per.toFixed(5), n: Math.floor(u.balance / per).toLocaleString(curLang() === 'en' ? 'en-US' : 'pt-BR') }) : '') + ' ' + tr('Clique para abrir o Pollinations.');
+        }
+        function polBadgeClick() { refreshPolUsage(true); openExternal('https://pollinations.ai'); }
+        setInterval(() => { const m = modelById(selectedModel); if (m && m.pol) refreshPolUsage(true); }, 60000);
         async function loadCloudflareModels(reprobe) {   // modelos do Cloudflare Workers AI (plano gratis: 10.000 neuronios/dia); so aparecem com o token e o Account ID salvos
             if (!(auth.local || auth.authed) || isGuest()) return;
             let d; try { d = await (await fetch(API + '/api/cloudflare_models' + (reprobe === true ? '?reprobe=1' : ''))).json(); } catch (e) { return; }
@@ -1868,7 +1926,7 @@
         const HIDDEN_MODELS = /^(clef|deepseek-v4\.1-flash)\b|llama/i;   // clef e DeepSeek V4.1 Flash: nao sao gratis; Llama: fora por escolha   // instalados no Ollama, mas fora do seletor
         async function detectVision() {   // o Ollama informa as capacidades de cada modelo instalado; a etiqueta "visao" segue isso (corrige modelos que aceitam imagem e estavam sem a etiqueta)
             if (!installed) return; let changed = false;
-            await Promise.all(MODELS.filter(m => !m.phone && !m.groq && !m.or && !m.cf && installed.has(m.id) && !m._capsDone).map(async m => {
+            await Promise.all(MODELS.filter(m => !m.phone && !m.groq && !m.or && !m.cf && !m.pol && installed.has(m.id) && !m._capsDone).map(async m => {
                 m._capsDone = true;
                 try {
                     const inf = await (await fetch(API + '/api/model_info?name=' + encodeURIComponent(m.id))).json();
@@ -2801,7 +2859,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 if (!model.phone) {
                     const response = await fetch(API + '/api/chat', {
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ model: opts.model, rid: job.rid, messages: apiMessages, stream: true, think: opts.think, search_web: !isCode && config.webSearch && !blockedFeature('web'), agent: isCode && !isGuest(), lang: curLang(), num_ctx: model.cloud ? undefined : effCtx(model) })
+                        body: JSON.stringify({ model: apiModelId(model), rid: job.rid, messages: apiMessages, stream: true, think: opts.think, search_web: !isCode && config.webSearch && !blockedFeature('web'), agent: isCode && !isGuest(), lang: curLang(), num_ctx: model.cloud ? undefined : effCtx(model) })
                     });
                     if (!response.ok) { let err = {}; try { err = await response.json(); } catch (e) {} throw new Error(err.error || ('HTTP ' + response.status)); }
                     reader = response.body.getReader(); decoder = new TextDecoder();
@@ -2858,7 +2916,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 textSpan.textContent = em;
                 if (isCur()) setOverlayStatus('Erro'); else showInfo(em);
             } finally {
-                stLine.remove(); delete gens[chatId]; if (model.cf) refreshCfUsage(true);
+                stLine.remove(); delete gens[chatId]; if (model.cf) refreshCfUsage(true); if (model.pol) refreshPolUsage(true);
                 if (isCur()) { syncBusy(); updateCtxBar(); promptInput.focus(); if (fork && !failed) loadChat(chatId); }   // recarrega para mostrar o seletor de versoes
                 else if (chats[chatId] && !failed) { unread.add(chatId); showInfo(tr('"{t}" terminou de responder.', { t: dispTitle(chat.title) })); }
                 if (!Object.keys(gens).length) hidePerfStreaming();
@@ -2943,7 +3001,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             if (auth.local) checkUpdates(false);
             $('perf-style').value = config.perfStyle;
             $('perf-interval').value = config.perfInterval; $('perf-int-val').innerText = config.perfInterval;
-            $('groq-key-input').value = ''; $('or-key-input').value = ''; $('cf-token-input').value = ''; $('cf-acc-input').value = ''; $('exa-key-input').value = '';
+            $('groq-key-input').value = ''; $('or-key-input').value = ''; $('cf-token-input').value = ''; $('cf-acc-input').value = ''; $('pol-key-input').value = ''; $('exa-key-input').value = '';
             showModal('settings-modal');
             showSettingsTab('general');
             if (auth.local) { renderAppSettings(); refreshModelManager(); }
@@ -2956,6 +3014,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 $('groq-status').classList.toggle('ok', st.groq_key_saved);
                 $('or-status').textContent = tr(st.openrouter_key_saved ? 'chave salva ✓' : 'não salva'); $('or-status').classList.toggle('ok', st.openrouter_key_saved);
                 $('cf-status').textContent = tr(st.cloudflare_saved ? 'salvo ✓' : 'não salvo'); $('cf-status').classList.toggle('ok', st.cloudflare_saved);
+                $('pol-status').textContent = tr(st.pollinations_saved ? 'chave salva ✓' : 'não salva'); $('pol-status').classList.toggle('ok', st.pollinations_saved);
                 $('exa-status').textContent = tr(st.exa_key_saved ? 'chave salva ✓' : 'não salva');
                 $('exa-status').classList.toggle('ok', st.exa_key_saved);
                 $('opt-provider').value = st.search_provider || 'auto'; $('opt-exatype').value = st.exa_type || 'lite';
@@ -3044,6 +3103,8 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 const cfTok = $('cf-token-input').value.trim(), cfAcc = $('cf-acc-input').value.trim();
                 if (cfTok) body.cloudflare_api_token = cfTok;
                 if (cfAcc) body.cloudflare_account_id = cfAcc;
+                const polKey = $('pol-key-input').value.trim();
+                if (polKey) body.pollinations_api_key = polKey;
                 const exaKey = $('exa-key-input').value.trim();
                 if (exaKey) body.exa_api_key = exaKey;
                 try {
@@ -3052,7 +3113,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 } catch (e) { alert(tr('Servidor não respondeu.')); return; }
             }
             closeSettings();
-            if (auth.local) { loadOpenRouterModels(); loadCloudflareModels(); }
+            if (auth.local) { loadOpenRouterModels(); loadCloudflareModels(); loadPollinationsModels(); }
             updateCtxBar();
             if (currentChatId) loadChat(currentChatId);   // re-renderiza com as opcoes de formatacao novas
         }
@@ -3781,7 +3842,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             return { used: est, exact: false };
         }
         function updateCtxBar() {
-            refreshCfUsage();
+            refreshCfUsage(); refreshPolUsage();
             const bar = $('ctx-bar');
             bar.style.display = config.showCtxBar ? '' : 'none';
             placePerf();
