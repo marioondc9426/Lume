@@ -1377,7 +1377,7 @@ def _sse_chat(response, t0, err_map, first_timeout=None, idle_timeout=None):
         # Se quase todo o tempo foi espera antes do 1o dado, ou o resultado e impossivel, vale o tempo total do pedido.
         burst = bool(first) and (first - t0) > 1.0 and win < 0.2 * total
         gen = total if (burst or usage["completion_tokens"] / win > 2500) else win
-        yield "stats", {"tokens": usage["completion_tokens"], "seconds": gen, "prompt_tokens": usage.get("prompt_tokens", 0), "prompt_seconds": (first - t0) if first else 0, "load_seconds": 0, "total_seconds": now - t0}
+        yield "stats", {"tokens": usage["completion_tokens"], "seconds": gen, "buffered": gen == total, "prompt_tokens": usage.get("prompt_tokens", 0), "prompt_seconds": (first - t0) if first else 0, "load_seconds": 0, "total_seconds": now - t0}
 
 def cf_creds(cfg): return (cfg.get("cloudflare_api_token") or "").strip(), (cfg.get("cloudflare_account_id") or "").strip()
 
