@@ -24,10 +24,9 @@ for d in ("icons", "fonts"):
 # icone do app (1024x1024, sem transparencia)
 try:
     from PIL import Image
-    png = os.path.join(ROOT, "icons", "lume.png")
+    png = os.path.join(ROOT, "icons", "lume-mobile.png")   # ja e quadrada e opaca (o iOS arredonda os cantos sozinho)
     cat = os.path.join(HERE, "Lume", "Assets.xcassets"); app = os.path.join(cat, "AppIcon.appiconset"); os.makedirs(app, exist_ok=True)
-    im = Image.open(png).convert("RGBA"); bg = Image.new("RGBA", im.size, (27, 27, 31, 255)); bg.alpha_composite(im)
-    bg.convert("RGB").resize((1024, 1024), Image.LANCZOS).save(os.path.join(app, "icon-1024.png"))
+    Image.open(png).convert("RGB").resize((1024, 1024), Image.LANCZOS).save(os.path.join(app, "icon-1024.png"))
     json.dump({"images": [{"filename": "icon-1024.png", "idiom": "universal", "platform": "ios", "size": "1024x1024"}], "info": {"author": "xcode", "version": 1}}, open(os.path.join(app, "Contents.json"), "w"), indent=1)
     json.dump({"info": {"author": "xcode", "version": 1}}, open(os.path.join(cat, "Contents.json"), "w"), indent=1)
 except Exception as e:
