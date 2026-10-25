@@ -25,15 +25,25 @@ const LS = {
     get(k, d) { try { const v = localStorage.getItem('lume.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
     set(k, v) { try { localStorage.setItem('lume.' + k, JSON.stringify(v)); } catch (e) { /* cheio */ } },
 };
+// contas: sem senha, so separam as conversas, memorias, temas e estatisticas de quem usa o aparelho (as chaves de API sao do aparelho)
+const ACCT_KEYS = ['history', 'state', 'stats', 'themes'];
+let ACCT = String(LS.get('account', '') || '');
+const scoped = k => (ACCT && ACCT_KEYS.includes(k)) ? 'a:' + ACCT + ':' + k : k;
 const kv = (() => {
     let dbp = null;
     const open = () => dbp || (dbp = new Promise((res, rej) => { const r = indexedDB.open('lume', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }));
     return {
         async get(k, d) {
+            k = scoped(k);
             try { const db = await open(); return await new Promise(res => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result === undefined ? d : q.result); q.onerror = () => res(d); }); }
             catch (e) { return LS.get(k, d); }
         },
+        async del(k) {
+            try { const db = await open(); await new Promise((res, rej) => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').delete(k); t.oncomplete = res; t.onerror = () => rej(t.error); }); }
+            catch (e) { try { localStorage.removeItem('lume.' + k); } catch (e2) { /* nada */ } }
+        },
         async set(k, v) {
+            k = scoped(k);
             try { const db = await open(); await new Promise((res, rej) => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = res; t.onerror = () => rej(t.error); }); }
             catch (e) { LS.set(k, v); }
         },
@@ -424,6 +434,17 @@ const ROUTES = {
     'GET /api/auth/status': () => json({ local: true, root: true, authed: true, role: 'owner', remote_enabled: false, allow_remote_code: false, password_required: false, version: VERSION, app_name: 'Lume', https_port: 0, secure: true, share_open: false, invite_required: false, ios: true }),
     'POST /api/auth/logout': () => json({ ok: true }),
     'GET /api/discover': () => json({ servers: [] }),
+    'GET /api/account': () => json({ name: ACCT, accounts: LS.get('accounts', []) }),
+    'POST /api/account/login': (u, b) => {
+        const n = String((b && b.name) || '').trim().replace(/\s+/g, ' ').slice(0, 40); if (!n) return json({ error: 'Digite um nome.' }, 400);
+        const list = LS.get('accounts', []); if (!list.includes(n)) list.push(n); LS.set('accounts', list); LS.set('account', n); ACCT = n; return json({ ok: true, name: n });
+    },
+    'POST /api/account/logout': () => { LS.set('account', ''); ACCT = ''; return json({ ok: true }); },
+    'POST /api/account/delete': async (u, b) => {
+        const n = String((b && b.name) || ''); if (!n) return json({ error: 'Conta invalida.' }, 400);
+        for (const k of ACCT_KEYS) await kv.del('a:' + n + ':' + k);
+        LS.set('accounts', LS.get('accounts', []).filter(x => x !== n)); if (ACCT === n) { LS.set('account', ''); ACCT = ''; } return json({ ok: true });
+    },
     'GET /api/app_options': () => json({ frozen: true, start_with_terminal: false, terminal_open: false, start_with_windows: false, remote_enabled: false, tray: false, tray_available: false, auto_update_models: false, log_full: false, models_updated_at: 0, model_update: {} }),
     'POST /api/app_options': () => json({ ok: true }),
     'GET /api/usage': async () => json((await loadConfig()).usage || {}),
@@ -504,6 +525,31 @@ window.fetch = async function (input, init) {
     try { return h ? await h(u, body) : NOPE(); } catch (e) { return json({ error: String(e && e.message || e).slice(0, 200) }, 500); }
 };
 window.__lumeBackendRoutes = ROUTES;
+
+// botao "Logar" no topo das configuracoes
+function accountUi() {
+    const row = document.getElementById('acct-row'), btn = document.getElementById('acct-btn'), lab = document.getElementById('acct-label'); if (!row) return;
+    const names = LS.get('accounts', []), refresh = () => { lab.textContent = ACCT ? 'Conta: ' + ACCT : 'Sem conta (conversas deste aparelho)'; btn.textContent = ACCT ? 'Trocar' : 'Logar'; };
+    row.style.display = ''; refresh();
+    const post = (p, b) => realFetch === undefined ? null : window.fetch('/api/account/' + p, { method: 'POST', body: JSON.stringify(b || {}) }).then(r => r.json());
+    btn.addEventListener('click', () => {
+        const ov = document.createElement('div'); ov.className = 'acct-ov'; const sh = document.createElement('div'); sh.className = 'acct-sheet'; ov.appendChild(sh);
+        const close = () => ov.remove(), go = async name => { const r = await post('login', { name }); if (r && r.ok) location.reload(); else alert((r && r.error) || 'Nao deu para entrar.'); };
+        const mk = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+        sh.appendChild(mk('h3', '', 'Conta')); sh.appendChild(mk('p', 'hint', 'Sem senha: a conta so separa as suas conversas e memorias neste aparelho.'));
+        LS.get('accounts', []).forEach(n => {
+            const it = mk('div', 'acct-item' + (n === ACCT ? ' on' : '')); it.appendChild(mk('span', 'grow', n));
+            const del = mk('button', 'btn btn-secondary', 'Apagar'); del.addEventListener('click', async ev => { ev.stopPropagation(); if (confirm('Apagar a conta "' + n + '" e as conversas dela?')) { await post('delete', { name: n }); location.reload(); } }); it.appendChild(del);
+            it.addEventListener('click', () => { if (n !== ACCT) go(n); else close(); }); sh.appendChild(it);
+        });
+        const inp = mk('input'); inp.type = 'text'; inp.placeholder = 'Nome da conta (nova ou existente)'; inp.maxLength = 40; inp.autocomplete = 'off'; sh.appendChild(inp);
+        const ok = mk('button', 'btn btn-primary', 'Entrar'); ok.addEventListener('click', () => { if (inp.value.trim()) go(inp.value.trim()); }); sh.appendChild(ok);
+        if (ACCT) { const out = mk('button', 'btn btn-secondary', 'Sair da conta'); out.addEventListener('click', async () => { await post('logout'); location.reload(); }); sh.appendChild(out); }
+        const cl = mk('button', 'btn btn-secondary', 'Fechar'); cl.addEventListener('click', close); sh.appendChild(cl);
+        ov.addEventListener('click', e => { if (e.target === ov) close(); }); document.body.appendChild(ov);
+    });
+}
+if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', accountUi);
 
 // campo "Ollama no PC" (Configuracoes): so existe no iPhone e grava direto
 if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', () => {

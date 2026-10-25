@@ -18,6 +18,9 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate {
         web.backgroundColor = UIColor(red: 0.106, green: 0.106, blue: 0.122, alpha: 1)
         web.scrollView.backgroundColor = web.backgroundColor
         web.scrollView.contentInsetAdjustmentBehavior = .never
+        web.scrollView.bounces = false
+        web.scrollView.alwaysBounceVertical = false
+        web.scrollView.alwaysBounceHorizontal = false
         view = web
     }
 

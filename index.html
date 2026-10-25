@@ -907,6 +907,20 @@
         }
         @media (max-width: 640px) { .wl-row { flex-wrap: wrap; } .wl-row .grow { flex: 1 1 calc(100% - 30px); } .wl-row button { margin-left: 28px; } }
         html.is-ios #root-chip { display: none !important; }
+        /* iPhone: a pagina nao "estica" nem arrasta (so as listas rolam) */
+        html.is-ios, html.is-ios body { overscroll-behavior: none; height: 100%; overflow: hidden; position: fixed; width: 100%; -webkit-user-select: none; user-select: none; }
+        html.is-ios textarea, html.is-ios input, html.is-ios .final-text, html.is-ios .msg { -webkit-user-select: text; user-select: text; }
+        html.is-ios .modal-content, html.is-ios #settings-modal, html.is-ios #chat, html.is-ios #sidebar, html.is-ios #chat-list, html.is-ios .select-options, html.is-ios #set-general, html.is-ios #set-server { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+        /* conta (so no iPhone) */
+        #acct-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 10px; padding: 10px 14px; border-radius: 14px; background: rgba(128,128,128,0.12); font-size: 0.92em; }
+        #acct-row .btn { margin: 0; padding: 6px 16px; border-radius: 999px; }
+        .acct-ov { position: fixed; inset: 0; z-index: 6000; display: flex; align-items: flex-end; justify-content: center; background: rgba(0,0,0,0.55); }
+        .acct-sheet { width: min(480px, 100%); max-height: 86%; overflow-y: auto; background: var(--bg-main); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 22px 22px 0 0; padding: 18px 18px calc(18px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 10px; }
+        .acct-sheet h3 { margin: 0 0 2px; } .acct-sheet .hint { color: var(--text-muted); font-size: 0.85em; margin: 0; }
+        .acct-item { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 14px; background: rgba(128,128,128,0.12); border: 1px solid transparent; cursor: pointer; }
+        .acct-item.on { border-color: var(--accent); } .acct-item .grow { flex: 1; } .acct-item button { margin: 0; padding: 4px 10px; font-size: 0.85em; }
+        .acct-sheet input { width: 100%; }
+        .acct-sheet .btn { margin: 0; padding: 12px; border-radius: 12px; }
     </style>
 </head>
 <body data-ui="modern" data-theme="deepseek" data-bubbles="soft" data-input="card" data-logo="mark" data-hero="center" data-sidebar="left" style="--scale: 1;">
@@ -1065,6 +1079,7 @@
     <div id="settings-modal"><div class="modal-content">
         <button class="close-btn" onclick="closeSettings()">&times;</button>
         <h2>Configurações</h2>
+        <div id="acct-row" style="display:none"><span id="acct-label">Sem conta</span><button type="button" class="btn btn-secondary" id="acct-btn">Logar</button></div>
         <div class="set-tabs">
             <button class="set-tab active" id="set-tab-general" onclick="showSettingsTab('general')">Geral</button>
             <button class="set-tab" id="set-tab-server" onclick="showSettingsTab('server')">Servidor</button>
