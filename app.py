@@ -2248,7 +2248,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         alias = PAGE_ALIAS.get(p.rstrip('/') or '/')
         if alias:
             self.path = alias; log("HTTP", f"Pagina {p} aberta" + ("" if self.is_local() else f" por {self.client_ip()}"), COLOR_BLUE); return super().do_GET()
-        icon_ok = p.startswith('/icons/') and '/' not in p[len('/icons/'):] and '\\' not in p and '..' not in p
+        icon_ok = ((p.startswith('/icons/') and '/' not in p[len('/icons/'):]) or (p.startswith('/fonts/') and p.endswith('.woff2') and '/' not in p[len('/fonts/'):])) and '\\' not in p and '..' not in p
         if p not in STATIC_PAGES and not icon_ok:
             self.send_response(404); self.end_headers(); return
         if p in STATIC_PAGES:
