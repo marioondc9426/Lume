@@ -7,6 +7,8 @@ Como numerar:
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
 ## v2.4 (em desenvolvimento)
+- **Esforço de raciocínio** (seletor de modelos, só nos modelos da Pollinations que aceitam): Automático / Nenhum / Baixo / Médio / Alto / Máximo. O Lume aprende sozinho quais níveis cada modelo aceita (pelo erro dele) e usa o mais próximo. Sem o botão Pensar o padrão é "nenhum" em todos os que aceitam (antes só nos GPT), o que corta a espera antes da 1ª palavra.
+- **Pollinations**: lista completa de modelos (reliability=all), ferramentas nativas só nos modelos que têm a capacidade, espera o tempo do `Retry-After` quando o limite de pedidos estoura, latência típica (p50) no seletor de provedor, aviso de limite de pedidos por minuto, ⚠ também para provedores fora do ar. O status "Conectando ao Pollinations" virou "Esperando o Pollinations responder" (a conexão leva 0,03 s; a espera é o modelo).
 - **Novos modelos (Pollinations)**: GLM 5.3 Flash (2 grátis + 1 pago de reserva) e GLM 4.6V Flash, Muse Glimmer 30B, Muse Spark 1.3 (⚠ registra as conversas), Laguna S 2.1 na aba Code; Llama 3.1 8B xTurbo ⚡⚡, MiniMax M3.1 Flash, DeepSeek V4 Flash 0731 e Gemini 3.1 Pro grátis (⚠) nas duas abas. Provedores com aviso mostram um triângulo ⚠ e um aviso ao escolher.
 
 ## v2.3

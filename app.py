@@ -1552,9 +1552,46 @@ def _pol_req(path, key, body=None, timeout=30):
 
 def pollinations_catalog(key, force=False):
     if not force and _pol_cache["cat"] and _pol_cache["key"] == key and time.time() - _pol_cache["t"] < 1800: return _pol_cache["cat"]
-    with _pol_req("/v1/models", key) as r: data = json.load(r).get("data", [])
+    try:
+        with _pol_req("/v1/models?reliability=all&limit=500", key) as r: data = json.load(r).get("data", [])   # sem "reliability=all" a lista esconde os modelos instaveis (alguns dos novos nao apareciam)
+    except Exception:
+        with _pol_req("/v1/models", key) as r: data = json.load(r).get("data", [])
     _pol_cache.update(t=time.time(), key=key, cat={m["id"]: m for m in data if m.get("id")})
     return _pol_cache["cat"]
+
+def pol_caps(slug, key):
+    """O que o catalogo diz que o modelo faz: {effort, tools, reasoning, rpm}; None se ele nao esta no catalogo."""
+    try: m = pollinations_catalog(key).get(slug)
+    except Exception: return None
+    if not m: return None
+    caps = m.get("capabilities") or []
+    return {"effort": "reasoning_effort" in (m.get("supported_parameters") or []), "tools": "tool_calling" in caps or bool(m.get("tools")),
+            "reasoning": "reasoning" in caps or bool(m.get("reasoning")), "rpm": m.get("per_user_rpm")}
+
+_pol_status = {"t": 0, "lat": {}}
+def pol_latency(key):
+    """Latencia tipica (p50, em segundos) de cada modelo de texto, do /models/status da Pollinations; em cache por 10 min."""
+    if time.time() - _pol_status["t"] < 600: return _pol_status["lat"]
+    lat = {}
+    try:
+        with _pol_req("/models/status", key, timeout=15) as r: rows = json.load(r).get("data") or []
+        for row in rows:
+            if str(row.get("event_type", "")).endswith("text") and row.get("model") and row.get("latency_p50_ms"): lat[row["model"]] = round(row["latency_p50_ms"] / 1000, 1)
+    except Exception: pass
+    _pol_status.update(t=time.time(), lat=lat)
+    return lat
+
+EFFORT_ORDER = ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
+_pol_effort_ok = {}   # modelo -> niveis de raciocinio que ele aceita (aprendido da mensagem de erro dele)
+def _near_effort(want, allowed):
+    allowed = [a for a in EFFORT_ORDER if a in allowed]
+    if not allowed: return None
+    if want in allowed: return want
+    wi = EFFORT_ORDER.index(want) if want in EFFORT_ORDER else 3
+    return min(allowed, key=lambda a: (abs(EFFORT_ORDER.index(a) - wi), EFFORT_ORDER.index(a)))
+
+class _PolHTTP(Exception):
+    def __init__(self, code, body): super().__init__(body[:200]); self.code = code; self.body = body
 
 def _pol_price(m):
     p = (m or {}).get("pricing") or {}
@@ -1564,7 +1601,7 @@ def _pol_price(m):
 def pollinations_models(cfg):
     """Cada provedor e um modelo a parte ([{id, name, provider, ctx, vision, pin, pout, free, health, success, speed}]); a interface junta os que sao o mesmo modelo."""
     key = cfg.get("pollinations_api_key") or ""
-    cat = pollinations_catalog(key); out = []
+    cat = pollinations_catalog(key); out = []; lat = pol_latency(key)
     for mid, ex in POL_MODELS:
         m = cat.get(mid) or {}; pin, pout = _pol_price(m) if m else (ex.get("pin", 0.0), ex.get("pout", 0.0))
         if m and not m.get("pricing"): pin, pout = ex.get("pin", 0.0), ex.get("pout", 0.0)
@@ -1572,7 +1609,10 @@ def pollinations_models(cfg):
         free = bool(ex.get("free")) or (bool(m) and pin == 0 and pout == 0)
         out.append({"id": mid, "name": m.get("title") or mid.split("/")[-1], "provider": mid.split("/")[1] if mid.startswith("community/") else "oficial",
                     "ctx": m.get("context_length") or 128000, "vision": "image" in inm, "pin": pin, "pout": pout, "free": free, "guess": bool(ex.get("guess")),
-                    "health": hl.get("status") or ("degraded" if ex.get("flaky") else "?"), "success": hl.get("success_rate"), "speed": ex.get("speed", 0), "tabs": ex.get("tabs", "chat"), "warn": ex.get("warn", "")})
+                    "health": hl.get("status") or ("degraded" if ex.get("flaky") else "?"), "success": hl.get("success_rate"), "speed": ex.get("speed", 0), "tabs": ex.get("tabs", "chat"),
+                    "warn": ex.get("warn") or (f"Limite de {m['per_user_rpm']} pedidos por minuto: se mandar varias mensagens seguidas pode dar erro de limite." if m.get("per_user_rpm") and m["per_user_rpm"] <= 5 else ""),
+                    "reasoning": bool(m) and ("reasoning" in (m.get("capabilities") or []) or bool(m.get("reasoning"))), "effort": "reasoning_effort" in (m.get("supported_parameters") or []),
+                    "tools": ("tool_calling" in (m.get("capabilities") or []) or bool(m.get("tools"))) if m else None, "rpm": m.get("per_user_rpm"), "p50": lat.get(mid)})
     return out
 
 def pol_chain(slug, cfg):
@@ -1581,7 +1621,7 @@ def pol_chain(slug, cfg):
 
 POL_HTTP_ERRORS = {401: "Chave do Pollinations invalida (401). Confira a chave em Configuracoes.", 403: "A chave do Pollinations nao tem permissao (403).", 402: "Saldo de pollen insuficiente (402). Ganhe pollen nas missoes ou compre mais.", 429: "Limite do Pollinations atingido (429). Espere um pouco."}
 
-def stream_pollinations(model, messages, think, cfg, max_tokens=None, agent=False):
+def stream_pollinations(model, messages, think, cfg, max_tokens=None, agent=False, effort=None):
     """Gera ('content'|'thinking'|'stats'|'status', valor) pela API compativel com OpenAI do Pollinations; no DeepSeek V4.1, se o provedor cair antes de responder tenta o proximo mais barato."""
     key = (cfg.get("pollinations_api_key") or "").strip()
     if not key: raise Exception("Chave do Pollinations nao configurada. Abra Configuracoes e cole sua chave.")
@@ -1596,21 +1636,37 @@ def stream_pollinations(model, messages, think, cfg, max_tokens=None, agent=Fals
     for n, cand in enumerate(chain):
         payload = {"model": cand, "messages": msgs, "stream": True, "stream_options": {"include_usage": True}}
         if max_tokens: payload["max_tokens"] = int(max_tokens)
-        # os GPT 5/6 "pensam" em silencio antes da 1a palavra (a Pollinations nao mostra esse raciocinio): sem o botao Pensar, pede o minimo (era 10+ s de "Conectando")
-        if re.search(r"(^|/)gpt-[56]", cand) and "oss" not in cand and "codex" not in cand: payload["reasoning_effort"] = "medium" if think else ("none" if re.search(r"(^|/)gpt-(6|5\.[6-9])", cand) else "minimal")   # GPT-6 e 5.6+ aceitam "none"; GPT-5 e 5.4, "minimal"
-        if agent: payload["tools"] = NATIVE_TOOLS   # aba Code: chamada de ferramenta nativa (os GPT "Luna" nao seguem o formato de texto e diziam que nao conseguiram gravar)
+        caps = pol_caps(cand, key)   # None: o catalogo nao lista este modelo
+        # Esforco de raciocinio: os modelos "pensam" em silencio antes da 1a palavra (a Pollinations nao mostra esse raciocinio): sem o Pensar, o minimo (era 10+ s de "Conectando")
+        use_effort = caps["effort"] if caps else bool(re.search(r"(^|/)gpt-[56]", cand) and "oss" not in cand and "codex" not in cand)
+        if use_effort:
+            want = effort if effort in EFFORT_ORDER else ("medium" if think else "none")
+            known = _pol_effort_ok.get(cand)
+            payload["reasoning_effort"] = (_near_effort(want, known) if known else want) or want
+        if agent and (caps is None or caps["tools"]): payload["tools"] = NATIVE_TOOLS   # aba Code: chamada de ferramenta nativa (so se o modelo tem a capacidade)
         t0 = time.time()
+        hdr = {"Authorization": "Bearer " + key, "Content-Type": "application/json", "User-Agent": "lume-app"}
         try:
-            hdr = {"Authorization": "Bearer " + key, "Content-Type": "application/json", "User-Agent": "lume-app"}
-            try: response = _cloud_open(urllib.request.Request(POL_API + "/v1/chat/completions", data=json.dumps(payload).encode(), headers=hdr), "O Pollinations")
-            except urllib.error.HTTPError as e0:
-                if e0.code != 400 or not ("reasoning_effort" in payload or "tools" in payload): raise
-                if "reasoning_effort" in payload: payload.pop("reasoning_effort")   # este modelo nao aceita o ajuste: tenta de novo sem ele
-                else: payload.pop("tools")   # nem ferramentas nativas: volta ao formato de texto
-                response = _cloud_open(urllib.request.Request(POL_API + "/v1/chat/completions", data=json.dumps(payload).encode(), headers=hdr), "O Pollinations")
-        except urllib.error.HTTPError as e:
-            body = e.read().decode("utf-8", "replace"); msg = body[:200]
-            try: j = json.loads(body); msg = str((j.get("error") or {}).get("message") or msg)[:200]
+            response = None
+            for attempt in range(3):
+                try:
+                    response = _cloud_open(urllib.request.Request(POL_API + "/v1/chat/completions", data=json.dumps(payload).encode(), headers=hdr), "O Pollinations"); break
+                except urllib.error.HTTPError as e0:
+                    body0 = e0.read().decode("utf-8", "replace")
+                    if e0.code == 429 and attempt < 2:   # limite de pedidos: espera o tempo que o proprio provedor pede e tenta de novo
+                        try: wait = min(15.0, float(e0.headers.get("Retry-After") or 3))
+                        except ValueError: wait = 3.0
+                        yield "status", f"Limite de pedidos do provedor; esperando {wait:.0f} s"; time.sleep(wait); continue
+                    if e0.code == 400 and "reasoning_effort" in payload and attempt < 2:   # o erro diz quais niveis o modelo aceita: usa o mais proximo e lembra
+                        mm = re.search(r"upported values are:?([^.\"]*)", body0); ok = [x for x in re.findall(r"'(\w+)'", mm.group(1)) if x in EFFORT_ORDER] if mm else []
+                        if ok: _pol_effort_ok[cand] = ok; payload["reasoning_effort"] = _near_effort(payload["reasoning_effort"], ok)
+                        else: payload.pop("reasoning_effort")
+                        continue
+                    if e0.code == 400 and "tools" in payload and attempt < 2: payload.pop("tools"); continue   # nem ferramentas nativas: volta ao formato de texto
+                    raise _PolHTTP(e0.code, body0)
+        except _PolHTTP as e:
+            msg = e.body[:200]
+            try: j = json.loads(e.body); msg = str((j.get("error") or {}).get("message") or msg)[:200]
             except (ValueError, AttributeError): pass
             last = Exception(POL_HTTP_ERRORS.get(e.code) or f"Pollinations respondeu {e.code}: {msg}")
             if e.code in (401, 403, 402): raise last   # chave ruim ou sem saldo: trocar de provedor nao adianta
@@ -1631,8 +1687,8 @@ def stream_pollinations(model, messages, think, cfg, max_tokens=None, agent=Fals
             if n + 1 < len(chain): yield "status", "Provedor fora do ar; tentando o proximo"
     raise last or Exception("O Pollinations nao respondeu.")
 
-def stream_model(model, messages, think, cfg, num_ctx=None, max_tokens=None, agent=False):
-    if model.startswith("pol:"): return stream_pollinations(model, messages, think, cfg, max_tokens, agent)
+def stream_model(model, messages, think, cfg, num_ctx=None, max_tokens=None, agent=False, effort=None):
+    if model.startswith("pol:"): return stream_pollinations(model, messages, think, cfg, max_tokens, agent, effort)
     if model.startswith("or:"): return stream_openrouter(model, messages, think, cfg, max_tokens)
     if model.startswith("cf:"): return stream_cloudflare(model, messages, think, cfg, max_tokens)
     return stream_groq(model, messages, cfg) if model.startswith("groq") else stream_ollama(model, messages, think, num_ctx, max_tokens)
@@ -2706,6 +2762,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         def status(text): emit({"status": text})
 
         total_chars = 0
+        kw_model = {k: v for k, v in (("agent", True if agent else None), ("effort", str(req_json.get("effort") or "") or None)) if v}   # so manda o que foi pedido
         try:
             if not model.startswith(("groq", "or:", "cf:", "pol:")):
                 if not ollama_is_running():
@@ -2714,7 +2771,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 if model not in [m["name"] for m in ollama_ps()]:
                     status("Carregando modelo")
             else:
-                status("Conectando ao OpenRouter" if model.startswith("or:") else "Conectando ao Cloudflare" if model.startswith("cf:") else "Conectando ao Pollinations" if model.startswith("pol:") else "Conectando ao Groq")
+                status("Conectando ao OpenRouter" if model.startswith("or:") else "Conectando ao Cloudflare" if model.startswith("cf:") else "Esperando o Pollinations responder" if model.startswith("pol:") else "Conectando ao Groq")
 
             if not messages or messages[0].get("role") != "system":
                 messages.insert(0, {"role": "system", "content": ""})
@@ -2743,7 +2800,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             for step in range(MAX_AGENT_STEPS if agent else 1):
                 if step: emit({"step": step})   # a interface separa o pensamento de cada rodada em um bloco
                 full = ""
-                gen = (stream_model(model, messages, think, cfg, num_ctx, gmax, agent=True) if agent else stream_model(model, messages, think, cfg, num_ctx, gmax)); splitter = ThinkSplitter()
+                gen = stream_model(model, messages, think, cfg, num_ctx, gmax, **kw_model); splitter = ThinkSplitter()
                 try:
                     for kind, piece in gen:
                         if stopped(): break
