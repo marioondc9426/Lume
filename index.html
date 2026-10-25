@@ -2885,7 +2885,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 syncBusy(); showPerfStreaming();
             }
             renderSidebar();
-            let fullResponse = '', gotText = false, chars = 0, lastStats = null, failed = false, applied = false; const msgSources = []; let srcEl = null;
+            let fullResponse = '', gotText = false, chars = 0, tokEst = 0, lastStats = null, failed = false, applied = false; const msgSources = []; let srcEl = null;
             let active = model; const chain = fallbackChain(model, isCode ? 'code' : 'chat'), ci0 = -1; let ci = ci0;   // active = provedor em uso; chain = os proximos mais baratos do mesmo modelo
             let curThink = null, thinkLast = null, thinkN = 0;   // um bloco de pensamento por rodada: a IA pode pensar de novo depois de usar uma ferramenta ou pesquisar
             const thinkBox = () => {
@@ -2922,12 +2922,12 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                     if (data.step !== undefined) { curThink = null; return; }   // comecou outra rodada: o proximo pensamento vai para um bloco novo
                     if (data.sources) { data.sources.forEach(x => { if (x.url && !msgSources.some(y => y.url === x.url)) msgSources.push(x); }); if (!srcEl) { srcEl = sourcesEl([]); textSpan.after(srcEl); } fillSources(srcEl, msgSources); return; }
                     const msg = data.message || {};
-                    if (msg.thinking) { const tb = thinkBox(); tb.textContent += msg.thinking; tb.scrollTop = tb.scrollHeight; status('Pensando'); }
+                    if (msg.thinking) { const tb = thinkBox(); tb.textContent += msg.thinking; tb.scrollTop = tb.scrollHeight; status('Pensando'); tokEst += Math.max(1, Math.round(msg.thinking.length / 3.5)); if (isCur()) updateStreamingPerf(tokEst); }
                     if (msg.content) {
                         if (!gotText) { textSpan.textContent = ''; gotText = true; }
                         status('Escrevendo');
                         fullResponse += msg.content; const shown = stripMem(fullResponse); textSpan.innerHTML = renderRich(shown); aiDiv._raw = shown;
-                        chars += msg.content.length; if (isCur()) updateStreamingPerf(chars);
+                        chars += msg.content.length; tokEst += Math.max(1, Math.round(msg.content.length / 3.5)); if (isCur()) updateStreamingPerf(tokEst);   // cada pedaco vale pelo menos 1 token (o Ollama manda 1 token por pedaco)
                     }
                     if (isCur()) followBottom();
                 };
@@ -2939,7 +2939,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                         note.textContent = '⚠ ' + tr('{a} falhou: {e}. Recomeçando com {b}...', { a: providerName(active), e: String(why).replace(/\s+/g, ' ').slice(0, 170), b: providerName(nx) });
                         aiDiv.insertBefore(note, textSpan);
                         ci++; active = nx; aiDiv.dataset.model = nx.id; const tg0 = aiDiv.querySelector('.msg-tag'); if (tg0) tg0.replaceWith(modelTag(nx.id));
-                        tStart = Date.now(); fullResponse = ''; gotText = false; chars = 0; lastStats = null; textSpan.innerHTML = `<span class="loading-dots">${esc(tr('Iniciando'))}</span>`;
+                        tStart = Date.now(); fullResponse = ''; gotText = false; chars = 0; tokEst = 0; streamStart = null; perfSamples = []; lastStats = null; textSpan.innerHTML = `<span class="loading-dots">${esc(tr('Iniciando'))}</span>`;
                         return true;
                     };
                     try {
@@ -3481,7 +3481,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
         }
 
         // ---------- overlay de desempenho ----------
-        let streaming = false, streamStart = 0, perfHideTimer = null, realTps = null, lastAlertId = null;
+        let streaming = false, streamStart = null, perfSamples = [], perfHideTimer = null, realTps = null, lastAlertId = null;
         const perfMonitor = $('perf-monitor');
         const speedClass = t => t < 5 ? 'slow' : t < 15 ? 'normal' : 'fast';
         const speedLabel = t => tr(t < 5 ? 'Lento' : t < 15 ? 'Normal' : 'Rápido');
@@ -3519,7 +3519,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
         }
         function showPerfStreaming() {
             clearTimeout(perfHideTimer);
-            streaming = true; streamStart = Date.now(); realTps = null;
+            streaming = true; streamStart = null; perfSamples = []; realTps = null;   // o relogio so comeca no 1o token (espera da conexao e do prompt nao conta)
             ['mon-tokens', 'mon-wpm', 'mon-speed'].forEach(id => $(id).style.display = '');
         }
         function hidePerfStreaming() {
@@ -3532,10 +3532,12 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             const s = $('mon-speed'); s.className = 'perf-speed ' + speedClass(+tps);
             s.textContent = `${speedLabel(+tps)} (${tps} t/s)`;
         }
-        function updateStreamingPerf(chars) {
+        function updateStreamingPerf(tokens) {   // estimativa enquanto a resposta chega: tokens recebidos / tempo, olhando so os ultimos ~2 s (a resposta chega em rajadas) e sem contar a espera ate o 1o token
             if (realTps !== null) return;
-            const secs = Math.max((Date.now() - streamStart) / 1000, 0.001);
-            renderPerf((chars / 4 / secs).toFixed(1), (chars / 5 / secs).toFixed(1), false);   // estimativa: ~4 chars/token, ~5 chars/palavra
+            const now = performance.now(); if (streamStart === null) streamStart = now;
+            perfSamples.push([now, tokens]); while (perfSamples.length > 2 && now - perfSamples[0][0] > 2000) perfSamples.shift();
+            const [t0, k0] = perfSamples[0], dt = (now - t0) / 1000; if (perfSamples.length < 2 || dt < 0.3) return;   // pouca amostra: mantem o valor anterior
+            const tps = (tokens - k0) / dt; renderPerf(tps.toFixed(1), (tps * 0.75).toFixed(1), false);   // ~0,75 palavra por token
         }
         // O Ollama informa tokens e tempo reais no fim da resposta
         function showRealPerf(st) {
