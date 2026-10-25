@@ -1295,7 +1295,11 @@ def _sse_chat(response, t0, err_map, first_timeout=None, idle_timeout=None):
     if state["timed"]: raise Exception(f"O provedor parou de responder (sem dados por {state['limit']} s).")
     if cut: yield "content", "\n\n[Cortado: o modelo atingiu o limite de tokens da resposta]"
     if usage and usage.get("completion_tokens"):
-        now = time.time(); gen = max(0.001, now - (first or t0))
+        now = time.time(); win = max(0.001, now - (first or t0)); total = max(0.001, now - t0)
+        # alguns provedores (Pollinations) seguram a resposta e soltam tudo de uma vez no fim: o tempo entre o 1o e o ultimo pedaco nao e o de geracao (dava 7.000 t/s).
+        # Se quase todo o tempo foi espera antes do 1o dado, ou o resultado e impossivel, vale o tempo total do pedido.
+        burst = bool(first) and (first - t0) > 1.0 and win < 0.2 * total
+        gen = total if (burst or usage["completion_tokens"] / win > 2500) else win
         yield "stats", {"tokens": usage["completion_tokens"], "seconds": gen, "prompt_tokens": usage.get("prompt_tokens", 0), "prompt_seconds": (first - t0) if first else 0, "load_seconds": 0, "total_seconds": now - t0}
 
 def cf_creds(cfg): return (cfg.get("cloudflare_api_token") or "").strip(), (cfg.get("cloudflare_account_id") or "").strip()

@@ -118,7 +118,7 @@
         .msg.user.queued { opacity: .65; border: 1px dashed var(--border-color); animation: none; }
         .msg.user.queued .msg-actions { opacity: 1; }
         .q-tag { display: block; font-size: 0.72em; color: var(--text-muted); margin-bottom: 4px; }
-        .copy-btn .glyph { font-size: 13px; line-height: 14px; width: 14px; text-align: center; }
+        .copy-btn { color: var(--text-main); } .copy-btn .glyph { font-size: 13px; line-height: 14px; width: 14px; text-align: center; color: var(--text-main); }   /* o botao de regenerar (texto, nao imagem) ficava preto no tema escuro */
         .var-nav { position: absolute; bottom: 6px; left: 12px; display: flex; align-items: center; gap: 2px; font-size: 0.75em; color: var(--text-muted); }
         .var-nav button { background: none; border: none; color: inherit; cursor: pointer; padding: 0 5px; font-size: 1.3em; line-height: 1; }
         .var-nav button:disabled { opacity: .3; cursor: default; } .var-nav button:not(:disabled):hover { color: var(--text-main); }
@@ -2906,8 +2906,9 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             const status = s => { if (s === curSt && statusInit) return; statusInit = true; curSt = s; if (isCur() && s !== lastOverlay) { lastOverlay = s; setOverlayStatus(s); } paintWait(); };
             // o texto da resposta (markdown + codigo + formulas) e redesenhado no maximo ~14 vezes por segundo: refazer tudo a cada token travava a tela
             let dirty = false, renderTimer = null, thinkEl = null;
-            const doRender = () => { renderTimer = null; if (thinkEl) thinkEl.scrollTop = thinkEl.scrollHeight; if (!dirty) return; dirty = false; const shown = stripMem(fullResponse); textSpan.innerHTML = renderRich(shown); aiDiv._raw = shown; if (isCur()) followBottom(); };
-            const scheduleRender = () => { if (renderTimer === null) renderTimer = setTimeout(doRender, 70); };
+            let renderCost = 0;   // quanto custou o ultimo desenho: texto longo demora mais, entao o intervalo cresce junto (o desenho nunca ocupa mais que ~20% do tempo)
+            const doRender = () => { renderTimer = null; if (thinkEl) thinkEl.scrollTop = thinkEl.scrollHeight; if (!dirty) return; dirty = false; const r0 = performance.now(); const shown = stripMem(fullResponse); textSpan.innerHTML = renderRich(shown); aiDiv._raw = shown; if (isCur()) followBottom(); renderCost = performance.now() - r0; };
+            const scheduleRender = () => { if (renderTimer === null) renderTimer = setTimeout(doRender, Math.max(70, renderCost * 4)); };
             const flushRender = () => { clearTimeout(renderTimer); doRender(); };
 
             const waitTick = setInterval(() => { if (!gotText) paintWait(); }, 1000);   // enquanto nao chega texto, mostra ha quantos segundos esta esperando
