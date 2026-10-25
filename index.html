@@ -719,6 +719,32 @@
             body[data-ui="modern"] #settings-modal .form-group { background: var(--seg-bg); border-radius: 16px; padding: 12px 14px; margin-bottom: 4px; }
             body[data-ui="modern"] .modal-content .btn { border-radius: 12px; }
         }
+
+        /* ===== lote A: tema Lume, botoes da janela, botao Pensar animado ===== */
+        body[data-ui="modern"][data-theme="lume"] { --bg-main: #15131c; --bg-sidebar: #100e16; --bg-msg-user: #2a2236; --bg-msg-ai: #1d1a26; --bg-input: #1e1a28; --text-main: #f1ecf7; --text-muted: #9b92aa; --border-color: #2d2639; --accent: #e8467c; --grad: linear-gradient(135deg, #f5a623 0%, #e8467c 52%, #8b5cf6 100%); --in-radius: 24px; --in-border: #3a3050; --newchat-bg: linear-gradient(135deg, #f5a623 0%, #e8467c 52%, #8b5cf6 100%); --newchat-fg: #fff; --hero-size: 2em; --hero-weight: 700; --icon-filter: invert(1); --glow: radial-gradient(ellipse 60% 46% at 50% 0%, rgba(139,92,246,0.26), rgba(21,19,28,0) 72%), radial-gradient(ellipse 48% 38% at 88% 100%, rgba(232,70,124,0.18), rgba(21,19,28,0) 72%); }
+        body[data-ui="modern"][data-theme="lume"] #send-btn { background: var(--grad); }
+        body[data-ui="modern"][data-theme="lume"] #hero h1 { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        body[data-ui="modern"][data-theme="lume"] #sidebar .tab.active { background: var(--grad); color: #fff; }
+        body[data-ui="modern"][data-theme="lume"] .chat-item.active { box-shadow: inset 3px 0 0 #e8467c; }
+
+        /* botoes da janela (minimizar, maximizar, fechar): compactos por padrao, com fundo visivel */
+        body[data-ui="modern"] #titlebar { z-index: 4600; }
+        body[data-ui="modern"] .tb-btns { margin: 5px 10px 0 auto; height: 26px; background: var(--wb-bg, var(--seg-bg)); border-radius: var(--wb-r, 9px); overflow: hidden; align-items: stretch; backdrop-filter: blur(6px); }
+        body[data-ui="modern"] .tb-btn { width: var(--wb-w, 34px); height: 100%; color: var(--text-main); }
+        body[data-ui="modern"] .tb-btn svg { width: 10px; height: 10px; }
+        body[data-ui="modern"][data-winbtn="normal"] .tb-btns { margin: 0 0 0 auto; height: 34px; background: transparent; border-radius: 0; backdrop-filter: none; }
+        body[data-ui="modern"][data-winbtn="normal"] .tb-btn { width: 46px; }
+        body.editing #theme-panel { top: 38px; }
+
+        /* botao Pensar: transicao suave, icone que gira e um brilho quando liga */
+        body[data-ui="modern"] .controls .toggle-container { transition: background .25s ease, color .25s ease, border-color .25s ease, transform .15s ease, box-shadow .3s ease; }
+        body[data-ui="modern"] .controls .toggle-container:active { transform: scale(0.93); }
+        body[data-ui="modern"] .think-ic { width: 15px; height: 15px; margin-right: 6px; transition: transform .45s cubic-bezier(.3, 1.4, .5, 1), color .25s; }
+        body[data-ui="modern"] .controls .toggle-container:has(input:checked) { animation: thinkPop .45s ease; }
+        body[data-ui="modern"] .controls .toggle-container:has(input:checked) .think-ic { transform: rotate(180deg) scale(1.12); animation: thinkSpark 2.4s ease-in-out .5s infinite; }
+        @keyframes thinkPop { 0% { transform: scale(0.9); box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); } 60% { transform: scale(1.06); } 100% { transform: scale(1); box-shadow: 0 0 0 10px transparent; } }
+        @keyframes thinkSpark { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+        body.no-anim .controls .toggle-container, body.no-anim .think-ic { animation: none !important; transition: none !important; }
     </style>
 </head>
 <body data-ui="modern" data-theme="deepseek" data-bubbles="soft" data-input="card" data-logo="mark" data-hero="center" data-sidebar="left" style="--scale: 1;">
@@ -834,7 +860,7 @@
                 </div>
 
                 <label class="toggle-container" title="Pensar">
-                    <input type="checkbox" id="use-thinking"><div class="toggle-switch"></div><span class="shrinkable">Pensar</span>
+                    <input type="checkbox" id="use-thinking"><div class="toggle-switch"></div><svg class="si think-ic" viewBox="0 0 24 24"><path d="M12 3l1.9 4.6L18.5 9.5l-4.6 1.9L12 16l-1.9-4.6L5.5 9.5l4.6-1.9z"/><path d="M19 15l.8 1.9 1.9.8-1.9.8-.8 1.9-.8-1.9-1.9-.8 1.9-.8z"/></svg><span class="shrinkable">Pensar</span>
                 </label>
 
                 <textarea id="prompt" rows="1" placeholder="Digite... (Shift+Enter quebra a linha, / para comandos)" autocomplete="off"></textarea>
@@ -1021,6 +1047,17 @@
         <div class="form-group">
             <label class="toggle-container"><input type="checkbox" id="opt-legacy" onchange="setUiLegacy(this.checked)"><div class="toggle-switch"></div> Interface clássica (a antiga, com temas só de cor)</label>
             <span class="hint">A interface nova tem lateral recolhível, tela inicial no meio e temas que mudam fonte, cantos, barra de digitação, mensagens e fundo. Desligado = interface nova.</span>
+        </div>
+        <div class="form-group host-only">
+            <label>Botões da janela (minimizar, maximizar, fechar)</label>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                <select id="opt-winbtn" onchange="setWinBtn({ mode: this.value })"><option value="compact">Compactos</option><option value="normal">Padrão do Windows</option><option value="custom">Personalizado</option></select>
+                <span id="winbtn-custom" style="display:none; gap:8px; align-items:center;">
+                    <input type="number" id="opt-wb-w" min="22" max="64" style="width:70px;" title="Largura de cada botão" onchange="setWinBtn({ w: +this.value })">
+                    <select id="opt-wb-r" onchange="setWinBtn({ r: +this.value })"><option value="0">Quadrados</option><option value="9">Arredondados</option><option value="99">Cápsula</option></select>
+                    <input type="color" id="opt-wb-bg" title="Cor de fundo" onchange="setWinBtn({ bg: this.value })">
+                </span>
+            </div>
         </div>
         <div class="form-group">
             <label>Tema</label>
@@ -1241,11 +1278,12 @@
             if (r.status === 403 && isGuest()) r.clone().json().then(d => { if (d && d.error === 'disabled') showGuestOff(d.message, d.reason); }).catch(() => {});
             return r;
         };
-        const THEMES_MODERN = ['deepseek', 'kimi', 'claude', 'ollama', 'gemini', 'perplexity'], THEMES_LEGACY = ['dark', 'claude', 'roxo'];
-        const THEME_LABELS = { deepseek: 'DeepSeek', kimi: 'Kimi', claude: 'Claude', ollama: 'Ollama', gemini: 'Gemini', perplexity: 'Perplexity', dark: 'Escuro', roxo: 'Roxo' };
+        const THEMES_MODERN = ['lume', 'deepseek', 'kimi', 'claude', 'ollama', 'gemini', 'perplexity'], THEMES_LEGACY = ['dark', 'claude', 'roxo'];
+        const THEME_LABELS = { lume: 'Lume', deepseek: 'DeepSeek', kimi: 'Kimi', claude: 'Claude', ollama: 'Ollama', gemini: 'Gemini', perplexity: 'Perplexity', dark: 'Escuro', roxo: 'Roxo' };
         const themesNow = () => config.uiLegacy ? THEMES_LEGACY : THEMES_MODERN, defaultTheme = () => config.uiLegacy ? 'dark' : 'deepseek';
         // o que cada tema muda ALEM das cores (as cores ficam no CSS): estilo das mensagens, da barra de digitacao, logo e texto da tela inicial, lateral
         const THEME_TRAITS = {
+            lume:       { bubbles: 'soft', input: 'card', logo: 'mark', hero: 'center', sidebar: 'left', greet: { pt: 'O que vamos criar hoje?', en: 'What shall we create today?' } },
             deepseek:   { bubbles: 'soft', input: 'card', logo: 'mark', hero: 'center', sidebar: 'left', greet: { pt: 'Em que posso ajudar?', en: 'How can I help?' } },
             kimi:       { bubbles: 'soft', input: 'card', logo: 'caps', hero: 'center', sidebar: 'left', greet: null },
             claude:     { bubbles: 'soft', input: 'card', logo: 'mark', hero: 'center', sidebar: 'left', greet: { pt: 'Por onde vamos começar?', en: 'Where shall we begin?' } },
@@ -1700,6 +1738,7 @@
             const s = raw.split('/').pop().toLowerCase().replace(/-free$/, '').replace(/-quest$/, '').replace(/^(nvidia|vercel|reflection)-/, '').replace(/^(nvidia|vercel)-/, ''), sz = (s.match(/(?:^|[-_:])(\d+(?:\.\d+)?)b(?![a-z])/) || [])[1], SZ = sz ? sz + 'B' : '';
             let m;
             if ((m = s.match(/^gemma-?(\d+(?:\.\d+)?)/))) return { base: 'Gemma', ver: m[1], psize: SZ || 'Cloud' };
+            if ((m = s.match(/^diffusiongemma-?(\d+(?:\.\d+)?)/))) return { base: 'Gemma', ver: m[1], psize: (SZ ? SZ + ' ' : '') + 'Diffusion' };
             if ((m = s.match(/^gemini-(\d+(?:\.\d+)?)-?(.*)$/))) return { base: 'Gemini', ver: m[1], psize: (m[2] || '').split('-').filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(' ') || 'Base' };
             if ((m = s.match(/^llama-?(\d+(?:\.\d+)?)/))) return { base: 'Llama', ver: m[1], psize: SZ || 'Base' };
             if (/^beam(-free)?$/.test(s)) return { base: 'Beam', ver: '', psize: 'Cloud' };
@@ -1741,6 +1780,8 @@
         const provOrd = m => m.cf ? 1 : m.or ? 2 : m.pol ? 3 : 0;
         function famTitle(ms) {   // "Gemma 3 e 4", "Qwen 2.5, 3 e 3.5"
             const vs = [...new Set(ms.map(m => m.ver).filter(Boolean))].sort((a, b) => verKey(a) - verKey(b) || a.localeCompare(b));
+            const nums = vs.filter(v => /^\d+(\.\d+)?$/.test(v));
+            if (/^(Qwen|Nemotron)$/.test(ms[0].base) && nums.length > 2) return ms[0].base + ' ' + nums[0] + ' – ' + nums[nums.length - 1];   // muitas versoes: so o intervalo
             const list = vs.length > 1 ? vs.slice(0, -1).join(', ') + ' ' + tr('e') + ' ' + vs[vs.length - 1] : vs[0] || '';
             return ms[0].base + (list ? ' ' + list : '');
         }
@@ -1855,7 +1896,7 @@
             if (auth.local) fetch(API + '/api/perf_interval', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ms: config.perfInterval }) }).catch(() => {});
             if (auth.local || auth.authed) fetch(API + '/api/usage').then(r => r.json()).then(updateUsageBadge).catch(() => {});
             initStep = 'refreshLoaded'; if (auth.local || auth.authed) { await refreshLoaded(); loadOpenRouterModels(); loadGroqModels(); loadTomdacatModels(); loadCloudflareModels(); loadPollinationsModels(); }   // descobre o que esta instalado
-            initStep = 'switchTab'; switchTab('chat');
+            initStep = 'switchTab'; switchTab('chat', true);
             initDone = true; startPolling();
             if (!metricsStarted) metricsLoop();
         }
@@ -1924,7 +1965,7 @@
         }
 
         // ---------- abas ----------
-        function switchTab(tab) {
+        function switchTab(tab, fresh) {
             currentTab = tab;
             document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
             const valid = availIn(tab);
@@ -1933,7 +1974,10 @@
             if (!lm || !lm.tabs.includes(tab) || !isAvail(lm)) { const l = valid.find(m => !m.cloud && !m.heavy); if (l) lastLocalModel = l.id; }
             renderModelOptions();
             const ids = Object.keys(chats).filter(id => tabOf(id) === tab);
-            if (ids.length) loadChat(ids[ids.length - 1]); else createNewChat();
+            if (fresh && config.openNewChat !== false) {   // ao abrir o app: tela inicial (reaproveita a conversa vazia mais recente em vez de empilhar vazias)
+                const empty = ids.slice().reverse().find(id => !chats[id].messages.length);
+                if (empty) loadChat(empty); else createNewChat();
+            } else if (ids.length) loadChat(ids[ids.length - 1]); else createNewChat();
         }
 
         // ---------- dropdown de modelos ----------
@@ -1990,8 +2034,8 @@
         const brandOf = rec => { const s = `${rec.fam} ${rec.famName} ${rec.id}`; return BRANDS.find(b => b.re.test(s) && brandFile(b, rec)) || null; };   // a primeira marca que combina E tem imagem
         const brandFile = (b, rec) => b.pick ? b.pick(`${rec.famName} ${rec.id}`) : b.img;
         // logos dos provedores (icons/prov-*.png): o arquivo que faltar simplesmente nao aparece
-        const PROV_LOGOS = { ollama: { img: 'prov-ollama.png', mono: true, ratio: 50 / 64, name: 'Ollama' }, openrouter: { img: 'prov-openrouter.png', name: 'OpenRouter' }, pollinations: { img: 'prov-pollinations.png', mono: true, ratio: 1, name: 'Pollinations' }, cloudflare: { img: 'prov-cloudflare.png', name: 'Cloudflare' }, groq: { img: 'prov-groq.png', mono: true, ratio: 2.62, name: 'Groq' }, tomdacat: { img: 'prov-tomdacat.svg', mono: true, ratio: 2.02, name: 'tomdacat' } };
-        const provKey = m => m.tdc ? 'tomdacat' : m.or ? 'openrouter' : m.cf ? 'cloudflare' : m.pol ? 'pollinations' : m.groq ? 'groq' : m.phone ? null : 'ollama';
+        const PROV_LOGOS = { 'ollama-cloud': { img: 'prov-ollama.png', mono: true, ratio: 50 / 64, name: 'Ollama (nuvem)' }, ollama: { img: 'prov-ollama.png', mono: true, ratio: 50 / 64, name: 'Ollama (no seu PC)' }, openrouter: { img: 'prov-openrouter.png', name: 'OpenRouter' }, pollinations: { img: 'prov-pollinations.png', mono: true, ratio: 1, name: 'Pollinations' }, cloudflare: { img: 'prov-cloudflare.png', name: 'Cloudflare' }, groq: { img: 'prov-groq.png', mono: true, ratio: 2.62, name: 'Groq' }, tomdacat: { img: 'prov-tomdacat.svg', mono: true, ratio: 2.02, name: 'tomdacat' } };
+        const provKey = m => m.tdc ? 'tomdacat' : m.or ? 'openrouter' : m.cf ? 'cloudflare' : m.pol ? 'pollinations' : m.groq ? 'groq' : m.phone ? null : isLocalM(m) ? 'ollama' : 'ollama-cloud';
         function provLogos(sizes) {
             const keys = Object.keys(PROV_LOGOS).filter(k => sizes.some(m => provKey(m) === k)); if (!keys.length) return null;
             const box = document.createElement('span'); box.className = 'mo-provs';
@@ -1999,7 +2043,7 @@
                 const L = PROV_LOGOS[k]; let e;
                 if (L.mono) { e = document.createElement('span'); e.className = 'pv pv-mono'; e.style.aspectRatio = L.ratio || 1; e.style.setProperty('--m', `url("icons/${L.img}")`); }
                 else { e = document.createElement('img'); e.className = 'pv'; e.src = 'icons/' + L.img; e.alt = L.name; e.onerror = () => e.remove(); }
-                if (k === 'ollama' && sizes.some(isLocalM)) {   // tem versao para rodar no PC: alpaca + um "+" azul
+                if (k === 'ollama') {   // tem versao para rodar no PC: alpaca + um "+" azul
                     const w = document.createElement('span'); w.className = 'pv-wrap'; w.title = tr('Ollama (também roda no seu PC)'); w.appendChild(e); const pl = document.createElement('i'); pl.className = 'pv-plus'; w.appendChild(pl); box.appendChild(w); return;
                 }
                 e.title = L.name; box.appendChild(e);
@@ -2478,7 +2522,7 @@
 
         // ---------- formatacao: **negrito** e * -> • ----------
         const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        function bullets(t) { return config.starToDot ? t.replace(/^([ \t]*)\*(?=[ \t])/gm, '$1•') : t; }
+        function bullets(t) { return config.starToDot ? t.replace(/^([ \t]*)[*-](?=[ \t])/gm, '$1•') : t; }   // "* item" e "- item" viram "• item"
         function fmt(text) { return esc(bullets(text)).replace(/\*\*([^*\n]+?)\*\*/g, '<b>$1</b>'); }
         const plain = text => bullets(text).replace(/\*\*([^*\n]+?)\*\*/g, '$1');
 
@@ -3375,7 +3419,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             $('system-prompt-input').value = sysPrompt(false);
             $('code-prompt-input').value = sysPrompt(true);
             $('opt-lang').value = curLang(); $('opt-anim').checked = config.animations !== false; $('opt-hidevram').checked = config.hideVramWarn !== false;
-            $('opt-ctx').value = String(config.numCtx); $('opt-maxctx').checked = !!config.maxCtx; $('opt-ctx').disabled = !!config.maxCtx; $('opt-ctxdiv').checked = !!config.ctxDivide; $('opt-ctxdiv-num').value = config.ctxDivisor || 4; ctxDivUi(true); $('opt-ctxbar').checked = config.showCtxBar; $('opt-web').checked = config.webSearch; $('opt-legacy').checked = !!config.uiLegacy; $('opt-searchmode').value = config.searchMode || 'tool'; $('opt-star').checked = config.starToDot; $('opt-autostop').checked = config.autoStopPrev;
+            $('opt-ctx').value = String(config.numCtx); $('opt-maxctx').checked = !!config.maxCtx; $('opt-ctx').disabled = !!config.maxCtx; $('opt-ctxdiv').checked = !!config.ctxDivide; $('opt-ctxdiv-num').value = config.ctxDivisor || 4; ctxDivUi(true); $('opt-ctxbar').checked = config.showCtxBar; $('opt-web').checked = config.webSearch; applyWinBtn(); $('opt-legacy').checked = !!config.uiLegacy; $('opt-searchmode').value = config.searchMode || 'tool'; $('opt-star').checked = config.starToDot; $('opt-autostop').checked = config.autoStopPrev;
             $('perf-enabled').checked = config.perfEnabled; $('opt-autoupd').checked = config.autoUpdate !== false;
             $('perf-style').value = config.perfStyle;
             if (auth.local) checkUpdates(false);
@@ -3459,6 +3503,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
         }
         // fonte, cantos, estilo da barra de digitacao/mensagens/lateral, fundo e a tela inicial (so na interface nova)
         function applyThemeExtras(base, custom) {
+            applyWinBtn();
             const b = document.body, tr0 = Object.assign({}, TRAIT_DEFAULT, THEME_TRAITS[base] || {}, (custom && custom.traits) || {});
             THEME_EXTRA_VARS.forEach(v => b.style.removeProperty(v));
             b.setAttribute('data-ui', config.uiLegacy ? 'legacy' : 'modern');
@@ -3480,6 +3525,14 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             const c = chats[currentChatId], empty = !!c && !c.messages.length && !gens[currentChatId] && !(queues[currentChatId] || []).length;
             document.body.classList.toggle('chat-empty', empty);
         }
+        function applyWinBtn() {   // botoes da janela: compactos (padrao), do Windows ou personalizados (largura, cantos, cor)
+            const w = Object.assign({ mode: 'compact', w: 34, r: 9, bg: '' }, config.winBtn || {}), b = document.body;
+            b.setAttribute('data-winbtn', w.mode);
+            ['--wb-w', '--wb-r', '--wb-bg'].forEach(v => b.style.removeProperty(v));
+            if (w.mode === 'custom') { b.style.setProperty('--wb-w', w.w + 'px'); b.style.setProperty('--wb-r', w.r + 'px'); if (w.bg) b.style.setProperty('--wb-bg', w.bg); }
+            if ($('opt-winbtn')) { $('opt-winbtn').value = w.mode; $('winbtn-custom').style.display = w.mode === 'custom' ? 'inline-flex' : 'none'; $('opt-wb-w').value = w.w; $('opt-wb-r').value = String(w.r); if (w.bg) $('opt-wb-bg').value = w.bg; }
+        }
+        function setWinBtn(part) { config.winBtn = Object.assign({ mode: 'compact', w: 34, r: 9, bg: '' }, config.winBtn || {}, part); applyWinBtn(); saveState(); }
         function toggleSide() { config.sideCollapsed = !config.sideCollapsed; document.body.classList.toggle('side-collapsed', !config.uiLegacy && !!config.sideCollapsed); saveState(); }
         function setUiLegacy(on) {
             config.uiLegacy = !!on;
