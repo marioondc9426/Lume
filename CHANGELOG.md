@@ -6,7 +6,9 @@ Como numerar:
 - O número fica em `VERSION` no topo do `app.py` e aparece em Configurações > Atualizações.
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
-## v2.4 (em desenvolvimento)
+## v3.0 (em desenvolvimento)
+- Planejado para a 3.0 (depois): redesenho completo da interface com um botão para voltar à interface original, e vários temas que mudam o layout e não só a cor.
+- O tema "Kimi" (que é roxo) agora se chama **Roxo**. Todos os GLM 5.3 Flash (2 grátis, MarcosFRG e Saauf) e o GLM 4.6V nas duas abas; Qwen 3.8 Max (vendouple) com o oficial de reserva; grátis com 90%+ de sucesso continuam na frente dos pagos.
 - **Groq** de volta, agora sem a biblioteca: Qwen 3.8 27B, GPT-OSS 120B e 20B (abas Chat e Code), com os limites do Groq (pedidos por dia e tokens por minuto) no painel e um aviso quando estão acabando; erro de limite explica o que estourou e quando renova. **Kimi** K2.6 e K3, GPT 6.1 Sol / 5.6 Sol e Qwen 3.8 Max mais baratos da comunidade (o oficial fica de reserva), MiniMax M3 oficial. Tirei o GPT 5.3 Codex. Em "Pollinations", o provedor mais barato vira o padrão mesmo se o catálogo o marcar como instável.
 - Seletor de modelos: continua aberto ao mudar parâmetros/provedor; logos dos provedores no canto direito (Ollama com um "+" azul quando o modelo também roda no PC, OpenRouter, Pollinations, Cloudflare). Estatísticas: ordenar por respostas, tokens, média ou melhor tok/s, nos dois sentidos. DeepSeek V4 Flash barato (vendouple) como reserva dos grátis; provedores fora do ar vão para o fim da fila de reserva.
 - **Esforço de raciocínio** (seletor de modelos, só nos modelos da Pollinations que aceitam): Automático / Nenhum / Baixo / Médio / Alto / Máximo. O Lume aprende sozinho quais níveis cada modelo aceita (pelo erro dele) e usa o mais próximo. Sem o botão Pensar o padrão é "nenhum" em todos os que aceitam (antes só nos GPT), o que corta a espera antes da 1ª palavra.

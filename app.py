@@ -1566,9 +1566,9 @@ POL_MODELS = [
     ("community/CloudCompile/nvidia-nemotron-3-ultra-550b-a55b:free", {"free": True}), ("community/YoannDev90/vercel-nemotron-3.5-lightning:free", {"free": True}),
     ("community/CloudCompile/reflection-beam-free", {"free": True}), ("community/YoannDev90/vercel-beam:free", {"free": True}),
     # tabs: "code" = so na aba Code; "both" = nas duas. warn = aviso (triangulo) mostrado ao escolher o provedor
-    ("community/morriszdweck/glm-5.3-flash-free", {"free": True, "tabs": "code"}), ("community/scriptsnsenses-sys/glm-5.3-flash-free", {"free": True, "tabs": "code"}),
-    ("community/MarcosFRG/glm-5.3-flash", {"tabs": "code"}),   # pago: a reserva dos gratis (o Lume tenta o proximo mais barato se um falhar)
-    ("community/MarcosFRG/glm-4.6v-flash", {"free": True, "tabs": "code", "warn": "Limite de 3 pedidos por minuto: pode dar erro de limite se voce mandar varias mensagens seguidas."}),
+    ("community/morriszdweck/glm-5.3-flash-free", {"free": True, "tabs": "both"}), ("community/scriptsnsenses-sys/glm-5.3-flash-free", {"free": True, "tabs": "both"}),
+    ("community/MarcosFRG/glm-5.3-flash", {"tabs": "both"}), ("community/Saauf/glm-5.3-flash", {"tabs": "both"}),   # pagos: a reserva dos gratis (o Lume tenta o proximo mais barato se um falhar)
+    ("community/MarcosFRG/glm-4.6v-flash", {"free": True, "tabs": "both", "warn": "Limite de 3 pedidos por minuto: pode dar erro de limite se voce mandar varias mensagens seguidas."}),
     ("community/YoannDev90/muse-glimmer-30b:free", {"free": True, "tabs": "code"}),
     ("community/scriptsnsenses-sys/muse-spark-1.3-contributor", {"free": True, "flaky": True, "tabs": "code", "warn": "Este provedor registra (loga) as suas conversas. Nao envie nada privado ou secreto."}),
     ("community/CloudCompile/poolside-laguna-s-2.1:free", {"free": True, "tabs": "code"}),
@@ -1577,7 +1577,7 @@ POL_MODELS = [
     # modelos que ja existiam oficiais: a versao da comunidade (mais barata) vira a padrao e a oficial fica de reserva (o Lume ordena pelo preco)
     ("moonshotai/kimi-k2.6", {"tabs": "both"}), ("moonshotai/kimi-k3", {"tabs": "both"}), ("community/vendouple/kimi-k3", {"tabs": "both", "prio": True}),
     ("community/sonofstrange/gpt-6.1-sol-quest", {"tabs": "both"}), ("community/JustScriptzz/gpt-5.6-sol", {"tabs": "both"}),
-    ("community/vendouple/qwen-3.8-max", {"tabs": "both"}),
+    ("community/vendouple/qwen-3.8-max", {"tabs": "both"}), ("qwen/qwen3.8-2.4t-a95b", {"tabs": "both"}),   # o oficial (mais caro) e o mesmo Qwen 3.8 Max: fica de reserva
     ("community/scriptsnsenses-sys/deepseek-v4-flash-0731", {"free": True, "tabs": "both"}),
     ("community/scriptsnsenses-sys/gemini-3.1-pro-free", {"free": True, "tabs": "both", "warn": "Provedor da comunidade, nao oficial: o Lume nao controla o que ele faz com as suas mensagens."}),
 ]
