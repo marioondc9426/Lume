@@ -204,6 +204,8 @@ def load_config():
         log("CONFIG", "Criando config padrao", COLOR_YELLOW)
     cfg.setdefault("groq_api_key", "")
     cfg.setdefault("openrouter_api_key", "")     # chave do OpenRouter (so modelos gratis)
+    cfg.setdefault("cloudflare_api_token", "")   # Cloudflare Workers AI: token + id da conta
+    cfg.setdefault("cloudflare_account_id", "")
     cfg.setdefault("workdir", "")
     cfg.setdefault("usage", {}).setdefault("groq", 0)
     cfg.setdefault("remote_enabled", True)       # aceitar conexoes de outros aparelhos da rede (ligado por padrao; exige senha)
@@ -305,7 +307,7 @@ def build_stats(days=30):
     # Ollama: a conta so mede o uso da nuvem por tempo de GPU em janelas de 5 h e 7 dias; aqui e a soma do que passou por este app
     oll = {"h5": {"requests": 0, "seconds": 0.0, "tokens": 0}, "d7": {"requests": 0, "seconds": 0.0, "tokens": 0}, "month": {}, "local": {"requests": 0, "seconds": 0.0, "tokens": 0}}
     for e in allev:
-        if e.get("type") != "chat" or str(e.get("model", "")).startswith(("groq", "or:")) or e.get("ts", 0) < now - 30 * 86400: continue
+        if e.get("type") != "chat" or str(e.get("model", "")).startswith(("groq", "or:", "cf:")) or e.get("ts", 0) < now - 30 * 86400: continue
         sec, tk, age = e.get("seconds", 0.0), e.get("tokens", 0), now - e["ts"]
         if is_ollama_cloud(e.get("model")):
             if age <= 5 * 3600: oll["h5"]["requests"] += 1; oll["h5"]["seconds"] += sec; oll["h5"]["tokens"] += tk
@@ -1223,6 +1225,14 @@ def stream_openrouter(model, messages, think, cfg, max_tokens=None):
             if attempt == 0 and payload.get("reasoning") and e.code == 400: payload.pop("reasoning"); continue   # o modelo nao aceita "pensar": tenta sem
             raise Exception(OR_HTTP_ERRORS.get(e.code) or f"OpenRouter respondeu {e.code}: {body[:200]}")
         break
+    yield from _sse_chat(response, t0, OR_HTTP_ERRORS)
+
+# ---------------------------------------------------------------- Cloudflare Workers AI (plano gratis: 10.000 "neuronios" por dia)
+CF_API = "https://api.cloudflare.com/client/v4"
+_cf_cache = {"t": 0, "acc": "", "models": []}
+
+def _sse_chat(response, t0, err_map):
+    """Le a resposta em stream (SSE) de uma API compativel com OpenAI e gera ('content'|'thinking'|'stats', valor)."""
     first = None; usage = None
     with response:
         for raw in response:
@@ -1232,7 +1242,9 @@ def stream_openrouter(model, messages, think, cfg, max_tokens=None):
             if d == "[DONE]": break
             try: j = json.loads(d)
             except ValueError: continue
-            if j.get("error"): raise Exception(OR_HTTP_ERRORS.get((j["error"] or {}).get("code")) or str((j["error"] or {}).get("message") or j["error"])[:200])
+            if j.get("error"):
+                e = j["error"] if isinstance(j["error"], dict) else {"message": j["error"]}
+                raise Exception(err_map.get(e.get("code")) or str(e.get("message") or e)[:200])
             if j.get("usage"): usage = j["usage"]
             for ch in j.get("choices") or []:
                 delta = ch.get("delta") or {}
@@ -1243,8 +1255,65 @@ def stream_openrouter(model, messages, think, cfg, max_tokens=None):
         now = time.time(); gen = max(0.001, now - (first or t0))
         yield "stats", {"tokens": usage["completion_tokens"], "seconds": gen, "prompt_tokens": usage.get("prompt_tokens", 0), "prompt_seconds": (first - t0) if first else 0, "load_seconds": 0, "total_seconds": now - t0}
 
+def cf_creds(cfg): return (cfg.get("cloudflare_api_token") or "").strip(), (cfg.get("cloudflare_account_id") or "").strip()
+
+def _cf_get(url, token):
+    req = urllib.request.Request(url, headers={"Authorization": "Bearer " + token, "User-Agent": "lume-app"})
+    with urllib.request.urlopen(req, timeout=20) as r: return json.load(r)
+
+def cloudflare_models(cfg, force=False):
+    """Modelos de texto do Workers AI disponiveis para a conta ([{id, name, vendor, ctx, vision}]); em cache por 1 h."""
+    token, acc = cf_creds(cfg)
+    if not token or not acc: return []
+    if not force and _cf_cache["models"] and _cf_cache["acc"] == acc and time.time() - _cf_cache["t"] < 3600: return _cf_cache["models"]
+    out, page = [], 1
+    while page <= 4:
+        d = _cf_get(f"{CF_API}/accounts/{urllib.parse.quote(acc)}/ai/models/search?task=Text%20Generation&per_page=100&page={page}", token)
+        items = d.get("result") or []
+        for m in items:
+            name = m.get("name") or ""
+            if not name.startswith(("@cf/", "@hf/")): continue
+            props = {p.get("property_id"): p.get("value") for p in (m.get("properties") or []) if isinstance(p, dict)}
+            try: ctx = int(props.get("context_window") or 0)
+            except (TypeError, ValueError): ctx = 0
+            parts = name.split("/")
+            out.append({"id": name, "name": parts[-1], "vendor": parts[1] if len(parts) > 2 else "cloudflare", "ctx": ctx,
+                        "vision": bool(props.get("vision")) or "vision" in name.lower() or "-vl" in name.lower()})
+        if len(items) < 100: break
+        page += 1
+    out.sort(key=lambda x: (x["vendor"], x["name"])); _cf_cache.update(t=time.time(), acc=acc, models=out)
+    return out
+
+CF_HTTP_ERRORS = {401: "Token do Cloudflare invalido (401). Confira o token e o Account ID em Configuracoes.", 403: "O token do Cloudflare nao tem permissao para o Workers AI (403).",
+                  429: "Limite diario gratis do Cloudflare atingido (10.000 neuronios). Volta amanha ou espere um pouco.", 4006: "Limite diario gratis do Cloudflare atingido (10.000 neuronios). Volta amanha."}
+
+def stream_cloudflare(model, messages, think, cfg, max_tokens=None):
+    """Gera ('content'|'thinking'|'stats', valor) pelo endpoint compativel com OpenAI do Workers AI."""
+    token, acc = cf_creds(cfg)
+    if not token or not acc: raise Exception("Token do Cloudflare nao configurado. Abra Configuracoes e cole o token e o Account ID.")
+    slug = model[3:]
+    if not slug.startswith(("@cf/", "@hf/")): raise Exception("Modelo do Cloudflare invalido: so os do Workers AI (@cf/...) sao usados.")
+    msgs = []
+    for m in messages:
+        imgs = m.get("images") or []
+        if imgs and m["role"] == "user": msgs.append({"role": "user", "content": [{"type": "text", "text": m["content"]}] + [{"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + b}} for b in imgs]})
+        else: msgs.append({"role": m["role"], "content": m["content"]})
+    payload = {"model": slug, "messages": msgs, "stream": True, "stream_options": {"include_usage": True}}
+    if max_tokens: payload["max_tokens"] = int(max_tokens)
+    req = urllib.request.Request(f"{CF_API}/accounts/{urllib.parse.quote(acc)}/ai/v1/chat/completions", data=json.dumps(payload).encode("utf-8"),
+                                 headers={"Authorization": "Bearer " + token, "Content-Type": "application/json", "User-Agent": "lume-app"})
+    t0 = time.time()
+    try: response = urllib.request.urlopen(req, timeout=120)
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", "replace"); code = None; msg = body[:200]
+        try: err = (json.loads(body).get("errors") or [{}])[0]; code, msg = err.get("code"), str(err.get("message") or msg)[:200]
+        except (ValueError, AttributeError, IndexError): pass
+        raise Exception(CF_HTTP_ERRORS.get(code) or CF_HTTP_ERRORS.get(e.code) or f"Cloudflare respondeu {e.code}: {msg}")
+    yield from _sse_chat(response, t0, CF_HTTP_ERRORS)
+
 def stream_model(model, messages, think, cfg, num_ctx=None, max_tokens=None):
     if model.startswith("or:"): return stream_openrouter(model, messages, think, cfg, max_tokens)
+    if model.startswith("cf:"): return stream_cloudflare(model, messages, think, cfg, max_tokens)
     return stream_groq(model, messages, cfg) if model.startswith("groq") else stream_ollama(model, messages, think, num_ctx, max_tokens)
 
 # ---------------------------------------------------------------- servidor
@@ -1401,6 +1470,9 @@ ERR_EN = {
     "Chave do OpenRouter invalida": "Invalid OpenRouter key (401). Check the key in Settings.", "O OpenRouter pediu credito": "OpenRouter asked for credit (402): this model is not free for your account.",
     "Limite do plano gratis do OpenRouter": "OpenRouter free plan limit reached (429). Wait a bit or try again tomorrow.", "O OpenRouter nao achou esse modelo": "OpenRouter could not find that model (404): it may have left the free list.",
     "Este modelo do OpenRouter nao e gratis": "This OpenRouter model is not free: Lume only uses free models.",
+    "Token do Cloudflare nao configurado": "Cloudflare token not set. Open Settings and paste the token and Account ID.", "Token do Cloudflare invalido": "Invalid Cloudflare token (401). Check the token and Account ID in Settings.",
+    "O token do Cloudflare nao tem permissao": "The Cloudflare token has no Workers AI permission (403).", "Limite diario gratis do Cloudflare": "Cloudflare daily free limit reached (10,000 neurons). Come back tomorrow or wait a bit.",
+    "Modelo do Cloudflare invalido": "Invalid Cloudflare model: only Workers AI (@cf/...) models are used.",
     "Biblioteca Groq nao instalada": "Groq library not installed (pip install groq).",
     "Nao consegui iniciar o Ollama": "Could not start Ollama. Is it installed?",
 }
@@ -1642,9 +1714,16 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             if not has: return self.send_json({"key_saved": False, "models": []})
             try: return self.send_json({"key_saved": True, "models": openrouter_free_models()})
             except Exception as e: return self.send_json({"key_saved": True, "models": [], "error": str(e)[:200]})
+        if p == '/api/cloudflare_models':
+            if not local: return self.send_json({"error": "local_only"}, 403)
+            cfg = load_config()
+            if not all(cf_creds(cfg)): return self.send_json({"saved": False, "models": []})
+            try: return self.send_json({"saved": True, "models": cloudflare_models(cfg)})
+            except urllib.error.HTTPError as e: return self.send_json({"saved": True, "models": [], "error": CF_HTTP_ERRORS.get(e.code) or f"Cloudflare respondeu {e.code}"})
+            except Exception as e: return self.send_json({"saved": True, "models": [], "error": str(e)[:200]})
         if p == '/api/config_status':
             cfg = load_config()
-            return self.send_json({"groq_key_saved": bool(cfg.get("groq_api_key")), "openrouter_key_saved": bool(cfg.get("openrouter_api_key")), "exa_key_saved": bool(exa_api_key(cfg)), "search_provider": cfg.get("search_provider", "auto"), "exa_type": cfg.get("exa_type", "lite"), "search_results": max_results(), "search_daily_limit": cfg.get("search_daily_limit", 100), "exa_today": exa_searches_today(), "workdir": get_workdir(cfg) if local else "", "default_workdir": BASE_DIR if local else ""})
+            return self.send_json({"groq_key_saved": bool(cfg.get("groq_api_key")), "openrouter_key_saved": bool(cfg.get("openrouter_api_key")), "cloudflare_saved": all(cf_creds(cfg)), "exa_key_saved": bool(exa_api_key(cfg)), "search_provider": cfg.get("search_provider", "auto"), "exa_type": cfg.get("exa_type", "lite"), "search_results": max_results(), "search_daily_limit": cfg.get("search_daily_limit", 100), "exa_today": exa_searches_today(), "workdir": get_workdir(cfg) if local else "", "default_workdir": BASE_DIR if local else ""})
         if p == '/api/models_status':
             tags = ollama_tags(); running = tags is not None
             used, total, _ = get_gpu_metrics()
@@ -1797,10 +1876,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 if k in data:
                     try: data[k] = max(lo, min(hi, int(data[k])))
                     except (TypeError, ValueError): return self.send_json({"error": "Opcao de pesquisa invalida."}, 400)
-            for k in ("groq_api_key", "openrouter_api_key", "exa_api_key", "workdir", "search_provider", "exa_type", "search_results", "search_daily_limit"):
-                if k in data: cfg[k] = data[k].strip() if k.endswith("_key") else data[k]
+            for k in ("groq_api_key", "openrouter_api_key", "cloudflare_api_token", "cloudflare_account_id", "exa_api_key", "workdir", "search_provider", "exa_type", "search_results", "search_daily_limit"):
+                if k in data: cfg[k] = data[k].strip() if k.endswith(("_key", "_token", "_id")) else data[k]
             save_config(cfg)
-            secrets_sent = [k for k in ("groq_api_key", "openrouter_api_key", "exa_api_key") if k in data]
+            secrets_sent = [k for k in ("groq_api_key", "openrouter_api_key", "cloudflare_api_token", "exa_api_key") if k in data]
             log("CONFIG", "Configuracoes salvas (" + ", ".join([k for k in data if k not in secrets_sent] + [f"chave {k.split('_')[0]}" for k in secrets_sent]) + ")", COLOR_GREEN)
             return self.send_json({"ok": True})
 
@@ -1984,7 +2063,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         if p == '/api/models_status':
             tags = ollama_tags(); running = tags is not None
             return self.send_json({"running": running, "loaded": [], "vram_total": 0, "vram_used": 0, "installed": [m["name"] for m in tags] if running else None, "installed_sizes": {m["name"]: m.get("size", 0) for m in tags} if running else {}})
-        if p == '/api/config_status': return self.send_json({"guest": True, "groq_key_saved": False, "openrouter_key_saved": False, "exa_key_saved": False})
+        if p == '/api/config_status': return self.send_json({"guest": True, "groq_key_saved": False, "openrouter_key_saved": False, "cloudflare_saved": False, "exa_key_saved": False})
         if p == '/api/model_info':
             name = (self.query.get('name') or [''])[0]
             if not re.fullmatch(r'[\w.:\-/]+', name): return self.send_json({"error": "nome invalido"}, 400)
@@ -2241,14 +2320,14 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
         total_chars = 0
         try:
-            if not model.startswith(("groq", "or:")):
+            if not model.startswith(("groq", "or:", "cf:")):
                 if not ollama_is_running():
                     status("Iniciando Ollama")
                     if not start_ollama(): raise Exception("Nao consegui iniciar o Ollama. Ele esta instalado?")
                 if model not in [m["name"] for m in ollama_ps()]:
                     status("Carregando modelo")
             else:
-                status("Conectando ao OpenRouter" if model.startswith("or:") else "Conectando ao Groq")
+                status("Conectando ao OpenRouter" if model.startswith("or:") else "Conectando ao Cloudflare" if model.startswith("cf:") else "Conectando ao Groq")
 
             if not messages or messages[0].get("role") != "system":
                 messages.insert(0, {"role": "system", "content": ""})
@@ -2362,7 +2441,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 cfg = load_config()
                 cfg["usage"]["groq"] += total_chars
                 save_config(cfg)
-            record_event({"type": "chat", **({"user": gid} if gid else {}), "model": model, "cloud": model.startswith(("groq", "or:")), "tab": "code" if agent else "chat",
+            record_event({"type": "chat", **({"user": gid} if gid else {}), "model": model, "cloud": model.startswith(("groq", "or:", "cf:")), "tab": "code" if agent else "chat",
                           "tokens": req_tokens or total_chars // 4, "seconds": req_seconds or (time.time() - started), "prompt_tokens": req_prompt, "chars": total_chars})
             u = model_usage.setdefault(model, {"uses": 0, "chars": 0})
             u["uses"] += 1; u["chars"] += total_chars; u["last_used"] = time.time()

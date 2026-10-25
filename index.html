@@ -195,7 +195,7 @@
         .size-info { flex: 1; min-width: 150px; font-size: 0.78em; color: var(--text-muted); line-height: 1.35; }
         .mode-ic { margin: 0 0 0 6px; opacity: .85; }
         .wordmark { height: 28px; width: auto; background: #fff; border-radius: 6px; padding: 3px 8px; margin-right: 6px; flex-shrink: 0; vertical-align: middle; }
-        .wordmark.bare { padding: 0; height: 30px; }
+        .wordmark.bare { padding: 0; height: 30px; background: none; border-radius: 0; }
         #model-trigger-icon.wordmark, #model-trigger-icon.logo-img { height: 24px; } #model-trigger-icon.wordmark.bare { height: 26px; }
         .brand-img { height: 24px; width: auto; margin-right: 6px; vertical-align: middle; flex-shrink: 0; }
         .brand-mono { display: inline-block; height: 22px; width: auto; aspect-ratio: 1; margin-right: 6px; vertical-align: middle; flex-shrink: 0; background: var(--text-main); -webkit-mask: var(--m) center / contain no-repeat; mask: var(--m) center / contain no-repeat; }
@@ -701,6 +701,15 @@
             <span class="hint">Com a chave salva, os modelos GRATUITOS do OpenRouter aparecem na lista de modelos (aba Chat). O Lume nunca usa um modelo pago. Chave em openrouter.ai/keys. O plano grátis tem limite de pedidos por minuto e por dia.</span>
         </div>
         <div class="form-group host-only">
+            <label>Cloudflare Workers AI <span class="badge" id="cf-status">não salvo</span></label>
+            <div class="key-input">
+                <input type="password" id="cf-token-input" placeholder="Token da API (cfut_...)" autocomplete="off" spellcheck="false">
+                <button type="button" class="eye" onclick="toggleKey('cf-token-input', this)">Mostrar</button>
+            </div>
+            <input type="text" id="cf-acc-input" placeholder="Account ID (32 letras e números)" autocomplete="off" spellcheck="false" style="margin-top:6px;">
+            <span class="hint">Deixe vazio para manter o que já está salvo. Crie o token em dash.cloudflare.com/profile/api-tokens (modelo "Workers AI") e copie o Account ID na página inicial da conta. O plano gratuito dá 10.000 "neurônios" por dia (alguns milhares de respostas curtas) e para quando acaba; só uma conta no plano pago (Workers Paid) pode ser cobrada além disso, então mantenha no plano gratuito.</span>
+        </div>
+        <div class="form-group host-only">
             <label>Exa API Key <span class="badge" id="exa-status">não salva</span></label>
             <div class="key-input">
                 <input type="password" id="exa-key-input" placeholder="exa-..." autocomplete="off" spellcheck="false">
@@ -720,7 +729,17 @@
                 <option value="4096">4K (padrão do Ollama, mais leve)</option><option value="8192">8K</option><option value="16384">16K</option>
                 <option value="32768">32K</option><option value="65536">64K</option><option value="131072">128K</option><option value="262144">256K</option>
             </select>
-            <label class="toggle-container"><input type="checkbox" id="opt-maxctx" onchange="$('opt-ctx').disabled = this.checked"><div class="toggle-switch"></div> Usar o contexto máximo de cada modelo</label>
+            <label class="toggle-container"><input type="checkbox" id="opt-maxctx" onchange="$('opt-ctx').disabled = this.checked; ctxDivUi()"><div class="toggle-switch"></div> Usar o contexto máximo de cada modelo</label>
+            <div id="ctxdiv-box" style="display:none;">
+                <label class="toggle-container"><input type="checkbox" id="opt-ctxdiv" onchange="ctxDivUi()"><div class="toggle-switch"></div> Dividir o limite de contexto para deixar mais usável</label>
+                <div class="srv-actions" id="ctxdiv-row">
+                    <span>dividir por</span>
+                    <select id="opt-ctxdiv-sel" style="width:auto;" onchange="if (this.value) { $('opt-ctxdiv-num').value = this.value; ctxDivUi(); }"><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="6">6</option><option value="8">8</option><option value="16">16</option><option value="32">32</option><option value="">outro</option></select>
+                    <span>ou digite</span>
+                    <input type="number" id="opt-ctxdiv-num" min="1" max="1000" step="0.5" style="width:90px;" oninput="ctxDivUi(true)">
+                </div>
+                <span class="hint" id="ctxdiv-hint"></span>
+            </div>
             <span class="hint">Com isso ligado, cada modelo usa tudo o que suporta (ex.: 256K) e o valor acima é ignorado. Cuidado: contextos enormes ocupam MUITA VRAM e deixam tudo mais lento.</span>
             <span class="hint">Quanto o modelo lembra da conversa. Contextos grandes usam MUITO mais VRAM e deixam tudo mais lento; aumente aos poucos. Cada modelo é limitado ao máximo que suporta (modelos menores podem suportar menos). Trocar o valor recarrega o modelo.</span>
         </div>
@@ -1003,12 +1022,11 @@
             { id: 'bonsai-2:27b', fam: 'bonsai-2', famName: 'Bonsai 2', params: '27B', label: 'Bonsai 2 27B (Pesado)', icon: 'triangle-alert', tabs: ['chat', 'code'], gb: 8.3, heavy: true, vision: true, ctx: 262144 },
             { id: 'gemma3:1b', fam: 'gemma3', famName: 'Gemma 3', params: '1B', label: 'Gemma 3 1B (Ultra leve)', icon: 'zap', tabs: ['chat'], gb: 0.9, ctx: 32768 },
             { id: 'gemma3:4b', fam: 'gemma3', famName: 'Gemma 3', params: '4B', rec: true, label: 'Gemma 3 4B (Local)', icon: 'zap', tabs: ['chat'], gb: 3.4, vision: true, ctx: 131072 },
-            { id: 'llama3.2:3b', fam: 'llama3.2', famName: 'Llama 3.2', params: '3B', rec: true, label: 'Llama 3.2 3B (Leve)', icon: 'zap', tabs: ['chat'], gb: 2.2, ctx: 131072 },
             { id: 'qwen2.5:1.5b', fam: 'qwen2.5', famName: 'Qwen 2.5', params: '1.5B', rec: true, label: 'Qwen 2.5 1.5B (Ultra leve)', icon: 'zap', tabs: ['chat'], gb: 1.1, ctx: 32768 },
-            { id: 'nemotron-3-nano:4b', fam: 'nemotron-3-nano', famName: 'Nemotron', params: '3 4B', rec: true, label: 'Nemotron 3 4B (Local)', icon: 'zap', tabs: ['chat', 'code'], gb: 2.9, ctx: 262144 },
-            { id: 'nemotron-3-nano:30b-cloud', fam: 'nemotron-3-nano', famName: 'Nemotron', params: '3 30B', label: 'Nemotron 3 30B (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 1048576 },
-            { id: 'nemotron-3-super:cloud', fam: 'nemotron-3-nano', famName: 'Nemotron', params: '3 120B', label: 'Nemotron 3 120B (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 262144 },
-            { id: 'nemotron-3-ultra:cloud', fam: 'nemotron-3-nano', famName: 'Nemotron', params: '4 550B', label: 'Nemotron 4 550B (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 1048576 },
+            { id: 'nemotron-3-nano:4b', fam: 'nemotron-3-nano', famName: 'Nemotron', params: '3, 4B', rec: true, label: 'Nemotron 3 4B (Local)', icon: 'zap', tabs: ['chat', 'code'], gb: 2.9, ctx: 262144 },
+            { id: 'nemotron-3-nano:30b-cloud', fam: 'nemotron-3-nano', famName: 'Nemotron', params: '3, 30B', label: 'Nemotron 3 30B (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 1048576 },
+            { id: 'nemotron-3-super:cloud', fam: 'nemotron-3-nano', famName: 'Nemotron', params: '3, 120B', label: 'Nemotron 3 120B (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 262144 },
+            { id: 'nemotron-3-ultra:cloud', fam: 'nemotron-3-nano', famName: 'Nemotron', params: '4, 550B', label: 'Nemotron 4 550B (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 1048576 },
             { id: 'gpt-oss:120b-cloud', fam: 'gpt-oss', famName: 'GPT-OSS', params: '120B', rec: true, label: 'GPT-OSS 120B (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 131072 },
             { id: 'gpt-oss:20b-cloud', fam: 'gpt-oss', famName: 'GPT-OSS', params: '20B', label: 'GPT-OSS 20B (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 131072 },
             { id: 'gemma4:cloud', fam: 'gemma4', famName: 'Gemma 4', params: 'Cloud', rec: true, label: 'Gemma 4 (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, vision: true, ctx: 262144 },
@@ -1069,7 +1087,9 @@
             'Iniciar com o Windows': 'Start with Windows', 'Abre o Lume sozinho quando você entra no Windows. Só no Lume.exe.': 'Opens Lume by itself when you sign in to Windows. Lume.exe only.',
             'Pesquisar na web nas respostas': 'Search the web in answers', 'A IA pesquisa na internet quando a pergunta pede dados atuais.': 'The AI searches the internet when the question needs current data.',
             'Verificar atualizações ao abrir': 'Check for updates on startup', 'Avisa quando há uma versão nova.': 'Tells you when there is a new version.', 'Animações': 'Animations', 'Desligue se a interface pesar na placa de vídeo.': 'Turn off if the interface is heavy on the graphics card.',
-            'Painel de desempenho': 'Performance panel', 'Mostra a VRAM e a velocidade no canto da tela.': 'Shows VRAM and speed in the corner of the screen.', 'Acesso pela rede (celular e amigos)': 'Network access (phone and friends)', 'Deixa outros aparelhos entrarem. A senha continua exigida pela internet.': 'Lets other devices in. The password is still required over the internet.', 'Bem-vindo!': 'Welcome!', 'Conectando ao OpenRouter': 'Connecting to OpenRouter', 'Não consegui carregar a lista do OpenRouter: {e}': 'Could not load the OpenRouter list: {e}',
+            'Painel de desempenho': 'Performance panel', 'Mostra a VRAM e a velocidade no canto da tela.': 'Shows VRAM and speed in the corner of the screen.', 'Acesso pela rede (celular e amigos)': 'Network access (phone and friends)', 'Deixa outros aparelhos entrarem. A senha continua exigida pela internet.': 'Lets other devices in. The password is still required over the internet.', 'Bem-vindo!': 'Welcome!', 'Conectando ao Cloudflare': 'Connecting to Cloudflare', 'Não consegui carregar os modelos do Cloudflare: {e}': 'Could not load the Cloudflare models: {e}', 'não salvo': 'not saved', 'salvo ✓': 'saved ✓',
+            'Dividir o limite de contexto para deixar mais usável': 'Divide the context limit to make it more usable', 'dividir por': 'divide by', 'ou digite': 'or type', 'outro': 'other', 'Ex.: {a} do {m} ÷ {k} = {b}.': 'E.g.: {a} of {m} ÷ {k} = {b}.',
+            'Deixe vazio para manter o que já está salvo. Crie o token em dash.cloudflare.com/profile/api-tokens (modelo "Workers AI") e copie o Account ID na página inicial da conta. O plano gratuito dá 10.000 "neurônios" por dia (alguns milhares de respostas curtas) e para quando acaba; só uma conta no plano pago (Workers Paid) pode ser cobrada além disso, então mantenha no plano gratuito.': 'Leave empty to keep what is already saved. Create the token at dash.cloudflare.com/profile/api-tokens (the "Workers AI" template) and copy the Account ID from the account home page. The free plan gives 10,000 "neurons" per day (a few thousand short answers) and stops when they run out; only an account on the paid plan (Workers Paid) can be billed beyond that, so keep it on the free plan.', 'Conectando ao OpenRouter': 'Connecting to OpenRouter', 'Não consegui carregar a lista do OpenRouter: {e}': 'Could not load the OpenRouter list: {e}',
             'Com a chave salva, os modelos GRATUITOS do OpenRouter aparecem na lista de modelos (aba Chat). O Lume nunca usa um modelo pago. Chave em openrouter.ai/keys. O plano grátis tem limite de pedidos por minuto e por dia.': 'With the key saved, the FREE OpenRouter models show up in the model list (Chat tab). Lume never uses a paid model. Get a key at openrouter.ai/keys. The free plan has per-minute and per-day request limits.', 'Apagar esta memória': 'Delete this memory', 'Lembrar?': 'Remember?', 'Lembrar': 'Remember', 'Não': 'No', 'Guardado na Memória.': 'Saved to Memory.',
             'Deixar a IA sugerir o que lembrar (aparece "Lembrar?" embaixo da resposta)': 'Let the AI suggest what to remember (a "Remember?" prompt shows under the answer)',
             '\n\nMEMÓRIA: se o usuário contar algo pessoal e duradouro que valha lembrar em outras conversas (nome, profissão, preferência, projeto, jeito que quer as respostas), termine a resposta com uma última linha [[lembrar: fato curto, escrito em terceira pessoa]]. No máximo uma vez, só quando for realmente útil; nunca em pedidos comuns e nunca repita o que já está na lista de fatos.': '\n\nMEMORY: if the user shares something personal and lasting that is worth remembering in other conversations (name, job, preference, project, how they want answers), end your answer with a final line [[remember: short fact, written in the third person]]. At most once, only when really useful; never for ordinary requests and never repeat what is already in the list of facts.', 'Aplicativo': 'App', 'Modelos do Ollama': 'Ollama models', 'Nome do modelo, ex.: qwen3.5:4b': 'Model name, e.g. qwen3.5:4b', 'Baixar': 'Download',
@@ -1415,8 +1435,8 @@
         const modelById = id => MODELS.find(m => m.id === id);
         // so aparece o que esta instalado no Ollama (nuvem sempre aparece); installed = null enquanto nao sabemos
         let installed = null, installedSize = {}, vramTotalMB = 0, modelInfo = {};
-        const guestBlocks = m => isGuest() && !!auth.guest && (m.groq || m.or || auth.guest.blocked_models.includes(m.id) || (m.cloud && auth.guest.blocked_features.includes('cloud')) || (!m.cloud && !m.phone && auth.guest.blocked_features.includes('local')));
-        const isAvail = m => guestBlocks(m) ? false : m.phone ? phoneMode() : (phoneMode() && !m.cloud ? false : (m.groq || m.or || installed === null || installed.has(m.id)));   // no modo celular os locais do PC saem da lista
+        const guestBlocks = m => isGuest() && !!auth.guest && (m.groq || m.or || m.cf || auth.guest.blocked_models.includes(m.id) || (m.cloud && auth.guest.blocked_features.includes('cloud')) || (!m.cloud && !m.phone && auth.guest.blocked_features.includes('local')));
+        const isAvail = m => guestBlocks(m) ? false : m.phone ? phoneMode() : (phoneMode() && !m.cloud ? false : (m.groq || m.or || m.cf || installed === null || installed.has(m.id)));   // no modo celular os locais do PC saem da lista
         const availIn = tab => MODELS.filter(m => m.tabs.includes(tab) && isAvail(m));
         const pickDefault = list => list.find(m => m.rec && !m.cloud) || list.find(m => !m.cloud && !m.heavy) || list.find(m => !m.cloud) || list[0];
         function familiesIn(tab) {   // familias com algum modelo local primeiro, depois as so da nuvem; cada grupo em ordem alfabetica
@@ -1517,7 +1537,7 @@
             applyPerf();
             if (auth.local) fetch(API + '/api/perf_interval', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ms: config.perfInterval }) }).catch(() => {});
             if (auth.local || auth.authed) fetch(API + '/api/usage').then(r => r.json()).then(updateUsageBadge).catch(() => {});
-            if (auth.local || auth.authed) { await refreshLoaded(); loadOpenRouterModels(); }   // descobre o que esta instalado
+            if (auth.local || auth.authed) { await refreshLoaded(); loadOpenRouterModels(); loadCloudflareModels(); }   // descobre o que esta instalado
             switchTab('chat');
             startPolling();
             metricsLoop();
@@ -1632,7 +1652,7 @@
         const BRANDS = [
             { re: /qwen/i, pick: s => /qwen\s*-?2\.5/i.test(s) ? 'qwen2.5.png' : /qwen\s*-?3\.5/i.test(s) ? 'qwen3.5.png' : null, wordmark: true },
             { re: /deepseek/i, img: 'DeepSeek.png', wordmark: true },
-            { re: /beam/i, img: 'beam.png', wordmark: true, mono: true, ratio: 3.52 },
+            { re: /beam/i, img: 'beam.png', wordmark: true, mono: true, ratio: 5.06 },
             { re: /gemma|gemini/i, img: 'Google.png' },
             { re: /gpt|openai|chatgpt/i, img: 'chatgpt.png', mono: true },
             { re: /nemotron|nvidia/i, img: 'nvidia.png' },
@@ -1743,10 +1763,23 @@
             if (String(config.model).startsWith('or:') && modelById(config.model) && currentTab === 'chat') selectedModel = config.model;   // o modelo escolhido da ultima vez volta
             renderModelOptions();
         }
-        const HIDDEN_MODELS = /^(clef|deepseek-v4\.1-flash)\b/i;   // instalados no Ollama, mas fora do seletor
+        const CF_VENDORS = { meta: 'Meta', google: 'Google', openai: 'OpenAI', qwen: 'Qwen', mistralai: 'Mistral', 'deepseek-ai': 'DeepSeek', nousresearch: 'Nous', microsoft: 'Microsoft', ibm: 'IBM', zai: 'Z.ai', moonshotai: 'Moonshot' };
+        async function loadCloudflareModels() {   // modelos do Cloudflare Workers AI (plano gratis: 10.000 neuronios/dia); so aparecem com o token e o Account ID salvos
+            if (!(auth.local || auth.authed) || isGuest()) return;
+            let d; try { d = await (await fetch(API + '/api/cloudflare_models')).json(); } catch (e) { return; }
+            for (let i = MODELS.length - 1; i >= 0; i--) if (MODELS[i].cf) MODELS.splice(i, 1);
+            if (d.error && !(d.models || []).length) showInfo(tr('Não consegui carregar os modelos do Cloudflare: {e}', { e: d.error }), 8000);
+            (d.models || []).forEach(x => {
+                const prov = CF_VENDORS[x.vendor] || (x.vendor ? x.vendor[0].toUpperCase() + x.vendor.slice(1) : 'Cloudflare');
+                MODELS.push({ id: 'cf:' + x.id, fam: 'cf:' + x.vendor, famName: prov, params: x.name, label: prov + ' ' + x.name + ' (Cloudflare)', icon: 'cloud', tabs: ['chat'], cloud: true, cf: true, vision: !!x.vision, ctx: x.ctx || 8192 });
+            });
+            if (String(config.model).startsWith('cf:') && modelById(config.model) && currentTab === 'chat') selectedModel = config.model;
+            renderModelOptions();
+        }
+        const HIDDEN_MODELS = /^(clef|deepseek-v4\.1-flash|llama3\.2)\b/i;   // instalados no Ollama, mas fora do seletor
         async function detectVision() {   // o Ollama informa as capacidades de cada modelo instalado; a etiqueta "visao" segue isso (corrige modelos que aceitam imagem e estavam sem a etiqueta)
             if (!installed) return; let changed = false;
-            await Promise.all(MODELS.filter(m => !m.phone && !m.groq && !m.or && installed.has(m.id) && !m._capsDone).map(async m => {
+            await Promise.all(MODELS.filter(m => !m.phone && !m.groq && !m.or && !m.cf && installed.has(m.id) && !m._capsDone).map(async m => {
                 m._capsDone = true;
                 try {
                     const inf = await (await fetch(API + '/api/model_info?name=' + encodeURIComponent(m.id))).json();
@@ -1801,7 +1834,8 @@
             config.famSize = Object.assign({}, config.famSize, { [m.fam]: id });
             saveState(); renderModelOptions();
         }
-        const effCtx = m => config.maxCtx ? m.ctx : Math.min(config.numCtx, m.ctx);   // contexto usado: o escolhido ou, com o toggle, o maximo do modelo
+        const ctxDiv = () => config.maxCtx && config.ctxDivide ? Math.max(1, +config.ctxDivisor || 4) : 1;   // "dividir o limite": 256K / 4 = 64K usaveis
+        const effCtx = m => config.maxCtx ? Math.max(2048, Math.floor(m.ctx / ctxDiv())) : Math.min(config.numCtx, m.ctx);   // contexto usado: o escolhido ou, com o toggle, o maximo do modelo
         async function modelStart(m) {
             if (m.phone) {   // baixa (na primeira vez) e carrega o modelo na placa grafica do celular
                 pendingModel[m.id] = 'carregando'; renderModelOptions();
@@ -2814,13 +2848,13 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             $('system-prompt-input').value = sysPrompt(false);
             $('code-prompt-input').value = sysPrompt(true);
             $('opt-lang').value = curLang(); $('opt-anim').checked = config.animations !== false; $('opt-hidevram').checked = config.hideVramWarn !== false;
-            $('opt-ctx').value = String(config.numCtx); $('opt-maxctx').checked = !!config.maxCtx; $('opt-ctx').disabled = !!config.maxCtx; $('opt-ctxbar').checked = config.showCtxBar; $('opt-web').checked = config.webSearch; $('opt-star').checked = config.starToDot; $('opt-autostop').checked = config.autoStopPrev;
+            $('opt-ctx').value = String(config.numCtx); $('opt-maxctx').checked = !!config.maxCtx; $('opt-ctx').disabled = !!config.maxCtx; $('opt-ctxdiv').checked = !!config.ctxDivide; $('opt-ctxdiv-num').value = config.ctxDivisor || 4; ctxDivUi(true); $('opt-ctxbar').checked = config.showCtxBar; $('opt-web').checked = config.webSearch; $('opt-star').checked = config.starToDot; $('opt-autostop').checked = config.autoStopPrev;
             $('perf-enabled').checked = config.perfEnabled; $('opt-autoupd').checked = config.autoUpdate !== false;
             $('perf-style').value = config.perfStyle;
             if (auth.local) checkUpdates(false);
             $('perf-style').value = config.perfStyle;
             $('perf-interval').value = config.perfInterval; $('perf-int-val').innerText = config.perfInterval;
-            $('groq-key-input').value = ''; $('or-key-input').value = ''; $('exa-key-input').value = '';
+            $('groq-key-input').value = ''; $('or-key-input').value = ''; $('cf-token-input').value = ''; $('cf-acc-input').value = ''; $('exa-key-input').value = '';
             showModal('settings-modal');
             showSettingsTab('general');
             if (auth.local) { renderAppSettings(); refreshModelManager(); }
@@ -2832,12 +2866,22 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 $('groq-status').textContent = tr(st.groq_key_saved ? 'chave salva ✓' : 'não salva');
                 $('groq-status').classList.toggle('ok', st.groq_key_saved);
                 $('or-status').textContent = tr(st.openrouter_key_saved ? 'chave salva ✓' : 'não salva'); $('or-status').classList.toggle('ok', st.openrouter_key_saved);
+                $('cf-status').textContent = tr(st.cloudflare_saved ? 'salvo ✓' : 'não salvo'); $('cf-status').classList.toggle('ok', st.cloudflare_saved);
                 $('exa-status').textContent = tr(st.exa_key_saved ? 'chave salva ✓' : 'não salva');
                 $('exa-status').classList.toggle('ok', st.exa_key_saved);
                 $('opt-provider').value = st.search_provider || 'auto'; $('opt-exatype').value = st.exa_type || 'lite';
                 $('opt-sresults').value = st.search_results; $('opt-slimit').value = st.search_daily_limit;
                 $('exa-today-hint').textContent = tr('Hoje: {n} buscas. 0 = sem limite; ao atingir o limite, usa o DuckDuckGo no resto do dia.', { n: st.exa_today });
             } catch (e) {}
+        }
+        function ctxDivUi(fromNum) {   // mostra/esconde a divisao do limite de contexto e mantem a lista e a caixa de numero em sincronia
+            const on = $('opt-maxctx').checked, div = $('opt-ctxdiv').checked;
+            $('ctxdiv-box').style.display = on ? '' : 'none';
+            $('opt-ctxdiv-sel').disabled = $('opt-ctxdiv-num').disabled = !on || !div;
+            const n = parseFloat($('opt-ctxdiv-num').value);
+            if (fromNum) $('opt-ctxdiv-sel').value = [...$('opt-ctxdiv-sel').options].some(o => o.value && +o.value === n) ? String(n) : '';
+            const m = modelById(selectedModel), k = on && div && n >= 1 ? n : 1;
+            $('ctxdiv-hint').textContent = on && div && m ? tr('Ex.: {a} do {m} ÷ {k} = {b}.', { a: fmtK(m.ctx), m: m.label, k, b: fmtK(Math.max(2048, Math.floor(m.ctx / k))) }) : '';
         }
         function closeSettings() { hideModal('settings-modal'); }
         function showSettingsTab(name) {
@@ -2898,7 +2942,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
         async function saveSettings() {
             config.systemPrompt = $('system-prompt-input').value;
             config.codePrompt = $('code-prompt-input').value || CODE_PROMPT_DEFAULT;
-            config.numCtx = +$('opt-ctx').value; config.maxCtx = $('opt-maxctx').checked; config.showCtxBar = $('opt-ctxbar').checked; config.webSearch = $('opt-web').checked; config.starToDot = $('opt-star').checked; config.autoStopPrev = $('opt-autostop').checked;
+            config.numCtx = +$('opt-ctx').value; config.maxCtx = $('opt-maxctx').checked; config.ctxDivide = $('opt-ctxdiv').checked; config.ctxDivisor = Math.min(1000, Math.max(1, parseFloat($('opt-ctxdiv-num').value) || 4)); config.showCtxBar = $('opt-ctxbar').checked; config.webSearch = $('opt-web').checked; config.starToDot = $('opt-star').checked; config.autoStopPrev = $('opt-autostop').checked;
             saveState();
             if (auth.local) {
                 const body = { workdir: $('workdir-input').value.trim(), search_provider: $('opt-provider').value, exa_type: $('opt-exatype').value };
@@ -2908,6 +2952,9 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 if (key) body.groq_api_key = key;
                 const orKey = $('or-key-input').value.trim();
                 if (orKey) body.openrouter_api_key = orKey;
+                const cfTok = $('cf-token-input').value.trim(), cfAcc = $('cf-acc-input').value.trim();
+                if (cfTok) body.cloudflare_api_token = cfTok;
+                if (cfAcc) body.cloudflare_account_id = cfAcc;
                 const exaKey = $('exa-key-input').value.trim();
                 if (exaKey) body.exa_api_key = exaKey;
                 try {
@@ -2916,7 +2963,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 } catch (e) { alert(tr('Servidor não respondeu.')); return; }
             }
             closeSettings();
-            if (auth.local) loadOpenRouterModels();
+            if (auth.local) { loadOpenRouterModels(); loadCloudflareModels(); }
             updateCtxBar();
             if (currentChatId) loadChat(currentChatId);   // re-renderiza com as opcoes de formatacao novas
         }
@@ -3632,7 +3679,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
 
         // ---------- barra de contexto + compactar ----------
         const fmtK = n => n >= 1024 ? (n / 1024).toFixed(n % 1024 && n < 10240 ? 1 : 0) + 'K' : String(n);
-        const ctxMax = () => { const m = modelById(selectedModel); return m.cloud ? m.ctx : effCtx(m); };
+        const ctxMax = () => { const m = modelById(selectedModel); return m.cloud && !config.maxCtx ? m.ctx : effCtx(m); };
         function ctxInfo(chat) {
             const sys = (currentTab === 'code' ? config.codePrompt : config.systemPrompt).length + globalMemories.join('').length;
             const msgTokens = ms => ms.reduce((a, m) => a + Math.ceil(m.content.length / 4) + (m.images ? m.images.length * 400 : 0) + (m.files ? m.files.reduce((s, f) => s + Math.ceil(f.text.length / 4), 0) : 0), 0);   // ~4 caracteres por token, ~400 por imagem
