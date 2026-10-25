@@ -731,14 +731,6 @@
             <span class="hint">Deixe vazio para manter a chave já salva. Com a chave salva aparece, no fim da lista de modelos, o grupo "Pagos": modelos que gastam pollen, o saldo do Pollinations (dá para ganhar mais nas missões do painel). O saldo aparece no topo do chat. A chave precisa da permissão de ver o saldo.</span>
         </div>
         <div class="form-group host-only">
-            <label>Google AI Studio API Key <span class="badge" id="gai-status">não salva</span></label>
-            <div class="key-input">
-                <input type="password" id="gai-key-input" placeholder="AIza..." autocomplete="off" spellcheck="false">
-                <button type="button" class="eye" onclick="toggleKey('gai-key-input', this)">Mostrar</button>
-            </div>
-            <span class="hint">Deixe vazio para manter a chave já salva. Com a chave aparecem os modelos Gemini e Gemma do plano grátis do Google (aistudio.google.com/apikey, sem cartão). O plano grátis tem limite de pedidos por minuto e por dia.</span>
-        </div>
-        <div class="form-group host-only">
             <label>tomdacat API Key <span class="badge" id="tdc-status">não salva</span></label>
             <div class="key-input">
                 <input type="password" id="tdc-key-input" placeholder="tdc_..." autocomplete="off" spellcheck="false">
@@ -793,6 +785,8 @@
         </div>
         <label class="toggle-container"><input type="checkbox" id="opt-ctxbar"><div class="toggle-switch"></div> Mostrar a barra de contexto no topo</label>
         <label class="toggle-container"><input type="checkbox" id="opt-web"><div class="toggle-switch"></div> Pesquisar na web nas respostas (aba Chat)</label>
+        <div class="form-group"><label>Como pesquisar</label><select id="opt-searchmode"><option value="tool">A IA decide quando pesquisar (ferramenta)</option><option value="auto">Automático: pesquisa a cada pergunta</option></select>
+            <span class="hint">Na primeira opção a IA escolhe as palavras-chave e só pesquisa quando precisa (modelos pequenos às vezes não usam a ferramenta: aí escolha Automático).</span></div>
         <div class="form-group host-only">
             <label>Provedor de pesquisa na web</label>
             <select id="opt-provider">
@@ -1139,7 +1133,7 @@
             'Iniciar com o Windows': 'Start with Windows', 'Abre o Lume sozinho quando você entra no Windows. Só no Lume.exe.': 'Opens Lume by itself when you sign in to Windows. Lume.exe only.',
             'Pesquisar na web nas respostas': 'Search the web in answers', 'A IA pesquisa na internet quando a pergunta pede dados atuais.': 'The AI searches the internet when the question needs current data.',
             'Verificar atualizações ao abrir': 'Check for updates on startup', 'Avisa quando há uma versão nova.': 'Tells you when there is a new version.', 'Animações': 'Animations', 'Desligue se a interface pesar na placa de vídeo.': 'Turn off if the interface is heavy on the graphics card.',
-            'Painel de desempenho': 'Performance panel', 'Mostra a VRAM e a velocidade no canto da tela.': 'Shows VRAM and speed in the corner of the screen.', 'Acesso pela rede (celular e amigos)': 'Network access (phone and friends)', 'Deixa outros aparelhos entrarem. A senha continua exigida pela internet.': 'Lets other devices in. The password is still required over the internet.', 'Bem-vindo!': 'Welcome!', 'Busca feita com: {q}': 'Searched with: {q}', 'Não consegui carregar os modelos do Google AI Studio: {e}': 'Could not load the Google AI Studio models: {e}', 'Mostrar a mensagem completa da IA no terminal, sem esconder nada (raciocínio, chamadas de ferramenta e resultados)': 'Show the AI’s full message in the terminal, hiding nothing (reasoning, tool calls and results)', 'Esperando o Google AI Studio responder': 'Waiting for Google AI Studio to answer', 'Não consegui carregar os modelos do tomdacat: {e}': 'Could not load the tomdacat models: {e}', 'Roxo': 'Purple', '{a} de {b} pedidos': '{a} of {b} requests', 'renova em {t}': 'resets in {t}', '{a} de {b} tokens/min': '{a} of {b} tokens/min', 'Limite': 'Limit', 'Quase no limite de pedidos: restam {a} de {b}.': 'Almost at the request limit: {a} of {b} left.', 'Quase no limite de tokens por minuto: restam {a} de {b}. Espere um pouco antes de mandar outra.': 'Almost at the tokens-per-minute limit: {a} of {b} left. Wait a bit before sending another.', 'Não consegui carregar os modelos do Groq: {e}': 'Could not load the Groq models: {e}', '↓ Maior primeiro': '↓ Highest first', '↑ Menor primeiro': '↑ Lowest first', 'Ollama (também roda no seu PC)': 'Ollama (also runs on your PC)', ' (resposta veio de uma vez: inclui a espera)': ' (reply arrived all at once: includes the wait)', 'Esforço de raciocínio': 'Reasoning effort', 'Quanto o modelo pensa antes de responder. Menos = responde mais rápido. Automático: o botão Pensar decide (ligado = médio, desligado = nenhum).': 'How much the model thinks before answering. Less = faster. Automatic: the Think button decides (on = medium, off = none).', 'Automático': 'Automatic', 'Nenhum': 'None', 'Baixo': 'Low', 'Médio': 'Medium', 'Alto': 'High', 'Máximo': 'Max', 'Permitir sozinho (sem perguntar), mas bloquear comandos perigosos': 'Allow automatically (no prompt), but block dangerous commands', 'Com isso ligado a IA grava arquivos e roda comandos sem o popup, MENOS o que é perigoso: diskpart, format, apagar pastas do sistema ou do seu usuário, mexer no registro, em contas, serviços, boot, desligar o PC, baixar e executar código da internet. Esses são bloqueados de vez (nem perguntam). Não é uma garantia: confira o que a IA faz.': 'With this on, the AI writes files and runs commands without the popup, EXCEPT dangerous ones: diskpart, format, deleting system or user folders, editing the registry, accounts, services, boot, shutting the PC down, downloading and running code from the internet. Those are blocked outright (no prompt). It is not a guarantee: check what the AI does.', 'Parar': 'Stop', 'Parado': 'Stopped', '(o modelo só mostrou o raciocínio e parou antes de responder: talvez tenha acabado o limite de tokens)': '(the model only showed its reasoning and stopped before answering: it may have run out of tokens)', 'Ollama (local)': 'Ollama (local)', 'Ollama (nuvem)': 'Ollama (cloud)', 'Celular': 'Phone', 'grátis': 'free', 'pollen/msg': 'pollen/msg',
+            'Painel de desempenho': 'Performance panel', 'Mostra a VRAM e a velocidade no canto da tela.': 'Shows VRAM and speed in the corner of the screen.', 'Acesso pela rede (celular e amigos)': 'Network access (phone and friends)', 'Deixa outros aparelhos entrarem. A senha continua exigida pela internet.': 'Lets other devices in. The password is still required over the internet.', 'Bem-vindo!': 'Welcome!', 'Como pesquisar': 'How to search', 'A IA decide quando pesquisar (ferramenta)': 'The AI decides when to search (tool)', 'Automático: pesquisa a cada pergunta': 'Automatic: searches on every question', 'Na primeira opção a IA escolhe as palavras-chave e só pesquisa quando precisa (modelos pequenos às vezes não usam a ferramenta: aí escolha Automático).': 'With the first option the AI picks the keywords and only searches when needed (small models sometimes do not use the tool: then choose Automatic).', 'Busca feita com: {q}': 'Searched with: {q}', 'Mostrar a mensagem completa da IA no terminal, sem esconder nada (raciocínio, chamadas de ferramenta e resultados)': 'Show the AI’s full message in the terminal, hiding nothing (reasoning, tool calls and results)', 'Não consegui carregar os modelos do tomdacat: {e}': 'Could not load the tomdacat models: {e}', 'Roxo': 'Purple', '{a} de {b} pedidos': '{a} of {b} requests', 'renova em {t}': 'resets in {t}', '{a} de {b} tokens/min': '{a} of {b} tokens/min', 'Limite': 'Limit', 'Quase no limite de pedidos: restam {a} de {b}.': 'Almost at the request limit: {a} of {b} left.', 'Quase no limite de tokens por minuto: restam {a} de {b}. Espere um pouco antes de mandar outra.': 'Almost at the tokens-per-minute limit: {a} of {b} left. Wait a bit before sending another.', 'Não consegui carregar os modelos do Groq: {e}': 'Could not load the Groq models: {e}', '↓ Maior primeiro': '↓ Highest first', '↑ Menor primeiro': '↑ Lowest first', 'Ollama (também roda no seu PC)': 'Ollama (also runs on your PC)', ' (resposta veio de uma vez: inclui a espera)': ' (reply arrived all at once: includes the wait)', 'Esforço de raciocínio': 'Reasoning effort', 'Quanto o modelo pensa antes de responder. Menos = responde mais rápido. Automático: o botão Pensar decide (ligado = médio, desligado = nenhum).': 'How much the model thinks before answering. Less = faster. Automatic: the Think button decides (on = medium, off = none).', 'Automático': 'Automatic', 'Nenhum': 'None', 'Baixo': 'Low', 'Médio': 'Medium', 'Alto': 'High', 'Máximo': 'Max', 'Permitir sozinho (sem perguntar), mas bloquear comandos perigosos': 'Allow automatically (no prompt), but block dangerous commands', 'Com isso ligado a IA grava arquivos e roda comandos sem o popup, MENOS o que é perigoso: diskpart, format, apagar pastas do sistema ou do seu usuário, mexer no registro, em contas, serviços, boot, desligar o PC, baixar e executar código da internet. Esses são bloqueados de vez (nem perguntam). Não é uma garantia: confira o que a IA faz.': 'With this on, the AI writes files and runs commands without the popup, EXCEPT dangerous ones: diskpart, format, deleting system or user folders, editing the registry, accounts, services, boot, shutting the PC down, downloading and running code from the internet. Those are blocked outright (no prompt). It is not a guarantee: check what the AI does.', 'Parar': 'Stop', 'Parado': 'Stopped', '(o modelo só mostrou o raciocínio e parou antes de responder: talvez tenha acabado o limite de tokens)': '(the model only showed its reasoning and stopped before answering: it may have run out of tokens)', 'Ollama (local)': 'Ollama (local)', 'Ollama (nuvem)': 'Ollama (cloud)', 'Celular': 'Phone', 'grátis': 'free', 'pollen/msg': 'pollen/msg',
             'Roda no seu PC (azul)': 'Runs on your PC (blue)', 'Nuvem grátis (cinza)': 'Free cloud (grey)', 'Pago: gasta pollen (amarelo)': 'Paid: spends pollen (yellow)',
             '{a} falhou: {e}. Recomeçando com {b}...': '{a} failed: {e}. Restarting with {b}...', 'Pollen gasto nesta mensagem (estimado pelos tokens)': 'Pollen spent on this message (estimated from tokens)', 'Pagos (gastam pollen)': 'Paid (they spend pollen)', 'Provedor': 'Provider', 'grátis (pode estar fora do ar)': 'free (may be down)', 'pollen/mensagem': 'pollen/message', 'Esperando o Pollinations responder': 'Waiting for Pollinations to answer',
             'Não consegui carregar os modelos do Pollinations: {e}': 'Could not load the Pollinations models: {e}', 'Saldo de pollen do Pollinations.': 'Pollinations pollen balance.', 'Uma mensagem média neste modelo custa ≈{c} pollen (uns {n} mensagens com o saldo).': 'An average message on this model costs ≈{c} pollen (about {n} messages with the balance).', 'Clique para abrir o Pollinations.': 'Click to open Pollinations.',
@@ -1496,12 +1490,12 @@
         const modelById = id => MODELS.find(m => m.id === id);
         // so aparece o que esta instalado no Ollama (nuvem sempre aparece); installed = null enquanto nao sabemos
         let installed = null, installedSize = {}, vramTotalMB = 0, modelInfo = {};
-        const guestBlocks = m => isGuest() && !!auth.guest && (m.groq || m.or || m.cf || m.pol || m.tdc || m.gai || auth.guest.blocked_models.includes(m.id) || (m.cloud && auth.guest.blocked_features.includes('cloud')) || (!m.cloud && !m.phone && auth.guest.blocked_features.includes('local')));
-        const isAvail = m => guestBlocks(m) ? false : m.phone ? phoneMode() : (phoneMode() && !m.cloud ? false : (m.groq || m.or || m.cf || m.pol || m.tdc || m.gai || installed === null || installed.has(m.id)));   // no modo celular os locais do PC saem da lista
+        const guestBlocks = m => isGuest() && !!auth.guest && (m.groq || m.or || m.cf || m.pol || m.tdc || auth.guest.blocked_models.includes(m.id) || (m.cloud && auth.guest.blocked_features.includes('cloud')) || (!m.cloud && !m.phone && auth.guest.blocked_features.includes('local')));
+        const isAvail = m => guestBlocks(m) ? false : m.phone ? phoneMode() : (phoneMode() && !m.cloud ? false : (m.groq || m.or || m.cf || m.pol || m.tdc || installed === null || installed.has(m.id)));   // no modo celular os locais do PC saem da lista
         const availIn = tab => MODELS.filter(m => m.tabs.includes(tab) && isAvail(m));
         const pickDefault = list => list.find(m => m.rec && !m.cloud) || list.find(m => !m.cloud && !m.heavy) || list.find(m => !m.cloud) || list[0];
         // ---------- familias: todas as versoes e provedores de uma marca ficam num lugar so ("Qwen 2.5, 3 e 3.5"); a lista de parametros traz "versao, tamanho"
-        const PROV_TAG = m => m.gai ? ' · Google AI Studio' : m.tdc ? ' · tomdacat' : m.groq ? ' · Groq' : m.or ? ' · OpenRouter' : m.cf ? ' · Cloudflare' : m.pol ? ' · Pollinations' : '';
+        const PROV_TAG = m => m.tdc ? ' · tomdacat' : m.groq ? ' · Groq' : m.or ? ' · OpenRouter' : m.cf ? ' · Cloudflare' : m.pol ? ' · Pollinations' : '';
         function parseDyn(slug, fallbackBase) {   // 'google/gemma-4-31b-it:free', '@cf/qwen/qwen3.8-27b', 'gemma2:9b'... -> { base, ver, psize }
             const raw = String(slug).replace(/^@(cf|hf)\//, '').replace(/:free$/, ''), prov = raw.includes('/') ? raw.split('/')[0] : '';
             const s = raw.split('/').pop().toLowerCase().replace(/-free$/, '').replace(/-quest$/, '').replace(/^(nvidia|vercel|reflection)-/, '').replace(/^(nvidia|vercel)-/, ''), sz = (s.match(/(?:^|[-_:])(\d+(?:\.\d+)?)b(?![a-z])/) || [])[1], SZ = sz ? sz + 'B' : '';
@@ -1652,7 +1646,7 @@
             initStep = 'applyPerf'; applyPerf();
             if (auth.local) fetch(API + '/api/perf_interval', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ms: config.perfInterval }) }).catch(() => {});
             if (auth.local || auth.authed) fetch(API + '/api/usage').then(r => r.json()).then(updateUsageBadge).catch(() => {});
-            initStep = 'refreshLoaded'; if (auth.local || auth.authed) { await refreshLoaded(); loadOpenRouterModels(); loadGroqModels(); loadTomdacatModels(); loadGoogleModels(); loadCloudflareModels(); loadPollinationsModels(); }   // descobre o que esta instalado
+            initStep = 'refreshLoaded'; if (auth.local || auth.authed) { await refreshLoaded(); loadOpenRouterModels(); loadGroqModels(); loadTomdacatModels(); loadCloudflareModels(); loadPollinationsModels(); }   // descobre o que esta instalado
             initStep = 'switchTab'; switchTab('chat');
             initDone = true; startPolling();
             if (!metricsStarted) metricsLoop();
@@ -1788,8 +1782,8 @@
         const brandOf = rec => { const s = `${rec.fam} ${rec.famName} ${rec.id}`; return BRANDS.find(b => b.re.test(s) && brandFile(b, rec)) || null; };   // a primeira marca que combina E tem imagem
         const brandFile = (b, rec) => b.pick ? b.pick(`${rec.famName} ${rec.id}`) : b.img;
         // logos dos provedores (icons/prov-*.png): o arquivo que faltar simplesmente nao aparece
-        const PROV_LOGOS = { ollama: { img: 'prov-ollama.png', mono: true, ratio: 50 / 64, name: 'Ollama' }, openrouter: { img: 'prov-openrouter.png', name: 'OpenRouter' }, pollinations: { img: 'prov-pollinations.png', mono: true, ratio: 1, name: 'Pollinations' }, cloudflare: { img: 'prov-cloudflare.png', name: 'Cloudflare' }, groq: { img: 'prov-groq.png', mono: true, ratio: 2.62, name: 'Groq' }, tomdacat: { img: 'prov-tomdacat.svg', mono: true, ratio: 2.02, name: 'tomdacat' }, google: { img: 'Google.png', name: 'Google AI Studio' } };
-        const provKey = m => m.gai ? 'google' : m.tdc ? 'tomdacat' : m.or ? 'openrouter' : m.cf ? 'cloudflare' : m.pol ? 'pollinations' : m.groq ? 'groq' : m.phone ? null : 'ollama';
+        const PROV_LOGOS = { ollama: { img: 'prov-ollama.png', mono: true, ratio: 50 / 64, name: 'Ollama' }, openrouter: { img: 'prov-openrouter.png', name: 'OpenRouter' }, pollinations: { img: 'prov-pollinations.png', mono: true, ratio: 1, name: 'Pollinations' }, cloudflare: { img: 'prov-cloudflare.png', name: 'Cloudflare' }, groq: { img: 'prov-groq.png', mono: true, ratio: 2.62, name: 'Groq' }, tomdacat: { img: 'prov-tomdacat.svg', mono: true, ratio: 2.02, name: 'tomdacat' } };
+        const provKey = m => m.tdc ? 'tomdacat' : m.or ? 'openrouter' : m.cf ? 'cloudflare' : m.pol ? 'pollinations' : m.groq ? 'groq' : m.phone ? null : 'ollama';
         function provLogos(sizes) {
             const keys = Object.keys(PROV_LOGOS).filter(k => sizes.some(m => provKey(m) === k)); if (!keys.length) return null;
             const box = document.createElement('span'); box.className = 'mo-provs';
@@ -1908,10 +1902,10 @@
         const isLocalM = m => !m.cloud && !m.phone;
         const famKind = ms => ms.every(m => m.paid) ? 'paid' : ms.some(isLocalM) ? 'local' : 'cloud';
         const pollenPerMsg = m => (500 * (m.priceIn || 0) + 500 * (m.priceOut || 0)) / 1e6;
-        const providerName = m => m.gai ? 'Google AI Studio' : m.tdc ? 'tomdacat' : m.pol ? 'Pollinations · ' + (m.provider || '') : m.groq ? 'Groq' : m.cf ? 'Cloudflare' : m.or ? 'OpenRouter' : m.phone ? tr('Celular') : isLocalM(m) ? tr('Ollama (local)') : tr('Ollama (nuvem)');
+        const providerName = m => m.tdc ? 'tomdacat' : m.pol ? 'Pollinations · ' + (m.provider || '') : m.groq ? 'Groq' : m.cf ? 'Cloudflare' : m.or ? 'OpenRouter' : m.phone ? tr('Celular') : isLocalM(m) ? tr('Ollama (local)') : tr('Ollama (nuvem)');
         const provInfo = m => !m.pol ? '' : (m.free ? ' · ' + tr('grátis') : ' · ≈' + pollenPerMsg(m).toFixed(5) + ' ' + tr('pollen/msg')) + (m.lat ? ' · ' + m.lat.toFixed(1) + ' s' : '') + (m.success != null ? ' · ' + Math.round(m.success) + '%' : '') + ((m.success != null ? m.success < 80 : m.health === 'down') || m.warn ? ' ⚠' : '');
         // qual provedor usar por padrao: o que voce escolheu antes; senao local > nuvem do Ollama > Cloudflare > OpenRouter > Pollinations gratis (se estiver bem) > Pollinations pago mais barato > gratis instavel
-        const variantRank = m => m.prio ? -100 : isLocalM(m) ? 0 : m.gai ? 3.5 : m.tdc ? 12 : (!m.or && !m.cf && !m.pol) ? 1 : m.cf ? 2 : m.or ? 3 : !m.pol ? 4 : m.free ? 5 : 10 + pollenPerMsg(m) * 1000;   // o padrao e sempre o mais barato, sem olhar a estabilidade: se falhar, o Lume troca para o proximo
+        const variantRank = m => m.prio ? -100 : isLocalM(m) ? 0 : m.tdc ? 12 : (!m.or && !m.cf && !m.pol) ? 1 : m.cf ? 2 : m.or ? 3 : !m.pol ? 4 : m.free ? 5 : 10 + pollenPerMsg(m) * 1000;   // o padrao e sempre o mais barato, sem olhar a estabilidade: se falhar, o Lume troca para o proximo
         const bestVariant = items => items.find(m => (config.provPref || {})[m.grp + '|' + m.pk] === m.id) || [...items].sort((a, b) => variantRank(a) - variantRank(b))[0];
         const costRank = m => (m.prio ? -100 : 0) + (m.pol && !m.free ? pollenPerMsg(m) : 0) + (m.tdc ? 0.001 : 0);   // ordem de reserva: gratis primeiro, depois do mais barato ao mais caro
         function fallbackChain(m, tab) {   // se o provedor escolhido falhar: os outros provedores do MESMO modelo (menos o local), do mais barato ao mais caro
@@ -2018,18 +2012,6 @@
         }
         function polBadgeClick() { refreshPolUsage(true); openExternal('https://pollinations.ai'); }
         setInterval(() => { const m = modelById(selectedModel); if (m && m.pol) refreshPolUsage(true); }, 60000);
-        async function loadGoogleModels() {   // modelos Gemini/Gemma do Google AI Studio (plano gratis com limites); so aparecem com a chave salva
-            if (!(auth.local || auth.authed) || isGuest()) return;
-            let d; try { d = await (await fetch(API + '/api/google_models')).json(); } catch (e) { return; }
-            for (let i = MODELS.length - 1; i >= 0; i--) if (MODELS[i].gai) MODELS.splice(i, 1);
-            if (d.error && !(d.models || []).length) showInfo(tr('Não consegui carregar os modelos do Google AI Studio: {e}', { e: d.error }), 7000);
-            (d.models || []).forEach(x => {
-                const nm = x.id.replace(/^(gemini|gemma)/, s => s[0].toUpperCase() + s.slice(1));
-                MODELS.push(Object.assign({ id: 'gai:' + x.id, fam: 'gai:' + x.id, famName: nm, params: nm, label: nm + ' (Google AI Studio)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, gai: true, vision: !/gemma-?[123]\b/.test(x.id), ctx: 1000000 }, parseDyn(x.id, nm)));
-            });
-            if (String(config.model).startsWith('gai:') && modelById(config.model) && currentTab === 'chat') selectedModel = config.model;
-            renderModelOptions();
-        }
         async function loadTomdacatModels() {   // modelos do tomdacat (creditos; so os de ate 100 cr/M); so aparecem com a chave salva
             if (!(auth.local || auth.authed) || isGuest()) return;
             let d; try { d = await (await fetch(API + '/api/tomdacat_models')).json(); } catch (e) { return; }
@@ -2069,7 +2051,7 @@
         const HIDDEN_MODELS = /^(clef|deepseek-v4\.1-flash)\b|llama/i;   // clef e DeepSeek V4.1 Flash: nao sao gratis; Llama: fora por escolha   // instalados no Ollama, mas fora do seletor
         async function detectVision() {   // o Ollama informa as capacidades de cada modelo instalado; a etiqueta "visao" segue isso (corrige modelos que aceitam imagem e estavam sem a etiqueta)
             if (!installed) return; let changed = false;
-            await Promise.all(MODELS.filter(m => !m.phone && !m.groq && !m.or && !m.cf && !m.pol && !m.tdc && !m.gai && installed.has(m.id) && !m._capsDone).map(async m => {
+            await Promise.all(MODELS.filter(m => !m.phone && !m.groq && !m.or && !m.cf && !m.pol && !m.tdc && installed.has(m.id) && !m._capsDone).map(async m => {
                 m._capsDone = true;
                 try {
                     const inf = await (await fetch(API + '/api/model_info?name=' + encodeURIComponent(m.id))).json();
@@ -3049,7 +3031,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                         if (!active.phone) {
                             const response = await fetch(API + '/api/chat', {
                                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ model: apiModelId(active), rid: job.rid, messages: apiMessages, stream: true, think: opts.think, effort: (active.pol && active.effort && (config.effort || {})[active.id]) || undefined, search_web: !isCode && config.webSearch && !blockedFeature('web'), agent: isCode && !isGuest(), lang: curLang(), num_ctx: active.cloud ? undefined : effCtx(active) })
+                                body: JSON.stringify({ model: apiModelId(active), rid: job.rid, messages: apiMessages, stream: true, think: opts.think, effort: (active.pol && active.effort && (config.effort || {})[active.id]) || undefined, search_web: !isCode && config.webSearch && !blockedFeature('web'), search_mode: config.searchMode || 'tool', agent: isCode && !isGuest(), lang: curLang(), num_ctx: active.cloud ? undefined : effCtx(active) })
                             });
                             if (!response.ok) { let err = {}; try { err = await response.json(); } catch (e) {} throw new Error(err.error || ('HTTP ' + response.status)); }
                             reader = response.body.getReader(); decoder = new TextDecoder();
@@ -3177,13 +3159,13 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             $('system-prompt-input').value = sysPrompt(false);
             $('code-prompt-input').value = sysPrompt(true);
             $('opt-lang').value = curLang(); $('opt-anim').checked = config.animations !== false; $('opt-hidevram').checked = config.hideVramWarn !== false;
-            $('opt-ctx').value = String(config.numCtx); $('opt-maxctx').checked = !!config.maxCtx; $('opt-ctx').disabled = !!config.maxCtx; $('opt-ctxdiv').checked = !!config.ctxDivide; $('opt-ctxdiv-num').value = config.ctxDivisor || 4; ctxDivUi(true); $('opt-ctxbar').checked = config.showCtxBar; $('opt-web').checked = config.webSearch; $('opt-star').checked = config.starToDot; $('opt-autostop').checked = config.autoStopPrev;
+            $('opt-ctx').value = String(config.numCtx); $('opt-maxctx').checked = !!config.maxCtx; $('opt-ctx').disabled = !!config.maxCtx; $('opt-ctxdiv').checked = !!config.ctxDivide; $('opt-ctxdiv-num').value = config.ctxDivisor || 4; ctxDivUi(true); $('opt-ctxbar').checked = config.showCtxBar; $('opt-web').checked = config.webSearch; $('opt-searchmode').value = config.searchMode || 'tool'; $('opt-star').checked = config.starToDot; $('opt-autostop').checked = config.autoStopPrev;
             $('perf-enabled').checked = config.perfEnabled; $('opt-autoupd').checked = config.autoUpdate !== false;
             $('perf-style').value = config.perfStyle;
             if (auth.local) checkUpdates(false);
             $('perf-style').value = config.perfStyle;
             $('perf-interval').value = config.perfInterval; $('perf-int-val').innerText = config.perfInterval;
-            $('groq-key-input').value = ''; $('or-key-input').value = ''; $('cf-token-input').value = ''; $('cf-acc-input').value = ''; $('pol-key-input').value = ''; $('tdc-key-input').value = ''; $('gai-key-input').value = ''; $('exa-key-input').value = '';
+            $('groq-key-input').value = ''; $('or-key-input').value = ''; $('cf-token-input').value = ''; $('cf-acc-input').value = ''; $('pol-key-input').value = ''; $('tdc-key-input').value = ''; $('exa-key-input').value = '';
             showModal('settings-modal');
             showSettingsTab('general');
             if (auth.local) { renderAppSettings(); refreshModelManager(); }
@@ -3198,7 +3180,6 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 $('cf-status').textContent = tr(st.cloudflare_saved ? 'salvo ✓' : 'não salvo'); $('cf-status').classList.toggle('ok', st.cloudflare_saved);
                 $('pol-status').textContent = tr(st.pollinations_saved ? 'chave salva ✓' : 'não salva'); $('pol-status').classList.toggle('ok', st.pollinations_saved);
                 $('tdc-status').textContent = tr(st.tomdacat_saved ? 'chave salva ✓' : 'não salva'); $('tdc-status').classList.toggle('ok', st.tomdacat_saved);
-                $('gai-status').textContent = tr(st.google_saved ? 'chave salva ✓' : 'não salva'); $('gai-status').classList.toggle('ok', st.google_saved);
                 $('exa-status').textContent = tr(st.exa_key_saved ? 'chave salva ✓' : 'não salva');
                 $('exa-status').classList.toggle('ok', st.exa_key_saved);
                 $('opt-provider').value = st.search_provider || 'auto'; $('opt-exatype').value = st.exa_type || 'lite';
@@ -3274,7 +3255,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
         async function saveSettings() {
             config.systemPrompt = $('system-prompt-input').value;
             config.codePrompt = $('code-prompt-input').value || CODE_PROMPT_DEFAULT;
-            config.numCtx = +$('opt-ctx').value; config.maxCtx = $('opt-maxctx').checked; config.ctxDivide = $('opt-ctxdiv').checked; config.ctxDivisor = Math.min(1000, Math.max(1, parseFloat($('opt-ctxdiv-num').value) || 4)); config.showCtxBar = $('opt-ctxbar').checked; config.webSearch = $('opt-web').checked; config.starToDot = $('opt-star').checked; config.autoStopPrev = $('opt-autostop').checked;
+            config.numCtx = +$('opt-ctx').value; config.maxCtx = $('opt-maxctx').checked; config.ctxDivide = $('opt-ctxdiv').checked; config.ctxDivisor = Math.min(1000, Math.max(1, parseFloat($('opt-ctxdiv-num').value) || 4)); config.showCtxBar = $('opt-ctxbar').checked; config.webSearch = $('opt-web').checked; config.searchMode = $('opt-searchmode').value; config.starToDot = $('opt-star').checked; config.autoStopPrev = $('opt-autostop').checked;
             saveState();
             if (auth.local) {
                 const body = { workdir: $('workdir-input').value.trim(), auto_allow: $('opt-autoallow').checked, search_provider: $('opt-provider').value, exa_type: $('opt-exatype').value };
@@ -3291,8 +3272,6 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 if (polKey) body.pollinations_api_key = polKey;
                 const tdcKey = $('tdc-key-input').value.trim();
                 if (tdcKey) body.tomdacat_api_key = tdcKey;
-                const gaiKey = $('gai-key-input').value.trim();
-                if (gaiKey) body.google_api_key = gaiKey;
                 const exaKey = $('exa-key-input').value.trim();
                 if (exaKey) body.exa_api_key = exaKey;
                 try {
@@ -3301,7 +3280,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 } catch (e) { alert(tr('Servidor não respondeu.')); return; }
             }
             closeSettings();
-            if (auth.local) { loadOpenRouterModels(); loadGroqModels(); loadTomdacatModels(); loadGoogleModels(); loadCloudflareModels(); loadPollinationsModels(); }
+            if (auth.local) { loadOpenRouterModels(); loadGroqModels(); loadTomdacatModels(); loadCloudflareModels(); loadPollinationsModels(); }
             updateCtxBar();
             if (currentChatId) loadChat(currentChatId);   // re-renderiza com as opcoes de formatacao novas
         }
@@ -3403,7 +3382,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 row.append(up, del); list.appendChild(row);
                 if (mmPulls[n] && mmPulls[n].box) row.appendChild(mmPulls[n].box);
             });
-            $('mm-suggest').innerHTML = ''; MODELS.filter(m => !m.cloud && !m.phone && !m.groq && !m.tdc && !m.gai && !names.includes(m.id) && !m.custom).forEach(m => $('mm-suggest').appendChild(new Option(m.label, m.id)));
+            $('mm-suggest').innerHTML = ''; MODELS.filter(m => !m.cloud && !m.phone && !m.groq && !m.tdc && !names.includes(m.id) && !m.custom).forEach(m => $('mm-suggest').appendChild(new Option(m.label, m.id)));
             $('mm-auto').checked = !!ao.auto_update_models;
             const mu = ao.model_update || {};
             $('mm-upd-state').textContent = mu.running ? tr('Atualizando {n} ({d}/{t})...', { n: mu.current, d: mu.done, t: mu.total }) : ao.models_updated_at ? tr('Última conferência: {d}', { d: new Date(ao.models_updated_at * 1000).toLocaleString(curLang() === 'en' ? 'en-US' : 'pt-BR') }) + (mu.updated && mu.updated.length ? ' · ' + tr('atualizados: {l}', { l: mu.updated.join(', ') }) : '') : '';

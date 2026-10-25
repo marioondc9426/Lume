@@ -207,7 +207,6 @@ def load_config():
     cfg.setdefault("cloudflare_api_token", "")   # Cloudflare Workers AI: token + id da conta
     cfg.setdefault("cloudflare_account_id", "")
     cfg.setdefault("pollinations_api_key", "")   # Pollinations: modelos que gastam pollen
-    cfg.setdefault("google_api_key", "")         # Google AI Studio (Gemini; plano gratis)
     cfg.setdefault("tomdacat_api_key", "")       # tomdacat (ai.tomdacat.com): gateway de modelos cobrado em creditos
     cfg.setdefault("workdir", "")
     cfg.setdefault("usage", {}).setdefault("groq", 0)
@@ -310,7 +309,7 @@ def build_stats(days=30):
     # Ollama: a conta so mede o uso da nuvem por tempo de GPU em janelas de 5 h e 7 dias; aqui e a soma do que passou por este app
     oll = {"h5": {"requests": 0, "seconds": 0.0, "tokens": 0}, "d7": {"requests": 0, "seconds": 0.0, "tokens": 0}, "month": {}, "local": {"requests": 0, "seconds": 0.0, "tokens": 0}}
     for e in allev:
-        if e.get("type") != "chat" or str(e.get("model", "")).startswith(("groq", "or:", "cf:", "pol:", "tdc:", "gai:")) or e.get("ts", 0) < now - 30 * 86400: continue
+        if e.get("type") != "chat" or str(e.get("model", "")).startswith(("groq", "or:", "cf:", "pol:", "tdc:")) or e.get("ts", 0) < now - 30 * 86400: continue
         sec, tk, age = e.get("seconds", 0.0), e.get("tokens", 0), now - e["ts"]
         if is_ollama_cloud(e.get("model")):
             if age <= 5 * 3600: oll["h5"]["requests"] += 1; oll["h5"]["seconds"] += sec; oll["h5"]["tokens"] += tk
@@ -822,6 +821,24 @@ Ferramentas:
 Faca UMA chamada por vez; o resultado volta na proxima mensagem. Quando terminar, responda normalmente, sem ferramentas.
 """
 
+WEB_TOOL_PROMPT = """
+
+PESQUISA NA WEB (ferramenta): voce pode pesquisar na internet quando precisar de informacao atual ou que voce nao sabe. Quem decide e voce: NAO pesquise em cumprimentos, conversa comum, ou o que voce ja sabe.
+Para pesquisar, responda SO com isto e pare de escrever (a busca e feita com as palavras-chave que VOCE escolher):
+$$[TOOL: search_web] {"query": "palavras-chave da busca"}$$
+Para ler uma pagina de uma fonte: $$[TOOL: read_url] {"url": "https://..."}$$
+Depois de receber os resultados, responda ao usuario citando os links usados. Se os resultados nao ajudarem, diga isso.
+"""
+
+WEB_TOOL_PROMPT_EN = """
+
+WEB SEARCH (tool): you can search the internet when you need current information or something you do not know. YOU decide: do NOT search for greetings, small talk, or things you already know.
+To search, reply ONLY with this and stop writing (the search uses the keywords YOU choose):
+$$[TOOL: search_web] {"query": "search keywords"}$$
+To read a page from a source: $$[TOOL: read_url] {"url": "https://..."}$$
+After you receive the results, answer the user citing the links you used. If the results do not help, say so.
+"""
+
 TOOL_PROMPT_EN = """
 
 [AGENT MODE]
@@ -1006,7 +1023,7 @@ CORRECTION_EN = 'Invalid format: no tool was run. To use a tool write EXACTLY $$
 def _schema(name, desc, props, required):
     return {"type": "function", "function": {"name": name, "description": desc, "parameters": {"type": "object", "properties": props, "required": required}}}
 
-NATIVE_TOOLS = [
+NATIVE_TOOLS_ALL = [
     _schema("list_files", "List the files in a folder", {"path": {"type": "string"}}, []),
     _schema("read_file", "Read a text file", {"path": {"type": "string"}}, ["path"]),
     _schema("write_file", "Create or overwrite a file", {"path": {"type": "string"}, "content": {"type": "string"}}, ["path", "content"]),
@@ -1015,6 +1032,8 @@ NATIVE_TOOLS = [
     _schema("search_web", "Search the web", {"query": {"type": "string"}}, ["query"]),
     _schema("read_url", "Read the text of a web page", {"url": {"type": "string"}}, ["url"]),
 ]
+NATIVE_TOOLS = NATIVE_TOOLS_ALL
+NATIVE_TOOLS_WEB = [t for t in NATIVE_TOOLS_ALL if t["function"]["name"] in ("search_web", "read_url")]   # aba Chat: so a pesquisa
 
 def _clean_arg(v):
     return v.strip().strip('"\'`') if isinstance(v, str) and not v.startswith(("\n", " ")) and len(v) < 4096 and "\n" not in v else v
@@ -1276,50 +1295,6 @@ def stream_groq(model, messages, cfg, max_tokens=None):
         if e.code == 429: raise Exception(f"Limite do Groq atingido (tokens por minuto ou pedidos por dia){f'. Tente de novo em {wait} s' if wait else ''}. {msg}")
         if e.code in (401, 403): raise Exception("Chave do Groq invalida ou sem permissao. Confira em Configuracoes.")
         raise Exception(f"Groq respondeu {e.code}: {msg}")
-    yield from _sse_chat(response, t0, {})
-
-# ---------------------------------------------------------------- Google AI Studio (Gemini; plano gratis com limites por minuto e por dia)
-GAI_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
-GAI_EXCLUDE = re.compile(r"embed|imagen|veo|tts|live|image|aqa|audio|robotics|computer-use|learnlm|transcribe", re.I)
-_gai_cache = {"t": 0, "models": []}
-
-def google_models(cfg, force=False):
-    """Modelos de conversa (Gemini/Gemma) da conta no Google AI Studio ([{id, name}]); em cache por 1 h."""
-    key = (cfg.get("google_api_key") or "").strip()
-    if not key: return []
-    if not force and _gai_cache["models"] and time.time() - _gai_cache["t"] < 3600: return _gai_cache["models"]
-    req = urllib.request.Request(GAI_URL + "/models", headers={"Authorization": "Bearer " + key, "User-Agent": "lume-app"})
-    with urllib.request.urlopen(req, timeout=20) as r: data = json.load(r).get("data", [])
-    out = []
-    for m in data:
-        mid = str(m.get("id") or "").replace("models/", "", 1)
-        if not mid or not re.match(r"(gemini|gemma)", mid) or GAI_EXCLUDE.search(mid): continue
-        out.append({"id": mid})
-    out.sort(key=lambda m: m["id"]); _gai_cache.update(t=time.time(), models=out)
-    return out
-
-def stream_google(model, messages, cfg, max_tokens=None):
-    key = (cfg.get("google_api_key") or "").strip()
-    if not key: raise Exception("Chave do Google AI Studio nao configurada. Abra Configuracoes e cole sua chave.")
-    msgs = []
-    for m in messages:
-        imgs = m.get("images") or []
-        if imgs and m["role"] == "user": msgs.append({"role": "user", "content": [{"type": "text", "text": m["content"]}] + [{"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + b}} for b in imgs]})
-        else: msgs.append({"role": m["role"], "content": m["content"]})
-    payload = {"model": model[4:], "messages": msgs, "stream": True, "stream_options": {"include_usage": True}}
-    if max_tokens: payload["max_tokens"] = int(max_tokens)
-    req = urllib.request.Request(GAI_URL + "/chat/completions", data=json.dumps(payload).encode("utf-8"), headers={"Authorization": "Bearer " + key, "Content-Type": "application/json", "User-Agent": "lume-app"})
-    t0 = time.time()
-    try: response = _cloud_open(req, "O Google AI Studio")
-    except urllib.error.HTTPError as e:
-        body = e.read().decode("utf-8", "replace"); msg = body[:250]
-        try:
-            j = json.loads(body); j = j[0] if isinstance(j, list) and j else j
-            msg = str((j.get("error") or {}).get("message") or msg)[:250]
-        except (ValueError, AttributeError, TypeError): pass
-        if e.code in (400, 401, 403) and "API key" in body: raise Exception("Chave do Google AI Studio invalida. Confira em Configuracoes (comeca com AIza).")
-        if e.code == 429: raise Exception(f"Limite do plano gratis do Google AI Studio (pedidos por minuto ou por dia): {msg}")
-        raise Exception(f"O Google AI Studio respondeu {e.code}: {msg}")
     yield from _sse_chat(response, t0, {})
 
 # ---------------------------------------------------------------- tomdacat (gateway com creditos; a interface e compativel com a da OpenAI)
@@ -1778,7 +1753,7 @@ def stream_pollinations(model, messages, think, cfg, max_tokens=None, agent=Fals
             want = effort if effort in EFFORT_ORDER else ("medium" if think else "none")
             known = _pol_effort_ok.get(cand)
             payload["reasoning_effort"] = (_near_effort(want, known) if known else want) or want
-        if agent and (caps is None or caps["tools"]): payload["tools"] = NATIVE_TOOLS   # aba Code: chamada de ferramenta nativa (so se o modelo tem a capacidade)
+        if agent and (caps is None or caps["tools"]): payload["tools"] = NATIVE_TOOLS_WEB if agent == "web" else NATIVE_TOOLS   # aba Code: chamada de ferramenta nativa (so se o modelo tem a capacidade)
         t0 = time.time()
         hdr = {"Authorization": "Bearer " + key, "Content-Type": "application/json", "User-Agent": "lume-app"}
         try:
@@ -1825,7 +1800,6 @@ def stream_pollinations(model, messages, think, cfg, max_tokens=None, agent=Fals
 def stream_model(model, messages, think, cfg, num_ctx=None, max_tokens=None, agent=False, effort=None):
     if model.startswith("pol:"): return stream_pollinations(model, messages, think, cfg, max_tokens, agent, effort)
     if model.startswith("tdc:"): return stream_tomdacat(model, messages, cfg, max_tokens)
-    if model.startswith("gai:"): return stream_google(model, messages, cfg, max_tokens)
     if model.startswith("or:"): return stream_openrouter(model, messages, think, cfg, max_tokens)
     if model.startswith("cf:"): return stream_cloudflare(model, messages, think, cfg, max_tokens)
     return stream_groq(model, messages, cfg, max_tokens) if model.startswith("groq") else stream_ollama(model, messages, think, num_ctx, max_tokens)
@@ -2265,12 +2239,6 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             if not has: return self.send_json({"key_saved": False, "models": []})
             try: return self.send_json({"key_saved": True, "models": openrouter_free_models()})
             except Exception as e: return self.send_json({"key_saved": True, "models": [], "error": str(e)[:200]})
-        if p == '/api/google_models':
-            if not local: return self.send_json({"error": "local_only"}, 403)
-            cfg = load_config()
-            if not cfg.get("google_api_key"): return self.send_json({"saved": False, "models": []})
-            try: return self.send_json({"saved": True, "models": google_models(cfg)})
-            except Exception as e: return self.send_json({"saved": True, "models": [], "error": str(e)[:200]})
         if p == '/api/tomdacat_models':
             if not local: return self.send_json({"error": "local_only"}, 403)
             cfg = load_config()
@@ -2312,7 +2280,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             except Exception as e: return self.send_json({"saved": True, "models": [], "error": str(e)[:200]})
         if p == '/api/config_status':
             cfg = load_config()
-            return self.send_json({"groq_key_saved": bool(cfg.get("groq_api_key")), "openrouter_key_saved": bool(cfg.get("openrouter_api_key")), "cloudflare_saved": all(cf_creds(cfg)), "pollinations_saved": bool(cfg.get("pollinations_api_key")), "tomdacat_saved": bool(cfg.get("tomdacat_api_key")), "google_saved": bool(cfg.get("google_api_key")), "exa_key_saved": bool(exa_api_key(cfg)), "search_provider": cfg.get("search_provider", "auto"), "exa_type": cfg.get("exa_type", "lite"), "search_results": max_results(), "search_daily_limit": cfg.get("search_daily_limit", 100), "exa_today": exa_searches_today(), "auto_allow": bool(cfg.get("auto_allow")), "workdir": get_workdir(cfg) if local else "", "default_workdir": BASE_DIR if local else ""})
+            return self.send_json({"groq_key_saved": bool(cfg.get("groq_api_key")), "openrouter_key_saved": bool(cfg.get("openrouter_api_key")), "cloudflare_saved": all(cf_creds(cfg)), "pollinations_saved": bool(cfg.get("pollinations_api_key")), "tomdacat_saved": bool(cfg.get("tomdacat_api_key")),  "exa_key_saved": bool(exa_api_key(cfg)), "search_provider": cfg.get("search_provider", "auto"), "exa_type": cfg.get("exa_type", "lite"), "search_results": max_results(), "search_daily_limit": cfg.get("search_daily_limit", 100), "exa_today": exa_searches_today(), "auto_allow": bool(cfg.get("auto_allow")), "workdir": get_workdir(cfg) if local else "", "default_workdir": BASE_DIR if local else ""})
         if p == '/api/models_status':
             tags = ollama_tags(); running = tags is not None
             used, total, _ = get_gpu_metrics()
@@ -2465,10 +2433,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 if k in data:
                     try: data[k] = max(lo, min(hi, int(data[k])))
                     except (TypeError, ValueError): return self.send_json({"error": "Opcao de pesquisa invalida."}, 400)
-            for k in ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "cloudflare_api_token", "cloudflare_account_id", "exa_api_key", "tomdacat_api_key", "google_api_key", "workdir", "search_provider", "exa_type", "search_results", "search_daily_limit", "auto_allow"):
+            for k in ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "cloudflare_api_token", "cloudflare_account_id", "exa_api_key", "tomdacat_api_key", "workdir", "search_provider", "exa_type", "search_results", "search_daily_limit", "auto_allow"):
                 if k in data: cfg[k] = bool(data[k]) if k == "auto_allow" else data[k].strip() if k.endswith(("_key", "_token", "_id")) else data[k]
             save_config(cfg)
-            secrets_sent = [k for k in ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "tomdacat_api_key", "google_api_key", "cloudflare_api_token", "exa_api_key") if k in data]
+            secrets_sent = [k for k in ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "tomdacat_api_key", "cloudflare_api_token", "exa_api_key") if k in data]
             log("CONFIG", "Configuracoes salvas (" + ", ".join([k for k in data if k not in secrets_sent] + [f"chave {k.split('_')[0]}" for k in secrets_sent]) + ")", COLOR_GREEN)
             return self.send_json({"ok": True})
 
@@ -2923,21 +2891,25 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         def status(text): emit({"status": text})
 
         total_chars = 0
-        kw_model = {k: v for k, v in (("agent", True if agent else None), ("effort", str(req_json.get("effort") or "") or None)) if v}   # so manda o que foi pedido
+        web_tool = bool(req_json.get("search_web")) and not agent and (req_json.get("search_mode") or "tool") == "tool"   # a IA decide quando pesquisar (ferramenta), em vez de pesquisar sozinho em toda mensagem
+        use_tools = agent or web_tool; max_steps = MAX_AGENT_STEPS if agent else 4
+        kw_model = {k: v for k, v in (("agent", ("web" if web_tool else True) if use_tools else None), ("effort", str(req_json.get("effort") or "") or None)) if v}   # so manda o que foi pedido
         try:
-            if not model.startswith(("groq", "or:", "cf:", "pol:", "tdc:", "gai:")):
+            if not model.startswith(("groq", "or:", "cf:", "pol:", "tdc:")):
                 if not ollama_is_running():
                     status("Iniciando Ollama")
                     if not start_ollama(): raise Exception("Nao consegui iniciar o Ollama. Ele esta instalado?")
                 if model not in [m["name"] for m in ollama_ps()]:
                     status("Carregando modelo")
             else:
-                status("Esperando o Google AI Studio responder" if model.startswith("gai:") else "Esperando o tomdacat responder" if model.startswith("tdc:") else "Conectando ao OpenRouter" if model.startswith("or:") else "Conectando ao Cloudflare" if model.startswith("cf:") else "Esperando o Pollinations responder" if model.startswith("pol:") else "Conectando ao Groq")
+                status("Esperando o tomdacat responder" if model.startswith("tdc:") else "Conectando ao OpenRouter" if model.startswith("or:") else "Conectando ao Cloudflare" if model.startswith("cf:") else "Esperando o Pollinations responder" if model.startswith("pol:") else "Conectando ao Groq")
 
             if not messages or messages[0].get("role") != "system":
                 messages.insert(0, {"role": "system", "content": ""})
             if agent:
                 messages[0]["content"] += (TOOL_PROMPT_EN if lang == 'en' else TOOL_PROMPT).replace("{workdir}", workdir)
+            elif web_tool:
+                messages[0]["content"] += WEB_TOOL_PROMPT_EN if lang == 'en' else WEB_TOOL_PROMPT
             elif req_json.get("search_web"):
                 query = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")[:200]
                 if needs_web(query):
@@ -2959,7 +2931,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             req_tokens = req_prompt = 0; req_seconds = 0.0   # para as estatisticas
             clean = list(messages)   # conversa sem as tentativas falhas e sem os pedidos de correcao (o plano B usa esta)
             failed_pending = False   # a ultima tentativa de chamar ferramenta falhou e ainda nao houve uma boa
-            for step in range(MAX_AGENT_STEPS if agent else 1):
+            for step in range(max_steps if use_tools else 1):
                 if step: emit({"step": step})   # a interface separa o pensamento de cada rodada em um bloco
                 full = ""
                 gen = stream_model(model, messages, think, cfg, num_ctx, gmax, **kw_model); splitter = ThinkSplitter()
@@ -2977,7 +2949,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                         for k2, p2 in splitter.feed(piece):
                             if k2 == "thinking": send(p2, "thinking")
                             else: full += p2; send(p2)
-                        if agent and ('}' in piece or '$' in piece) and find_tool_call(full): break
+                        if use_tools and ('}' in piece or '$' in piece) and find_tool_call(full): break
                     for k2, p2 in splitter.flush():   # sobras do buffer (uma tag que nunca terminou de chegar)
                         if k2 == "thinking": send(p2, "thinking")
                         else: full += p2; send(p2)
@@ -2990,9 +2962,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 if stopped():
                     send(L("\n\n[Geracao parada]", "\n\n[Generation stopped]"))
                     break
-                call = find_tool_call(full) if agent else None
+                call = find_tool_call(full) if use_tools else None
                 if not call:
-                    if agent and corrections < 2 and (looks_like_failed_call(full) or announces_action(full)):   # errou o formato (ou disse que ia agir e nao chamou nada): pede para repetir (ate 2 vezes)
+                    if use_tools and corrections < 2 and (looks_like_failed_call(full) or (agent and announces_action(full))):   # errou o formato (ou disse que ia agir e nao chamou nada): pede para repetir (ate 2 vezes)
                         corrections += 1; failed_pending = True
                         log("AGENTE", "Chamada de ferramenta fora do formato; pedindo para a IA repetir.", COLOR_YELLOW)
                         send(L("\n\n[formato de ferramenta invalido, pedindo para a IA tentar de novo]", "\n\n[invalid tool format, asking the AI to try again]"))
@@ -3000,7 +2972,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                         messages.append({"role": "user", "content": L(CORRECTION_PT, CORRECTION_EN)})
                         status("Pensando")
                         continue
-                    if agent and looks_like_failed_call(full): failed_pending = True   # sem tentativas de correcao sobrando
+                    if use_tools and looks_like_failed_call(full): failed_pending = True   # sem tentativas de correcao sobrando
                     if agent and failed_pending and native_tries < 2:   # plano B: chamada nativa do Ollama
                         native_tries += 1
                         status("Tentando chamada nativa")
@@ -3011,7 +2983,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                             send(L("\n\n[plano B: chamada nativa de ferramenta]\n", "\n\n[fallback: native tool call]\n") + full)
                             call = (nc[0], nc[1], len(full))
                 if not call:
-                    if agent and failed_pending:   # a IA pode ter escrito que "executou", mas nada rodou: avisa o usuario
+                    if use_tools and failed_pending:   # a IA pode ter escrito que "executou", mas nada rodou: avisa o usuario
                         log("AGENTE", "A IA nao conseguiu chamar a ferramenta no formato certo; nada foi executado.", COLOR_RED)
                         send(L("\n\n[Nenhuma ferramenta foi executada: a IA nao conseguiu chamar a ferramenta no formato correto. Se ela disse que executou algo, isso nao aconteceu. Modelos pequenos as vezes falham ao usar ferramentas: e so pedir de novo.]",
                                "\n\n[No tool was run: the AI could not call the tool in the correct format. If it said it ran something, that did not happen. Small models sometimes fail when using tools: just ask again.]"))
@@ -3027,23 +2999,26 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 for tool_name, tool_args, _end in calls:
                     tool_args = normalize_args(tool_name, tool_args)
                     log("TOOL", f"{tool_name} {tool_args}", COLOR_CYAN)
+                    web_denied = web_tool and tool_name not in ("search_web", "read_url")   # aba Chat: so a pesquisa
                     blocked = None; auto = False
                     if needs_permission(tool_name) and load_config().get("auto_allow"):   # "permitir sozinho": roda sem perguntar, exceto o que e perigoso (esse e bloqueado)
                         blocked = dangerous_reason(tool_name, tool_args); auto = not blocked
                         if blocked: log("PERMISSAO", f"Bloqueado ({blocked}): {describe_tool(tool_name, tool_args)}", COLOR_RED)
                         else: log("PERMISSAO", f"Permitido sozinho: {describe_tool(tool_name, tool_args)}", COLOR_YELLOW)
-                    if needs_permission(tool_name) and not auto and not blocked:
+                    if needs_permission(tool_name) and not auto and not blocked and not web_denied:
                         status("Aguardando permissão")
                         if not ask_permission(describe_tool(tool_name, tool_args), stopped):
                             send(L("\n\n[Acao negada pelo usuario]", "\n\n[Action denied by the user]"))
                             denied = True; break
-                    status(f"Executando: {tool_name}")
-                    if blocked:
+                    status("Pesquisando na web" if web_tool else f"Executando: {tool_name}")
+                    if web_denied:
+                        result = L("Erro: aqui so existem as ferramentas search_web e read_url.", "Error: only search_web and read_url exist here.")
+                    elif blocked:
                         result = L(f"Erro: comando BLOQUEADO por seguranca ({blocked}). O modo \"permitir sozinho\" nunca roda isso. Nao tente de novo: explique ao usuario ou use outra forma.", f"Error: command BLOCKED for safety ({blocked}). Auto-allow mode never runs this. Do not retry: explain it to the user or find another way.")
                     elif tool_name == "search_web":   # emite as fontes para a interface mostrar os cartoes
                         results, src = search_web_results(tool_args.get("query", ""))
                         result = format_search(results, src) if results else SEARCH_UNAVAILABLE
-                        if results: emit({"sources": [{"title": t, "url": u} for t, _, u in results], "provider": src})
+                        if results: emit({"sources": [{"title": t, "url": u} for t, _, u in results], "provider": src, "query": tool_args.get("query", "")})
                     elif tool_name == "read_url":
                         try:
                             page_title, page = read_url_text(tool_args.get("url", ""))
@@ -3066,15 +3041,15 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 if denied: break
                 status("Pensando")
             else:
-                if agent:
-                    send(L(f"\n\n[Limite de {MAX_AGENT_STEPS} chamadas de ferramenta atingido]", f"\n\n[Limit of {MAX_AGENT_STEPS} tool calls reached]"))
+                if use_tools:
+                    send(L(f"\n\n[Limite de {max_steps} chamadas de ferramenta atingido]", f"\n\n[Limit of {max_steps} tool calls reached]"))
                     log("AGENTE", "Limite de passos atingido", COLOR_YELLOW)
 
             if model.startswith("groq"):
                 cfg = load_config()
                 cfg["usage"]["groq"] += total_chars
                 save_config(cfg)
-            record_event({"type": "chat", **({"user": gid} if gid else {}), "model": model, "cloud": model.startswith(("groq", "or:", "cf:", "pol:", "tdc:", "gai:")), "tab": "code" if agent else "chat",
+            record_event({"type": "chat", **({"user": gid} if gid else {}), "model": model, "cloud": model.startswith(("groq", "or:", "cf:", "pol:", "tdc:")), "tab": "code" if agent else "chat",
                           "tokens": req_tokens or total_chars // 4, "seconds": req_seconds or (time.time() - started), "prompt_tokens": req_prompt, "chars": total_chars})
             if model.startswith("cf:") and not gid:
                 try: cf_add_neurons(model[3:], req_prompt, req_tokens or total_chars // 4)
