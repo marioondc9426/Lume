@@ -1852,6 +1852,12 @@ def pol_latency(key):
 
 EFFORT_ORDER = ["none", "minimal", "low", "medium", "high", "xhigh", "max"]
 _pol_effort_ok = {}   # modelo -> niveis de raciocinio que ele aceita (aprendido da mensagem de erro dele)
+def _remember_efforts(model, levels):
+    """Guarda no config os niveis que o modelo aceita (descobertos pelo erro dele): a lista de esforco mostra so esses."""
+    try:
+        c = load_config(); c.setdefault("pol_effort_ok", {})[model] = list(levels); save_config(c)
+    except Exception: pass
+
 def _near_effort(want, allowed):
     allowed = [a for a in EFFORT_ORDER if a in allowed]
     if not allowed: return None
@@ -1886,7 +1892,8 @@ def pollinations_models(cfg):
                     "health": hl.get("status") or ("degraded" if ex.get("flaky") else "?"), "success": hl.get("success_rate"), "official": not mid.startswith("community/"), "prio": bool(ex.get("prio")), "speed": ex.get("speed", 0), "tabs": ex.get("tabs", "chat"),
                     "warn": ex.get("warn") or (f"Limite de {m['per_user_rpm']} pedidos por minuto: se mandar varias mensagens seguidas pode dar erro de limite." if m.get("per_user_rpm") and m["per_user_rpm"] <= 5 else ""),
                     "reasoning": bool(m) and ("reasoning" in (m.get("capabilities") or []) or bool(m.get("reasoning"))), "effort": "reasoning_effort" in (m.get("supported_parameters") or []),
-                    "tools": ("tool_calling" in (m.get("capabilities") or []) or bool(m.get("tools"))) if m else None, "rpm": m.get("per_user_rpm"), "p50": lat.get(mid)})
+                    "tools": ("tool_calling" in (m.get("capabilities") or []) or bool(m.get("tools"))) if m else None, "rpm": m.get("per_user_rpm"), "p50": lat.get(mid),
+                    "efforts": _pol_effort_ok.get(mid) or (cfg.get("pol_effort_ok") or {}).get(mid)})
     return out
 
 def pol_chain(slug, cfg):
@@ -1915,7 +1922,7 @@ def stream_pollinations(model, messages, think, cfg, max_tokens=None, agent=Fals
         use_effort = caps["effort"] if caps else bool(re.search(r"(^|/)gpt-[56]", cand) and "oss" not in cand and "codex" not in cand)
         if use_effort:
             want = effort if effort in EFFORT_ORDER else ("medium" if think else "none")
-            known = _pol_effort_ok.get(cand)
+            known = _pol_effort_ok.get(cand) or (cfg.get("pol_effort_ok") or {}).get(cand)
             payload["reasoning_effort"] = (_near_effort(want, known) if known else want) or want
         if agent and (caps is None or caps["tools"]): payload["tools"] = NATIVE_TOOLS_WEB if agent == "web" else NATIVE_TOOLS   # aba Code: chamada de ferramenta nativa (so se o modelo tem a capacidade)
         t0 = time.time()
@@ -1933,7 +1940,7 @@ def stream_pollinations(model, messages, think, cfg, max_tokens=None, agent=Fals
                         yield "status", f"Limite de pedidos do provedor; esperando {wait:.0f} s"; time.sleep(wait); continue
                     if e0.code == 400 and "reasoning_effort" in payload and attempt < 2:   # o erro diz quais niveis o modelo aceita: usa o mais proximo e lembra
                         mm = re.search(r"upported values are:?([^.\"]*)", body0); ok = [x for x in re.findall(r"'(\w+)'", mm.group(1)) if x in EFFORT_ORDER] if mm else []
-                        if ok: _pol_effort_ok[cand] = ok; payload["reasoning_effort"] = _near_effort(payload["reasoning_effort"], ok)
+                        if ok: _pol_effort_ok[cand] = ok; _remember_efforts(cand, ok); payload["reasoning_effort"] = _near_effort(payload["reasoning_effort"], ok)
                         else: payload.pop("reasoning_effort")
                         continue
                     if e0.code == 400 and "tools" in payload and attempt < 2: payload.pop("tools"); continue   # nem ferramentas nativas: volta ao formato de texto
