@@ -60,11 +60,11 @@ The code is fully open source: read it, change it, break it.
 | Provider | Needs | Notes |
 |---|---|---|
 | **Ollama (local)** | Ollama installed | Free, private, runs on your GPU/CPU |
-| **Ollama Cloud** | Ollama account | The free plan has limits |
-| **OpenRouter** | API key | Lume only lists the free models |
+| **Ollama Cloud** | Ollama account | One of the best, but doesn't include a wide variety of models.|
+| **OpenRouter** | API key | Lume only lists some free models |
 | **Cloudflare Workers AI** | API token + Account ID | 10,000 free neurons per day, with a usage monitor |
 | **Pollinations** | API key | Paid models use "pollen" (you earn some for free with quests). Shows your balance and the cost of each message |
-| **Groq** | API key | Optional |
+| **Groq** | API key | bad |
 
 Keys are stored only on your PC, in `config.json`. They are never uploaded anywhere by Lume.
 
@@ -106,3 +106,5 @@ Run `setup-hooks.bat` once if you want the `.exe` to rebuild automatically after
 Windows only for now. Linux and macOS builds do not exist yet, and I will probably not make them unless people ask.
 
 The full list of changes is in [CHANGELOG.md](CHANGELOG.md).
+
+and most importantly: **100% free**.
