@@ -855,6 +855,47 @@ def describe_tool(name, args):
 def needs_permission(name):
     return name in ("cmd", "powershell", "write_file")
 
+# ---- "permitir sozinho": com o botao ligado, comandos comuns rodam sem perguntar, mas estes NUNCA rodam (nem perguntando)
+_ROOTS = r"(?:[a-z]:[\\/]?(?:\*|\s|$|[\"'])|%(?:systemroot|windir|systemdrive|programfiles|userprofile|appdata|homepath)%|[a-z]:[\\/](?:windows|program files|program files \(x86\)|programdata|users)(?:[\\/]?\s|[\\/]?$|[\\/]?[\"'])|[a-z]:[\\/]users[\\/][^\\/\s\"']+[\\/]?(?:\s|$|[\"'])|~[\\/]?(?:\s|$)|(?:^|[\s\x22'])/(?:\s|$)|\$env:(?:systemroot|windir|userprofile|appdata|programfiles))"
+DANGEROUS = [
+    (r"\bdiskpart\b", "diskpart (mexe em discos e particoes)"),
+    (r"(^|[\s;&|(])format(?:\.com)?\s+(?:[a-z]:|/)", "format (apaga um disco)"),
+    (r"\b(?:format-volume|clear-disk|initialize-disk|remove-partition|set-disk|new-partition|reset-physicaldisk|resize-partition)\b", "comando de disco do PowerShell"),
+    (r"\bmkfs(?:\.\w+)?\b|\b(?:s?fdisk|parted|wipefs|mkswap)\b", "formatar/particionar disco"),
+    (r"\bdd\b[^|;&]*\bof=", "dd gravando em disco"),
+    (r"\b(?:bcdedit|bootrec|diskshadow|mountvol)\b", "configuracao de boot/disco do Windows"),
+    (r"\bcipher\b[^|;&]*/w", "cipher /w (apaga o espaco livre)"),
+    (r"\b(?:vssadmin|wbadmin|wmic\s+shadowcopy)\b[^|;&]*\bdelete\b", "apagar copias de seguranca do Windows"),
+    (r"\bshutdown(?:\.exe)?\s+[/-]|\b(?:restart-computer|stop-computer)\b", "desligar/reiniciar o PC"),
+    (r"\breg(?:\.exe)?\s+(?:delete|add|import|load|restore|unload)\b", "mexer no registro do Windows"),
+    (r"\b(?:remove-item|set-itemproperty|new-itemproperty|clear-item)\b[^|;&]*\bhk(?:lm|cu|cr|u):", "mexer no registro do Windows"),
+    (r"\bnet(?:1)?\s+(?:user|localgroup|accounts)\b", "mexer em contas de usuario"),
+    (r"\b(?:takeown|set-executionpolicy)\b|\bicacls\b[^|;&]*/(?:grant|reset|setowner|deny)", "mudar permissoes do sistema"),
+    (r"\bsc(?:\.exe)?\s+(?:delete|create|config|stop)\b|\b(?:remove-service|new-service)\b", "mexer em servicos do Windows"),
+    (r"\bschtasks(?:\.exe)?\b[^|;&]*/(?:create|delete|change)\b|\b(?:register-scheduledtask|unregister-scheduledtask)\b", "mexer em tarefas agendadas"),
+    (r"\b(?:iwr|invoke-webrequest|irm|invoke-restmethod|curl|wget)\b[^\n]*\|\s*(?:iex|invoke-expression|sh|bash|cmd|powershell|pwsh|python)\b|\b(?:iex|invoke-expression)\b[^\n]*\b(?:downloadstring|invoke-webrequest|iwr|irm)\b", "baixar e executar codigo da internet"),
+    (r"\b(?:stop-process|taskkill)\b[^|;&]*\b(?:winlogon|csrss|lsass|svchost|explorer|wininit|services)\b", "encerrar processo do sistema"),
+]
+_DANGEROUS_RE = [(re.compile(p, re.I), why) for p, why in DANGEROUS]
+_DELETE_RE = re.compile(r"\b(?:rd|rmdir|del|erase|rm|remove-item|ri)\b", re.I)
+_RECURSIVE_RE = re.compile(r"(?:^|\s)(?:/s|-r|-rf|-fr|-recurse|-force)\b", re.I)
+_ROOTS_RE = re.compile(_ROOTS, re.I)
+_SYSTEM_PATH_RE = re.compile(r"^[a-z]:[\\/](?:windows|program files|program files \(x86\)|programdata)(?:[\\/]|$)|[\\/]start menu[\\/]programs[\\/]startup", re.I)
+
+def dangerous_reason(name, args):
+    """Motivo (texto) se esta chamada nunca deve rodar no modo "permitir sozinho"; None se pode."""
+    if name == "write_file":
+        path = str(args.get("path", "")).replace("/", "\\")
+        full = path if os.path.isabs(path) else ""
+        if full and _SYSTEM_PATH_RE.search(full): return "gravar em pasta do sistema"
+        return None
+    cmd = str(args.get("command", ""))
+    for rx, why in _DANGEROUS_RE:
+        if rx.search(cmd): return why
+    for part in re.split(r"[;&|\n]+", cmd):
+        if _DELETE_RE.search(part) and _RECURSIVE_RE.search(part) and _ROOTS_RE.search(part): return "apagar uma pasta inteira do sistema ou do seu usuario"
+    return None
+
 def truncate(text):
     text = str(text)
     if len(text) > MAX_TOOL_OUTPUT:
@@ -2049,7 +2090,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             except Exception as e: return self.send_json({"saved": True, "models": [], "error": str(e)[:200]})
         if p == '/api/config_status':
             cfg = load_config()
-            return self.send_json({"groq_key_saved": bool(cfg.get("groq_api_key")), "openrouter_key_saved": bool(cfg.get("openrouter_api_key")), "cloudflare_saved": all(cf_creds(cfg)), "pollinations_saved": bool(cfg.get("pollinations_api_key")), "exa_key_saved": bool(exa_api_key(cfg)), "search_provider": cfg.get("search_provider", "auto"), "exa_type": cfg.get("exa_type", "lite"), "search_results": max_results(), "search_daily_limit": cfg.get("search_daily_limit", 100), "exa_today": exa_searches_today(), "workdir": get_workdir(cfg) if local else "", "default_workdir": BASE_DIR if local else ""})
+            return self.send_json({"groq_key_saved": bool(cfg.get("groq_api_key")), "openrouter_key_saved": bool(cfg.get("openrouter_api_key")), "cloudflare_saved": all(cf_creds(cfg)), "pollinations_saved": bool(cfg.get("pollinations_api_key")), "exa_key_saved": bool(exa_api_key(cfg)), "search_provider": cfg.get("search_provider", "auto"), "exa_type": cfg.get("exa_type", "lite"), "search_results": max_results(), "search_daily_limit": cfg.get("search_daily_limit", 100), "exa_today": exa_searches_today(), "auto_allow": bool(cfg.get("auto_allow")), "workdir": get_workdir(cfg) if local else "", "default_workdir": BASE_DIR if local else ""})
         if p == '/api/models_status':
             tags = ollama_tags(); running = tags is not None
             used, total, _ = get_gpu_metrics()
@@ -2202,8 +2243,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 if k in data:
                     try: data[k] = max(lo, min(hi, int(data[k])))
                     except (TypeError, ValueError): return self.send_json({"error": "Opcao de pesquisa invalida."}, 400)
-            for k in ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "cloudflare_api_token", "cloudflare_account_id", "exa_api_key", "workdir", "search_provider", "exa_type", "search_results", "search_daily_limit"):
-                if k in data: cfg[k] = data[k].strip() if k.endswith(("_key", "_token", "_id")) else data[k]
+            for k in ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "cloudflare_api_token", "cloudflare_account_id", "exa_api_key", "workdir", "search_provider", "exa_type", "search_results", "search_daily_limit", "auto_allow"):
+                if k in data: cfg[k] = bool(data[k]) if k == "auto_allow" else data[k].strip() if k.endswith(("_key", "_token", "_id")) else data[k]
             save_config(cfg)
             secrets_sent = [k for k in ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "cloudflare_api_token", "exa_api_key") if k in data]
             log("CONFIG", "Configuracoes salvas (" + ", ".join([k for k in data if k not in secrets_sent] + [f"chave {k.split('_')[0]}" for k in secrets_sent]) + ")", COLOR_GREEN)
@@ -2753,13 +2794,20 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 for tool_name, tool_args, _end in calls:
                     tool_args = normalize_args(tool_name, tool_args)
                     log("TOOL", f"{tool_name} {tool_args}", COLOR_CYAN)
-                    if needs_permission(tool_name):
+                    blocked = None; auto = False
+                    if needs_permission(tool_name) and load_config().get("auto_allow"):   # "permitir sozinho": roda sem perguntar, exceto o que e perigoso (esse e bloqueado)
+                        blocked = dangerous_reason(tool_name, tool_args); auto = not blocked
+                        if blocked: log("PERMISSAO", f"Bloqueado ({blocked}): {describe_tool(tool_name, tool_args)}", COLOR_RED)
+                        else: log("PERMISSAO", f"Permitido sozinho: {describe_tool(tool_name, tool_args)}", COLOR_YELLOW)
+                    if needs_permission(tool_name) and not auto and not blocked:
                         status("Aguardando permissão")
                         if not ask_permission(describe_tool(tool_name, tool_args), stopped):
                             send(L("\n\n[Acao negada pelo usuario]", "\n\n[Action denied by the user]"))
                             denied = True; break
                     status(f"Executando: {tool_name}")
-                    if tool_name == "search_web":   # emite as fontes para a interface mostrar os cartoes
+                    if blocked:
+                        result = L(f"Erro: comando BLOQUEADO por seguranca ({blocked}). O modo \"permitir sozinho\" nunca roda isso. Nao tente de novo: explique ao usuario ou use outra forma.", f"Error: command BLOCKED for safety ({blocked}). Auto-allow mode never runs this. Do not retry: explain it to the user or find another way.")
+                    elif tool_name == "search_web":   # emite as fontes para a interface mostrar os cartoes
                         results, src = search_web_results(tool_args.get("query", ""))
                         result = format_search(results, src) if results else SEARCH_UNAVAILABLE
                         if results: emit({"sources": [{"title": t, "url": u} for t, _, u in results], "provider": src})

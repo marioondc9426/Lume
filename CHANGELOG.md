@@ -6,6 +6,9 @@ Como numerar:
 - O número fica em `VERSION` no topo do `app.py` e aparece em Configurações > Atualizações.
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
+## v2.3 (em desenvolvimento)
+- **Permitir sozinho** (Configurações > pasta de trabalho): a IA roda comandos e grava arquivos sem o popup, mas comandos perigosos (diskpart, format, apagar pastas do sistema/usuário, registro, contas, serviços, desligar, baixar e executar código) são bloqueados de vez.
+
 ## v2.2
 - **Aba Code**: o botão Rodar vira **Parar** enquanto o código roda (encerra o programa e os filhos); vários pedidos de ferramenta de uma vez (até 5, em ordem); chamada de ferramenta nativa nos modelos da Pollinations (os GPT Luna não seguiam o formato de texto); aviso automático quando o modelo diz "vou atualizar…" e não chama nada.
 - **GPT**: todos os GPT de texto da Pollinations (5.4, 5.4 Mini, 5.5, 5.6 Sol/Terra, 6 Sol, 6.1 Sol, 6 Astra, GPT-OSS 20B/120B da comunidade) e os GPT da Pollinations/OpenRouter também na aba Code; sem o botão Pensar, os GPT 5/6 respondem bem mais rápido (raciocínio mínimo).

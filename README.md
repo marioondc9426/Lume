@@ -1,5 +1,17 @@
 <p align="center">
-  <img src="icons/lume-text.png" alt="Lume" width="260">
+  <img src="icons/lume-mobile.png" alt="Lume logo" width="140">
+</p>
+
+<h1 align="center">Lume</h1>
+
+<p align="center">
+  <a href="https://github.com/marioondc9426/Lume/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/marioondc9426/Lume?style=flat-square&color=e8467c"></a>
+  <a href="https://github.com/marioondc9426/Lume/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/marioondc9426/Lume?style=flat-square&color=e3b341"></a>
+  <a href="https://github.com/marioondc9426/Lume/commits/main"><img alt="Last commit" src="https://img.shields.io/github/last-commit/marioondc9426/Lume?style=flat-square"></a>
+  <a href="https://github.com/marioondc9426/Lume/issues"><img alt="Issues" src="https://img.shields.io/github/issues/marioondc9426/Lume?style=flat-square"></a>
+  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-4da3ff?style=flat-square">
+  <img alt="Python" src="https://img.shields.io/badge/python-3.10%2B-3776ab?style=flat-square&logo=python&logoColor=white">
+  <img alt="Ollama" src="https://img.shields.io/badge/runs%20on-Ollama-000000?style=flat-square">
 </p>
 
 <p align="center">
@@ -30,6 +42,7 @@ The code is fully open source: read it, change it, break it.
 - The AI can list/read/write files and run commands in a folder you choose. Writing and running **always ask your permission** in a popup.
 - Code blocks have a **Run** button (Python, JavaScript, PowerShell, BAT, Bash) that turns into **Stop** while the program runs.
 - Up to 5 tool calls in one step, native tool calling where the provider supports it.
+- Optional **auto-allow** toggle (Settings): skips the popup for normal commands but always blocks dangerous ones (`diskpart`, `format`, deleting system or user folders, registry, accounts, services, shutdown, download-and-run). It is a filter, not a guarantee.
 
 **Models**
 - Model manager for Ollama: pull, update, delete, optional auto-update.
@@ -57,7 +70,7 @@ Keys are stored only on your PC, in `config.json`. They are never uploaded anywh
 
 ## Install
 
-**Easiest (Windows):** download `Lume.exe` from the [latest release](../../releases/latest) and run it. It updates itself when a new release is published.
+**Easiest (Windows):** download `Lume.exe` from the [latest release](https://github.com/marioondc9426/Lume/releases/latest) and run it. It updates itself when a new release is published.
 
 **From source:**
 
