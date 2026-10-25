@@ -8,7 +8,7 @@ on:
 
 jobs:
   ipa:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
 
@@ -23,7 +23,7 @@ jobs:
       - name: Gerar o projeto Xcode
         run: |
           brew install xcodegen
-          cd ios && xcodegen generate
+          cd ios && xcodegen generate && ls -la Lume.xcodeproj && xcodebuild -version
 
       - name: Compilar para iPhone (sem assinatura)
         run: |
