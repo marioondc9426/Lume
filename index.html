@@ -1895,7 +1895,7 @@
             (d.models || []).forEach(x => {
                 const nm = String(x.name || x.id).replace(/\s*\((free|grátis)\)\s*$/i, ''), k = nm.indexOf(': ');
                 const prov = k > 0 ? nm.slice(0, k) : x.id.split('/')[0], rest = k > 0 ? nm.slice(k + 2) : nm;
-                MODELS.push(Object.assign({ id: 'or:' + x.id, fam: 'or:' + prov.toLowerCase(), famName: prov, params: rest, label: nm + ' (OpenRouter grátis)', icon: 'cloud', tabs: ['chat'], cloud: true, or: true, vision: !!x.vision, ctx: x.ctx || 32768 }, parseDyn(x.id, prov)));
+                MODELS.push(Object.assign({ id: 'or:' + x.id, fam: 'or:' + prov.toLowerCase(), famName: prov, params: rest, label: nm + ' (OpenRouter grátis)', icon: 'cloud', tabs: /(^|\/)gpt/i.test(x.id) ? ['chat', 'code'] : ['chat'], cloud: true, or: true, vision: !!x.vision, ctx: x.ctx || 32768 }, parseDyn(x.id, prov)));
             });
             if (String(config.model).startsWith('or:') && modelById(config.model) && currentTab === 'chat') selectedModel = config.model;   // o modelo escolhido da ultima vez volta
             renderModelOptions();
@@ -1936,7 +1936,7 @@
             for (let i = MODELS.length - 1; i >= 0; i--) if (MODELS[i].pol) MODELS.splice(i, 1);
             if (d.error && !(d.models || []).length) showInfo(tr('Não consegui carregar os modelos do Pollinations: {e}', { e: d.error }), 8000);
             (d.models || []).forEach(x => {
-                MODELS.push(Object.assign({ id: 'pol:' + x.id, fam: 'pol:' + x.id, famName: x.name, params: x.name, label: x.name + ' (Pollinations · ' + x.provider + ')', icon: 'cloud', tabs: ['chat'], cloud: true, pol: true, paid: !x.free, free: !!x.free, provider: x.provider,
+                MODELS.push(Object.assign({ id: 'pol:' + x.id, fam: 'pol:' + x.id, famName: x.name, params: x.name, label: x.name + ' (Pollinations · ' + x.provider + ')', icon: 'cloud', tabs: /(^|\/)gpt/i.test(x.id) ? ['chat', 'code'] : ['chat'], cloud: true, pol: true, paid: !x.free, free: !!x.free, provider: x.provider,
                     health: x.health, vision: !!x.vision, ctx: x.ctx || 32768, priceIn: x.pin, priceOut: x.pout, speed: x.speed || 0 }, parseDyn(x.id, x.name)));
             });
             if (String(config.model).startsWith('pol:') && modelById(config.model) && currentTab === 'chat') selectedModel = config.model;
