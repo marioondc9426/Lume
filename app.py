@@ -1790,6 +1790,8 @@ def _pol_price(m):
     try: return float(p.get("promptTextTokens") or 0) * 1e6, float(p.get("completionTextTokens") or 0) * 1e6
     except (TypeError, ValueError): return 0.0, 0.0
 
+POL_MAX_PRICE = 4.5   # pollen por milhao de tokens (entrada, saida ou imagem de entrada): modelos pagos acima disso nao aparecem
+
 def pollinations_models(cfg):
     """Cada provedor e um modelo a parte ([{id, name, provider, ctx, vision, pin, pout, free, health, success, speed}]); a interface junta os que sao o mesmo modelo."""
     key = cfg.get("pollinations_api_key") or ""
@@ -1799,6 +1801,9 @@ def pollinations_models(cfg):
         if m and not m.get("pricing"): pin, pout = ex.get("pin", 0.0), ex.get("pout", 0.0)
         hl = m.get("health") or {}; inm = m.get("input_modalities") or ["text"]
         free = bool(ex.get("free")) or (bool(m) and pin == 0 and pout == 0)
+        try: pimg = float(((m.get("pricing") or {}).get("promptImageTokens")) or 0) * 1e6 if m else 0.0
+        except (TypeError, ValueError): pimg = 0.0
+        if not free and max(pin, pout, pimg) > POL_MAX_PRICE: continue   # caro demais para o seu orcamento
         out.append({"id": mid, "name": m.get("title") or mid.split("/")[-1], "provider": mid.split("/")[1] if mid.startswith("community/") else "oficial",
                     "ctx": m.get("context_length") or 128000, "vision": "image" in inm, "pin": pin, "pout": pout, "free": free, "guess": bool(ex.get("guess")),
                     "health": hl.get("status") or ("degraded" if ex.get("flaky") else "?"), "success": hl.get("success_rate"), "official": not mid.startswith("community/"), "prio": bool(ex.get("prio")), "speed": ex.get("speed", 0), "tabs": ex.get("tabs", "chat"),
@@ -3564,6 +3569,11 @@ class WindowApi:
         self._window = None   # com "_" o pywebview nao expoe ao JavaScript
         self._maximized = False
     def minimize(self): self._window.minimize()
+    def open_html(self, html, title="Previa HTML"):
+        """Abre o HTML de um bloco de codigo numa janela propria (sem acesso ao app)."""
+        try: webview.create_window(str(title)[:60] or "Previa", html=str(html)[:3000000], width=1000, height=760, min_size=(360, 280))
+        except Exception as e: log("PREVIA", f"Nao consegui abrir a janela: {e}", COLOR_YELLOW)
+        return True
     def set_geom(self, x, y, w, h):
         """Usada pelas alcas de redimensionar da pagina (a janela nao tem a borda do Windows)."""
         win = self._window
