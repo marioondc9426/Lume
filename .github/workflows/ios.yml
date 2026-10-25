@@ -27,8 +27,14 @@ jobs:
 
       - name: Compilar para iPhone (sem assinatura)
         run: |
-          xcodebuild -project ios/Lume.xcodeproj -scheme Lume -configuration Release -sdk iphoneos \
-            -derivedDataPath build/device CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" | tail -n 40
+          set +e
+          xcodebuild -project ios/Lume.xcodeproj -scheme Lume -configuration Release -sdk iphoneos             -derivedDataPath build/device CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" > build.log 2>&1
+          rc=$?
+          tail -n 40 build.log
+          if [ $rc -ne 0 ]; then
+            grep -E "error:|fatal" build.log | sort -u | head -n 8 | while read -r l; do echo "::error::${l:0:300}"; done
+            exit $rc
+          fi
           mkdir -p out/Payload
           cp -R build/device/Build/Products/Release-iphoneos/Lume.app out/Payload/
           (cd out && zip -qry Lume-unsigned.ipa Payload)
