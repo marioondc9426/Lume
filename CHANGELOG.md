@@ -6,7 +6,7 @@ Como numerar:
 - O número fica em `VERSION` no topo do `app.py` e aparece em Configurações > Atualizações.
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
-## v2.3 (em desenvolvimento)
+## v2.3
 - **Permitir sozinho** (Configurações > pasta de trabalho): a IA roda comandos e grava arquivos sem o popup, mas comandos perigosos (diskpart, format, apagar pastas do sistema/usuário, registro, contas, serviços, desligar, baixar e executar código) são bloqueados de vez.
 
 ## v2.2
