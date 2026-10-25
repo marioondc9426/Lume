@@ -1,5 +1,95 @@
-# Lume
-a program that i use so i can use ais without giving money to any cloud, also includes cloud models but isnt obrigatory
-you can also download it for yourself, but we still dont have linux builds
-code is fully opensource
-im planning to support linux but this project probrably wont even have that much people for me to care soo
+<p align="center">
+  <img src="icons/lume-text.png" alt="Lume" width="260">
+</p>
+
+<p align="center">
+  A desktop chat for AI models that runs on your own PC.<br>
+  Local models first, cloud models when you want them. No account with Lume, no subscription.
+</p>
+
+---
+
+## What is it
+
+Lume is a chat app (Windows window + a small local server) built around [Ollama](https://ollama.com). It started as a way to use AI without paying any cloud, so everything works with free local models. Cloud providers are optional extras you turn on by pasting a key.
+
+The code is fully open source: read it, change it, break it.
+
+## Features
+
+**Chat**
+- Several chats at the same time. Switch chats while an answer is still being written.
+- Queue your next messages while the AI is busy, delete a message before the AI sees it, edit or regenerate any answer (versions `‹ 1/3 ›`).
+- "Thinking" blocks for reasoning models, including several thinking rounds in one answer, and support for models that put `<think>` inside the text.
+- Web search on demand (Exa if you have a key, otherwise DuckDuckGo) with source cards.
+- Attach images, PDF, Word, Excel, PowerPoint and OpenDocument files, or paste them. If a file has an unsupported extension but is plain text, Lume offers to treat it as `.txt`.
+- Memory: Lume can suggest facts to remember ("Lembrar?") and you can delete any of them.
+- Live tokens/s, VRAM and GPU panel, context bar, English and Portuguese interface.
+
+**Code tab**
+- The AI can list/read/write files and run commands in a folder you choose. Writing and running **always ask your permission** in a popup.
+- Code blocks have a **Run** button (Python, JavaScript, PowerShell, BAT, Bash) that turns into **Stop** while the program runs.
+- Up to 5 tool calls in one step, native tool calling where the provider supports it.
+
+**Models**
+- Model manager for Ollama: pull, update, delete, optional auto-update.
+- Models are grouped by family (`Gemma 3 e 4`, `Qwen 2.5, 3 e 3.5`...) with a parameter picker and a provider picker.
+- Colors: **blue** = local, **gray** = free cloud, **yellow** = paid.
+- If a provider fails, Lume can retry with the next cheapest one.
+
+**Phone and friends**
+- Use it from your phone on the same Wi-Fi, or from anywhere through Cloudflare Tunnel or Tailscale Funnel (password protected).
+- Invite friends with their own limits (models, messages per day, features).
+- Optional: run small models directly on the phone (WebLLM / WebGPU).
+
+## Providers
+
+| Provider | Needs | Notes |
+|---|---|---|
+| **Ollama (local)** | Ollama installed | Free, private, runs on your GPU/CPU |
+| **Ollama Cloud** | Ollama account | The free plan has limits |
+| **OpenRouter** | API key | Lume only lists the free models |
+| **Cloudflare Workers AI** | API token + Account ID | 10,000 free neurons per day, with a usage monitor |
+| **Pollinations** | API key | Paid models use "pollen" (you earn some for free with quests). Shows your balance and the cost of each message |
+| **Groq** | API key | Optional |
+
+Keys are stored only on your PC, in `config.json`. They are never uploaded anywhere by Lume.
+
+## Install
+
+**Easiest (Windows):** download `Lume.exe` from the [latest release](../../releases/latest) and run it. It updates itself when a new release is published.
+
+**From source:**
+
+```bash
+git clone https://github.com/marioondc9426/Lume.git
+cd Lume
+pip install -r requirements.txt
+python app.py        # or double-click run.bat
+```
+
+You also need [Ollama](https://ollama.com/download) for local models. Lume starts it for you.
+
+Your data (chats, memory, settings) lives in `%LOCALAPPDATA%\Lume` when you use the `.exe`, and in the project folder when you run from source.
+
+## Build the .exe yourself
+
+```bash
+pip install -r requirements-build.txt
+python build_exe.py            # creates dist/Lume.exe
+```
+
+Run `setup-hooks.bat` once if you want the `.exe` to rebuild automatically after every commit. Pushing a tag like `v2.2` makes GitHub Actions build and publish the release.
+
+## Safety notes
+
+- The Code tab runs real commands on your PC. Read the permission popup before you click Allow.
+- "Run" on a code block runs it with your user, inside the `code_runs` folder. Only run what you understand.
+- Remote access (phone, friends) is off until you turn it on, and needs a password. The Code tab (files and commands) is refused for remote devices unless you explicitly allow it in the server settings.
+- Messages sent to a cloud provider leave your PC and are handled by that provider's rules, not Lume's. Use local models for private things.
+
+## Status
+
+Windows only for now. Linux and macOS builds do not exist yet, and I will probably not make them unless people ask.
+
+The full list of changes is in [CHANGELOG.md](CHANGELOG.md).
