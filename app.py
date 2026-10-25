@@ -207,6 +207,8 @@ def load_config():
     cfg.setdefault("cloudflare_api_token", "")   # Cloudflare Workers AI: token + id da conta
     cfg.setdefault("cloudflare_account_id", "")
     cfg.setdefault("pollinations_api_key", "")   # Pollinations: modelos que gastam pollen
+    cfg.setdefault("vercel_api_key", "")         # Vercel AI Gateway (modelos "-free")
+    cfg.setdefault("llm7_api_key", "")           # LLM7 (modelos do plano "turbo", sem saldo)
     cfg.setdefault("tomdacat_api_key", "")       # tomdacat (ai.tomdacat.com): gateway de modelos cobrado em creditos
     cfg.setdefault("workdir", "")
     cfg.setdefault("usage", {}).setdefault("groq", 0)
@@ -312,7 +314,7 @@ def build_stats(days=30):
     # Ollama: a conta so mede o uso da nuvem por tempo de GPU em janelas de 5 h e 7 dias; aqui e a soma do que passou por este app
     oll = {"h5": {"requests": 0, "seconds": 0.0, "tokens": 0}, "d7": {"requests": 0, "seconds": 0.0, "tokens": 0}, "month": {}, "local": {"requests": 0, "seconds": 0.0, "tokens": 0}}
     for e in allev:
-        if e.get("type") != "chat" or str(e.get("model", "")).startswith(("groq", "or:", "cf:", "pol:", "tdc:")) or e.get("ts", 0) < now - 30 * 86400: continue
+        if e.get("type") != "chat" or str(e.get("model", "")).startswith(("groq", "or:", "cf:", "pol:", "tdc:", "vc:", "l7:")) or e.get("ts", 0) < now - 30 * 86400: continue
         sec, tk, age = e.get("seconds", 0.0), e.get("tokens", 0), now - e["ts"]
         if is_ollama_cloud(e.get("model")):
             if age <= 5 * 3600: oll["h5"]["requests"] += 1; oll["h5"]["seconds"] += sec; oll["h5"]["tokens"] += tk
@@ -1312,6 +1314,71 @@ def stream_groq(model, messages, cfg, max_tokens=None):
         raise Exception(f"Groq respondeu {e.code}: {msg}")
     yield from _sse_chat(response, t0, {})
 
+# ---------------------------------------------------------------- Vercel AI Gateway e LLM7 (interface compativel com a da OpenAI)
+VERCEL_URL = "https://ai-gateway.vercel.sh/v1"
+LLM7_URL = "https://api.llm7.io/v1"
+# Vercel: so os gratis que pediu. Eles so funcionam com um cartao cadastrado na conta Vercel (a Vercel exige, mesmo para os "-free").
+VERCEL_MODELS = [("poolside/laguna-s-2.1-free", "Laguna S 2.1"), ("nvidia/nemotron-3.5-lightning-free", "Nemotron 3.5 Lightning"), ("reflection/beam-free", "Beam")]
+_vc_cache = {"t": 0, "models": []}; _l7_cache = {"t": 0, "models": []}
+
+def _openai_models(url, key):
+    req = urllib.request.Request(url + "/models", headers={"Authorization": "Bearer " + key, "User-Agent": "lume-app"})
+    with urllib.request.urlopen(req, timeout=20) as r: return json.load(r).get("data", [])
+
+def vercel_models(cfg, force=False):
+    key = (cfg.get("vercel_api_key") or "").strip()
+    if not key: return []
+    if not force and _vc_cache["models"] and time.time() - _vc_cache["t"] < 3600: return _vc_cache["models"]
+    have = {m.get("id"): m for m in _openai_models(VERCEL_URL, key)}
+    out = [{"id": mid, "name": name, "ctx": (have[mid].get("context_window") or 128000)} for mid, name in VERCEL_MODELS if mid in have]
+    _vc_cache.update(t=time.time(), models=out); return out
+
+def llm7_models(cfg, force=False):
+    """So os do plano "turbo" (usage_based_only falso): funcionam com saldo zero. Os outros cobram por uso."""
+    key = (cfg.get("llm7_api_key") or "").strip()
+    if not key: return []
+    if not force and _l7_cache["models"] and time.time() - _l7_cache["t"] < 3600: return _l7_cache["models"]
+    out = []
+    for m in _openai_models(LLM7_URL, key):
+        mo = m.get("modalities") or {}
+        if m.get("usage_based_only") is not False or mo.get("output") != ["text"] or "whisper" in m.get("id", "") or "Voxtral" in m.get("id", ""): continue
+        out.append({"id": m["id"], "ctx": m.get("context_window") or 32768, "tools": bool(m.get("tools_calling")), "vision": "image" in (mo.get("input") or [])})
+    out.sort(key=lambda m: m["id"]); _l7_cache.update(t=time.time(), models=out); return out
+
+def stream_openai_compat(model, messages, base, key, label, max_tokens=None):
+    key = (key or "").strip()
+    if not key: raise Exception(f"{label} sem chave. Abra Configuracoes e cole a chave.")
+    msgs = []
+    for m in messages:
+        imgs = m.get("images") or []
+        if imgs and m["role"] == "user": msgs.append({"role": "user", "content": [{"type": "text", "text": m["content"]}] + [{"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + b}} for b in imgs]})
+        else: msgs.append({"role": m["role"], "content": m["content"]})
+    payload = {"model": model, "messages": msgs, "stream": True, "stream_options": {"include_usage": True}}
+    if max_tokens: payload["max_tokens"] = int(max_tokens)
+    req = urllib.request.Request(base + "/chat/completions", data=json.dumps(payload).encode("utf-8"), headers={"Authorization": "Bearer " + key, "Content-Type": "application/json", "User-Agent": "lume-app"})
+    t0 = time.time()
+    for attempt in range(3):
+        try: response = _cloud_open(req, label); break
+        except urllib.error.HTTPError as e:
+            body = e.read().decode("utf-8", "replace"); msg = body[:250]
+            try: msg = str((json.loads(body).get("error") or {}).get("message") or msg)[:250]
+            except (ValueError, AttributeError): pass
+            if e.code == 429 and attempt < 2:   # limite de pedidos por segundo (LLM7 pede 1 s): espera o que o provedor pede e tenta de novo
+                try: wait = float(e.headers.get("Retry-After") or (re.search(r"[Rr]etry after (\d+(?:\.\d+)?)", msg) or [0, 1])[1])
+                except (TypeError, ValueError): wait = 1.0
+                yield "status", f"Limite de pedidos; esperando {min(wait, 8):.0f} s"; time.sleep(min(wait, 8) + 0.3); continue
+            _oai_fail(label, e.code, body, msg)
+    else: raise Exception(f"{label}: nao respondeu")
+    yield from _sse_chat(response, t0, {})
+
+def _oai_fail(label, code, body, msg):
+    if True:
+        if "credit card" in body or "customer_verification_required" in body: raise Exception("A Vercel exige um cartao cadastrado na conta para usar o AI Gateway (mesmo nos modelos gratis). Adicione em vercel.com > AI Gateway.")
+        if code in (401, 403): raise Exception(f"{label}: chave invalida ou sem permissao ({code}). {msg}")
+        if code == 402: raise Exception(f"{label}: sem saldo (402).")
+        if code == 429: raise Exception(f"{label}: limite de pedidos (429). {msg}")
+        raise Exception(f"{label} respondeu {code}: {msg}")
+
 # ---------------------------------------------------------------- tomdacat (gateway com creditos; a interface e compativel com a da OpenAI)
 TDC_URL = "https://ai.tomdacat.com"
 TDC_MAX_CR = 100   # so entram modelos de ate 100 creditos por milhao de tokens (entrada e saida)
@@ -1660,7 +1727,7 @@ POL_MODELS = [
     ("community/scriptsnsenses-sys/muse-spark-1.3-contributor", {"free": True, "flaky": True, "tabs": "code", "warn": "Este provedor registra (loga) as suas conversas. Nao envie nada privado ou secreto."}),
     ("community/CloudCompile/poolside-laguna-s-2.1:free", {"free": True, "tabs": "code"}),
     ("community/ZapGaming/llama3.1-8b-xturbo", {"free": True, "speed": 2, "tabs": "both"}),
-    ("community/Saauf/minimax-m3.1-flash", {"tabs": "both"}), ("minimax/minimax-m3", {"tabs": "both"}),
+    ("community/Saauf/minimax-m3.1-flash", {"tabs": "both"}), ("community/mikl-shortcuts/ministral-3", {"tabs": "both"}), ("minimax/minimax-m3", {"tabs": "both"}),
     # modelos que ja existiam oficiais: a versao da comunidade (mais barata) vira a padrao e a oficial fica de reserva (o Lume ordena pelo preco)
     ("moonshotai/kimi-k2.6", {"tabs": "both"}), ("moonshotai/kimi-k3", {"tabs": "both"}), ("community/vendouple/kimi-k3", {"tabs": "both", "prio": True}),
     ("community/sonofstrange/gpt-6.1-sol-quest", {"tabs": "both"}), ("community/JustScriptzz/gpt-5.6-sol", {"tabs": "both"}),
@@ -1815,6 +1882,8 @@ def stream_pollinations(model, messages, think, cfg, max_tokens=None, agent=Fals
 def stream_model(model, messages, think, cfg, num_ctx=None, max_tokens=None, agent=False, effort=None):
     if model.startswith("pol:"): return stream_pollinations(model, messages, think, cfg, max_tokens, agent, effort)
     if model.startswith("tdc:"): return stream_tomdacat(model, messages, cfg, max_tokens)
+    if model.startswith("vc:"): return stream_openai_compat(model[3:], messages, VERCEL_URL, cfg.get("vercel_api_key"), "A Vercel", max_tokens)
+    if model.startswith("l7:"): return stream_openai_compat(model[3:], messages, LLM7_URL, cfg.get("llm7_api_key"), "O LLM7", max_tokens)
     if model.startswith("or:"): return stream_openrouter(model, messages, think, cfg, max_tokens)
     if model.startswith("cf:"): return stream_cloudflare(model, messages, think, cfg, max_tokens)
     return stream_groq(model, messages, cfg, max_tokens) if model.startswith("groq") else stream_ollama(model, messages, think, num_ctx, max_tokens)
@@ -2254,6 +2323,18 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             if not has: return self.send_json({"key_saved": False, "models": []})
             try: return self.send_json({"key_saved": True, "models": openrouter_free_models()})
             except Exception as e: return self.send_json({"key_saved": True, "models": [], "error": str(e)[:200]})
+        if p == '/api/vercel_models':
+            if not local: return self.send_json({"error": "local_only"}, 403)
+            cfg = load_config()
+            if not cfg.get("vercel_api_key"): return self.send_json({"saved": False, "models": []})
+            try: return self.send_json({"saved": True, "models": vercel_models(cfg)})
+            except Exception as e: return self.send_json({"saved": True, "models": [], "error": str(e)[:200]})
+        if p == '/api/llm7_models':
+            if not local: return self.send_json({"error": "local_only"}, 403)
+            cfg = load_config()
+            if not cfg.get("llm7_api_key"): return self.send_json({"saved": False, "models": []})
+            try: return self.send_json({"saved": True, "models": llm7_models(cfg)})
+            except Exception as e: return self.send_json({"saved": True, "models": [], "error": str(e)[:200]})
         if p == '/api/tomdacat_models':
             if not local: return self.send_json({"error": "local_only"}, 403)
             cfg = load_config()
@@ -2295,7 +2376,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             except Exception as e: return self.send_json({"saved": True, "models": [], "error": str(e)[:200]})
         if p == '/api/config_status':
             cfg = load_config()
-            return self.send_json({"groq_key_saved": bool(cfg.get("groq_api_key")), "openrouter_key_saved": bool(cfg.get("openrouter_api_key")), "cloudflare_saved": all(cf_creds(cfg)), "pollinations_saved": bool(cfg.get("pollinations_api_key")), "tomdacat_saved": bool(cfg.get("tomdacat_api_key")),  "exa_key_saved": bool(exa_api_key(cfg)), "search_provider": cfg.get("search_provider", "auto"), "exa_type": cfg.get("exa_type", "lite"), "search_results": max_results(), "search_daily_limit": cfg.get("search_daily_limit", 100), "exa_today": exa_searches_today(), "auto_allow": bool(cfg.get("auto_allow")), "workdir": get_workdir(cfg) if local else "", "default_workdir": BASE_DIR if local else ""})
+            return self.send_json({"groq_key_saved": bool(cfg.get("groq_api_key")), "openrouter_key_saved": bool(cfg.get("openrouter_api_key")), "cloudflare_saved": all(cf_creds(cfg)), "pollinations_saved": bool(cfg.get("pollinations_api_key")), "tomdacat_saved": bool(cfg.get("tomdacat_api_key")), "vercel_saved": bool(cfg.get("vercel_api_key")), "llm7_saved": bool(cfg.get("llm7_api_key")),  "exa_key_saved": bool(exa_api_key(cfg)), "search_provider": cfg.get("search_provider", "auto"), "exa_type": cfg.get("exa_type", "lite"), "search_results": max_results(), "search_daily_limit": cfg.get("search_daily_limit", 100), "exa_today": exa_searches_today(), "auto_allow": bool(cfg.get("auto_allow")), "workdir": get_workdir(cfg) if local else "", "default_workdir": BASE_DIR if local else ""})
         if p == '/api/models_status':
             tags = ollama_tags(); running = tags is not None
             used, total, _ = get_gpu_metrics()
@@ -2448,10 +2529,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 if k in data:
                     try: data[k] = max(lo, min(hi, int(data[k])))
                     except (TypeError, ValueError): return self.send_json({"error": "Opcao de pesquisa invalida."}, 400)
-            for k in ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "cloudflare_api_token", "cloudflare_account_id", "exa_api_key", "tomdacat_api_key", "workdir", "search_provider", "exa_type", "search_results", "search_daily_limit", "auto_allow"):
+            for k in ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "cloudflare_api_token", "cloudflare_account_id", "exa_api_key", "tomdacat_api_key", "vercel_api_key", "llm7_api_key", "workdir", "search_provider", "exa_type", "search_results", "search_daily_limit", "auto_allow"):
                 if k in data: cfg[k] = bool(data[k]) if k == "auto_allow" else data[k].strip() if k.endswith(("_key", "_token", "_id")) else data[k]
             save_config(cfg)
-            secrets_sent = [k for k in ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "tomdacat_api_key", "cloudflare_api_token", "exa_api_key") if k in data]
+            secrets_sent = [k for k in ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "tomdacat_api_key", "vercel_api_key", "llm7_api_key", "cloudflare_api_token", "exa_api_key") if k in data]
             log("CONFIG", "Configuracoes salvas (" + ", ".join([k for k in data if k not in secrets_sent] + [f"chave {k.split('_')[0]}" for k in secrets_sent]) + ")", COLOR_GREEN)
             return self.send_json({"ok": True})
 
@@ -2910,14 +2991,14 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         use_tools = agent or web_tool; max_steps = MAX_AGENT_STEPS if agent else 4
         kw_model = {k: v for k, v in (("agent", ("web" if web_tool else True) if use_tools else None), ("effort", str(req_json.get("effort") or "") or None)) if v}   # so manda o que foi pedido
         try:
-            if not model.startswith(("groq", "or:", "cf:", "pol:", "tdc:")):
+            if not model.startswith(("groq", "or:", "cf:", "pol:", "tdc:", "vc:", "l7:")):
                 if not ollama_is_running():
                     status("Iniciando Ollama")
                     if not start_ollama(): raise Exception("Nao consegui iniciar o Ollama. Ele esta instalado?")
                 if model not in [m["name"] for m in ollama_ps()]:
                     status("Carregando modelo")
             else:
-                status("Esperando o tomdacat responder" if model.startswith("tdc:") else "Conectando ao OpenRouter" if model.startswith("or:") else "Conectando ao Cloudflare" if model.startswith("cf:") else "Esperando o Pollinations responder" if model.startswith("pol:") else "Conectando ao Groq")
+                status("Esperando a Vercel responder" if model.startswith("vc:") else "Esperando o LLM7 responder" if model.startswith("l7:") else "Esperando o tomdacat responder" if model.startswith("tdc:") else "Conectando ao OpenRouter" if model.startswith("or:") else "Conectando ao Cloudflare" if model.startswith("cf:") else "Esperando o Pollinations responder" if model.startswith("pol:") else "Conectando ao Groq")
 
             if not messages or messages[0].get("role") != "system":
                 messages.insert(0, {"role": "system", "content": ""})
@@ -3064,7 +3145,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 cfg = load_config()
                 cfg["usage"]["groq"] += total_chars
                 save_config(cfg)
-            record_event({"type": "chat", **({"user": gid} if gid else {}), "model": model, "cloud": model.startswith(("groq", "or:", "cf:", "pol:", "tdc:")), "tab": "code" if agent else "chat",
+            record_event({"type": "chat", **({"user": gid} if gid else {}), "model": model, "cloud": model.startswith(("groq", "or:", "cf:", "pol:", "tdc:", "vc:", "l7:")), "tab": "code" if agent else "chat",
                           "tokens": req_tokens or total_chars // 4, "seconds": req_seconds or (time.time() - started), "prompt_tokens": req_prompt, "chars": total_chars})
             if model.startswith("cf:") and not gid:
                 try: cf_add_neurons(model[3:], req_prompt, req_tokens or total_chars // 4)
