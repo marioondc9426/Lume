@@ -1031,10 +1031,10 @@
             { id: 'gemma3:1b', fam: 'gemma3', famName: 'Gemma 3', params: '1B', label: 'Gemma 3 1B (Ultra leve)', icon: 'zap', tabs: ['chat'], gb: 0.9, ctx: 32768 },
             { id: 'gemma3:4b', fam: 'gemma3', famName: 'Gemma 3', params: '4B', rec: true, label: 'Gemma 3 4B (Local)', icon: 'zap', tabs: ['chat'], gb: 3.4, vision: true, ctx: 131072 },
             { id: 'qwen2.5:1.5b', fam: 'qwen2.5', famName: 'Qwen 2.5', params: '1.5B', rec: true, label: 'Qwen 2.5 1.5B (Ultra leve)', icon: 'zap', tabs: ['chat'], gb: 1.1, ctx: 32768 },
-            { id: 'nemotron-3-nano:4b', fam: 'nemotron-3-nano', famName: 'Nemotron', params: '3, 4B', rec: true, label: 'Nemotron 3 4B (Local)', icon: 'zap', tabs: ['chat', 'code'], gb: 2.9, ctx: 262144 },
-            { id: 'nemotron-3-nano:30b-cloud', fam: 'nemotron-3-nano', famName: 'Nemotron', params: '3, 30B', label: 'Nemotron 3 30B (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 1048576 },
-            { id: 'nemotron-3-super:cloud', fam: 'nemotron-3-nano', famName: 'Nemotron', params: '3, 120B', label: 'Nemotron 3 120B (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 262144 },
-            { id: 'nemotron-3-ultra:cloud', fam: 'nemotron-3-nano', famName: 'Nemotron', params: '4, 550B', label: 'Nemotron 4 550B (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 1048576 },
+            { id: 'nemotron-3-nano:4b', fam: 'nemotron-3-nano', famName: 'Nemotron 3', params: '4B', rec: true, label: 'Nemotron 3 4B (Local)', icon: 'zap', tabs: ['chat', 'code'], gb: 2.9, ctx: 262144 },
+            { id: 'nemotron-3-nano:30b-cloud', fam: 'nemotron-3-nano', famName: 'Nemotron 3', params: '30B', label: 'Nemotron 3 30B (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 1048576 },
+            { id: 'nemotron-3-super:cloud', fam: 'nemotron-3-nano', famName: 'Nemotron 3', params: '120B', label: 'Nemotron 3 120B (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 262144 },
+            { id: 'nemotron-3-ultra:cloud', fam: 'nemotron-3-nano', famName: 'Nemotron 4', params: '550B', label: 'Nemotron 4 550B (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 1048576 },
             { id: 'gpt-oss:120b-cloud', fam: 'gpt-oss', famName: 'GPT-OSS', params: '120B', rec: true, label: 'GPT-OSS 120B (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 131072 },
             { id: 'gpt-oss:20b-cloud', fam: 'gpt-oss', famName: 'GPT-OSS', params: '20B', label: 'GPT-OSS 20B (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, ctx: 131072 },
             { id: 'gemma4:cloud', fam: 'gemma4', famName: 'Gemma 4', params: 'Cloud', rec: true, label: 'Gemma 4 (Nuvem Ollama)', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, vision: true, ctx: 262144 },
@@ -1095,7 +1095,7 @@
             'Iniciar com o Windows': 'Start with Windows', 'Abre o Lume sozinho quando você entra no Windows. Só no Lume.exe.': 'Opens Lume by itself when you sign in to Windows. Lume.exe only.',
             'Pesquisar na web nas respostas': 'Search the web in answers', 'A IA pesquisa na internet quando a pergunta pede dados atuais.': 'The AI searches the internet when the question needs current data.',
             'Verificar atualizações ao abrir': 'Check for updates on startup', 'Avisa quando há uma versão nova.': 'Tells you when there is a new version.', 'Animações': 'Animations', 'Desligue se a interface pesar na placa de vídeo.': 'Turn off if the interface is heavy on the graphics card.',
-            'Painel de desempenho': 'Performance panel', 'Mostra a VRAM e a velocidade no canto da tela.': 'Shows VRAM and speed in the corner of the screen.', 'Acesso pela rede (celular e amigos)': 'Network access (phone and friends)', 'Deixa outros aparelhos entrarem. A senha continua exigida pela internet.': 'Lets other devices in. The password is still required over the internet.', 'Bem-vindo!': 'Welcome!', 'Neurônios do Cloudflare usados hoje (medido pela própria Cloudflare). Zera às 00:00 UTC.': 'Cloudflare neurons used today (measured by Cloudflare itself). Resets at 00:00 UTC.',
+            'Painel de desempenho': 'Performance panel', 'Mostra a VRAM e a velocidade no canto da tela.': 'Shows VRAM and speed in the corner of the screen.', 'Acesso pela rede (celular e amigos)': 'Network access (phone and friends)', 'Deixa outros aparelhos entrarem. A senha continua exigida pela internet.': 'Lets other devices in. The password is still required over the internet.', 'Bem-vindo!': 'Welcome!', 'e': 'and', 'Neurônios do Cloudflare usados hoje (medido pela própria Cloudflare). Zera às 00:00 UTC.': 'Cloudflare neurons used today (measured by Cloudflare itself). Resets at 00:00 UTC.',
             'Neurônios do Cloudflare usados hoje, ESTIMADOS pelo Lume (só conta o que passou por aqui). Clique para ajustar ao número do painel da Cloudflare.': 'Cloudflare neurons used today, ESTIMATED by Lume (it only counts what went through here). Click to match the number on the Cloudflare dashboard.',
             'Neurônios hoje: {n} de {l} ({s}). Zera às 00:00 UTC.': 'Neurons today: {n} of {l} ({s}). Resets at 00:00 UTC.', 'medido pela Cloudflare': 'measured by Cloudflare', 'estimado pelo Lume': 'estimated by Lume',
             'O contador já vem direto da Cloudflare: não precisa ajustar.': 'The counter already comes straight from Cloudflare: no need to adjust.', 'Ajustar o contador de neurônios': 'Adjust the neuron counter', 'Ajustar': 'Adjust', 'ex.: 135,62': 'e.g. 135.62', 'Número inválido.': 'Invalid number.',
@@ -1451,9 +1451,47 @@
         const isAvail = m => guestBlocks(m) ? false : m.phone ? phoneMode() : (phoneMode() && !m.cloud ? false : (m.groq || m.or || m.cf || installed === null || installed.has(m.id)));   // no modo celular os locais do PC saem da lista
         const availIn = tab => MODELS.filter(m => m.tabs.includes(tab) && isAvail(m));
         const pickDefault = list => list.find(m => m.rec && !m.cloud) || list.find(m => !m.cloud && !m.heavy) || list.find(m => !m.cloud) || list[0];
-        function familiesIn(tab) {   // familias com algum modelo local primeiro, depois as so da nuvem; cada grupo em ordem alfabetica
-            const map = new Map(); availIn(tab).forEach(m => { if (!map.has(m.fam)) map.set(m.fam, []); map.get(m.fam).push(m); });
-            const key = ([, ms]) => (ms.some(m => !m.cloud) ? '0' : '1') + ms[0].famName.toLowerCase();
+        // ---------- familias: todas as versoes e provedores de uma marca ficam num lugar so ("Qwen 2.5, 3 e 3.5"); a lista de parametros traz "versao, tamanho"
+        const PROV_TAG = m => m.or ? ' · OpenRouter' : m.cf ? ' · Cloudflare' : '';
+        function parseDyn(slug, fallbackBase) {   // 'google/gemma-4-31b-it:free', '@cf/qwen/qwen3.8-27b', 'gemma2:9b'... -> { base, ver, psize }
+            const raw = String(slug).replace(/^@(cf|hf)\//, '').replace(/:free$/, ''), prov = raw.includes('/') ? raw.split('/')[0] : '';
+            const s = raw.split('/').pop().toLowerCase(), sz = (s.match(/(?:^|[-_:])(\d+(?:\.\d+)?)b(?![a-z])/) || [])[1], SZ = sz ? sz + 'B' : '';
+            let m;
+            if ((m = s.match(/^gemma-?(\d+(?:\.\d+)?)/))) return { base: 'Gemma', ver: m[1], psize: SZ || 'Cloud' };
+            if (/^qwq/.test(s)) return { base: 'Qwen', ver: 'QwQ', psize: SZ };
+            if ((m = s.match(/^qwen-?(\d+(?:\.\d+)?)/))) return { base: 'Qwen', ver: m[1], psize: (SZ + (/coder/.test(s) ? ' Coder' : '')).trim() };
+            if ((m = s.match(/^nemotron-(\d+(?:\.\d+)?)(?:-(.*))?$/))) {
+                const tiers = (m[2] || '').split('-').filter(w => /^(nano|omni|vl|lightning|super|ultra)$/.test(w));
+                let ver = m[1]; if (ver === '3' && tiers.includes('ultra')) ver = '4';   // do jeito do Ollama: o Ultra de 550B e o "4"
+                const keep = tiers.filter(w => !(SZ && (w === 'super' || w === 'ultra'))).map(w => w === 'vl' ? 'VL' : w[0].toUpperCase() + w.slice(1));
+                return { base: 'Nemotron', ver, psize: [SZ, ...keep].filter(Boolean).join(' ') || 'Cloud' };
+            }
+            if ((m = s.match(/^gpt-oss-(\d+)b/))) return { base: 'GPT-OSS', ver: '', psize: m[1] + 'B' };
+            if (/^deepseek-r1/.test(s)) return { base: 'DeepSeek', ver: 'R1', psize: s.replace(/^deepseek-r1-?/, '').split('-').filter(Boolean).map(w => /^\d+b$/.test(w) ? w.toUpperCase() : w[0].toUpperCase() + w.slice(1)).join(' ') };
+            if (raw === 'openrouter/free') return { base: 'OpenRouter', ver: '', psize: 'Free' };
+            const [b, tag] = raw.split(':');
+            return { base: fallbackBase || (prov ? prov[0].toUpperCase() + prov.slice(1) : b), ver: '', psize: prov ? b : (tag || '') };
+        }
+        function finalizeModel(m) {   // base/versao/tamanho (os de lista fixa saem do famName "Qwen 3.5"), grupo da marca e os textos da lista
+            if (m.base === undefined) { const x = /^(.*?)\s+(\d[\w.]*)$/.exec(m.famName || ''); m.base = x ? x[1] : (m.famName || ''); m.ver = x ? x[2] : ''; m.psize = m.params; }
+            m.grp = String(m.base).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || m.fam;
+            m.plabel = [m.ver, m.psize].filter(Boolean).join(', ') + PROV_TAG(m);
+            m.short = [m.base, m.ver, m.psize].filter(Boolean).join(' ');
+            return m;
+        }
+        const fin = m => m.grp ? m : finalizeModel(m);
+        const verKey = v => { const n = parseFloat(v); return isNaN(n) ? 1e9 : n; };
+        const sizeNum = m => { const x = /(\d+(?:\.\d+)?)\s*([bk]?)/i.exec(m.psize || ''); return x ? parseFloat(x[1]) * (x[2].toLowerCase() === 'k' ? 0.001 : 1) : 1e9; };
+        const provOrd = m => m.cf ? 1 : m.or ? 2 : 0;
+        function famTitle(ms) {   // "Gemma 3 e 4", "Qwen 2.5, 3 e 3.5"
+            const vs = [...new Set(ms.map(m => m.ver).filter(Boolean))].sort((a, b) => verKey(a) - verKey(b) || a.localeCompare(b));
+            const list = vs.length > 1 ? vs.slice(0, -1).join(', ') + ' ' + tr('e') + ' ' + vs[vs.length - 1] : vs[0] || '';
+            return ms[0].base + (list ? ' ' + list : '');
+        }
+        function familiesIn(tab) {   // marcas com algum modelo local primeiro, depois as so da nuvem; cada grupo em ordem alfabetica
+            const map = new Map(); availIn(tab).forEach(m => { fin(m); if (!map.has(m.grp)) map.set(m.grp, []); map.get(m.grp).push(m); });
+            map.forEach(ms => ms.sort((a, b) => verKey(a.ver) - verKey(b.ver) || sizeNum(a) - sizeNum(b) || provOrd(a) - provOrd(b) || a.plabel.localeCompare(b.plabel)));
+            const key = ([, ms]) => (ms.some(m => !m.cloud) ? '0' : '1') + ms[0].base.toLowerCase();
             return new Map([...map.entries()].sort((a, b) => key(a).localeCompare(key(b), 'pt', { numeric: true })));
         }
         function ensureSelected() {
@@ -1662,7 +1700,6 @@
         // marcas: a logo da marca aparece ao lado do nome do modelo. A marca e detectada pelo nome (familia/id), entao modelos novos ja saem com a logo certa.
         // wordmark = a imagem ja tem o nome (Qwen, DeepSeek, Beam), entao vai sozinha; chip = fundo branco (logo escuro); mono = logo de uma cor so, pintado com a cor do texto do tema
         const BRANDS = [
-            { re: /qwen/i, pick: s => /qwen\s*-?2\.5/i.test(s) ? 'qwen2.5.png' : /qwen\s*-?3\.5/i.test(s) ? 'qwen3.5.png' : null, wordmark: true },
             { re: /deepseek/i, img: 'DeepSeek.png', wordmark: true },
             { re: /beam/i, img: 'beam.png', wordmark: true, mono: true, ratio: 5.06 },
             { re: /gemma|gemini/i, img: 'Google.png' },
@@ -1692,14 +1729,15 @@
             const im = document.createElement('img'); im.className = 'ic mode-ic'; im.src = kind === 'cloud' ? 'icons/cloud.png' : 'icons/globe-off.png';
             im.title = tr(kind === 'cloud' ? 'Roda na nuvem (precisa de internet)' : 'Funciona sem internet'); return im;
         }
-        function famLabelNodes(rec) {   // [imagem, texto] que identificam a familia
+        function famLabelNodes(rec, title) {   // [imagem, texto] que identificam a familia (title = "Qwen 2.5, 3 e 3.5" quando e a marca toda)
+            title = title || rec.famName;
             const br = brandOf(rec), out = [];
             if (br) {
                 out.push(brandEl(br, rec));
-                if (!br.wordmark) out.push(document.createTextNode(rec.famName));
+                if (!br.wordmark) out.push(document.createTextNode(title));
             } else {
                 if (rec.icon !== 'cloud') { const im = document.createElement('img'); im.className = 'ic'; im.src = `icons/${rec.icon === 'triangle-alert' ? 'zap' : rec.icon}.png`; out.push(im); }   // modelos so da nuvem ja mostram o icone de nuvem ao lado
-                out.push(document.createTextNode(rec.famName));
+                out.push(document.createTextNode(title));
             }
             return out;
         }
@@ -1715,10 +1753,10 @@
             fams.forEach((sizes, fam) => {
                 const rec = sizes.find(m => m.rec) || sizes[0];
                 const el = document.createElement('div');
-                el.className = 'select-option' + (fam === cur.fam ? ' selected' : '') + (sizes.every(phoneBlocked) ? ' disabled' : '');
+                el.className = 'select-option' + (fam === fin(cur).grp ? ' selected' : '') + (sizes.every(phoneBlocked) ? ' disabled' : '');
                 el.style.setProperty('--i', i++);
                 const label = document.createElement('span'); label.className = 'mo-label';
-                famLabelNodes(rec).forEach(n => label.appendChild(n));
+                famLabelNodes(rec, famTitle(sizes)).forEach(n => label.appendChild(n));
                 if (sizes.some(m => m.vision)) { const v = document.createElement('span'); v.className = 'mo-badge vision'; v.textContent = tr('visão'); label.appendChild(v); }
                 if (sizes.some(m => !m.cloud)) label.appendChild(modeIcon('local'));
                 if (sizes.some(m => m.cloud)) label.appendChild(modeIcon('cloud'));
@@ -1730,12 +1768,12 @@
             });
             if (!fams.size) { const e = document.createElement('div'); e.className = 'select-option'; e.textContent = tr('Nenhum modelo disponível.'); box.appendChild(e); }
             // linha de parametros do modelo da familia escolhida
-            const sizes = fams.get(cur.fam) || [];
+            const sizes = fams.get(fin(cur).grp) || [];
             if (sizes.length) {
                 const row = document.createElement('div'); row.className = 'size-row';
                 const lab = document.createElement('span'); lab.className = 'size-label'; lab.textContent = tr('Parâmetros');
                 const sel = document.createElement('select'); sel.id = 'size-select';
-                sizes.forEach(m => { const o = new Option(m.params + (m.heavy ? ' ⚠' : '') + (phoneBlocked(m) ? ' ✕' : ''), m.id); o.disabled = phoneBlocked(m); sel.add(o); });
+                sizes.forEach(m => { const o = new Option(fin(m).plabel + (m.heavy ? ' ⚠' : '') + (phoneBlocked(m) ? ' ✕' : ''), m.id); o.disabled = phoneBlocked(m); sel.add(o); });
                 sel.value = cur.id; sel.onchange = () => pickSize(sel.value);
                 const info = document.createElement('span'); info.className = 'size-info'; info.id = 'size-info'; info.dataset.id = cur.id; info.textContent = sizeInfoText(cur);
                 row.append(lab, sel);
@@ -1761,11 +1799,11 @@
             tm.style.display = br && br.mono ? '' : 'none'; if (br && br.mono) tm.style.aspectRatio = br.ratio || 1; tm.className = 'brand-mono' + (br && br.wordmark ? ' wm' : ''); if (br && br.mono) tm.style.setProperty('--m', `url("icons/${brandFile(br, cur)}")`);
             ti.style.display = br && br.mono ? 'none' : ''; ti.className = br ? (br.wordmark ? 'wordmark' + (br.chip ? '' : ' bare') : 'brand-img') : 'ic';
             ti.src = br ? 'icons/' + brandFile(br, cur) : `icons/${cur.icon === 'triangle-alert' ? 'zap' : cur.icon}.png`; ti.onerror = br ? () => { ti.style.display = 'none'; } : null;
-            $('model-trigger-text').textContent = (br && br.wordmark ? '' : cur.famName + ' ') + cur.params;
+            $('model-trigger-text').textContent = br && br.wordmark ? [cur.ver, cur.psize].filter(Boolean).join(' ') : cur.short;
             updateCtxBar();
         }
         async function selectFamily(fam) {
-            const sizes = familiesIn(currentTab).get(fam); if (!sizes || modelById(selectedModel).fam === fam) return;
+            const sizes = familiesIn(currentTab).get(fam); if (!sizes || fin(modelById(selectedModel)).grp === fam) return;
             const usable = sizes.filter(m => !phoneBlocked(m)); if (!usable.length) return;
             const remembered = usable.find(m => config.famSize && config.famSize[fam] === m.id);
             await selectModel((remembered || usable.find(m => m.rec) || usable.find(m => !m.heavy) || usable[0]).id, true);
@@ -1780,7 +1818,7 @@
             (d.models || []).forEach(x => {
                 const nm = String(x.name || x.id).replace(/\s*\((free|grátis)\)\s*$/i, ''), k = nm.indexOf(': ');
                 const prov = k > 0 ? nm.slice(0, k) : x.id.split('/')[0], rest = k > 0 ? nm.slice(k + 2) : nm;
-                MODELS.push({ id: 'or:' + x.id, fam: 'or:' + prov.toLowerCase(), famName: prov, params: rest, label: nm + ' (OpenRouter grátis)', icon: 'cloud', tabs: ['chat'], cloud: true, or: true, vision: !!x.vision, ctx: x.ctx || 32768 });
+                MODELS.push(Object.assign({ id: 'or:' + x.id, fam: 'or:' + prov.toLowerCase(), famName: prov, params: rest, label: nm + ' (OpenRouter grátis)', icon: 'cloud', tabs: ['chat'], cloud: true, or: true, vision: !!x.vision, ctx: x.ctx || 32768 }, parseDyn(x.id, prov)));
             });
             if (String(config.model).startsWith('or:') && modelById(config.model) && currentTab === 'chat') selectedModel = config.model;   // o modelo escolhido da ultima vez volta
             renderModelOptions();
@@ -1821,7 +1859,7 @@
             if (d.error && !(d.models || []).length) showInfo(tr('Não consegui carregar os modelos do Cloudflare: {e}', { e: d.error }), 8000);
             (d.models || []).forEach(x => {
                 const prov = CF_VENDORS[x.vendor] || (x.vendor ? x.vendor[0].toUpperCase() + x.vendor.slice(1) : 'Cloudflare');
-                MODELS.push({ id: 'cf:' + x.id, fam: 'cf:' + x.vendor, famName: prov, params: x.name, label: prov + ' ' + x.name + ' (Cloudflare)', icon: 'cloud', tabs: ['chat'], cloud: true, cf: true, vision: !!x.vision, ctx: x.ctx || 8192 });
+                MODELS.push(Object.assign({ id: 'cf:' + x.id, fam: 'cf:' + x.vendor, famName: prov, params: x.name, label: prov + ' ' + x.name + ' (Cloudflare)', icon: 'cloud', tabs: /coder/i.test(x.id) ? ['code'] : ['chat'], cloud: true, cf: true, vision: !!x.vision, ctx: x.ctx || 8192 }, parseDyn(x.id, prov)));   // o Coder so aparece na aba Code
             });
             if (String(config.model).startsWith('cf:') && modelById(config.model) && currentTab === 'chat') selectedModel = config.model;
             renderModelOptions();
@@ -1845,7 +1883,7 @@
                 if (MODELS.some(m => m.id === name) || HIDDEN_MODELS.test(name)) return;
                 const cloud = /(:|-)cloud$/.test(name), [base, tag] = name.split(':'), gb = (installedSize[name] || 0) / 1e9;
                 const m = { id: name, fam: 'custom:' + base, famName: base, params: (tag || '').replace(/-cloud$/, '') || (cloud ? 'Cloud' : ''), label: name + (cloud ? ' (Nuvem Ollama)' : ''), icon: cloud ? 'cloud' : 'zap', tabs: ['chat', 'code'], gb: cloud ? 0 : (+gb.toFixed(1) || 3), ctx: 32768, cloud, custom: true };
-                MODELS.push(m);
+                Object.assign(m, parseDyn(name, base)); MODELS.push(m);
                 fetch(API + '/api/model_info?name=' + encodeURIComponent(name)).then(r => r.json()).then(inf => { if (inf && !inf.error) { m.vision = (inf.caps || []).includes('vision'); if (inf.ctx) m.ctx = inf.ctx; } }).catch(() => {});
             });
         }
@@ -1882,7 +1920,7 @@
                 if (r.index !== 0) return;
             }
             selectedModel = id; config.model = id; if (!m.cloud) lastLocalModel = id;
-            config.famSize = Object.assign({}, config.famSize, { [m.fam]: id });
+            config.famSize = Object.assign({}, config.famSize, { [fin(m).grp]: id });
             saveState(); renderModelOptions();
         }
         const ctxDiv = () => config.maxCtx && config.ctxDivide ? Math.max(1, +config.ctxDivisor || 4) : 1;   // "dividir o limite": 256K / 4 = 64K usaveis
@@ -2048,10 +2086,10 @@
         // etiqueta pequena no canto de cada resposta: logo + nome do modelo (+ velocidade quando se sabe)
         function modelTag(modelId, tps) {
             const m = modelById(modelId), tag = document.createElement('div'); tag.className = 'msg-tag';
-            famLabelNodes(m).forEach(n => tag.appendChild(n));
+            fin(m); famLabelNodes(m, m.base + (m.ver ? ' ' + m.ver : '')).forEach(n => tag.appendChild(n));
             const br = brandOf(m);
-            if (m.famName && !br) tag.lastChild.textContent = m.famName + ' ' + m.params;
-            else tag.appendChild(document.createTextNode(br && br.wordmark ? m.params : ' ' + m.params));
+            if (!br) tag.lastChild.textContent = m.short;
+            else tag.appendChild(document.createTextNode(' ' + (br.wordmark ? [m.ver, m.psize].filter(Boolean).join(' ') : m.psize)));
             const sp = document.createElement('span'); sp.className = 'tag-tps'; tag.appendChild(sp); setTagTps(tag, tps);
             return tag;
         }
@@ -2062,7 +2100,7 @@
             const tag = div.querySelector('.msg-tag'), mid = div.dataset.model;
             if (!mid) return raw;
             const m = modelById(mid), tps = tag && tag._tps;
-            return raw.replace(/\s+$/, '') + `\n\n— ${m.famName} ${m.params}` + (tps ? ` · ${tps.toFixed(1)} t/s` : '');
+            return raw.replace(/\s+$/, '') + `\n\n— ${fin(m).short}` + (tps ? ` · ${tps.toFixed(1)} t/s` : '');
         }
         function qaPayload(div, span) {   // a pergunta do usuario + a resposta da IA
             let p = div.previousElementSibling; while (p && !p.classList.contains('user')) p = p.previousElementSibling;
