@@ -395,7 +395,20 @@ def missing_python_packages(code):
         if PIP_SPEC_RE.match(pkg) and pkg not in missing: missing.append(pkg)
     return missing, bool(mods & GUI_MODULES)
 
-def run_code(lang, code, analyze=False, install=False):
+code_procs = {}; code_stopped = set()   # blocos de codigo rodando agora (rid -> processo) e os que o usuario mandou parar
+
+def kill_tree(p):
+    try:
+        if os.name == "nt": subprocess.run(["taskkill", "/PID", str(p.pid), "/T", "/F"], capture_output=True, creationflags=NOWIN)
+        else: p.kill()
+    except Exception: pass
+
+def stop_code(rid):
+    p = code_procs.get(rid)
+    if not p: return False
+    code_stopped.add(rid); kill_tree(p); return True
+
+def run_code(lang, code, analyze=False, install=False, rid=None):
     lang = (lang or "").lower()
     if lang not in RUN_LANGS: return {"error": "Linguagem sem botao de rodar."}
     if not isinstance(code, str) or not code.strip() or len(code) > 200000: return {"error": "Codigo vazio ou grande demais."}
@@ -432,18 +445,28 @@ def run_code(lang, code, analyze=False, install=False):
     t0 = time.time()
     if gui:   # programas com janela: roda solto e so espera uns segundos para pegar erro logo de cara
         p = subprocess.Popen(cmd, cwd=RUN_DIR, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, creationflags=NOWIN)
+        if rid: code_procs[rid] = p
         try:
             outb, _ = p.communicate(timeout=3)
+            if rid in code_stopped: return {"ok": False, "stopped": True, "output": out_install + outb.decode("utf-8", "replace")[-20000:], "seconds": round(time.time() - t0, 2)}
             return {"ok": p.returncode == 0, "exit": p.returncode, "output": out_install + outb.decode("utf-8", "replace")[-20000:], "seconds": round(time.time() - t0, 2)}
         except subprocess.TimeoutExpired:
             return {"ok": True, "detached": True, "output": out_install + "O programa abriu uma janela e continua rodando. Feche a janela dele quando terminar.", "seconds": 3}
+        finally:
+            code_procs.pop(rid, None); code_stopped.discard(rid)
+    p = subprocess.Popen(cmd, cwd=RUN_DIR, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=NOWIN)
+    if rid: code_procs[rid] = p
     try:
-        r = subprocess.run(cmd, cwd=RUN_DIR, env=env, stdin=subprocess.DEVNULL, capture_output=True, timeout=RUN_TIMEOUT, creationflags=NOWIN)
-        out = (r.stdout.decode("utf-8", "replace") + (("\n" if r.stdout else "") + r.stderr.decode("utf-8", "replace") if r.stderr else "")).strip()
-        return {"ok": r.returncode == 0, "exit": r.returncode, "output": out_install + out[-20000:], "seconds": round(time.time() - t0, 2)}
-    except subprocess.TimeoutExpired as e:
-        partial = ((e.stdout or b"").decode("utf-8", "replace") + (e.stderr or b"").decode("utf-8", "replace")).strip()
-        return {"ok": False, "exit": None, "timeout": True, "output": out_install + partial[-20000:] + f"\n\n(parado: passou de {RUN_TIMEOUT} s)", "seconds": RUN_TIMEOUT}
+        try:
+            so, se = p.communicate(timeout=RUN_TIMEOUT); timed = False
+        except subprocess.TimeoutExpired:
+            kill_tree(p); so, se = p.communicate(); timed = True
+        out = (so.decode("utf-8", "replace") + (("\n" if so else "") + se.decode("utf-8", "replace") if se else "")).strip()
+        if rid in code_stopped: return {"ok": False, "stopped": True, "output": out_install + out[-20000:], "seconds": round(time.time() - t0, 2)}
+        if timed: return {"ok": False, "exit": None, "timeout": True, "output": out_install + out[-20000:] + f"\n\n(parado: passou de {RUN_TIMEOUT} s)", "seconds": RUN_TIMEOUT}
+        return {"ok": p.returncode == 0, "exit": p.returncode, "output": out_install + out[-20000:], "seconds": round(time.time() - t0, 2)}
+    finally:
+        code_procs.pop(rid, None); code_stopped.discard(rid)
 
 # ---------------------------------------------------------------- desfazer (backup antes de a IA sobrescrever um arquivo)
 def save_undo(path, existed, old_bytes):
@@ -923,6 +946,11 @@ def find_tool_call(text):
     elif text[end:end + 6].lstrip().startswith("$$"):
         end = text.index("$$", end) + 2
     return name, args, end
+
+ANNOUNCE_RE = re.compile(r"(?i)\b(vou|vamos|irei|farei|i'?ll|i will|let me)\s+(agora\s+)?(atualizar|criar|escrever|editar|rodar|executar|salvar|gravar|ler|abrir|instalar|update|create|write|edit|run|save|read|open|install)\b[^?]{0,200}$")
+def announces_action(text):
+    """O modelo disse que ia fazer algo (\"vou atualizar o arquivo\") mas terminou sem chamar nenhuma ferramenta."""
+    return bool(ANNOUNCE_RE.search((text or "").strip()[-300:]))
 
 def looks_like_failed_call(text):
     """A IA tentou chamar uma ferramenta mas errou o formato (nada foi reconhecido)."""
@@ -1446,6 +1474,9 @@ POL_API = "https://gen.pollinations.ai"
 # os que ele nao lista mas respondem nos testes entram com preco informado a mao. free = gratis; flaky = instavel (vai para o fim da fila de tentativas).
 POL_MODELS = [
     ("openai/gpt-5.4-nano", {}), ("openai/gpt-5.6-luna", {}), ("openai/gpt-5-nano", {}), ("openai/gpt-6-luna", {}),
+    ("openai/gpt-5.4", {}), ("openai/gpt-5.4-mini", {}), ("openai/gpt-5.5", {}), ("openai/gpt-5.6-sol", {}), ("openai/gpt-5.6-terra", {}),
+    ("openai/gpt-6-sol", {}), ("openai/gpt-6.1-sol", {}), ("openai/gpt-6-astra", {}), ("openai/gpt-oss-20b", {}),
+    ("community/gggff123/gpt-5-nano", {}), ("community/chirag-gamer/gpt-oss-120b", {}),
     ("community/YoannDev90/qwen3.7-flash", {}), ("community/MarcosFRG/gemini-3.1-flash-lite", {"pin": 0.5, "pout": 1.5, "guess": True}),
     ("community/scriptsnsenses-sys/gemini-3.1-pro-free", {"free": True}),
     ("deepseek/deepseek-v4.1-flash", {}), ("community/MarcosFRG/deepseek-v4.1-flash", {}), ("community/scriptsnsenses-sys/deepseek-v4.1-flash", {}), ("community/vendouple/deepseek-v4.1-flash", {"pin": 0.06, "pout": 0.5}),
@@ -1507,9 +1538,16 @@ def stream_pollinations(model, messages, think, cfg, max_tokens=None):
     for n, cand in enumerate(chain):
         payload = {"model": cand, "messages": msgs, "stream": True, "stream_options": {"include_usage": True}}
         if max_tokens: payload["max_tokens"] = int(max_tokens)
+        # os GPT 5/6 "pensam" em silencio antes da 1a palavra (a Pollinations nao mostra esse raciocinio): sem o botao Pensar, pede o minimo (era 10+ s de "Conectando")
+        if re.search(r"(^|/)gpt-[56]", cand) and "oss" not in cand: payload["reasoning_effort"] = "medium" if think else ("none" if re.search(r"(^|/)gpt-6", cand) else "minimal")   # GPT-6 aceita "none"; GPT-5, "minimal"
         t0 = time.time()
         try:
-            response = _cloud_open(urllib.request.Request(POL_API + "/v1/chat/completions", data=json.dumps(payload).encode(), headers={"Authorization": "Bearer " + key, "Content-Type": "application/json", "User-Agent": "lume-app"}), "O Pollinations")
+            hdr = {"Authorization": "Bearer " + key, "Content-Type": "application/json", "User-Agent": "lume-app"}
+            try: response = _cloud_open(urllib.request.Request(POL_API + "/v1/chat/completions", data=json.dumps(payload).encode(), headers=hdr), "O Pollinations")
+            except urllib.error.HTTPError as e0:
+                if e0.code != 400 or "reasoning_effort" not in payload: raise
+                payload.pop("reasoning_effort")   # este modelo nao aceita o ajuste: tenta de novo sem ele
+                response = _cloud_open(urllib.request.Request(POL_API + "/v1/chat/completions", data=json.dumps(payload).encode(), headers=hdr), "O Pollinations")
         except urllib.error.HTTPError as e:
             body = e.read().decode("utf-8", "replace"); msg = body[:200]
             try: j = json.loads(body); msg = str((j.get("error") or {}).get("message") or msg)[:200]
@@ -1582,7 +1620,7 @@ STATIC_PAGES = ("/", "/index.html")
 PAGE_ALIAS = {"/share": "/share.html", "/dashboard": "/dashboard.html"}
 # So o proprio PC (janela do app) pode usar estas rotas
 LOCAL_ONLY_POST = ("/api/save_config", "/api/save_key", "/api/server_config", "/api/perf_interval",
-                   "/api/custom_theme", "/api/custom_theme_delete", "/api/resolve_pending", "/api/export", "/api/ios_profile_save", "/api/undo", "/api/stats_clear", "/api/open_url", "/api/update_apply", "/api/restart_app", "/api/run_code", "/api/tunnel_start", "/api/tunnel_stop", "/api/tunnel_install", "/api/app_options", "/api/model_pull", "/api/model_delete", "/api/models_update_now", "/api/cloudflare_usage_set")
+                   "/api/custom_theme", "/api/custom_theme_delete", "/api/resolve_pending", "/api/export", "/api/ios_profile_save", "/api/undo", "/api/stats_clear", "/api/open_url", "/api/update_apply", "/api/restart_app", "/api/run_code", "/api/run_stop", "/api/tunnel_start", "/api/tunnel_stop", "/api/tunnel_install", "/api/app_options", "/api/model_pull", "/api/model_delete", "/api/models_update_now", "/api/cloudflare_usage_set")
 PUBLIC_POST = ("/api/auth/login", "/api/auth/logout", "/api/guest/register", "/api/guest/code")
 LOGIN_MAX_FAILS, LOGIN_LOCK_SECONDS = 5, 60
 login_failures = {}   # ip -> [falhas, inicio]
@@ -2198,7 +2236,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             except Exception as e: return self.send_json({"error": str(e)}, 400)
 
         if p == '/api/run_code':
-            return self.send_json(run_code(data.get("lang"), data.get("code"), bool(data.get("analyze")), bool(data.get("install"))))
+            return self.send_json(run_code(data.get("lang"), data.get("code"), bool(data.get("analyze")), bool(data.get("install")), str(data.get("rid") or "") or None))
+        if p == '/api/run_stop':
+            return self.send_json({"ok": stop_code(str(data.get("rid") or ""))})
         if p == '/api/update_apply':
             return self.send_json(apply_update())
         if p == '/api/tunnel_install': return self.send_json(install_cloudflared())
@@ -2670,7 +2710,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     break
                 call = find_tool_call(full) if agent else None
                 if not call:
-                    if agent and corrections < 2 and looks_like_failed_call(full):   # errou o formato: pede para repetir (ate 2 vezes)
+                    if agent and corrections < 2 and (looks_like_failed_call(full) or announces_action(full)):   # errou o formato (ou disse que ia agir e nao chamou nada): pede para repetir (ate 2 vezes)
                         corrections += 1; failed_pending = True
                         log("AGENTE", "Chamada de ferramenta fora do formato; pedindo para a IA repetir.", COLOR_YELLOW)
                         send(L("\n\n[formato de ferramenta invalido, pedindo para a IA tentar de novo]", "\n\n[invalid tool format, asking the AI to try again]"))
