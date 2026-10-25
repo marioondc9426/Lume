@@ -1,0 +1,513 @@
+/* Lume no iPhone: porte em JavaScript do servidor (app.py).
+   A interface (index.html) continua a mesma e chama fetch('/api/...'); este arquivo responde a essas chamadas dentro do proprio app,
+   sem PC ligado: modelos da nuvem (Pollinations, OpenRouter, Groq, Vercel, LLM7, tomdacat) e, se voce quiser, o Ollama de um PC (configuracoes > Ollama no PC).
+   Fica de fora (depende do PC): aba Code com ferramentas, rodar codigo, Cloudflare Workers AI, tunel/compartilhar, atualizador, leitura de PDF/Word.
+   Os dados (modelos, precos) vem de backend-data.js, gerado a partir do app.py por ios/gen_data.py. */
+(() => {
+'use strict';
+if (window.__lumeBackend) return;
+window.__lumeBackend = true;
+window.__LUME_IOS = true;
+const D = window.LUME_DATA || { POL_MODELS: [], VERCEL_MODELS: [], TDC_MODELS: [], POL_MAX_PRICE: 4.5, TDC_MAX_CR: 100, MODEL_EXCLUDE: '^$', GROQ_EXCLUDE: '^$' };
+const VERSION = '3.0';
+const realFetch = window.fetch.bind(window);
+const enc = new TextEncoder();
+const POL_API = 'https://gen.pollinations.ai', OR_URL = 'https://openrouter.ai/api/v1', GROQ_URL = 'https://api.groq.com/openai/v1';
+const VERCEL_URL = 'https://ai-gateway.vercel.sh/v1', LLM7_URL = 'https://api.llm7.io/v1', TDC_URL = 'https://ai.tomdacat.com';
+const CLOUD_PREFIX = /^(groq|or:|cf:|pol:|tdc:|vc:|l7:)/;
+const now = () => Date.now() / 1000;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const re = (src, flags) => { try { return new RegExp(src.replace(/\(\?i\)/g, ''), flags || 'i'); } catch (e) { return /^$/; } };
+
+// ---------------------------------------------------------------- armazenamento (IndexedDB; se faltar, localStorage)
+const LS = {
+    get(k, d) { try { const v = localStorage.getItem('lume.' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem('lume.' + k, JSON.stringify(v)); } catch (e) { /* cheio */ } },
+};
+const kv = (() => {
+    let dbp = null;
+    const open = () => dbp || (dbp = new Promise((res, rej) => { const r = indexedDB.open('lume', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }));
+    return {
+        async get(k, d) {
+            try { const db = await open(); return await new Promise(res => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result === undefined ? d : q.result); q.onerror = () => res(d); }); }
+            catch (e) { return LS.get(k, d); }
+        },
+        async set(k, v) {
+            try { const db = await open(); await new Promise((res, rej) => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = res; t.onerror = () => rej(t.error); }); }
+            catch (e) { LS.set(k, v); }
+        },
+    };
+})();
+
+const CFG_DEFAULTS = { groq_api_key: '', openrouter_api_key: '', pollinations_api_key: '', vercel_api_key: '', llm7_api_key: '', tomdacat_api_key: '', exa_api_key: '', cloudflare_api_token: '', cloudflare_account_id: '',
+    search_provider: 'auto', exa_type: 'lite', search_results: 8, search_daily_limit: 100, auto_allow: false, workdir: '', ollama_url: '', usage: { groq: 0 } };
+let _cfg = null;
+async function loadConfig() { if (!_cfg) _cfg = Object.assign({}, CFG_DEFAULTS, await kv.get('config', {})); return _cfg; }
+async function saveConfig(c) { _cfg = c; await kv.set('config', c); }
+
+const json = (obj, status) => new Response(JSON.stringify(obj), { status: status || 200, headers: { 'Content-Type': 'application/json' } });
+const slug = s => String(s || '').replace(/[^\w\- ]/g, '_').trim().slice(0, 40) || 'tema';
+
+// ---------------------------------------------------------------- rede
+async function fetchT(url, opts, ms, label) {
+    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort('timeout'), ms || 45000);
+    const ext = opts && opts.signal; if (ext) ext.addEventListener('abort', () => ctl.abort(ext.reason));
+    try { return await realFetch(url, Object.assign({}, opts, { signal: ctl.signal })); }
+    catch (e) {
+        if (ctl.signal.reason === 'timeout') throw new Error(`${label || 'O servidor'} nao respondeu em ${Math.round((ms || 45000) / 1000)} s (sem conexao ou fora do ar).`);
+        if (ext && ext.aborted) throw e;
+        throw new Error(`Sem conexao com ${label || 'o servidor'}: ${String(e && e.message || e).slice(0, 100)}`);
+    } finally { clearTimeout(t); }
+}
+const bearer = (key, extra) => Object.assign({ Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' }, extra || {});
+async function getJson(url, headers, ms, label) { const r = await fetchT(url, { headers: headers || {} }, ms || 20000, label); if (!r.ok) throw new Error(`${label || 'Servidor'} respondeu ${r.status}`); return r.json(); }
+const errMsg = async (r, n) => { const body = await r.text().catch(() => ''); let m = body.slice(0, n || 250); try { const j = JSON.parse(body); m = String((j.error && j.error.message) || (typeof j.error === 'string' && j.error) || m).slice(0, n || 250); } catch (e) { /* texto puro */ } return { body, msg: m }; };
+
+// ---------------------------------------------------------------- listas de modelos
+const cache = { pol: { t: 0, key: '', cat: null }, lat: { t: 0, v: {} }, or: { t: 0, v: null }, groq: { t: 0, v: null }, vc: { t: 0, v: null }, l7: { t: 0, v: null }, tdc: { t: 0, v: null } };
+
+async function polCatalog(key) {
+    const c = cache.pol; if (c.cat && c.key === key && now() - c.t < 1800) return c.cat;
+    const h = bearer(key); let data;
+    try { data = (await getJson(POL_API + '/v1/models?reliability=all&limit=500', h, 30000, 'O Pollinations')).data || []; }
+    catch (e) { data = (await getJson(POL_API + '/v1/models', h, 30000, 'O Pollinations')).data || []; }
+    c.t = now(); c.key = key; c.cat = Object.fromEntries(data.filter(m => m.id).map(m => [m.id, m])); return c.cat;
+}
+async function polLatency(key) {
+    const c = cache.lat; if (now() - c.t < 600) return c.v; const lat = {};
+    try { const rows = (await getJson(POL_API + '/models/status', bearer(key), 15000)).data || []; rows.forEach(r => { if (String(r.event_type || '').endsWith('text') && r.model && r.latency_p50_ms) lat[r.model] = Math.round(r.latency_p50_ms / 100) / 10; }); } catch (e) { /* sem latencia */ }
+    c.t = now(); c.v = lat; return lat;
+}
+const polPrice = m => { const p = (m && m.pricing) || {}; return [(+p.promptTextTokens || 0) * 1e6, (+p.completionTextTokens || 0) * 1e6]; };
+
+async function pollinationsModels(cfg) {
+    const key = cfg.pollinations_api_key || '', cat = await polCatalog(key), lat = await polLatency(key), out = [];
+    for (const [mid, ex] of D.POL_MODELS) {
+        const m = cat[mid] || {}, has = !!cat[mid]; let [pin, pout] = has ? polPrice(m) : [ex.pin || 0, ex.pout || 0];
+        if (has && !m.pricing) { pin = ex.pin || 0; pout = ex.pout || 0; }
+        const hl = m.health || {}, inm = m.input_modalities || ['text'], free = !!ex.free || (has && pin === 0 && pout === 0);
+        const pimg = has ? (+((m.pricing || {}).promptImageTokens) || 0) * 1e6 : 0;
+        if (!free && !ex.keep && Math.max(pin, pout, pimg) > D.POL_MAX_PRICE) continue;
+        const caps = m.capabilities || [], rpm = m.per_user_rpm, parts = mid.split('/');
+        out.push({ id: mid, name: m.title || parts[parts.length - 1], provider: mid.startsWith('community/') ? parts[1] : 'oficial', ctx: m.context_length || 128000, vision: inm.includes('image'), pin, pout, free, guess: !!ex.guess,
+            health: hl.status || (ex.flaky ? 'degraded' : '?'), success: hl.success_rate == null ? null : hl.success_rate, official: !mid.startsWith('community/'), prio: !!ex.prio, speed: ex.speed || 0, tabs: ex.tabs || 'chat',
+            warn: ex.warn || (rpm && rpm <= 5 ? `Limite de ${rpm} pedidos por minuto: se mandar varias mensagens seguidas pode dar erro de limite.` : ''),
+            reasoning: has && (caps.includes('reasoning') || !!m.reasoning), effort: (m.supported_parameters || []).includes('reasoning_effort'),
+            tools: has ? (caps.includes('tool_calling') || !!m.tools) : null, rpm: rpm == null ? null : rpm, p50: lat[mid] == null ? null : lat[mid] });
+    }
+    return out;
+}
+async function openrouterModels() {
+    const c = cache.or; if (c.v && now() - c.t < 3600) return c.v;
+    const data = (await getJson(OR_URL + '/models', {}, 15000, 'O OpenRouter')).data || [], ex = re(D.MODEL_EXCLUDE), out = [];
+    for (const m of data) {
+        const pr = m.pricing || {}; let free = false;
+        try { free = ['prompt', 'completion', 'request', 'image'].every(k => (+pr[k] || 0) === 0) && pr.prompt != null; } catch (e) { free = false; }
+        const arch = m.architecture || {}, outm = arch.output_modalities || ['text'], inm = arch.input_modalities || ['text'];
+        if (!free || JSON.stringify(outm) !== '["text"]' || !m.id || ex.test(m.id)) continue;
+        out.push({ id: m.id, name: m.name || m.id, ctx: m.context_length || 0, vision: inm.includes('image'), think: (m.supported_parameters || []).includes('reasoning') });
+    }
+    out.sort((a, b) => a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1); c.t = now(); c.v = out; return out;
+}
+async function groqModels(cfg) {
+    const c = cache.groq; if (c.v && now() - c.t < 3600) return c.v; const ex = re(D.GROQ_EXCLUDE);
+    const data = (await getJson(GROQ_URL + '/models', { Authorization: 'Bearer ' + cfg.groq_api_key }, 20000, 'O Groq')).data || [];
+    const out = data.filter(m => m.id && m.active !== false && !ex.test(m.id)).map(m => ({ id: m.id, ctx: m.context_window || 0, max_out: m.max_completion_tokens || 0 })).sort((a, b) => a.id < b.id ? -1 : 1);
+    c.t = now(); c.v = out; return out;
+}
+async function oaiModels(base, key) { return (await getJson(base + '/models', { Authorization: 'Bearer ' + key }, 20000)).data || []; }
+async function vercelModels(cfg) {
+    const c = cache.vc; if (c.v && now() - c.t < 3600) return c.v;
+    const have = Object.fromEntries((await oaiModels(VERCEL_URL, cfg.vercel_api_key)).map(m => [m.id, m]));
+    const out = D.VERCEL_MODELS.filter(([id]) => have[id]).map(([id, name]) => ({ id, name, ctx: have[id].context_window || 128000 })); c.t = now(); c.v = out; return out;
+}
+async function llm7Models(cfg) {
+    const c = cache.l7; if (c.v && now() - c.t < 3600) return c.v; const out = [];
+    for (const m of await oaiModels(LLM7_URL, cfg.llm7_api_key)) {
+        const mo = m.modalities || {};
+        if (m.usage_based_only !== false || JSON.stringify(mo.output) !== '["text"]' || /whisper|Voxtral/.test(m.id || '')) continue;
+        out.push({ id: m.id, ctx: m.context_window || 32768, tools: !!m.tools_calling, vision: (mo.input || []).includes('image') });
+    }
+    out.sort((a, b) => a.id < b.id ? -1 : 1); c.t = now(); c.v = out; return out;
+}
+async function tomdacatModels(cfg) {
+    const c = cache.tdc; if (c.v && now() - c.t < 1800) return c.v;
+    const data = Object.fromEntries(((await getJson(TDC_URL + '/api/models', { Authorization: 'Bearer ' + cfg.tomdacat_api_key }, 20000, 'O tomdacat')).data || []).filter(m => m.id).map(m => [m.id, m])); const out = [];
+    for (const [id, name, tools, warn] of D.TDC_MODELS) {
+        const m = data[id]; if (!m) continue; const pr = m.pricing || {}, cin = pr.credits_per_million_input || 0, cout = pr.credits_per_million_output || 0;
+        if (pr.paid_only || Math.max(cin, cout) > D.TDC_MAX_CR) continue; out.push({ id, name, tools, warn, cr_in: cin, cr_out: cout });
+    }
+    c.t = now(); c.v = out; return out;
+}
+
+// ---------------------------------------------------------------- estatisticas
+async function recordEvent(ev) { const s = await kv.get('stats', { events: [] }); s.events.push(Object.assign({ ts: now() }, ev)); if (s.events.length > 5000) s.events = s.events.slice(-5000); await kv.set('stats', s); }
+async function buildStats(days) {
+    const t = now(), all = (await kv.get('stats', { events: [] })).events, evs = all.filter(e => e.ts >= t - days * 86400 && !e.user);
+    const models = {}, daily = {}, tot = { requests: 0, tokens: 0, seconds: 0 }, day = ts => { const d = new Date(ts * 1000); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+    for (const e of evs) {
+        if (e.type !== 'chat') continue;
+        const d = daily[day(e.ts)] || (daily[day(e.ts)] = { requests: 0, tokens: 0, exa_cost: 0 }), m = models[e.model || '?'] || (models[e.model || '?'] = { requests: 0, tokens: 0, seconds: 0, best_tps: 0, cloud: !!e.cloud });
+        const tk = e.tokens || 0, sec = e.seconds || 0; m.requests++; m.tokens += tk; m.seconds += sec; if (sec > 0.2 && tk) m.best_tps = Math.max(m.best_tps, tk / sec);
+        d.requests++; d.tokens += tk; tot.requests++; tot.tokens += tk; tot.seconds += sec;
+    }
+    Object.values(models).forEach(m => { m.avg_tps = m.seconds > 0 ? m.tokens / m.seconds : 0; });
+    const series = []; for (let i = Math.min(days, 14) - 1; i >= 0; i--) { const k = day(t - i * 86400); series.push(Object.assign({ day: k }, daily[k] || { requests: 0, tokens: 0, exa_cost: 0 })); }
+    const z = () => ({ requests: 0, seconds: 0, tokens: 0 });
+    return { days, totals: tot, models, exa: { searches: 0, reads: 0, cost: 0 }, series, since: evs.length ? Math.min(...evs.map(e => e.ts)) : null, ollama: { h5: z(), d7: z(), month: {}, local: z() } };
+}
+
+// ---------------------------------------------------------------- chat: leitura do SSE (formato OpenAI)
+const EFFORT_ORDER = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'], polEffortOk = {};
+function nearEffort(want, allowed) {
+    allowed = EFFORT_ORDER.filter(a => allowed.includes(a)); if (!allowed.length) return null; if (allowed.includes(want)) return want;
+    const wi = EFFORT_ORDER.includes(want) ? EFFORT_ORDER.indexOf(want) : 3;
+    return allowed.slice().sort((a, b) => Math.abs(EFFORT_ORDER.indexOf(a) - wi) - Math.abs(EFFORT_ORDER.indexOf(b) - wi) || EFFORT_ORDER.indexOf(a) - EFFORT_ORDER.indexOf(b))[0];
+}
+async function readTimed(reader, ms) {
+    let t; const to = new Promise((_, rej) => { t = setTimeout(() => rej(new Error(`O provedor parou de responder (sem dados por ${Math.round(ms / 1000)} s).`)), ms); });
+    try { return await Promise.race([reader.read(), to]); } finally { clearTimeout(t); }
+}
+async function* sseChat(resp, t0, errMap, firstMs, idleMs) {
+    const reader = resp.body.getReader(), dec = new TextDecoder(); let buf = '', first = 0, usage = null, cut = false, started = false, done = false;
+    try {
+        while (!done) {
+            const { value, done: end } = await readTimed(reader, started ? (idleMs || 60000) : (firstMs || 60000)); started = true;
+            if (end) break; buf += dec.decode(value, { stream: true });
+            let nl; while ((nl = buf.indexOf('\n')) >= 0) {
+                const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1);
+                if (!line.startsWith('data:')) continue; const d = line.slice(5).trim(); if (d === '[DONE]') { done = true; break; }
+                let j; try { j = JSON.parse(d); } catch (e) { continue; }
+                if (j.error) { const e = typeof j.error === 'object' ? j.error : { message: j.error }; throw new Error((errMap && errMap[e.code]) || String(e.message || JSON.stringify(e)).slice(0, 200)); }
+                if (j.usage) usage = j.usage;
+                for (const ch of j.choices || []) {
+                    const delta = ch.delta || {}, rs = delta.reasoning || delta.reasoning_content;
+                    if (rs != null && rs !== '') { first = first || now(); yield ['thinking', String(rs)]; }
+                    if (delta.content != null && delta.content !== '') { first = first || now(); yield ['content', String(delta.content)]; }
+                    if (ch.finish_reason === 'length') cut = true;
+                }
+            }
+        }
+    } finally { try { reader.cancel(); } catch (e) { /* ja fechou */ } }
+    if (cut) yield ['content', '\n\n[Cortado: o modelo atingiu o limite de tokens da resposta]'];
+    if (usage && usage.completion_tokens) {
+        const t = now(), win = Math.max(0.001, t - (first || t0)), total = Math.max(0.001, t - t0), burst = !!first && win < 0.25;
+        const gen = (burst || usage.completion_tokens / win > 2500) ? total : win;
+        yield ['stats', { tokens: usage.completion_tokens, seconds: gen, buffered: gen === total, limits: null, prompt_tokens: usage.prompt_tokens || 0, prompt_seconds: first ? first - t0 : 0, load_seconds: 0, total_seconds: total }];
+    }
+}
+const toOai = messages => messages.map(m => (m.images && m.images.length && m.role === 'user')
+    ? { role: 'user', content: [{ type: 'text', text: m.content }].concat(m.images.map(b => ({ type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + b } }))) }
+    : { role: m.role, content: m.content });
+
+const HTTP_ERR = {
+    pol: { 401: 'Chave do Pollinations invalida (401). Confira a chave em Configuracoes.', 403: 'A chave do Pollinations nao tem permissao (403).', 402: 'Saldo de pollen insuficiente (402). Ganhe pollen nas missoes ou compre mais.', 429: 'Limite do Pollinations atingido (429). Espere um pouco.' },
+    or: { 401: 'Chave do OpenRouter invalida (401). Confira a chave em Configuracoes.', 402: 'O OpenRouter pediu credito (402): este modelo nao e gratis para a sua conta.', 429: 'Limite do plano gratis do OpenRouter atingido (429). Espere um pouco ou tente amanha.', 404: 'O OpenRouter nao achou esse modelo (404): talvez ele saiu da lista gratis.' },
+};
+function oaiFail(label, code, body, msg) {
+    if (/credit card|customer_verification_required/.test(body)) throw new Error('A Vercel exige um cartao cadastrado na conta para usar o AI Gateway (mesmo nos modelos gratis). Adicione em vercel.com > AI Gateway.');
+    if (code === 401 || code === 403) throw new Error(`${label}: chave invalida ou sem permissao (${code}). ${msg}`);
+    if (code === 402) throw new Error(`${label}: sem saldo (402).`);
+    if (code === 429) throw new Error(`${label}: limite de pedidos (429). ${msg}`);
+    throw new Error(`${label} respondeu ${code}: ${msg}`);
+}
+async function* streamOaiCompat(model, messages, base, key, label, maxTokens, signal) {
+    key = (key || '').trim(); if (!key) throw new Error(`${label} sem chave. Abra Configuracoes e cole a chave.`);
+    const payload = { model, messages: toOai(messages), stream: true, stream_options: { include_usage: true } }; if (maxTokens) payload.max_tokens = +maxTokens;
+    const t0 = now();
+    for (let attempt = 0; attempt < 3; attempt++) {
+        const r = await fetchT(base + '/chat/completions', { method: 'POST', headers: bearer(key), body: JSON.stringify(payload), signal }, 45000, label);
+        if (r.ok) { yield* sseChat(r, t0, {}); return; }
+        const { body, msg } = await errMsg(r);
+        if (r.status === 429 && attempt < 2) { let wait = parseFloat(r.headers.get('Retry-After') || (/[Rr]etry after (\d+(?:\.\d+)?)/.exec(msg) || [0, 1])[1]) || 1; yield ['status', `Limite de pedidos; esperando ${Math.min(wait, 8).toFixed(0)} s`]; await sleep(Math.min(wait, 8) * 1000 + 300); continue; }
+        oaiFail(label, r.status, body, msg);
+    }
+}
+async function* streamPollinations(model, messages, think, cfg, maxTokens, effort, signal) {
+    const key = (cfg.pollinations_api_key || '').trim(); if (!key) throw new Error('Chave do Pollinations nao configurada. Abra Configuracoes e cole sua chave.');
+    const sl = model.slice(4); if (!/^[\w.\-/:]+$/.test(sl)) throw new Error('Modelo do Pollinations invalido.');
+    const payload = { model: sl, messages: toOai(messages), stream: true, stream_options: { include_usage: true } }; if (maxTokens) payload.max_tokens = +maxTokens;
+    const cat = await polCatalog(key).catch(() => null), m = cat && cat[sl];
+    const useEffort = m ? (m.supported_parameters || []).includes('reasoning_effort') : (/(^|\/)gpt-[56]/.test(sl) && !/oss|codex/.test(sl));
+    if (useEffort) { const want = EFFORT_ORDER.includes(effort) ? effort : (think ? 'medium' : 'none'), known = polEffortOk[sl]; payload.reasoning_effort = (known ? nearEffort(want, known) : want) || want; }
+    const t0 = now();
+    for (let attempt = 0; attempt < 3; attempt++) {
+        const r = await fetchT(POL_API + '/v1/chat/completions', { method: 'POST', headers: bearer(key), body: JSON.stringify(payload), signal }, 45000, 'O Pollinations');
+        if (r.ok) { yield* sseChat(r, t0, {}); return; }
+        const { body, msg } = await errMsg(r, 200);
+        if (r.status === 429 && attempt < 2) { const wait = Math.min(15, parseFloat(r.headers.get('Retry-After') || 3) || 3); yield ['status', `Limite de pedidos do provedor; esperando ${wait.toFixed(0)} s`]; await sleep(wait * 1000); continue; }
+        if (r.status === 400 && payload.reasoning_effort && attempt < 2) {
+            const mm = /upported values are:?([^."]*)/.exec(body), ok = mm ? (mm[1].match(/'(\w+)'/g) || []).map(x => x.replace(/'/g, '')).filter(x => EFFORT_ORDER.includes(x)) : [];
+            if (ok.length) { polEffortOk[sl] = ok; payload.reasoning_effort = nearEffort(payload.reasoning_effort, ok); } else delete payload.reasoning_effort; continue;
+        }
+        throw new Error(HTTP_ERR.pol[r.status] || `Pollinations respondeu ${r.status}: ${msg}`);
+    }
+}
+async function* streamOpenrouter(model, messages, think, cfg, maxTokens, signal) {
+    const key = cfg.openrouter_api_key || ''; if (!key) throw new Error('Chave do OpenRouter nao configurada. Abra Configuracoes e cole sua chave.');
+    const sl = model.slice(3), payload = { model: sl, messages: toOai(messages), stream: true, stream_options: { include_usage: true } }; if (maxTokens) payload.max_tokens = +maxTokens; if (think) payload.reasoning = { enabled: true };
+    const headers = bearer(key, { 'HTTP-Referer': 'https://github.com/marioondc9426/Lume', 'X-Title': 'Lume' }), t0 = now();
+    for (let attempt = 0; attempt < 2; attempt++) {
+        const r = await fetchT(OR_URL + '/chat/completions', { method: 'POST', headers, body: JSON.stringify(payload), signal }, 45000, 'O OpenRouter');
+        if (r.ok) { yield* sseChat(r, t0, HTTP_ERR.or); return; }
+        const body = await r.text().catch(() => '');
+        if (attempt === 0 && payload.reasoning && r.status === 400) { delete payload.reasoning; continue; }
+        throw new Error(HTTP_ERR.or[r.status] || `OpenRouter respondeu ${r.status}: ${body.slice(0, 200)}`);
+    }
+}
+async function* streamGroq(model, messages, cfg, maxTokens, signal) {
+    const key = (cfg.groq_api_key || '').trim(); if (!key) throw new Error('Chave do Groq nao configurada. Abra Configuracoes e cole sua chave.');
+    const payload = { model: model.replace('groq-', ''), messages: messages.map(m => ({ role: m.role, content: m.content })), stream: true, stream_options: { include_usage: true } }; if (maxTokens) payload.max_tokens = +maxTokens;
+    const r = await fetchT(GROQ_URL + '/chat/completions', { method: 'POST', headers: bearer(key), body: JSON.stringify(payload), signal }, 45000, 'O Groq');
+    if (!r.ok) {
+        const { msg } = await errMsg(r, 300), wait = r.headers.get('retry-after');
+        if (r.status === 429) throw new Error(`Limite do Groq atingido (tokens por minuto ou pedidos por dia)${wait ? `. Tente de novo em ${wait} s` : ''}. ${msg}`);
+        if (r.status === 401 || r.status === 403) throw new Error('Chave do Groq invalida ou sem permissao. Confira em Configuracoes.');
+        throw new Error(`Groq respondeu ${r.status}: ${msg}`);
+    }
+    yield* sseChat(r, now(), {});
+}
+async function* streamTomdacat(model, messages, cfg, maxTokens, signal) {
+    const key = (cfg.tomdacat_api_key || '').trim(); if (!key) throw new Error('Chave do tomdacat nao configurada. Abra Configuracoes e cole sua chave.');
+    const payload = { model: model.slice(4), messages: toOai(messages), stream: true, stream_options: { include_usage: true } }; if (maxTokens) payload.max_tokens = +maxTokens;
+    const r = await fetchT(TDC_URL + '/v1/chat/completions', { method: 'POST', headers: bearer(key), body: JSON.stringify(payload), signal }, 45000, 'O tomdacat');
+    if (!r.ok) {
+        const { msg } = await errMsg(r, 200);
+        if (r.status === 401 || r.status === 403) throw new Error('Chave do tomdacat invalida ou sem permissao. Confira em Configuracoes.');
+        if (r.status === 402) throw new Error('Os creditos do tomdacat acabaram (402).');
+        if (r.status === 429) throw new Error(`Limite de pedidos do tomdacat (429)${msg ? ': ' + msg : ''}`);
+        throw new Error(`O tomdacat respondeu ${r.status}: ${msg}`);
+    }
+    yield* sseChat(r, now(), {});
+}
+async function* streamOllama(model, messages, think, numCtx, maxTokens, cfg, signal) {
+    const base = (cfg.ollama_url || '').trim().replace(/\/+$/, '');
+    if (!base) throw new Error('Este modelo roda no Ollama de um PC. Em Configuracoes > Ollama no PC, coloque o endereco do seu PC (ex.: http://192.168.0.10:11434). Os modelos da nuvem funcionam sem PC.');
+    const payload = { model, messages, stream: true }; if (think) payload.think = true;
+    const opts = {}; if (numCtx) opts.num_ctx = +numCtx; if (maxTokens) opts.num_predict = +maxTokens; if (Object.keys(opts).length) payload.options = opts;
+    const r = await fetchT(base + '/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal }, 30000, 'O Ollama do PC');
+    if (!r.ok) throw new Error(`O Ollama respondeu ${r.status}: ${(await r.text().catch(() => '')).slice(0, 200)}`);
+    const reader = r.body.getReader(), dec = new TextDecoder(); let buf = '', tFirst = null;
+    try {
+        for (;;) {
+            const { value, done } = await readTimed(reader, 300000); if (done) break; buf += dec.decode(value, { stream: true });
+            let nl; while ((nl = buf.indexOf('\n')) >= 0) {
+                const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1); if (!line) continue; let d; try { d = JSON.parse(line); } catch (e) { continue; }
+                if (d.error) throw new Error(String(d.error).slice(0, 200));
+                const m = d.message || {}; if ((m.thinking || m.content) && tFirst == null) tFirst = now();
+                if (m.thinking) yield ['thinking', m.thinking]; if (m.content) yield ['content', m.content];
+                if (d.done && d.eval_count) {
+                    if (d.eval_duration) yield ['stats', { tokens: d.eval_count, seconds: d.eval_duration / 1e9, prompt_tokens: d.prompt_eval_count || 0, prompt_seconds: (d.prompt_eval_duration || 0) / 1e9, load_seconds: (d.load_duration || 0) / 1e9, total_seconds: (d.total_duration || 0) / 1e9 }];
+                    else if (tFirst) yield ['stats', { tokens: d.eval_count, seconds: Math.max(0.001, now() - tFirst), prompt_tokens: d.prompt_eval_count || 0, prompt_seconds: 0, load_seconds: 0, total_seconds: (d.total_duration || 0) / 1e9 }];
+                }
+            }
+        }
+    } finally { try { reader.cancel(); } catch (e) { /* ja fechou */ } }
+}
+
+// chaves de reserva: se a principal morrer antes de qualquer resposta, tenta a proxima (evita a que falhou por 10 min)
+const KEY_FIELDS = [['pol:', 'pollinations_api_key'], ['tdc:', 'tomdacat_api_key'], ['vc:', 'vercel_api_key'], ['l7:', 'llm7_api_key'], ['or:', 'openrouter_api_key'], ['groq', 'groq_api_key']];
+const KEY_FAIL = /\b(401|402|403|429)\b|chave|saldo|pollen|credit|quota|limite|api key|unauthorized/i, badKeys = {};
+function streamOnce(model, messages, o) {
+    const { think, cfg, numCtx, maxTokens, effort, signal } = o;
+    if (model.startsWith('pol:')) return streamPollinations(model, messages, think, cfg, maxTokens, effort, signal);
+    if (model.startsWith('tdc:')) return streamTomdacat(model, messages, cfg, maxTokens, signal);
+    if (model.startsWith('vc:')) return streamOaiCompat(model.slice(3), messages, VERCEL_URL, cfg.vercel_api_key, 'A Vercel', maxTokens, signal);
+    if (model.startsWith('l7:')) return streamOaiCompat(model.slice(3), messages, LLM7_URL, cfg.llm7_api_key, 'O LLM7', maxTokens, signal);
+    if (model.startsWith('or:')) return streamOpenrouter(model, messages, think, cfg, maxTokens, signal);
+    if (model.startsWith('cf:')) return (async function* () { throw new Error('O Cloudflare Workers AI ainda nao esta disponivel no iPhone. Use os outros provedores.'); })();
+    if (model.startsWith('groq')) return streamGroq(model, messages, cfg, maxTokens, signal);
+    return streamOllama(model, messages, think, numCtx, maxTokens, cfg, signal);
+}
+async function* streamModel(model, messages, o) {
+    const hit = KEY_FIELDS.find(([pre]) => model.startsWith(pre)), field = hit && hit[1], cfg = o.cfg;
+    const keys = field ? [...new Set([(cfg[field] || '').trim()].concat(String(cfg[field + '_backup'] || '').split(/[\s,;]+/)).filter(Boolean))] : [];
+    if (!field || keys.length < 2) { yield* streamOnce(model, messages, o); return; }
+    const t = now(), order = keys.filter(k => (badKeys[k] || 0) < t).concat(keys.filter(k => (badKeys[k] || 0) >= t));
+    for (let i = 0; i < order.length; i++) {
+        let got = false;
+        try { for await (const ev of streamOnce(model, messages, Object.assign({}, o, { cfg: Object.assign({}, cfg, { [field]: order[i] }) }))) { if (ev[0] === 'content' || ev[0] === 'thinking') got = true; yield ev; } return; }
+        catch (e) { if (got || i + 1 >= order.length || !KEY_FAIL.test(String(e.message))) throw e; badKeys[order[i]] = now() + 600; yield ['status', 'Chave principal falhou; usando a de reserva']; }
+    }
+}
+
+// separa o raciocinio (<think>...</think>) da resposta, mesmo quando a tag chega partida em dois pedacos
+class ThinkSplitter {
+    constructor() { this.buf = ''; this.inThink = false; }
+    feed(piece) {
+        this.buf += piece; const out = [];
+        for (;;) {
+            const tag = this.inThink ? '</think>' : '<think>', i = this.buf.indexOf(tag);
+            if (i >= 0) { if (i) out.push([this.inThink ? 'thinking' : 'content', this.buf.slice(0, i)]); this.buf = this.buf.slice(i + tag.length); this.inThink = !this.inThink; continue; }
+            let keep = 0; for (let k = Math.min(tag.length - 1, this.buf.length); k > 0; k--) if (tag.startsWith(this.buf.slice(-k))) { keep = k; break; }
+            const emit = this.buf.slice(0, this.buf.length - keep); if (emit) out.push([this.inThink ? 'thinking' : 'content', emit]); this.buf = this.buf.slice(this.buf.length - keep); return out;
+        }
+    }
+    flush() { const o = this.buf ? [[this.inThink ? 'thinking' : 'content', this.buf]] : []; this.buf = ''; return o; }
+}
+
+// ---------------------------------------------------------------- pesquisa na web (DuckDuckGo, sem chave)
+async function searchWeb(query, n) {
+    try {
+        const r = await fetchT('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(query), { headers: { Accept: 'text/html' } }, 15000, 'O DuckDuckGo');
+        const doc = new DOMParser().parseFromString(await r.text(), 'text/html'), out = [];
+        doc.querySelectorAll('.result').forEach(el => {
+            const a = el.querySelector('.result__a'); if (!a || out.length >= (n || 5)) return;
+            let href = a.getAttribute('href') || ''; const m = /[?&]uddg=([^&]+)/.exec(href); if (m) href = decodeURIComponent(m[1]); if (href.startsWith('//')) href = 'https:' + href;
+            const sn = el.querySelector('.result__snippet'); if (/^https?:/.test(href)) out.push([a.textContent.trim(), (sn ? sn.textContent.trim() : ''), href]);
+        });
+        return out;
+    } catch (e) { return []; }
+}
+const needsWeb = q => { const t = String(q || '').trim(); return t.length >= 15 && !t.includes('```') && t.split(/\s+/).length >= 3; };
+
+// ---------------------------------------------------------------- /api/chat (uma linha JSON por evento, como o servidor Python)
+const stops = {};
+function handleChat(req) {
+    const lang = req.lang === 'en' ? 'en' : 'pt', L = (pt, en) => lang === 'en' ? en : pt;
+    const rid = String(req.rid || '').slice(0, 40) || Math.random().toString(36).slice(2, 12), ctl = new AbortController(); stops[rid] = ctl;
+    const body = new ReadableStream({
+        async start(c) {
+            const emit = o => { try { c.enqueue(enc.encode(JSON.stringify(o) + '\n')); } catch (e) { /* aba fechada */ } };
+            const send = (text, kind) => emit({ message: { role: 'assistant', [kind || 'content']: text } });
+            const started = now(); let total = 0, tokens = 0, seconds = 0, prompt = 0; const model = req.model || '';
+            try {
+                const cfg = await loadConfig(); let messages = (req.messages || []).map(m => Object.assign({}, m));
+                if (req.agent) { send(L('A aba Code (ferramentas no computador) precisa do PC e nao existe no iPhone. Use a aba Chat.', 'The Code tab (computer tools) needs a PC and is not available on iPhone. Use the Chat tab.')); return; }
+                if (!messages.length || messages[0].role !== 'system') messages.unshift({ role: 'system', content: '' });
+                if (CLOUD_PREFIX.test(model)) emit({ status: model.startsWith('vc:') ? 'Esperando a Vercel responder' : model.startsWith('l7:') ? 'Esperando o LLM7 responder' : model.startsWith('tdc:') ? 'Esperando o tomdacat responder' : model.startsWith('pol:') ? 'Esperando o Pollinations responder' : 'Conectando' });
+                else emit({ status: 'Conectando ao Ollama do PC' });
+                if (req.search_web) {
+                    const query = String([...messages].reverse().find(m => m.role === 'user' && m.content) ?.content || '').slice(0, 200);
+                    if (needsWeb(query)) {
+                        emit({ status: 'Pesquisando na web' }); const results = await searchWeb(query, Math.min(cfg.search_results || 5, 8));
+                        if (results.length) {
+                            emit({ sources: results.map(([t, , u]) => ({ title: t, url: u })), provider: 'duckduckgo', query });
+                            messages[0].content += L(`\n\n[PESQUISA NA WEB - use se for relevante e cite os links. Quem pesquisou foi o app Lume, automaticamente, com o texto da ultima mensagem: "${query}"]\n`, `\n\n[WEB SEARCH - use it if relevant and cite the links. The Lume app searched automatically with the last message: "${query}"]\n`)
+                                + results.map(([t, s, u], i) => `${i + 1}. ${t}\n${s}\n${u}`).join('\n\n');
+                        } else messages[0].content += L('\n\n[A pesquisa na web falhou: voce NAO tem dados atuais. Se a pergunta depender de informacao recente, diga isso em vez de inventar.]', '\n\n[The web search failed: you do NOT have current data. If the question depends on recent information, say so instead of making things up.]');
+                    }
+                }
+                if (!messages[0].content) messages.shift();
+                const sp = new ThinkSplitter(); let full = '';
+                for await (const [kind, piece] of streamModel(model, messages, { think: !!req.think, cfg, numCtx: req.num_ctx, maxTokens: null, effort: String(req.effort || '') || null, signal: ctl.signal })) {
+                    if (ctl.signal.aborted) break;
+                    if (kind === 'status') { emit({ status: piece }); continue; }
+                    if (kind === 'thinking') { send(piece, 'thinking'); continue; }
+                    if (kind === 'stats') { tokens += piece.tokens; seconds += piece.seconds; prompt += piece.prompt_tokens; emit({ stats: piece }); continue; }
+                    for (const [k2, p2] of sp.feed(piece)) { if (k2 === 'thinking') send(p2, 'thinking'); else { full += p2; send(p2); } }
+                }
+                for (const [k2, p2] of sp.flush()) { if (k2 === 'thinking') send(p2, 'thinking'); else { full += p2; send(p2); } }
+                total = full.length;
+                if (ctl.signal.aborted) send(L('\n\n[Geracao parada]', '\n\n[Generation stopped]'));
+                await recordEvent({ type: 'chat', model, cloud: CLOUD_PREFIX.test(model), tab: 'chat', tokens: tokens || Math.floor(total / 4), seconds: seconds || (now() - started), prompt_tokens: prompt, chars: total });
+            } catch (e) {
+                if (!ctl.signal.aborted) send(L(`\n[Erro: ${e.message || e}]`, `\n[Error: ${e.message || e}]`));
+            } finally { delete stops[rid]; try { c.close(); } catch (e) { /* ja fechou */ } }
+        },
+        cancel() { ctl.abort(); },
+    });
+    return new Response(body, { status: 200, headers: { 'Content-Type': 'application/x-ndjson' } });
+}
+
+// ---------------------------------------------------------------- rotas
+const SECRET_KEYS = ['groq_api_key', 'openrouter_api_key', 'pollinations_api_key', 'cloudflare_api_token', 'cloudflare_account_id', 'exa_api_key', 'tomdacat_api_key', 'vercel_api_key', 'llm7_api_key',
+    'groq_api_key_backup', 'openrouter_api_key_backup', 'pollinations_api_key_backup', 'tomdacat_api_key_backup', 'vercel_api_key_backup', 'llm7_api_key_backup'];
+const NOPE = () => json({ ok: false, error: 'Isto precisa do PC e nao existe no iPhone.' }, 400);
+const listModels = (keyName, fn) => async () => {
+    const cfg = await loadConfig(); if (!cfg[keyName]) return json({ saved: false, models: [] });
+    try { return json({ saved: true, models: await fn(cfg) }); } catch (e) { return json({ saved: true, models: [], error: String(e.message || e).slice(0, 200) }); }
+};
+const ROUTES = {
+    'GET /api/ping': () => json({ app: 'ai-thing', name: 'iPhone', password_required: false }),
+    'GET /api/auth/status': () => json({ local: true, root: true, authed: true, role: 'owner', remote_enabled: false, allow_remote_code: false, password_required: false, version: VERSION, app_name: 'Lume', https_port: 0, secure: true, share_open: false, invite_required: false, ios: true }),
+    'POST /api/auth/logout': () => json({ ok: true }),
+    'GET /api/discover': () => json({ servers: [] }),
+    'GET /api/app_options': () => json({ frozen: true, start_with_terminal: false, terminal_open: false, start_with_windows: false, remote_enabled: false, tray: false, tray_available: false, auto_update_models: false, log_full: false, models_updated_at: 0, model_update: {} }),
+    'POST /api/app_options': () => json({ ok: true }),
+    'GET /api/usage': async () => json((await loadConfig()).usage || {}),
+    'GET /api/check_pending': () => json({ cmd: '' }),
+    'POST /api/resolve_pending': () => json({ ok: true }),
+    'GET /api/metrics': () => json({ vram_used: null, vram_total: null, vram: null, gpu: null, vram_warn: '', generation_active: false, alert: { id: 0 } }),
+    'GET /api/server_info': () => json({ remote_enabled: false, allow_remote_code: false, password: '', password_required: false, internet_password_required: false, owner_link_enabled: false, owner_code: '', port: 0, configured_port: 0, listening: '', addresses: [], https_addresses: [], devices: [] }),
+    'GET /api/update_check': () => json({ available: false, error: 'No iPhone o app se atualiza pela AltStore/Sideloadly: instale o .ipa novo.' }),
+    'GET /api/tunnel': () => json({ running: false, url: '', error: '', tool: '', cloudflared: false, tailscale: {}, port: 0 }),
+    'GET /api/history': async () => json(await kv.get('history', {})),
+    'POST /api/history': async (u, b) => { await kv.set('history', b || {}); return json({ ok: true }); },
+    'GET /api/state': async () => json(await kv.get('state', {})),
+    'POST /api/state': async (u, b) => { await kv.set('state', b || {}); return json({ ok: true }); },
+    'GET /api/custom_themes': async () => { const t = await kv.get('themes', {}); return json(Object.keys(t).sort().map(n => Object.assign({}, t[n], { name: n }))); },
+    'POST /api/custom_theme': async (u, b) => { const t = await kv.get('themes', {}), n = slug(b && b.name); t[n] = (b && b.theme) || {}; await kv.set('themes', t); return json({ ok: true, name: n, path: n }); },
+    'POST /api/custom_theme_delete': async (u, b) => { const t = await kv.get('themes', {}); delete t[slug(b && b.name)]; await kv.set('themes', t); return json({ ok: true }); },
+    'GET /api/stats': async u => json(await buildStats(Math.max(1, Math.min(365, parseInt(u.searchParams.get('days') || '30', 10) || 30)))),
+    'POST /api/stats_clear': async () => { await kv.set('stats', { events: [] }); return json({ ok: true }); },
+    'GET /api/config_status': async () => {
+        const c = await loadConfig();
+        return json({ groq_key_saved: !!c.groq_api_key, openrouter_key_saved: !!c.openrouter_api_key, cloudflare_saved: false, pollinations_saved: !!c.pollinations_api_key, tomdacat_saved: !!c.tomdacat_api_key, vercel_saved: !!c.vercel_api_key, llm7_saved: !!c.llm7_api_key,
+            exa_key_saved: !!c.exa_api_key, search_provider: c.search_provider, exa_type: c.exa_type, search_results: c.search_results, search_daily_limit: c.search_daily_limit, exa_today: 0, auto_allow: false, workdir: '', default_workdir: '', ollama_url: c.ollama_url || '' });
+    },
+    'POST /api/save_config': async (u, b) => {
+        const c = Object.assign({}, await loadConfig()); b = b || {};
+        for (const k of SECRET_KEYS) if (k in b) c[k] = String(b[k]).trim();
+        for (const k of ['search_provider', 'exa_type', 'search_results', 'search_daily_limit', 'ollama_url']) if (k in b) c[k] = k === 'ollama_url' ? String(b[k]).trim() : b[k];
+        await saveConfig(c); Object.keys(cache).forEach(k => { if (cache[k].v !== undefined) cache[k].v = null; }); cache.pol.cat = null; return json({ ok: true });
+    },
+    'POST /api/extract_text': async (u, b) => {
+        try {
+            const bin = atob((b && b.b64) || ''), bytes = Uint8Array.from(bin, ch => ch.charCodeAt(0)), head = bin.slice(0, 8);
+            if (head.startsWith('\x89PNG') || head.startsWith('\xff\xd8') || head.startsWith('GIF8')) return json({ kind: 'image', ext: head.startsWith('\x89PNG') ? '.png' : head.startsWith('GIF8') ? '.gif' : '.jpg' });
+            if (head.startsWith('%PDF') || head.startsWith('PK')) return json({ error: 'No iPhone ainda so leio arquivos de texto (PDF e Word precisam do PC).' }, 400);
+            let text = new TextDecoder('utf-8', { fatal: false }).decode(bytes), truncated = false; if (text.length > 400000) { text = text.slice(0, 400000); truncated = true; }
+            return json({ text, truncated, chars: text.length, pages: null, kind: 'text', ext: '.txt' });
+        } catch (e) { return json({ error: String(e.message || e) }, 400); }
+    },
+    'POST /api/chat': (u, b) => handleChat(b || {}),
+    'POST /api/stop': (u, b) => { const rid = String((b && b.rid) || ''); if (rid) { stops[rid] && stops[rid].abort(); } else Object.values(stops).forEach(c => c.abort()); return json({ ok: true }); },
+    'GET /api/models_status': async () => {
+        const cfg = await loadConfig(), base = (cfg.ollama_url || '').trim().replace(/\/+$/, '');
+        if (!base) return json({ running: false, loaded: [], vram_total: null, vram_used: null, installed: null, installed_sizes: {} });
+        try {
+            const tags = (await getJson(base + '/api/tags', {}, 4000)).models || [], ps = await getJson(base + '/api/ps', {}, 4000).then(j => j.models || []).catch(() => []);
+            return json({ running: true, loaded: ps.map(m => ({ name: m.name, size: m.size || 0, size_vram: m.size_vram || 0 })), vram_total: null, vram_used: null, installed: tags.map(m => m.name), installed_sizes: Object.fromEntries(tags.map(m => [m.name, m.size || 0])) });
+        } catch (e) { return json({ running: false, loaded: [], vram_total: null, vram_used: null, installed: null, installed_sizes: {} }); }
+    },
+    'GET /api/model_info': async u => {
+        const cfg = await loadConfig(), base = (cfg.ollama_url || '').trim().replace(/\/+$/, ''), name = u.searchParams.get('name') || '';
+        if (!base || !/^[\w.:\-/]+$/.test(name)) return json({});
+        try { const r = await fetchT(base + '/api/show', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: name }) }, 5000); return json(await r.json()); } catch (e) { return json({}); }
+    },
+    'GET /api/openrouter_models': async () => {
+        const cfg = await loadConfig(); if (!cfg.openrouter_api_key) return json({ key_saved: false, models: [] });
+        try { return json({ key_saved: true, models: await openrouterModels() }); } catch (e) { return json({ key_saved: true, models: [], error: String(e.message || e).slice(0, 200) }); }
+    },
+    'GET /api/pollinations_models': listModels('pollinations_api_key', pollinationsModels),
+    'GET /api/groq_models': listModels('groq_api_key', groqModels),
+    'GET /api/vercel_models': listModels('vercel_api_key', vercelModels),
+    'GET /api/llm7_models': listModels('llm7_api_key', llm7Models),
+    'GET /api/tomdacat_models': listModels('tomdacat_api_key', tomdacatModels),
+    'GET /api/cloudflare_models': () => json({ saved: false, models: [] }),
+    'GET /api/cloudflare_usage': () => json({}),
+    'GET /api/pollinations_usage': async () => {
+        const key = (await loadConfig()).pollinations_api_key; if (!key) return json({ error: 'sem chave' }, 400);
+        try { return json({ balance: (await getJson(POL_API + '/account/balance', bearer(key), 15000)).balance }); } catch (e) { return json({ error: String(e.message || e).slice(0, 160) }, 502); }
+    },
+    'POST /api/open_url': (u, b) => { if (b && /^https?:\/\//.test(b.url || '')) window.open(b.url, '_blank'); return json({ ok: true }); },
+};
+
+window.fetch = async function (input, init) {
+    let u; try { u = new URL(typeof input === 'string' ? input : input.url, location.href); } catch (e) { return realFetch(input, init); }
+    if (!u.pathname.startsWith('/api/')) return realFetch(input, init);
+    const method = String((init && init.method) || (typeof input !== 'string' && input.method) || 'GET').toUpperCase(); let body = null;
+    if (method === 'POST') { try { body = JSON.parse((init && init.body) || (typeof input !== 'string' && await input.text()) || '{}'); } catch (e) { body = {}; } }
+    const h = ROUTES[method + ' ' + u.pathname];
+    try { return h ? await h(u, body) : NOPE(); } catch (e) { return json({ error: String(e && e.message || e).slice(0, 200) }, 500); }
+};
+window.__lumeBackendRoutes = ROUTES;
+
+// campo "Ollama no PC" (Configuracoes): so existe no iPhone e grava direto
+if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', () => {
+    const box = document.getElementById('ollama-url-box'); if (!box) return; box.style.display = '';
+    const inp = document.getElementById('ollama-url-input'); loadConfig().then(c => { inp.value = c.ollama_url || ''; });
+    inp.addEventListener('change', async () => { const c = Object.assign({}, await loadConfig()); c.ollama_url = inp.value.trim(); await saveConfig(c); });
+});
+})();

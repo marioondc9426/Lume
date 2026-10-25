@@ -1,0 +1,6 @@
+www/
+Lume.xcodeproj/
+Lume/Assets.xcassets/
+Lume/Info.plist
+.gen_tmp/
+build/
