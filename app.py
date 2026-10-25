@@ -1527,6 +1527,41 @@ def stream_model(model, messages, think, cfg, num_ctx=None, max_tokens=None):
     if model.startswith("cf:"): return stream_cloudflare(model, messages, think, cfg, max_tokens)
     return stream_groq(model, messages, cfg) if model.startswith("groq") else stream_ollama(model, messages, think, num_ctx, max_tokens)
 
+# ---------------------------------------------------------------- <think> dentro do texto
+class ThinkSplitter:
+    """Alguns modelos (DeepSeek R1 local, varios provedores) misturam o raciocinio no texto, entre <think> e </think>, em vez de mandar a parte "thinking" separada.
+    Isto separa o fluxo em tempo real: o que esta entre as tags vira ("thinking", ...), o resto ("content", ...). Aguenta tag cortada entre dois pedacos
+    e o caso de so vir o </think> (o modelo abriu o raciocinio no proprio prompt: tudo antes do </think> era raciocinio)."""
+    OPEN = re.compile(r"<think(?:ing)?>", re.I); CLOSE = re.compile(r"</think(?:ing)?>", re.I)
+    TAGS = ("<think>", "<thinking>", "</think>", "</thinking>")
+    def __init__(self): self.buf = ""; self.inside = False; self.seen = False   # seen = ja saiu texto de resposta
+    def _hold(self):
+        """Quantos caracteres do fim do buffer podem ser o comeco de uma tag (ficam guardados ate a proxima parte)."""
+        low = self.buf.lower(); i = low.rfind("<")
+        if i < 0: return 0
+        tail = low[i:]
+        return len(tail) if any(t.startswith(tail) and tail != t for t in self.TAGS) else 0
+    def feed(self, text):
+        self.buf += text; out = []
+        while True:
+            m_open = None if self.inside else self.OPEN.search(self.buf)
+            m_close = self.CLOSE.search(self.buf) if (self.inside or not self.seen) else None   # fora do raciocinio, so aceita </think> solto se ainda nao saiu resposta
+            m = min((x for x in (m_open, m_close) if x), key=lambda x: x.start(), default=None)
+            if m is None: break
+            pre = self.buf[:m.start()]
+            if pre: out.append(("thinking" if (self.inside or m is m_close) else "content", pre))
+            if pre.strip() and not (self.inside or m is m_close): self.seen = True
+            self.buf = self.buf[m.end():]; self.inside = (m is m_open)
+        keep = self._hold(); emit = self.buf[:len(self.buf) - keep]
+        if emit:
+            out.append(("thinking" if self.inside else "content", emit))
+            if not self.inside and emit.strip(): self.seen = True
+        self.buf = self.buf[len(self.buf) - keep:]
+        return out
+    def flush(self):
+        rest, self.buf = self.buf, ""
+        return [("thinking" if self.inside else "content", rest)] if rest else []
+
 # ---------------------------------------------------------------- servidor
 LOOPBACK_IPS = ("127.0.0.1", "::1", "::ffff:127.0.0.1")
 LOCAL_HOSTS = ("127.0.0.1", "localhost")
@@ -2596,7 +2631,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             for step in range(MAX_AGENT_STEPS if agent else 1):
                 if step: emit({"step": step})   # a interface separa o pensamento de cada rodada em um bloco
                 full = ""
-                gen = stream_model(model, messages, think, cfg, num_ctx, gmax)
+                gen = stream_model(model, messages, think, cfg, num_ctx, gmax); splitter = ThinkSplitter()
                 try:
                     for kind, piece in gen:
                         if stopped(): break
@@ -2608,9 +2643,13 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                             log("OLLAMA", f"{piece['tokens']} tokens em {piece['seconds']:.1f}s = {piece['tokens'] / piece['seconds']:.1f} t/s | prompt {piece['prompt_tokens']} tokens ({ptps:.0f} t/s) | carga do modelo {piece['load_seconds']:.1f}s | total {piece['total_seconds']:.1f}s", COLOR_GREEN)
                             req_tokens += piece["tokens"]; req_seconds += piece["seconds"]; req_prompt += piece["prompt_tokens"]
                             emit({"stats": piece}); continue
-                        full += piece
-                        send(piece)
+                        for k2, p2 in splitter.feed(piece):
+                            if k2 == "thinking": send(p2, "thinking")
+                            else: full += p2; send(p2)
                         if agent and ('}' in piece or '$' in piece) and find_tool_call(full): break
+                    for k2, p2 in splitter.flush():   # sobras do buffer (uma tag que nunca terminou de chegar)
+                        if k2 == "thinking": send(p2, "thinking")
+                        else: full += p2; send(p2)
                 finally:
                     gen.close()
                 total_chars += len(full)

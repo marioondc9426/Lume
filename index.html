@@ -2968,6 +2968,8 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                     if (/^\s*\[(Erro|Error):/.test(fullResponse) && fullResponse.length < 700 && retry(fullResponse.replace(/^\s*\[(Erro|Error):\s*/, '').replace(/\]\s*$/, ''))) continue;
                     break;
                 }
+                const stray = /^([\s\S]*?)<\/think(?:ing)?>\s*/i.exec(fullResponse);   // so veio o </think> (o modelo abriu o raciocinio no proprio prompt): o que veio antes era raciocinio
+                if (stray && !/<think(?:ing)?>/i.test(stray[1]) && stray[1].trim()) { thinkBox().textContent += stray[1].trim(); fullResponse = fullResponse.slice(stray[0].length); const shown0 = stripMem(fullResponse); textSpan.innerHTML = renderRich(shown0); aiDiv._raw = shown0; }
                 if (!gotText) textSpan.textContent = tr('(sem resposta)');
                 const tps = lastStats && lastStats.seconds ? lastStats.tokens / lastStats.seconds : 0;
                 const pollen = active.pol && !active.free && lastStats ? ((lastStats.prompt_tokens || 0) * (active.priceIn || 0) + (lastStats.tokens || 0) * (active.priceOut || 0)) / 1e6 : 0;   // quanto esta mensagem gastou (estimado pelos tokens)
