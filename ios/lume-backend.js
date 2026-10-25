@@ -455,9 +455,9 @@ const ROUTES = {
     'GET /api/update_check': () => json({ available: false, error: 'No iPhone o app se atualiza pela AltStore/Sideloadly: instale o .ipa novo.' }),
     'GET /api/tunnel': () => json({ running: false, url: '', error: '', tool: '', cloudflared: false, tailscale: {}, port: 0 }),
     'GET /api/history': async () => json(await kv.get('history', {})),
-    'POST /api/history': async (u, b) => { await kv.set('history', b || {}); return json({ ok: true }); },
+    'POST /api/history': async (u, b) => { await kv.set('history', b || {}); schedulePcSync(); return json({ ok: true }); },
     'GET /api/state': async () => json(await kv.get('state', {})),
-    'POST /api/state': async (u, b) => { await kv.set('state', b || {}); return json({ ok: true }); },
+    'POST /api/state': async (u, b) => { await kv.set('state', b || {}); schedulePcSync(); return json({ ok: true }); },
     'GET /api/custom_themes': async () => { const t = await kv.get('themes', {}); return json(Object.keys(t).sort().map(n => Object.assign({}, t[n], { name: n }))); },
     'POST /api/custom_theme': async (u, b) => { const t = await kv.get('themes', {}), n = slug(b && b.name); t[n] = (b && b.theme) || {}; await kv.set('themes', t); return json({ ok: true, name: n, path: n }); },
     'POST /api/custom_theme_delete': async (u, b) => { const t = await kv.get('themes', {}); delete t[slug(b && b.name)]; await kv.set('themes', t); return json({ ok: true }); },
@@ -471,7 +471,7 @@ const ROUTES = {
     'POST /api/save_config': async (u, b) => {
         const c = Object.assign({}, await loadConfig()); b = b || {};
         for (const k of SECRET_KEYS) if (k in b) c[k] = String(b[k]).trim();
-        for (const k of ['search_provider', 'exa_type', 'search_results', 'search_daily_limit', 'ollama_url']) if (k in b) c[k] = k === 'ollama_url' ? String(b[k]).trim() : b[k];
+        for (const k of ['search_provider', 'exa_type', 'search_results', 'search_daily_limit', 'ollama_url', 'pc_url']) if (k in b) c[k] = (k === 'ollama_url' || k === 'pc_url') ? String(b[k]).trim() : b[k];
         await saveConfig(c); Object.keys(cache).forEach(k => { if (cache[k].v !== undefined) cache[k].v = null; }); cache.pol.cat = null; return json({ ok: true });
     },
     'POST /api/extract_text': async (u, b) => {
@@ -526,12 +526,27 @@ window.fetch = async function (input, init) {
 };
 window.__lumeBackendRoutes = ROUTES;
 
+// copia da conta no PC (opcional): manda o historico e o estado da conta atual para accounts/<nome> do PC; sem PC, nada acontece
+let pcTimer = null;
+const setPcStatus = t => { LS.set('pc_status', t); const el = typeof document !== 'undefined' && document.getElementById('pc-sync-status'); if (el) el.textContent = t; };
+async function pcSync() {
+    const cfg = await loadConfig(), base = (cfg.pc_url || '').trim().replace(/\/+$/, '');
+    if (!base) { setPcStatus('desligado'); return; }
+    if (!ACCT) { setPcStatus('entre numa conta'); return; }
+    try {
+        const r = await fetchT(base + '/api/device_sync', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ name: ACCT, device: 'iPhone', history: await kv.get('history', {}), state: await kv.get('state', {}) }) }, 20000, 'O PC');
+        const j = await r.json().catch(() => ({}));
+        setPcStatus(r.ok ? 'copiado ✓' : j.error === 'remote_off' ? 'ligue "acessar de outros aparelhos" no PC' : j.error === 'taken' ? 'nome ja usado no PC' : 'o PC recusou');
+    } catch (e) { setPcStatus('PC fora do ar'); }
+}
+function schedulePcSync() { clearTimeout(pcTimer); pcTimer = setTimeout(pcSync, 4000); }
+
 // botao "Logar" no topo das configuracoes
 function accountUi() {
     const row = document.getElementById('acct-row'), btn = document.getElementById('acct-btn'), lab = document.getElementById('acct-label'); if (!row) return;
     const names = LS.get('accounts', []), refresh = () => { lab.textContent = ACCT ? 'Conta: ' + ACCT : 'Sem conta (conversas deste aparelho)'; btn.textContent = ACCT ? 'Trocar' : 'Logar'; };
     row.style.display = ''; refresh();
-    const post = (p, b) => realFetch === undefined ? null : window.fetch('/api/account/' + p, { method: 'POST', body: JSON.stringify(b || {}) }).then(r => r.json());
+    const post = async (p, b) => (await ROUTES['POST /api/account/' + p](null, b || {})).json();   // direto na rota (a pagina tem o proprio envelope em volta do fetch)
     btn.addEventListener('click', () => {
         const ov = document.createElement('div'); ov.className = 'acct-ov'; const sh = document.createElement('div'); sh.className = 'acct-sheet'; ov.appendChild(sh);
         const close = () => ov.remove(), go = async name => { const r = await post('login', { name }); if (r && r.ok) location.reload(); else alert((r && r.error) || 'Nao deu para entrar.'); };
@@ -556,5 +571,11 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
     const box = document.getElementById('ollama-url-box'); if (!box) return; box.style.display = '';
     const inp = document.getElementById('ollama-url-input'); loadConfig().then(c => { inp.value = c.ollama_url || ''; });
     inp.addEventListener('change', async () => { const c = Object.assign({}, await loadConfig()); c.ollama_url = inp.value.trim(); await saveConfig(c); });
+});
+if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', () => {
+    const box = document.getElementById('pc-url-box'); if (!box) return; box.style.display = '';
+    const inp = document.getElementById('pc-url-input'), st = document.getElementById('pc-sync-status'); st.textContent = LS.get('pc_status', 'desligado'); loadConfig().then(c => { inp.value = c.pc_url || ''; });
+    inp.addEventListener('change', async () => { const c = Object.assign({}, await loadConfig()); c.pc_url = inp.value.trim(); await saveConfig(c); pcSync(); });
+    setTimeout(pcSync, 3000);   // ao abrir o app (e depois a cada conversa salva)
 });
 })();

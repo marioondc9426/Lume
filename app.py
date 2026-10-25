@@ -2478,11 +2478,37 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(body); return
         self.send_json({"error": "rota desconhecida"}, 404)
 
+    def device_sync(self, raw):
+        """Copia das contas do app do iPhone em accounts/<nome>/. So grava (nunca devolve conversas), so para a rede de casa e so com "acessar de outros aparelhos" ligado."""
+        def reply(obj, code=200):
+            body = json.dumps(obj).encode()
+            self.send_response(code); self.send_header('Content-Type', 'application/json'); self.send_header('Access-Control-Allow-Origin', '*'); self.send_header('Content-Length', str(len(body))); self.end_headers(); self.wfile.write(body)
+        if not load_config().get("remote_enabled"): return reply({"error": "remote_off"}, 403)
+        if not self.on_private_network(): return reply({"error": "forbidden"}, 403)
+        try: d = json.loads(raw or b'{}')
+        except ValueError: return reply({"error": "json"}, 400)
+        if not isinstance(d, dict): return reply({"error": "json"}, 400)
+        name = re.sub(r'[\\/:*?"<>|\x00-\x1f]', '_', str(d.get("name") or "")).strip(" .")[:40]
+        if not name or name.lower() == OWNER_NAME.lower() or name.upper() in ("CON", "PRN", "AUX", "NUL") or re.fullmatch(r"(COM|LPT)\d", name.upper()): return reply({"error": "name"}, 400)
+        folder = os.path.join(ACCOUNTS_DIR, name); meta_path = os.path.join(folder, "account.json")
+        old = _read_json(meta_path, None) if os.path.exists(meta_path) else None
+        if old is not None and old.get("role") != "iphone": return reply({"error": "taken"}, 409)   # nao sobrescreve a conta do dono nem a de um amigo
+        try:
+            os.makedirs(folder, exist_ok=True)
+            _write_json(meta_path, {"name": name, "role": "iphone", "device": str(d.get("device") or "iPhone")[:60], "last_sync": time.time(), "note": "Copia da conta do app do iPhone (so grava; o iPhone continua sendo o dono dos dados)."})
+            for key, fn in (("history", "history.json"), ("state", "state.json")):
+                if isinstance(d.get(key), dict): _write_json(os.path.join(folder, fn), d[key])
+        except OSError as e:
+            return reply({"error": str(e)[:100]}, 500)
+        log("IPHONE", f"Copia da conta '{name}' salva em accounts/{name}", COLOR_GREEN)
+        return reply({"ok": True, "folder": name})
+
     def do_POST(self):
         p = urllib.parse.urlsplit(self.path).path; self.path = p
         length = int(self.headers.get('Content-Length') or 0)
         if length > MAX_BODY_BYTES: return self.send_json({"error": "Requisicao grande demais."}, 413)
         post_data = self.rfile.read(length)
+        if p == '/api/device_sync': return self.device_sync(post_data)   # o app do iPhone manda "Origin: null": fica antes da checagem de origem
         origin = self.headers.get('Origin')
         if origin and urllib.parse.urlsplit(origin).netloc != (self.headers.get('Host') or ''):
             log("SEGURANCA", f"Requisicao bloqueada: origem {origin} diferente do host", COLOR_RED)

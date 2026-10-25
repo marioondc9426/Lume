@@ -1092,6 +1092,11 @@
         </div>
 
         <div class="section-title host-only">Chaves de API</div>
+        <div class="form-group" id="pc-url-box" style="display:none">
+            <label>PC do Lume (cópia das contas) <span class="badge" id="pc-sync-status">desligado</span></label>
+            <input type="text" id="pc-url-input" placeholder="http://192.168.0.10:8000" autocomplete="off" spellcheck="false">
+            <span class="hint">Opcional. Com o PC ligado e "acessar de outros aparelhos" ativado, cada conta do iPhone ganha uma pasta em accounts/ no PC com uma cópia das conversas. Sem o PC, o app funciona igual. Use o mesmo endereço e porta de Configurações > Servidor no PC.</span>
+        </div>
         <div class="form-group" id="ollama-url-box" style="display:none">
             <label>Ollama no PC (só no iPhone)</label>
             <input type="text" id="ollama-url-input" placeholder="http://192.168.0.10:11434" autocomplete="off" spellcheck="false">
