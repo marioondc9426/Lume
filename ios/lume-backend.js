@@ -453,7 +453,7 @@ const ROUTES = {
     'GET /api/discover': () => json({ servers: [] }),
     'GET /api/account': () => json({ name: ACCT, accounts: LS.get('accounts', []) }),
     'POST /api/account/login': (u, b) => {
-        const n = String((b && b.name) || '').trim().replace(/\s+/g, ' ').slice(0, 40); if (!n) return json({ error: 'Digite um nome.' }, 400);
+        const n = String((b && b.name) || '').trim().replace(/\s+/g, ' ').slice(0, 40); if (!n) { LS.set('account', ''); ACCT = ''; return json({ ok: true, name: '' }); }
         const list = LS.get('accounts', []); if (!list.includes(n)) list.push(n); LS.set('accounts', list); LS.set('account', n); ACCT = n; return json({ ok: true, name: n });
     },
     'POST /api/account/logout': () => { LS.set('account', ''); ACCT = ''; return json({ ok: true }); },
@@ -543,17 +543,42 @@ window.fetch = async function (input, init) {
 };
 window.__lumeBackendRoutes = ROUTES;
 
-// copia da conta no PC (opcional): manda o historico e o estado da conta atual para accounts/<nome> do PC; sem PC, nada acontece
+// copia/sincronizacao da conta com o PC (opcional). O aparelho tem um id e um segredo proprios; o PC so devolve conversas, memorias e chaves se voce marcar este aparelho como confiavel la
 let pcTimer = null;
 const setPcStatus = t => { LS.set('pc_status', t); const el = typeof document !== 'undefined' && document.getElementById('pc-sync-status'); if (el) el.textContent = t; };
+function deviceId() {
+    let d = LS.get('device', null);
+    if (!d || !d.id || !d.secret) { const hex = n => Array.from(crypto.getRandomValues(new Uint8Array(n)), x => x.toString(16).padStart(2, '0')).join(''); d = { id: hex(8), secret: hex(24) }; LS.set('device', d); }
+    return d;
+}
+const mergeHistory = (a, b) => { const out = Object.assign({}, a || {}); for (const [id, chat] of Object.entries(b || {})) { const old = out[id]; if (!old || ((chat && chat.messages) || []).length > ((old && old.messages) || []).length) out[id] = chat; } return out; };
+async function pcPull(base) {
+    const dv = deviceId();
+    const r = await fetchT(base + '/api/device_pull', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ device_id: dv.id, secret: dv.secret, name: ACCT, device: 'iPhone' }) }, 20000, 'O PC');
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) { setPcStatus(j.error === 'not_trusted' ? 'copiado ✓ (confie neste aparelho no PC para receber as chaves)' : 'o PC recusou (' + (j.error || r.status) + ')'); return false; }
+    let changed = false;
+    const lh = await kv.get('history', {}), mh = mergeHistory(lh, j.history); if (JSON.stringify(mh) !== JSON.stringify(lh)) { await kv.set('history', mh); changed = true; }
+    const ls = await kv.get('state', {}), ms = Object.assign({}, ls), mem = Array.isArray(ls.memories) ? ls.memories.slice() : [];
+    for (const m of (j.state && j.state.memories) || []) if (!mem.some(x => JSON.stringify(x) === JSON.stringify(m))) mem.push(m);
+    if (mem.length !== (ls.memories || []).length) { ms.memories = mem; await kv.set('state', ms); changed = true; }
+    const cfg = Object.assign({}, await loadConfig()); let keys = 0;
+    for (const [k, v] of Object.entries(j.keys || {})) if (!cfg[k] && v) { cfg[k] = v; keys++; }
+    if (keys) { await saveConfig(cfg); changed = true; }
+    setPcStatus('sincronizado ✓' + (keys ? ' (' + keys + ' chave(s) recebida(s))' : ''));
+    if (changed && typeof location !== 'undefined' && typeof document !== 'undefined' && document.getElementById('chat')) setTimeout(() => location.reload(), 600);   // a tela le de novo as conversas/chaves novas
+    return changed;
+}
 async function pcSync() {
     const cfg = await loadConfig(), base = (cfg.pc_url || '').trim().replace(/\/+$/, '');
     if (!base) { setPcStatus('desligado'); return; }
     if (!ACCT) { setPcStatus('entre numa conta'); return; }
     try {
-        const r = await fetchT(base + '/api/device_sync', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ name: ACCT, device: 'iPhone', history: await kv.get('history', {}), state: await kv.get('state', {}) }) }, 20000, 'O PC');
+        const dv = deviceId();
+        const r = await fetchT(base + '/api/device_sync', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ name: ACCT, device: 'iPhone', device_id: dv.id, secret: dv.secret, history: await kv.get('history', {}), state: await kv.get('state', {}) }) }, 20000, 'O PC');
         const j = await r.json().catch(() => ({}));
-        setPcStatus(r.ok ? 'copiado ✓' : j.error === 'remote_off' ? 'ligue "acessar de outros aparelhos" no PC' : j.error === 'taken' ? 'nome ja usado no PC' : 'o PC recusou');
+        if (!r.ok) { setPcStatus(j.error === 'remote_off' ? 'ligue "acessar de outros aparelhos" no PC' : j.error === 'taken' ? 'nome ja usado no PC' : j.error === 'device_secret' ? 'o PC nao reconhece este aparelho (remova-o la)' : 'o PC recusou'); return; }
+        if (j.trusted) await pcPull(base); else setPcStatus('copiado ✓ (confie neste aparelho no PC para receber as chaves)');
     } catch (e) { setPcStatus('PC fora do ar'); }
 }
 function schedulePcSync() { clearTimeout(pcTimer); pcTimer = setTimeout(pcSync, 4000); }
@@ -579,31 +604,6 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
     btn.addEventListener('click', () => window.open('https://ollama.com/settings/keys', '_blank'));
     inp.addEventListener('change', async () => { const v = inp.value.trim(); if (v) await kv.set('ollama_key', v); inp.value = ''; show(); });
 });
-
-// botao "Logar" no topo das configuracoes
-function accountUi() {
-    const row = document.getElementById('acct-row'), btn = document.getElementById('acct-btn'), lab = document.getElementById('acct-label'); if (!row) return;
-    const names = LS.get('accounts', []), refresh = () => { lab.textContent = ACCT ? 'Conta: ' + ACCT : 'Sem conta (conversas deste aparelho)'; btn.textContent = ACCT ? 'Trocar' : 'Logar'; };
-    row.style.display = ''; refresh();
-    const post = async (p, b) => (await ROUTES['POST /api/account/' + p](null, b || {})).json();   // direto na rota (a pagina tem o proprio envelope em volta do fetch)
-    btn.addEventListener('click', () => {
-        const ov = document.createElement('div'); ov.className = 'acct-ov'; const sh = document.createElement('div'); sh.className = 'acct-sheet'; ov.appendChild(sh);
-        const close = () => ov.remove(), go = async name => { const r = await post('login', { name }); if (r && r.ok) location.reload(); else alert((r && r.error) || 'Nao deu para entrar.'); };
-        const mk = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
-        sh.appendChild(mk('h3', '', 'Conta')); sh.appendChild(mk('p', 'hint', 'Sem senha: a conta so separa as suas conversas e memorias neste aparelho.'));
-        LS.get('accounts', []).forEach(n => {
-            const it = mk('div', 'acct-item' + (n === ACCT ? ' on' : '')); it.appendChild(mk('span', 'grow', n));
-            const del = mk('button', 'btn btn-secondary', 'Apagar'); del.addEventListener('click', async ev => { ev.stopPropagation(); if (confirm('Apagar a conta "' + n + '" e as conversas dela?')) { await post('delete', { name: n }); location.reload(); } }); it.appendChild(del);
-            it.addEventListener('click', () => { if (n !== ACCT) go(n); else close(); }); sh.appendChild(it);
-        });
-        const inp = mk('input'); inp.type = 'text'; inp.placeholder = 'Nome da conta (nova ou existente)'; inp.maxLength = 40; inp.autocomplete = 'off'; sh.appendChild(inp);
-        const ok = mk('button', 'btn btn-primary', 'Entrar'); ok.addEventListener('click', () => { if (inp.value.trim()) go(inp.value.trim()); }); sh.appendChild(ok);
-        if (ACCT) { const out = mk('button', 'btn btn-secondary', 'Sair da conta'); out.addEventListener('click', async () => { await post('logout'); location.reload(); }); sh.appendChild(out); }
-        const cl = mk('button', 'btn btn-secondary', 'Fechar'); cl.addEventListener('click', close); sh.appendChild(cl);
-        ov.addEventListener('click', e => { if (e.target === ov) close(); }); document.body.appendChild(ov);
-    });
-}
-if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', accountUi);
 
 // campo "Ollama no PC" (Configuracoes): so existe no iPhone e grava direto
 if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', () => {

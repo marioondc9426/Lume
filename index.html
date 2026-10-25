@@ -1398,6 +1398,10 @@
                 <div id="srv-devices" class="srv-list"></div>
                 <button class="btn btn-secondary" style="margin:0; align-self:flex-start;" onclick="srvSet({ revoke_all: true })">Desconectar todos</button>
 
+                <div class="section-title">Aparelhos confiáveis</div>
+                <div id="trusted-list" class="srv-actions" style="flex-direction:column; align-items:stretch; gap:8px;"></div>
+                <span class="hint">Os aparelhos que mandaram uma cópia da conta aparecem aqui (arquivo trusted_devices.json). Só os que você marcar como confiáveis recebem de volta as conversas, as memórias e as chaves de API deste PC. Isso trafega pela sua rede de casa, sem criptografia: confie só em aparelhos seus.</span>
+
                 <div class="section-title">iPhone</div>
                 <span class="hint">Gera um perfil (.mobileconfig) que coloca na tela inicial do iPhone um ícone que abre só este site. Também dá para abrir o site no Safari do iPhone e instalar por lá, em Configurações, aba Servidor.</span>
                 <div class="srv-actions"><select id="srv-ios-host" style="width:auto; flex:1;"></select><button class="btn btn-secondary" onclick="srvSaveProfile()">Salvar perfil do iPhone</button></div>
@@ -3764,7 +3768,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             $('perf-interval').value = config.perfInterval; $('perf-int-val').innerText = config.perfInterval;
             $('groq-key-input').value = ''; $('or-key-input').value = ''; $('cf-token-input').value = ''; $('cf-acc-input').value = ''; $('pol-key-input').value = ''; $('tdc-key-input').value = ''; $('vc-key-input').value = ''; $('l7-key-input').value = ''; $('exa-key-input').value = '';
             showModal('settings-modal');
-            showSettingsTab('general');
+            showSettingsTab('general'); initAccountRow();
             if (!config.uiLegacy && innerWidth > 760 && !window.__LUME_IOS) buildSettingsNav(); else document.querySelectorAll('#set-general .sec-hidden').forEach(e => e.classList.remove('sec-hidden'));   // classica e celular: tudo numa rolagem so
             if (auth.local) { renderAppSettings(); refreshModelManager(); }
             if (!auth.local && !auth.authed) { showSettingsTab('server'); return; }
@@ -4611,7 +4615,46 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             refreshTunnel();
         }
         async function tunnelStop() { await fetch(API + '/api/tunnel_stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); refreshTunnel(); }
+        async function renderTrusted() {
+            const box = $('trusted-list'); if (!box || !auth.local) return;
+            let d = {}; try { d = await (await fetch(API + '/api/trusted_devices')).json(); } catch (e) { return; }
+            box.innerHTML = '';
+            if (!(d.devices || []).length) { const s = document.createElement('span'); s.className = 'hint'; s.textContent = tr('Nenhum aparelho ainda. Ligue "PC do Lume" nas configurações do iPhone e entre numa conta.'); box.appendChild(s); return; }
+            d.devices.forEach(v => {
+                const r = document.createElement('div'); r.className = 'wl-row' + (v.trusted ? '' : ' warn'); r.style.margin = '0';
+                const t = document.createElement('span'); t.className = 'grow'; t.textContent = `${v.name || 'Aparelho'}${v.account ? ' · ' + v.account : ''} · ${v.trusted ? tr('confiável') : tr('aguardando você')}`;
+                const b = document.createElement('button'); b.className = 'btn btn-secondary'; b.textContent = tr(v.trusted ? 'Deixar de confiar' : 'Confiar neste aparelho');
+                b.onclick = async () => { await fetch(API + '/api/trusted_devices_set', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: v.id, trusted: !v.trusted }) }); renderTrusted(); };
+                const x = document.createElement('button'); x.className = 'btn btn-secondary'; x.textContent = tr('Remover'); x.onclick = async () => { await fetch(API + '/api/trusted_devices_set', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: v.id, remove: true }) }); renderTrusted(); };
+                r.appendChild(t); r.appendChild(b); r.appendChild(x); box.appendChild(r);
+            });
+        }
+        // conta (PC e iPhone): botao "Logar" no topo das configuracoes; sem senha
+        async function initAccountRow() {
+            const row = $('acct-row'), btn = $('acct-btn'), lab = $('acct-label'); if (!row || !auth.local || auth.guest) return;
+            let info = {}; try { info = await (await fetch(API + '/api/account')).json(); } catch (e) { return; }
+            if (info.error) return; row.style.display = '';
+            const owner = info.owner || '', cur = info.name || '';
+            lab.textContent = cur ? tr('Conta: {n}', { n: cur }) : (owner ? tr('Conta: {n}', { n: owner }) : tr('Sem conta (conversas deste aparelho)')); btn.textContent = tr(cur || owner ? 'Trocar' : 'Logar');
+            btn.onclick = () => {
+                const ov = document.createElement('div'); ov.className = 'acct-ov'; const sh = document.createElement('div'); sh.className = 'acct-sheet'; ov.appendChild(sh);
+                const mk = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+                const post = async (p, b) => (await fetch(API + '/api/account/' + p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b || {}) })).json();
+                const go = async n => { const r = await post('login', { name: n }); if (r && r.ok) location.reload(); else alert(tr((r && r.error) || 'Não deu para entrar.')); };
+                sh.appendChild(mk('h3', '', tr('Conta'))); sh.appendChild(mk('p', 'hint', tr('Sem senha: a conta separa conversas e memórias. As do iPhone aparecem aqui depois da primeira cópia.')));
+                const list = (owner ? [owner] : []).concat(info.accounts || []);
+                list.forEach(n => { const it = mk('div', 'acct-item' + ((n === owner && !cur) || n === cur ? ' on' : '')); it.appendChild(mk('span', 'grow', n));
+                    if (window.__LUME_IOS) { const del = mk('button', 'btn btn-secondary', tr('Apagar')); del.onclick = async ev => { ev.stopPropagation(); if (confirm(tr('Apagar a conta "{n}" e as conversas dela?', { n }))) { await post('delete', { name: n }); location.reload(); } }; it.appendChild(del); }
+                    it.addEventListener('click', () => { if (((n === owner && !cur) || n === cur)) ov.remove(); else go(n === owner ? '' : n); }); sh.appendChild(it); });
+                const inp = mk('input'); inp.type = 'text'; inp.placeholder = tr('Nome da conta (nova ou existente)'); inp.maxLength = 40; inp.autocomplete = 'off'; sh.appendChild(inp);
+                const ok = mk('button', 'btn btn-primary', tr('Entrar')); ok.onclick = () => { if (inp.value.trim()) go(inp.value.trim()); }; sh.appendChild(ok);
+                if (cur && window.__LUME_IOS) { const out = mk('button', 'btn btn-secondary', tr('Sair da conta')); out.onclick = () => go(''); sh.appendChild(out); }
+                const cl = mk('button', 'btn btn-secondary', tr('Fechar')); cl.onclick = () => ov.remove(); sh.appendChild(cl);
+                ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); }); document.body.appendChild(ov);
+            };
+        }
         async function refreshServerTab() {
+            renderTrusted();
             $('srv-host').style.display = auth.local ? '' : 'none';
             $('srv-client').style.display = auth.local ? 'none' : '';
             $('ios-install').style.display = (!auth.local || auth.root) && isIphone() && !isStandalone() ? '' : 'none';   // tambem para quem entrou como root pelo iPhone
