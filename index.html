@@ -1626,7 +1626,7 @@
             if (auth.local || auth.authed) { await refreshLoaded(); loadOpenRouterModels(); loadCloudflareModels(); loadPollinationsModels(); }   // descobre o que esta instalado
             switchTab('chat');
             startPolling();
-            metricsLoop();
+            if (!metricsStarted) metricsLoop();
         }
 
         // ---------- barra de titulo ----------
@@ -3505,7 +3505,9 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             perfMonitor.style.display = config.perfEnabled ? '' : 'none';
         }
         // Um laco so: atualiza o overlay no intervalo escolhido e (mesmo com overlay oculto) fica de olho nos avisos de memoria
+        let metricsStarted = false;
         async function metricsLoop() {
+            metricsStarted = true;
             let delay = 2000;
             if (!auth.local && !auth.authed) { setTimeout(metricsLoop, 3000); return; }
             try {
@@ -4109,7 +4111,9 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             e.preventDefault(); e.stopPropagation();
         }, true));
 
-        init();
+        // se algo falhar (ou demorar) no meio da inicializacao, o painel de VRAM/GPU e o resto continuam funcionando
+        init().catch(e => { console.error('init:', e); window.__initError = String((e && e.stack) || e); });
+        setTimeout(() => { if (!metricsStarted) metricsLoop(); }, 5000);
     </script>
 </body>
 </html>
