@@ -1531,6 +1531,7 @@ POL_MODELS = [
     ("community/CloudCompile/nvidia-nemotron-3-ultra-550b-a55b:free", {"free": True}), ("community/YoannDev90/vercel-nemotron-3.5-lightning:free", {"free": True}),
     ("community/CloudCompile/reflection-beam-free", {"free": True}), ("community/YoannDev90/vercel-beam:free", {"free": True}),
     # tabs: "code" = so na aba Code; "both" = nas duas. warn = aviso (triangulo) mostrado ao escolher o provedor
+    ("openai/gpt-5.3-codex", {"tabs": "code"}),
     ("community/morriszdweck/glm-5.3-flash-free", {"free": True, "tabs": "code"}), ("community/scriptsnsenses-sys/glm-5.3-flash-free", {"free": True, "tabs": "code"}),
     ("community/MarcosFRG/glm-5.3-flash", {"tabs": "code"}),   # pago: a reserva dos gratis (o Lume tenta o proximo mais barato se um falhar)
     ("community/MarcosFRG/glm-4.6v-flash", {"free": True, "tabs": "code", "warn": "Limite de 3 pedidos por minuto: pode dar erro de limite se voce mandar varias mensagens seguidas."}),
@@ -1596,7 +1597,7 @@ def stream_pollinations(model, messages, think, cfg, max_tokens=None, agent=Fals
         payload = {"model": cand, "messages": msgs, "stream": True, "stream_options": {"include_usage": True}}
         if max_tokens: payload["max_tokens"] = int(max_tokens)
         # os GPT 5/6 "pensam" em silencio antes da 1a palavra (a Pollinations nao mostra esse raciocinio): sem o botao Pensar, pede o minimo (era 10+ s de "Conectando")
-        if re.search(r"(^|/)gpt-[56]", cand) and "oss" not in cand: payload["reasoning_effort"] = "medium" if think else ("none" if re.search(r"(^|/)gpt-(6|5\.[6-9])", cand) else "minimal")   # GPT-6 e 5.6+ aceitam "none"; GPT-5 e 5.4, "minimal"
+        if re.search(r"(^|/)gpt-[56]", cand) and "oss" not in cand and "codex" not in cand: payload["reasoning_effort"] = "medium" if think else ("none" if re.search(r"(^|/)gpt-(6|5\.[6-9])", cand) else "minimal")   # GPT-6 e 5.6+ aceitam "none"; GPT-5 e 5.4, "minimal"
         if agent: payload["tools"] = NATIVE_TOOLS   # aba Code: chamada de ferramenta nativa (os GPT "Luna" nao seguem o formato de texto e diziam que nao conseguiram gravar)
         t0 = time.time()
         try:
