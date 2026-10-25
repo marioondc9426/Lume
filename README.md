@@ -37,6 +37,7 @@ The code is fully open source: read it, change it, break it.
 - Attach images, PDF, Word, Excel, PowerPoint and OpenDocument files, or paste them. If a file has an unsupported extension but is plain text, Lume offers to treat it as `.txt`.
 - Memory: Lume can suggest facts to remember ("Lembrar?") and you can delete any of them.
 - Live tokens/s, VRAM and GPU panel, context bar, English and Portuguese interface.
+- A modern interface with a collapsible sidebar and a start screen, plus themes (DeepSeek, Kimi, Claude, Ollama, Gemini, Perplexity styles) that change font, corners, layout and background, not just colors. You can build your own in the theme editor, or switch back to the classic interface in Settings.
 
 **Code tab**
 - The AI can list/read/write files and run commands in a folder you choose. Writing and running **always ask your permission** in a popup.

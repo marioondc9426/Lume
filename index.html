@@ -541,9 +541,118 @@
         #edit-ctx { display: none; position: fixed; z-index: 4500; background: #26262c; border: 1px solid #3a3a42; border-radius: 8px; padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); }
         #edit-ctx button { background: none; border: none; color: #e8e8ea; padding: 8px 14px; cursor: pointer; border-radius: 6px; font-size: 13px; white-space: nowrap; font-family: var(--font); }
         #edit-ctx button:hover { background: #4da3ff; color: #fff; }
+
+        /* =====================================================================
+           INTERFACE MODERNA (a antiga continua em Configuracoes > Interface classica).
+           Tudo preso a body[data-ui="modern"]; o layout so muda em telas largas (celular fica como era, so com cores/fontes/cantos novos).
+           Os temas mudam: cores, fonte, cantos, estilo da barra de digitacao, das mensagens, logo da tela inicial, brilho/imagem de fundo e a lateral.
+           ===================================================================== */
+        .si { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; display: none; }
+        #hero, #side-collapse, #side-open { display: none; }
+        body[data-ui="modern"] .emo { display: none; }
+        body[data-ui="modern"] .si { display: inline-block; }
+
+        body[data-ui="modern"] { --font: 'Segoe UI', system-ui, sans-serif; --font-head: var(--font); --font-msg: var(--font); --radius: 16px; --chat-w: 780px; --side-w: 268px; --in-radius: 24px; --in-border: transparent; --in-shadow: none; --seg-bg: rgba(128,128,128,0.14); --hover: rgba(128,128,128,0.13); --active: rgba(128,128,128,0.22); --glow: none; --newchat-bg: var(--accent); --newchat-fg: #fff; --hero-size: 1.9em; --hero-weight: 600; --msg-weight: 400; }
+        body[data-ui="modern"][data-theme="deepseek"] { --bg-main: #1b1b1f; --bg-sidebar: #151517; --bg-msg-user: #2b2c31; --bg-msg-ai: #232428; --bg-input: #27282c; --text-main: #ececee; --text-muted: #8f8f98; --border-color: #2d2e33; --accent: #4d6bfe; --in-border: #33343a; --newchat-bg: #2c2d32; --newchat-fg: #f3f3f5; --hero-size: 1.75em; --hero-weight: 600; --font: 'Segoe UI', Inter, system-ui, sans-serif; --icon-filter: invert(1); }
+        body[data-ui="modern"][data-theme="kimi"] { --bg-main: #161617; --bg-sidebar: #161617; --bg-msg-user: #2a2a2d; --bg-msg-ai: #1f1f21; --bg-input: #1f1f22; --text-main: #f1f1f2; --text-muted: #8c8c92; --border-color: #2a2a2d; --accent: #1783ff; --in-radius: 18px; --in-border: #313135; --newchat-bg: rgba(255,255,255,0.07); --newchat-fg: #f1f1f2; --font: 'Segoe UI', system-ui, sans-serif; --icon-filter: invert(1); }
+        body[data-ui="modern"][data-theme="claude"] { --bg-main: #262624; --bg-sidebar: #1f1e1d; --bg-msg-user: #1f1e1d; --bg-msg-ai: #30302e; --bg-input: #30302e; --text-main: #ece9e2; --text-muted: #a09a8e; --border-color: #3b3a37; --accent: #d97757; --in-radius: 22px; --in-border: #3f3e3a; --in-shadow: 0 2px 16px rgba(0,0,0,0.28); --newchat-bg: rgba(217,119,87,0.16); --newchat-fg: #ecb29c; --font-head: Georgia, 'Iowan Old Style', 'Times New Roman', serif; --font-msg: Georgia, 'Iowan Old Style', 'Times New Roman', serif; --hero-size: 2.15em; --hero-weight: 400; --icon-filter: invert(1); }
+        body[data-ui="modern"][data-theme="ollama"] { --bg-main: #171717; --bg-sidebar: #101010; --bg-msg-user: #262626; --bg-msg-ai: #1f1f1f; --bg-input: #262626; --text-main: #f2f2f2; --text-muted: #8a8a8a; --border-color: #262626; --accent: #5a5a62; --in-radius: 26px; --in-border: transparent; --newchat-bg: transparent; --newchat-fg: #f2f2f2; --font: 'Segoe UI', system-ui, sans-serif; --icon-filter: invert(1); --chat-w: 760px; --side-w: 232px; }
+        body[data-ui="modern"][data-theme="gemini"] { --bg-main: #131314; --bg-sidebar: #17181a; --bg-msg-user: #282a2c; --bg-msg-ai: #1e1f20; --bg-input: #1e1f20; --text-main: #e6e6e6; --text-muted: #9aa0a6; --border-color: #2b2c2e; --accent: #4f83e0; --in-radius: 32px; --in-border: #2b2c2e; --newchat-bg: #282a2c; --newchat-fg: #e6e6e6; --glow: radial-gradient(ellipse 62% 48% at 50% 58%, rgba(28,62,150,0.55), rgba(19,19,20,0) 72%); --hero-size: 2.4em; --hero-weight: 300; --font: 'Segoe UI', system-ui, sans-serif; --icon-filter: invert(1); }
+        body[data-ui="modern"][data-theme="perplexity"] { --bg-main: #191a1a; --bg-sidebar: #141515; --bg-msg-user: #242626; --bg-msg-ai: #202222; --bg-input: #202222; --text-main: #e9e9e7; --text-muted: #8b8d8d; --border-color: #2c2e2e; --accent: #20b8cd; --in-radius: 18px; --in-border: #2f3232; --newchat-bg: rgba(32,184,205,0.14); --newchat-fg: #5fd3e3; --hero-size: 1.95em; --hero-weight: 400; --font: 'Segoe UI', system-ui, sans-serif; --icon-filter: invert(1); }
+        body[data-ui="modern"][data-glow-off] { --glow: none; }
+
+        body[data-ui="modern"] #main { background-color: var(--bg-main); background-image: var(--glow); background-repeat: no-repeat; }
+        body[data-ui="modern"] .modal-content, body[data-ui="modern"] #dialog { border-radius: var(--radius); }
+        body[data-ui="modern"] .msg-tag { font-size: 0.78em; }
+        body[data-ui="modern"] .select-options { border-radius: var(--radius); overflow: hidden; box-shadow: 0 10px 34px rgba(0,0,0,0.45); }
+
+        @media (min-width: 761px) {
+            body[data-ui="modern"] #titlebar { position: fixed; top: 0; left: var(--side-w); right: 0; height: 34px; background: transparent; border: 0; }
+            body[data-ui="modern"].side-collapsed #titlebar { left: 0; }
+            body[data-ui="modern"][data-sidebar="right"] #titlebar { left: 0; right: var(--side-w); }
+            body[data-ui="modern"] .tb-title { display: none; } body[data-ui="modern"] .tb-btns { margin-left: auto; }
+            body[data-ui="modern"] #main { padding-top: 34px; }
+            body[data-ui="modern"] .tb-btn { width: 44px; }
+
+            /* lateral */
+            body[data-ui="modern"] #sidebar { width: var(--side-w); padding: 10px 10px 8px; gap: 2px; border-right: 1px solid var(--border-color); position: relative; }
+            body[data-ui="modern"][data-sidebar="right"] #app { flex-direction: row-reverse; }
+            body[data-ui="modern"][data-sidebar="right"] #sidebar { border-right: 0; border-left: 1px solid var(--border-color); }
+            body[data-ui="modern"].side-collapsed #sidebar { display: none; }
+            body[data-ui="modern"] #sidebar h2.brand { padding: 4px 6px 12px; border: 0; display: flex; align-items: center; gap: 8px; font-size: 1.1em; -webkit-app-region: drag; }
+            body[data-ui="modern"] #sidebar h2.brand .brand-mark { height: 26px; } body[data-ui="modern"] #sidebar h2.brand .brand-text { height: 22px; margin: 0; }
+            body[data-ui="modern"] #side-collapse { display: flex; position: absolute; top: 12px; right: 10px; width: 30px; height: 30px; align-items: center; justify-content: center; border-radius: 8px; color: var(--text-muted); background: none; border: 0; cursor: pointer; z-index: 5; } body[data-ui="modern"] #side-collapse:hover { background: var(--hover); color: var(--text-main); }
+            body[data-ui="modern"].side-collapsed #side-open { display: flex; position: fixed; top: 8px; left: 10px; width: 30px; height: 30px; align-items: center; justify-content: center; border-radius: 8px; color: var(--text-muted); background: none; border: 0; cursor: pointer; z-index: 700; } body[data-ui="modern"] #side-open:hover { background: var(--hover); color: var(--text-main); }
+            body[data-ui="modern"] #sidebar .btn { margin: 1px 0; padding: 9px 12px; font-weight: 500; font-size: 0.92em; border-radius: 12px; text-align: left; display: flex; align-items: center; gap: 10px; }
+            body[data-ui="modern"] #sidebar .btn-primary { background: var(--newchat-bg); color: var(--newchat-fg); border-radius: 999px; margin-bottom: 6px; padding: 10px 14px; font-weight: 600; }
+            body[data-ui="modern"] #sidebar .btn-primary:hover { filter: brightness(1.12); }
+            body[data-ui="modern"] #sidebar .btn-secondary { border: 0; background: transparent; color: var(--text-main); } body[data-ui="modern"] #sidebar .btn-secondary:hover { background: var(--hover); }
+            body[data-ui="modern"] #sidebar .tabs { margin: 4px 0 8px; border: 0; background: var(--seg-bg); border-radius: 999px; padding: 3px; gap: 2px; }
+            body[data-ui="modern"] #sidebar .tab { background: transparent; border-radius: 999px; padding: 6px 8px; color: var(--text-muted); font-weight: 500; }
+            body[data-ui="modern"] #sidebar .tab.active { background: var(--active); color: var(--text-main); font-weight: 600; }
+            body[data-ui="modern"] #chat-search { margin: 4px 0 6px; border-radius: 999px; background: var(--seg-bg); border: 0; padding: 8px 14px; font-size: 0.88em; }
+            body[data-ui="modern"] #chat-list { padding-top: 2px; }
+            body[data-ui="modern"] .chat-item { border: 0; border-radius: 10px; padding: 9px 10px; margin: 1px 0; border-left: 0; font-size: 0.92em; }
+            body[data-ui="modern"] .chat-item:hover { background: var(--hover); }
+            body[data-ui="modern"] .chat-item.active { background: var(--active); color: var(--text-main); }
+            body[data-ui="modern"] .list-head { font-size: 0.74em; letter-spacing: 0.02em; padding: 14px 10px 4px; color: var(--text-muted); text-transform: none; }
+
+            /* area principal */
+            body[data-ui="modern"] #ctx-bar { border: 0; padding: 6px 28px 0; justify-content: flex-end; opacity: 0.6; font-size: 0.74em; } body[data-ui="modern"] #ctx-bar:hover { opacity: 1; } body[data-ui="modern"] .ctx-track { max-width: 130px; }
+            body[data-ui="modern"] #ctx-bar > span:first-child { display: none; }
+            body[data-ui="modern"] #chat-header { border: 0; padding: 4px 28px; min-height: 30px; }
+            body[data-ui="modern"] #chat { padding: 12px max(24px, calc((100% - var(--chat-w)) / 2)) 28px; gap: 18px; }
+            body[data-ui="modern"] .msg { max-width: 100%; font-size: 0.98em; }
+            body[data-ui="modern"] .msg.user { align-self: flex-end; max-width: min(82%, 640px); background: var(--bg-msg-user); color: var(--text-main); border-radius: var(--radius); border-bottom-right-radius: 6px; padding: 11px 18px 26px; }
+            body[data-ui="modern"] .msg.ai { align-self: stretch; background: none; border: 0; border-radius: 0; padding: 2px 0 20px; font-family: var(--font-msg); }
+            body[data-ui="modern"] .msg.ai .final-text, body[data-ui="modern"] .msg.ai .final-text * { font-family: var(--font-msg); }
+            body[data-ui="modern"] .msg.ai pre, body[data-ui="modern"] .msg.ai code, body[data-ui="modern"] .msg.ai .codeblock * { font-family: Consolas, 'Cascadia Mono', monospace; }
+            body[data-ui="modern"][data-bubbles="filled"] .msg.ai { background: var(--bg-msg-ai); border: 1px solid var(--border-color); border-radius: var(--radius); border-bottom-left-radius: 6px; padding: 14px 20px 20px; align-self: flex-start; max-width: min(88%, 720px); }
+            body[data-ui="modern"][data-bubbles="soft"] .msg.ai.welcome { display: none; }
+            body[data-ui="modern"] .msg.welcome { display: none; }
+            body[data-ui="modern"] .msg.note, body[data-ui="modern"] .msg.summary { align-self: center; }
+
+            /* barra de digitacao: cartao com o texto em cima e os botoes embaixo */
+            body[data-ui="modern"] #attach-strip { background: transparent; border: 0; width: min(var(--chat-w), calc(100% - 48px)); margin: 0 auto; padding: 0 4px 8px; }
+            body[data-ui="modern"] .controls { display: grid; grid-template-columns: auto auto auto 1fr auto; grid-template-areas: "prompt prompt prompt prompt prompt" "attach model think . send"; align-items: center; gap: 6px 8px; width: min(var(--chat-w), calc(100% - 48px)); margin: 0 auto 22px; padding: 10px 12px 10px 14px; background: var(--bg-input); border: 1px solid var(--in-border); border-radius: var(--in-radius); box-shadow: var(--in-shadow); }
+            body[data-ui="modern"][data-input="flat"] .controls { background: transparent; border: 0; border-top: 1px solid var(--border-color); border-radius: 0; box-shadow: none; }
+            body[data-ui="modern"][data-input="pill"] .controls { border-radius: 999px; grid-template-columns: auto 1fr auto auto auto; grid-template-areas: "attach prompt model think send"; padding: 8px 12px; }
+            body[data-ui="modern"][data-input="pill"] #prompt { padding: 6px 4px; }
+            body[data-ui="modern"] #prompt::-webkit-scrollbar { display: none; } body[data-ui="modern"] #prompt { scrollbar-width: none; grid-area: prompt; background: transparent; border: 0; outline: 0; padding: 8px 6px 4px; border-radius: 0; min-height: 30px; max-height: 220px; font-size: 1em; box-shadow: none; }
+            body[data-ui="modern"] .attach-btn { grid-area: attach; width: 34px; height: 34px; background: transparent; border: 0; } body[data-ui="modern"] .attach-btn:hover { background: var(--hover); }
+            body[data-ui="modern"] #model-select { grid-area: model; height: 34px; }
+            body[data-ui="modern"] .select-trigger { height: 34px; border-radius: 999px; background: transparent; border: 1px solid var(--border-color); padding: 0 12px; }
+            body[data-ui="modern"] .controls .toggle-container { grid-area: think; height: 34px; padding: 0 12px; border: 1px solid var(--border-color); border-radius: 999px; color: var(--text-muted); gap: 0; }
+            body[data-ui="modern"] .controls .toggle-switch { display: none; }
+            body[data-ui="modern"] .controls .toggle-container:hover { background: var(--hover); }
+            body[data-ui="modern"] .controls .toggle-container:has(input:checked) { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+            body[data-ui="modern"] .controls .shrinkable, body[data-ui="modern"] .controls.typing .shrinkable { max-width: none !important; opacity: 1 !important; margin: 0 !important; }
+            body[data-ui="modern"] .controls.typing .select-arrow { opacity: 1; border-left-width: 4px; border-right-width: 4px; margin-left: 8px; }
+            body[data-ui="modern"] #send-btn { grid-area: send; justify-self: end; width: 36px; height: 36px; }
+
+            /* tela inicial (conversa vazia): saudacao + barra de digitacao no meio */
+            body[data-ui="modern"].chat-empty #chat-wrap, body[data-ui="modern"].chat-empty #ctx-bar, body[data-ui="modern"].chat-empty #chat-header { display: none; }
+            body[data-ui="modern"].chat-empty #hero { display: flex; flex-direction: column; align-items: center; gap: 16px; margin: auto 0 26px; padding: 0 24px; text-align: center; }
+            body[data-ui="modern"].chat-empty .controls { margin-bottom: auto; }
+            body[data-ui="modern"].chat-empty[data-hero="bottom"] #hero { margin: auto 0 8px; }
+            body[data-ui="modern"].chat-empty[data-hero="bottom"] .controls { margin-bottom: 22px; }
+            body[data-ui="modern"] #hero h1 { font-family: var(--font-head); font-size: var(--hero-size); font-weight: var(--hero-weight); letter-spacing: -0.01em; color: var(--text-main); }
+            body[data-ui="modern"] #hero p { color: var(--text-muted); font-size: 0.95em; max-width: 520px; }
+            #hero .hero-mark, #hero .hero-word, #hero .hero-circle { display: none; }
+            body[data-ui="modern"][data-logo="mark"] #hero .hero-mark { display: block; height: 46px; }
+            body[data-ui="modern"][data-logo="wordmark"] #hero .hero-word { display: block; height: 64px; filter: var(--icon-filter); }
+            body[data-ui="modern"][data-logo="circle"] #hero .hero-circle { display: flex; width: 64px; height: 64px; border-radius: 50%; background: #fff; align-items: center; justify-content: center; } body[data-ui="modern"] #hero .hero-circle img { height: 38px; }
+            body[data-ui="modern"][data-logo="none"] #hero { gap: 4px; }
+        }
+        @media (max-width: 760px) {
+            body[data-ui="modern"] .msg.user { background: var(--bg-msg-user); border-radius: var(--radius); }
+            body[data-ui="modern"] .msg.ai { border-radius: var(--radius); }
+            body[data-ui="modern"] #sidebar .btn-primary { background: var(--newchat-bg); color: var(--newchat-fg); }
+            body[data-ui="modern"] #titlebar { background: transparent; border: 0; }
+        }
     </style>
 </head>
-<body data-theme="dark" style="--scale: 1;">
+<body data-ui="modern" data-theme="deepseek" data-bubbles="soft" data-input="card" data-logo="mark" data-hero="center" data-sidebar="left" style="--scale: 1;">
     <div id="bg-image-layer"></div>
 
     <!-- Barra de titulo propria -->
@@ -583,6 +692,7 @@
     <div id="connect-banner"><span id="connect-banner-text">Não conectado ao servidor.</span><button onclick="connectToServer()">Conectar</button></div>
     <div id="drawer-backdrop" onclick="closeDrawer()"></div>
 
+    <button id="side-open" type="button" onclick="toggleSide()" title="Abrir a lateral"><svg class="si" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg></button>
     <div id="app">
         <!-- Overlay de desempenho -->
         <div id="perf-monitor" class="perf-monitor" style="display:none;">
@@ -598,6 +708,7 @@
         </div>
 
         <div id="sidebar">
+            <button id="side-collapse" type="button" onclick="toggleSide()" title="Recolher a lateral"><svg class="si" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg></button>
             <h2 class="brand" title="Lume"><img class="brand-mark" src="icons/lume-mark.png" alt=""><img class="ic brand-text" src="icons/lume-text.png" alt="Lume"></h2>
             <div id="root-chip">🔓 Acesso root (link secreto)</div>
             <div id="guest-chip" style="display:none;"><span id="guest-chip-name"></span><span id="guest-chip-use" class="muted"></span><button type="button" onclick="guestLogout()">Sair</button></div>
@@ -605,10 +716,10 @@
                 <div class="tab active" data-tab="chat" onclick="switchTab('chat')">Chat</div>
                 <div class="tab" data-tab="code" onclick="switchTab('code')">Code</div>
             </div>
-            <button class="btn btn-primary" onclick="createNewChat()">+ Novo Chat</button>
-            <button class="btn btn-secondary" onclick="openSettings()">⚙️ Configurações <span id="upd-dot" title="Atualização disponível" style="display:none; color:#4ade80;">●</span></button>
-            <button class="btn btn-secondary" onclick="openMemory()">🧠 Memória</button>
-            <button class="btn btn-secondary" id="btn-stats" onclick="openStats()">📊 Estatísticas</button>
+            <button class="btn btn-primary" onclick="createNewChat()"><svg class="si" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span class="emo">+ </span>Novo Chat</button>
+            <button class="btn btn-secondary" onclick="openSettings()"><svg class="si" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span class="emo">⚙️ </span>Configurações <span id="upd-dot" title="Atualização disponível" style="display:none; color:#4ade80;">●</span></button>
+            <button class="btn btn-secondary" onclick="openMemory()"><svg class="si" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span class="emo">🧠 </span>Memória</button>
+            <button class="btn btn-secondary" id="btn-stats" onclick="openStats()"><svg class="si" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><span class="emo">📊 </span>Estatísticas</button>
             <input type="text" id="chat-search" placeholder="Pesquisar nos chats..." autocomplete="off" spellcheck="false">
             <div id="chat-list"></div>
         </div>
@@ -632,6 +743,8 @@
                 </div>
             </div>
             <div id="chat-wrap"><div id="chat"></div><button id="to-bottom" type="button" onclick="scrollToEnd()" title="Ir para o fim">↓</button></div>
+
+            <div id="hero"><div class="hero-circle"><img src="icons/lume-mark.png" alt=""></div><img class="hero-mark" src="icons/lume-mark.png" alt=""><img class="hero-word" src="icons/lume-text.png" alt="Lume"><h1 id="hero-title"></h1><p id="hero-sub"></p></div>
 
             <div id="command-menu">
                 <div class="command-item" onclick="insertCommand('/rename ')"><b>/rename</b> - Renomeia o chat</div>
@@ -835,6 +948,10 @@
         <div class="form-group">
             <label>UI Scaling (<span id="scale-val">1.0</span>x)</label>
             <input type="range" id="ui-scale" min="0.7" max="1.5" step="0.1" value="1" oninput="updateScale(this.value)">
+        </div>
+        <div class="form-group">
+            <label class="toggle-container"><input type="checkbox" id="opt-legacy" onchange="setUiLegacy(this.checked)"><div class="toggle-switch"></div> Interface clássica (a antiga, com temas só de cor)</label>
+            <span class="hint">A interface nova tem lateral recolhível, tela inicial no meio e temas que mudam fonte, cantos, barra de digitação, mensagens e fundo. Desligado = interface nova.</span>
         </div>
         <div class="form-group">
             <label>Tema</label>
@@ -1055,7 +1172,19 @@
             if (r.status === 403 && isGuest()) r.clone().json().then(d => { if (d && d.error === 'disabled') showGuestOff(d.message, d.reason); }).catch(() => {});
             return r;
         };
-        const THEMES = ['dark', 'claude', 'roxo'];
+        const THEMES_MODERN = ['deepseek', 'kimi', 'claude', 'ollama', 'gemini', 'perplexity'], THEMES_LEGACY = ['dark', 'claude', 'roxo'];
+        const THEME_LABELS = { deepseek: 'DeepSeek', kimi: 'Kimi', claude: 'Claude', ollama: 'Ollama', gemini: 'Gemini', perplexity: 'Perplexity', dark: 'Escuro', roxo: 'Roxo' };
+        const themesNow = () => config.uiLegacy ? THEMES_LEGACY : THEMES_MODERN, defaultTheme = () => config.uiLegacy ? 'dark' : 'deepseek';
+        // o que cada tema muda ALEM das cores (as cores ficam no CSS): estilo das mensagens, da barra de digitacao, logo e texto da tela inicial, lateral
+        const THEME_TRAITS = {
+            deepseek:   { bubbles: 'soft', input: 'card', logo: 'mark', hero: 'center', sidebar: 'left', greet: { pt: 'Em que posso ajudar?', en: 'How can I help?' } },
+            kimi:       { bubbles: 'soft', input: 'card', logo: 'wordmark', hero: 'center', sidebar: 'left', greet: null },
+            claude:     { bubbles: 'soft', input: 'card', logo: 'mark', hero: 'center', sidebar: 'left', greet: { pt: 'Por onde vamos começar?', en: 'Where shall we begin?' } },
+            ollama:     { bubbles: 'soft', input: 'card', logo: 'circle', hero: 'center', sidebar: 'left', greet: null },
+            gemini:     { bubbles: 'soft', input: 'pill', logo: 'none', hero: 'center', sidebar: 'left', greet: { pt: 'Como posso ajudar hoje?', en: 'How can I help today?' } },
+            perplexity: { bubbles: 'soft', input: 'card', logo: 'mark', hero: 'center', sidebar: 'left', greet: { pt: 'O que você quer saber?', en: 'What do you want to know?' } },
+        };
+        const TRAIT_DEFAULT = { bubbles: 'soft', input: 'card', logo: 'mark', hero: 'center', sidebar: 'left', greet: { pt: 'Em que posso ajudar?', en: 'How can I help?' } };
         // gb = tamanho aproximado na memoria (usado para prever estouro de VRAM)
         // fam/famName/params agrupam por familia; rec = tamanho sugerido ao escolher a familia; gb = tamanho aproximado
         const MODELS = [
@@ -1133,7 +1262,7 @@
             'Iniciar com o Windows': 'Start with Windows', 'Abre o Lume sozinho quando você entra no Windows. Só no Lume.exe.': 'Opens Lume by itself when you sign in to Windows. Lume.exe only.',
             'Pesquisar na web nas respostas': 'Search the web in answers', 'A IA pesquisa na internet quando a pergunta pede dados atuais.': 'The AI searches the internet when the question needs current data.',
             'Verificar atualizações ao abrir': 'Check for updates on startup', 'Avisa quando há uma versão nova.': 'Tells you when there is a new version.', 'Animações': 'Animations', 'Desligue se a interface pesar na placa de vídeo.': 'Turn off if the interface is heavy on the graphics card.',
-            'Painel de desempenho': 'Performance panel', 'Mostra a VRAM e a velocidade no canto da tela.': 'Shows VRAM and speed in the corner of the screen.', 'Acesso pela rede (celular e amigos)': 'Network access (phone and friends)', 'Deixa outros aparelhos entrarem. A senha continua exigida pela internet.': 'Lets other devices in. The password is still required over the internet.', 'Bem-vindo!': 'Welcome!', 'Não consegui salvar o histórico no PC (grande demais ou erro). Apague conversas antigas com anexos.': 'Could not save the history on the PC (too big or an error). Delete old chats with attachments.', 'Histórico muito grande: as imagens das conversas mais antigas não foram guardadas no PC.': 'History too large: the images of the oldest chats were not kept on the PC.', 'Como pesquisar': 'How to search', 'A IA decide quando pesquisar (ferramenta)': 'The AI decides when to search (tool)', 'Automático: pesquisa a cada pergunta': 'Automatic: searches on every question', 'Na primeira opção a IA escolhe as palavras-chave e só pesquisa quando precisa (modelos pequenos às vezes não usam a ferramenta: aí escolha Automático).': 'With the first option the AI picks the keywords and only searches when needed (small models sometimes do not use the tool: then choose Automatic).', 'Busca feita com: {q}': 'Searched with: {q}', 'Mostrar a mensagem completa da IA no terminal, sem esconder nada (raciocínio, chamadas de ferramenta e resultados)': 'Show the AI’s full message in the terminal, hiding nothing (reasoning, tool calls and results)', 'Não consegui carregar os modelos do tomdacat: {e}': 'Could not load the tomdacat models: {e}', 'Roxo': 'Purple', '{a} de {b} pedidos': '{a} of {b} requests', 'renova em {t}': 'resets in {t}', '{a} de {b} tokens/min': '{a} of {b} tokens/min', 'Limite': 'Limit', 'Quase no limite de pedidos: restam {a} de {b}.': 'Almost at the request limit: {a} of {b} left.', 'Quase no limite de tokens por minuto: restam {a} de {b}. Espere um pouco antes de mandar outra.': 'Almost at the tokens-per-minute limit: {a} of {b} left. Wait a bit before sending another.', 'Não consegui carregar os modelos do Groq: {e}': 'Could not load the Groq models: {e}', '↓ Maior primeiro': '↓ Highest first', '↑ Menor primeiro': '↑ Lowest first', 'Ollama (também roda no seu PC)': 'Ollama (also runs on your PC)', ' (resposta veio de uma vez: inclui a espera)': ' (reply arrived all at once: includes the wait)', 'Esforço de raciocínio': 'Reasoning effort', 'Quanto o modelo pensa antes de responder. Menos = responde mais rápido. Automático: o botão Pensar decide (ligado = médio, desligado = nenhum).': 'How much the model thinks before answering. Less = faster. Automatic: the Think button decides (on = medium, off = none).', 'Automático': 'Automatic', 'Nenhum': 'None', 'Baixo': 'Low', 'Médio': 'Medium', 'Alto': 'High', 'Máximo': 'Max', 'Permitir sozinho (sem perguntar), mas bloquear comandos perigosos': 'Allow automatically (no prompt), but block dangerous commands', 'Com isso ligado a IA grava arquivos e roda comandos sem o popup, MENOS o que é perigoso: diskpart, format, apagar pastas do sistema ou do seu usuário, mexer no registro, em contas, serviços, boot, desligar o PC, baixar e executar código da internet. Esses são bloqueados de vez (nem perguntam). Não é uma garantia: confira o que a IA faz.': 'With this on, the AI writes files and runs commands without the popup, EXCEPT dangerous ones: diskpart, format, deleting system or user folders, editing the registry, accounts, services, boot, shutting the PC down, downloading and running code from the internet. Those are blocked outright (no prompt). It is not a guarantee: check what the AI does.', 'Parar': 'Stop', 'Parado': 'Stopped', '(o modelo só mostrou o raciocínio e parou antes de responder: talvez tenha acabado o limite de tokens)': '(the model only showed its reasoning and stopped before answering: it may have run out of tokens)', 'Ollama (local)': 'Ollama (local)', 'Ollama (nuvem)': 'Ollama (cloud)', 'Celular': 'Phone', 'grátis': 'free', 'pollen/msg': 'pollen/msg',
+            'Painel de desempenho': 'Performance panel', 'Mostra a VRAM e a velocidade no canto da tela.': 'Shows VRAM and speed in the corner of the screen.', 'Acesso pela rede (celular e amigos)': 'Network access (phone and friends)', 'Deixa outros aparelhos entrarem. A senha continua exigida pela internet.': 'Lets other devices in. The password is still required over the internet.', 'Bem-vindo!': 'Welcome!', 'Aparência (fonte, cantos e layout)': 'Appearance (font, corners and layout)', 'Fonte': 'Font', 'Padrão do tema': 'Theme default', 'Outra fonte (nome instalado)': 'Other font (installed name)', 'Fonte dos títulos': 'Heading font', 'Cantos arredondados': 'Rounded corners', 'Largura do chat': 'Chat width', 'Barra de digitação': 'Input bar', 'Cartão (texto em cima)': 'Card (text on top)', 'Pílula (uma linha)': 'Pill (one line)', 'Reta (sem caixa)': 'Flat (no box)', 'Mensagens': 'Messages', 'Só a sua em balão': 'Only yours in a bubble', 'Todas em balão': 'All in bubbles', 'Lateral': 'Sidebar', 'À esquerda': 'Left', 'À direita': 'Right', 'Logo da tela inicial': 'Start screen logo', 'Símbolo': 'Symbol', 'Nome grande': 'Big name', 'Símbolo em círculo': 'Symbol in a circle', 'Nenhum': 'None', 'Posição da tela inicial': 'Start screen position', 'Tudo no meio': 'All centered', 'Barra embaixo': 'Bar at the bottom', 'Frase da tela inicial': 'Start screen phrase', 'Fundo': 'Background', 'Brilho/gradiente (CSS)': 'Glow/gradient (CSS)', 'Imagem de fundo': 'Background image', 'Opacidade da imagem': 'Image opacity', 'Tirar a imagem e o brilho': 'Remove image and glow', 'Interface clássica (a antiga, com temas só de cor)': 'Classic interface (the old one, with color-only themes)', 'A interface nova tem lateral recolhível, tela inicial no meio e temas que mudam fonte, cantos, barra de digitação, mensagens e fundo. Desligado = interface nova.': 'The new interface has a collapsible sidebar, a centered start screen and themes that change font, corners, input bar, messages and background. Off = new interface.', 'Configurações': 'Settings', 'Memória': 'Memory', 'Estatísticas': 'Statistics', 'Hoje': 'Today', 'Ontem': 'Yesterday', 'Últimos 7 dias': 'Last 7 days', 'Últimos 30 dias': 'Last 30 days', 'Mais antigos': 'Older', 'DeepSeek': 'DeepSeek', 'Escuro': 'Dark', 'Roxo': 'Purple', 'Recolher a lateral': 'Collapse the sidebar', 'Abrir a lateral': 'Open the sidebar', 'Não consegui salvar o histórico no PC (grande demais ou erro). Apague conversas antigas com anexos.': 'Could not save the history on the PC (too big or an error). Delete old chats with attachments.', 'Histórico muito grande: as imagens das conversas mais antigas não foram guardadas no PC.': 'History too large: the images of the oldest chats were not kept on the PC.', 'Como pesquisar': 'How to search', 'A IA decide quando pesquisar (ferramenta)': 'The AI decides when to search (tool)', 'Automático: pesquisa a cada pergunta': 'Automatic: searches on every question', 'Na primeira opção a IA escolhe as palavras-chave e só pesquisa quando precisa (modelos pequenos às vezes não usam a ferramenta: aí escolha Automático).': 'With the first option the AI picks the keywords and only searches when needed (small models sometimes do not use the tool: then choose Automatic).', 'Busca feita com: {q}': 'Searched with: {q}', 'Mostrar a mensagem completa da IA no terminal, sem esconder nada (raciocínio, chamadas de ferramenta e resultados)': 'Show the AI’s full message in the terminal, hiding nothing (reasoning, tool calls and results)', 'Não consegui carregar os modelos do tomdacat: {e}': 'Could not load the tomdacat models: {e}', 'Roxo': 'Purple', '{a} de {b} pedidos': '{a} of {b} requests', 'renova em {t}': 'resets in {t}', '{a} de {b} tokens/min': '{a} of {b} tokens/min', 'Limite': 'Limit', 'Quase no limite de pedidos: restam {a} de {b}.': 'Almost at the request limit: {a} of {b} left.', 'Quase no limite de tokens por minuto: restam {a} de {b}. Espere um pouco antes de mandar outra.': 'Almost at the tokens-per-minute limit: {a} of {b} left. Wait a bit before sending another.', 'Não consegui carregar os modelos do Groq: {e}': 'Could not load the Groq models: {e}', '↓ Maior primeiro': '↓ Highest first', '↑ Menor primeiro': '↑ Lowest first', 'Ollama (também roda no seu PC)': 'Ollama (also runs on your PC)', ' (resposta veio de uma vez: inclui a espera)': ' (reply arrived all at once: includes the wait)', 'Esforço de raciocínio': 'Reasoning effort', 'Quanto o modelo pensa antes de responder. Menos = responde mais rápido. Automático: o botão Pensar decide (ligado = médio, desligado = nenhum).': 'How much the model thinks before answering. Less = faster. Automatic: the Think button decides (on = medium, off = none).', 'Automático': 'Automatic', 'Nenhum': 'None', 'Baixo': 'Low', 'Médio': 'Medium', 'Alto': 'High', 'Máximo': 'Max', 'Permitir sozinho (sem perguntar), mas bloquear comandos perigosos': 'Allow automatically (no prompt), but block dangerous commands', 'Com isso ligado a IA grava arquivos e roda comandos sem o popup, MENOS o que é perigoso: diskpart, format, apagar pastas do sistema ou do seu usuário, mexer no registro, em contas, serviços, boot, desligar o PC, baixar e executar código da internet. Esses são bloqueados de vez (nem perguntam). Não é uma garantia: confira o que a IA faz.': 'With this on, the AI writes files and runs commands without the popup, EXCEPT dangerous ones: diskpart, format, deleting system or user folders, editing the registry, accounts, services, boot, shutting the PC down, downloading and running code from the internet. Those are blocked outright (no prompt). It is not a guarantee: check what the AI does.', 'Parar': 'Stop', 'Parado': 'Stopped', '(o modelo só mostrou o raciocínio e parou antes de responder: talvez tenha acabado o limite de tokens)': '(the model only showed its reasoning and stopped before answering: it may have run out of tokens)', 'Ollama (local)': 'Ollama (local)', 'Ollama (nuvem)': 'Ollama (cloud)', 'Celular': 'Phone', 'grátis': 'free', 'pollen/msg': 'pollen/msg',
             'Roda no seu PC (azul)': 'Runs on your PC (blue)', 'Nuvem grátis (cinza)': 'Free cloud (grey)', 'Pago: gasta pollen (amarelo)': 'Paid: spends pollen (yellow)',
             '{a} falhou: {e}. Recomeçando com {b}...': '{a} failed: {e}. Restarting with {b}...', 'Pollen gasto nesta mensagem (estimado pelos tokens)': 'Pollen spent on this message (estimated from tokens)', 'Pagos (gastam pollen)': 'Paid (they spend pollen)', 'Provedor': 'Provider', 'grátis (pode estar fora do ar)': 'free (may be down)', 'pollen/mensagem': 'pollen/message', 'Esperando o Pollinations responder': 'Waiting for Pollinations to answer',
             'Não consegui carregar os modelos do Pollinations: {e}': 'Could not load the Pollinations models: {e}', 'Saldo de pollen do Pollinations.': 'Pollinations pollen balance.', 'Uma mensagem média neste modelo custa ≈{c} pollen (uns {n} mensagens com o saldo).': 'An average message on this model costs ≈{c} pollen (about {n} messages with the balance).', 'Clique para abrir o Pollinations.': 'Click to open Pollinations.',
@@ -1438,7 +1567,7 @@
                 const s = document.createElement('select'); opts.forEach(([v, n]) => s.add(new Option(n, v))); s.value = value; s.onchange = () => change(s.value); l.append(t, s); box.appendChild(l);
             };
             select('Idioma', 'Começa com o idioma do Windows; se não tivermos o idioma, usa o inglês.', curLang(), [['pt', 'Português (Brasil)'], ['en', 'English']], v => { setLang(v); $('wl-lang').value = v; });
-            select('Tema', 'As cores do app. Dá para criar temas próprios em Configurações.', THEMES.includes(config.theme) ? config.theme : 'dark', THEMES.map(x => [x, x[0].toUpperCase() + x.slice(1)]), v => { config.theme = v; applyBaseTheme(v); saveState(); });
+            select('Tema', 'O visual do app (cores, fonte, cantos e layout). Dá para criar temas próprios em Configurações.', themesNow().includes(config.theme) ? config.theme : defaultTheme(), themesNow().map(x => [x, THEME_LABELS[x] || x]), v => { config.theme = v; applyBaseTheme(v); saveState(); });
             toggle('Iniciar com o terminal', 'Abre uma janela de terminal com o log do app, como o run.bat. Só no Lume.exe.', ao.start_with_terminal, async (on, el) => { const r = await post({ start_with_terminal: on }); if (r.ok === undefined) el.checked = !on; }, !!ao.frozen);
             toggle('Iniciar com o Windows', 'Abre o Lume sozinho quando você entra no Windows. Só no Lume.exe.', ao.start_with_windows, async (on, el) => { const r = await post({ start_with_windows: on }); if (r.ok === undefined) el.checked = !on; }, !!ao.frozen);
             toggle('Ícone na bandeja do sistema', 'Fechar a janela só esconde o app: ele continua rodando ao lado do relógio e abre com um clique no ícone.', ao.tray, async (on, el) => { const r = await post({ tray: on }); if (r.ok === undefined) el.checked = !on; }, !!(auth.local && ao.tray_available));
@@ -1475,13 +1604,14 @@
         const OVERFLOW_OVERHEAD = 1.3, OVERFLOW_LIMIT = 0.85;   // estimativa: modelo novo ocupa gb*1.3 e o total nao deve passar de 85% da VRAM
 
         const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } };
-        let config = Object.assign({ theme: 'dark', systemPrompt: 'Você é um assistente direto.', codePrompt: CODE_PROMPT_DEFAULT, scale: 1, bgImage: '', bgOpacity: 0, perfEnabled: true, perfStyle: 'default', perfInterval: 50, numCtx: 4096, showCtxBar: true, lang: '', animations: true, model: 'qwen3.5:4b', webSearch: true, starToDot: true, autoStopPrev: false, autoUpdate: true, hideVramWarn: true }, load('thingmabobber_config', {}));
+        let config = Object.assign({ theme: 'deepseek', uiLegacy: false, systemPrompt: 'Você é um assistente direto.', codePrompt: CODE_PROMPT_DEFAULT, scale: 1, bgImage: '', bgOpacity: 0, perfEnabled: true, perfStyle: 'default', perfInterval: 50, numCtx: 4096, showCtxBar: true, lang: '', animations: true, model: 'qwen3.5:4b', webSearch: true, starToDot: true, autoStopPrev: false, autoUpdate: true, hideVramWarn: true }, load('thingmabobber_config', {}));
         let chats = load('thingmabobber_chats', {});
         let globalMemories = load('thingmabobber_memories', []);
         let currentChatId = null, currentTab = 'chat', selectedModel = config.model, lastLocalModel = 'qwen3.5:4b', busy = false;
         let loadedModels = {}, pendingModel = {};   // nome -> info do Ollama / 'carregando'|'desligando'
 
         const chatBox = $('chat'), promptInput = $('prompt'), commandMenu = $('command-menu');
+        new MutationObserver(() => updateEmpty()).observe(chatBox, { childList: true });   // mensagem nova ou chat trocado: mostra ou esconde a tela inicial
         let stickBottom = true;   // so acompanha o texto novo enquanto voce esta no fim do chat; ao rolar para cima, para de puxar
         const atBottom = () => chatBox.scrollHeight - chatBox.scrollTop - chatBox.clientHeight < 70;
         chatBox.addEventListener('scroll', () => { stickBottom = atBottom(); $('to-bottom').style.display = stickBottom ? 'none' : 'block'; });
@@ -1593,7 +1723,7 @@
                 if (Object.keys(h).length) chats = h; else if (Object.keys(chats).length) saveToStorage();
             } catch (e) {}
             if (config.theme === 'kimi') config.theme = 'roxo';   // o tema "Kimi" (que e roxo) agora se chama "Roxo"
-            if (!THEMES.includes(config.theme) && !String(config.theme).startsWith('custom:')) config.theme = 'dark';
+            if (!themesNow().includes(config.theme) && !String(config.theme).startsWith('custom:')) config.theme = defaultTheme();   // ex.: o 'dark' antigo vira DeepSeek na interface nova
             selectedModel = modelById(config.model) ? config.model : 'qwen3.5:4b';
         }
 
@@ -2214,7 +2344,15 @@
                 });
                 const rest = ids.filter(id => !chats[id].pinned && !chats[id].folder);
                 if (rest.length && (pinned.length || Object.keys(folders).length)) head(tr('Sem pasta'));
-                rest.forEach(id => list.appendChild(chatItem(id, newId)));
+                if (config.uiLegacy) rest.forEach(id => list.appendChild(chatItem(id, newId)));
+                else {   // interface nova: agrupa por data (Hoje, Ontem, ...)
+                    const day0 = new Date(); day0.setHours(0, 0, 0, 0); const DAY = 86400000; let last = '';
+                    rest.forEach(id => {
+                        const age = (day0.getTime() - (+id || 0)) / DAY, g = age < 0 ? 'Hoje' : age < 1 ? 'Ontem' : age < 7 ? 'Últimos 7 dias' : age < 30 ? 'Últimos 30 dias' : 'Mais antigos';
+                        if (g !== last) { last = g; head(tr(g)); }
+                        list.appendChild(chatItem(id, newId));
+                    });
+                }
             }
             updateHeader();
         }
@@ -2265,7 +2403,7 @@
             if (g) { g.aiDiv.classList.add('noanim'); chatBox.appendChild(g.aiDiv); }
             renderQueued(id);
             chatBox.scrollTop = chatBox.scrollHeight;
-            syncBusy(); updateCtxBar();
+            syncBusy(); updateCtxBar(); updateEmpty();
             if (isNew) { chatBox.classList.remove('fresh'); void chatBox.offsetWidth; chatBox.classList.add('fresh'); }
         }
 
@@ -3168,7 +3306,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             $('system-prompt-input').value = sysPrompt(false);
             $('code-prompt-input').value = sysPrompt(true);
             $('opt-lang').value = curLang(); $('opt-anim').checked = config.animations !== false; $('opt-hidevram').checked = config.hideVramWarn !== false;
-            $('opt-ctx').value = String(config.numCtx); $('opt-maxctx').checked = !!config.maxCtx; $('opt-ctx').disabled = !!config.maxCtx; $('opt-ctxdiv').checked = !!config.ctxDivide; $('opt-ctxdiv-num').value = config.ctxDivisor || 4; ctxDivUi(true); $('opt-ctxbar').checked = config.showCtxBar; $('opt-web').checked = config.webSearch; $('opt-searchmode').value = config.searchMode || 'tool'; $('opt-star').checked = config.starToDot; $('opt-autostop').checked = config.autoStopPrev;
+            $('opt-ctx').value = String(config.numCtx); $('opt-maxctx').checked = !!config.maxCtx; $('opt-ctx').disabled = !!config.maxCtx; $('opt-ctxdiv').checked = !!config.ctxDivide; $('opt-ctxdiv-num').value = config.ctxDivisor || 4; ctxDivUi(true); $('opt-ctxbar').checked = config.showCtxBar; $('opt-web').checked = config.webSearch; $('opt-legacy').checked = !!config.uiLegacy; $('opt-searchmode').value = config.searchMode || 'tool'; $('opt-star').checked = config.starToDot; $('opt-autostop').checked = config.autoStopPrev;
             $('perf-enabled').checked = config.perfEnabled; $('opt-autoupd').checked = config.autoUpdate !== false;
             $('perf-style').value = config.perfStyle;
             if (auth.local) checkUpdates(false);
@@ -3224,7 +3362,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
         }
         function renderThemeOptions() {
             const sel = $('theme-base'); sel.innerHTML = '';
-            [['dark', 'Escuro'], ['claude', 'Claude'], ['roxo', 'Roxo']].forEach(([v, l]) => sel.add(new Option(tr(l), v)));
+            themesNow().forEach(v => sel.add(new Option(tr(THEME_LABELS[v] || v), v)));
             if (customThemes.length) {
                 const g = document.createElement('optgroup'); g.label = tr('Personalizados');
                 customThemes.forEach(t => g.appendChild(new Option(t.name, 'custom:' + t.name)));
@@ -3232,19 +3370,52 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             }
             sel.value = config.theme;
         }
+        const THEME_EXTRA_VARS = ['--font', '--font-head', '--font-msg', '--radius', '--in-radius', '--chat-w', '--glow', '--custom-bg-image', '--custom-bg-opacity'];
         function applyBaseTheme(theme) {
-            [...THEME_VARS, '--icon-filter'].forEach(v => document.body.style.removeProperty(v));
-            let base = theme;
+            [...THEME_VARS, ...THEME_EXTRA_VARS, '--icon-filter'].forEach(v => document.body.style.removeProperty(v));
+            let base = theme, custom = null;
             if (String(theme).startsWith('custom:')) {
                 const t = customThemes.find(x => 'custom:' + x.name === theme);
                 if (t) {
-                    base = t.base || 'dark';
+                    custom = t; base = t.base || defaultTheme();
                     Object.entries(t.vars || {}).forEach(([k, v]) => document.body.style.setProperty(k, v));
                     document.body.style.setProperty('--icon-filter', t.iconLight === false ? 'none' : 'invert(1)');
-                } else { theme = base = 'dark'; }
+                } else { theme = base = defaultTheme(); }
             }
+            if (!config.uiLegacy && !THEMES_MODERN.includes(base)) base = defaultTheme();   // base de um tema antigo: usa o padrao da interface nova
+            if (config.uiLegacy && !THEMES_LEGACY.includes(base)) base = 'dark';
             document.body.setAttribute('data-theme', base); config.theme = theme;
+            applyThemeExtras(base, custom);
             if ($('theme-base')) $('theme-base').value = theme;
+        }
+        // fonte, cantos, estilo da barra de digitacao/mensagens/lateral, fundo e a tela inicial (so na interface nova)
+        function applyThemeExtras(base, custom) {
+            const b = document.body, tr0 = Object.assign({}, TRAIT_DEFAULT, THEME_TRAITS[base] || {}, (custom && custom.traits) || {});
+            THEME_EXTRA_VARS.forEach(v => b.style.removeProperty(v));
+            b.setAttribute('data-ui', config.uiLegacy ? 'legacy' : 'modern');
+            b.setAttribute('data-bubbles', tr0.bubbles); b.setAttribute('data-input', tr0.input); b.setAttribute('data-logo', tr0.logo); b.setAttribute('data-hero', tr0.hero); b.setAttribute('data-sidebar', tr0.sidebar);
+            b.classList.toggle('side-collapsed', !config.uiLegacy && !!config.sideCollapsed);
+            if (custom) {
+                if (custom.fontHead || custom.font) { if (custom.font) { b.style.setProperty('--font', custom.font); b.style.setProperty('--font-msg', custom.fontMsg || custom.font); } b.style.setProperty('--font-head', custom.fontHead || custom.font || getComputedStyle(b).getPropertyValue('--font')); }
+                if (custom.radius != null) { b.style.setProperty('--radius', custom.radius + 'px'); b.style.setProperty('--in-radius', Math.round(custom.radius * 1.5) + 'px'); }
+                if (custom.chatWidth) b.style.setProperty('--chat-w', custom.chatWidth + 'px');
+                if (custom.bgCss) b.style.setProperty('--glow', custom.bgCss);
+                if (custom.bgImage) { b.style.setProperty('--custom-bg-image', `url(${custom.bgImage})`); b.style.setProperty('--custom-bg-opacity', (custom.bgOpacity != null ? custom.bgOpacity : 40) / 100); }
+            }
+            const g = tr0.greet, t = $('hero-title'), s = $('hero-sub');
+            if (t) { t.textContent = g ? (g[curLang()] || g.pt) : ''; t.style.display = g ? '' : 'none'; }
+            if (s) s.textContent = '';
+            updateEmpty();
+        }
+        function updateEmpty() {   // conversa vazia -> tela inicial (saudacao + barra no meio)
+            const c = chats[currentChatId], empty = !!c && !c.messages.length && !gens[currentChatId] && !(queues[currentChatId] || []).length;
+            document.body.classList.toggle('chat-empty', empty);
+        }
+        function toggleSide() { config.sideCollapsed = !config.sideCollapsed; document.body.classList.toggle('side-collapsed', !config.uiLegacy && !!config.sideCollapsed); saveState(); }
+        function setUiLegacy(on) {
+            config.uiLegacy = !!on;
+            if (!themesNow().includes(config.theme) && !String(config.theme).startsWith('custom:')) config.theme = defaultTheme();
+            renderThemeOptions(); applyBaseTheme(config.theme); saveState();
         }
         function updateScale(val) { document.body.style.setProperty('--scale', val); $('scale-val').innerText = val; config.scale = val; }
         function handleBgImage(e) {
@@ -4127,7 +4298,8 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
         function openThemeEditor() {
             closeSettings();
             editing = true; editPrev = config.theme; editSel = null;
-            editWork = { base: document.body.getAttribute('data-theme'), vars: {}, iconLight: getComputedStyle(document.body).getPropertyValue('--icon-filter').trim() !== 'none' };
+            const curT = customThemes.find(x => 'custom:' + x.name === config.theme);
+            editWork = { base: document.body.getAttribute('data-theme'), vars: {}, iconLight: getComputedStyle(document.body).getPropertyValue('--icon-filter').trim() !== 'none', ext: extOf(curT) };
             THEME_VARS.forEach(v => editWork.vars[v] = readVar(v));
             $('theme-name').value = ''; $('tp-icons').checked = editWork.iconLight;
             document.body.classList.add('editing'); $('theme-panel').style.display = 'flex';
@@ -4159,6 +4331,45 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             const group = t => { const g = document.createElement('div'); g.className = 'tp-group'; g.textContent = t; box.appendChild(g); return g; };
             if (editSel) { group(tr('Selecionado: {x}', { x: editSel.label })).classList.add('tp-selected'); editSel.vars.forEach(v => box.appendChild(themeRow(v, true))); }
             group(tr('Todas as cores')); THEME_VARS.forEach(v => box.appendChild(themeRow(v, false)));
+            renderExtControls(box, group);
+        }
+        // ---- aparencia alem das cores: fonte, cantos, largura, barra de digitacao, mensagens, tela inicial, lateral e fundo
+        const EXT_KEYS = ['font', 'fontHead', 'fontMsg', 'radius', 'chatWidth', 'traits', 'bgCss', 'bgImage', 'bgOpacity'];
+        const extOf = t => { const e = {}; if (t) EXT_KEYS.forEach(k => { if (t[k] != null && t[k] !== '') e[k] = JSON.parse(JSON.stringify(t[k])); }); return e; };
+        function previewExt() { applyThemeExtras(document.body.getAttribute('data-theme'), editWork.ext || {}); }
+        function setExt(k, v, trait) {
+            editWork.ext = editWork.ext || {};
+            if (trait) { editWork.ext.traits = Object.assign({}, editWork.ext.traits); if (v === '' || v == null) delete editWork.ext.traits[k]; else editWork.ext.traits[k] = v; }
+            else if (v === '' || v == null) delete editWork.ext[k]; else editWork.ext[k] = v;
+            previewExt();
+        }
+        const FONT_CHOICES = [['', 'Padrão do tema'], ["'Segoe UI', system-ui, sans-serif", 'Segoe UI'], ["Georgia, 'Times New Roman', serif", 'Georgia (serifada)'], ["Cambria, Georgia, serif", 'Cambria'], ["'Trebuchet MS', sans-serif", 'Trebuchet'], ['Verdana, sans-serif', 'Verdana'], ["Bahnschrift, 'Segoe UI', sans-serif", 'Bahnschrift'], ["'Comic Sans MS', cursive", 'Comic Sans'], ["Consolas, 'Cascadia Mono', monospace", 'Consolas (código)'], ["'Courier New', monospace", 'Courier New']];
+        function renderExtControls(box, group) {
+            const ext = editWork.ext = editWork.ext || {}, trt = ext.traits || {};
+            const row = (label, el) => { const r = document.createElement('div'); r.className = 'tp-row'; const l = document.createElement('label'); l.textContent = tr(label); r.append(l, el); box.appendChild(r); return r; };
+            const sel = (opts, val, fn) => { const s = document.createElement('select'); s.className = 'tp-input'; opts.forEach(([v, l]) => s.add(new Option(tr(l), v))); s.value = val == null ? '' : val; s.onchange = () => fn(s.value); return s; };
+            const txt = (val, ph, fn, max = 80) => { const i = document.createElement('input'); i.type = 'text'; i.className = 'tp-input'; i.value = val || ''; i.placeholder = ph; i.maxLength = max; i.spellcheck = false; i.onchange = () => fn(i.value.trim()); return i; };
+            const rng = (min, max, val, fn) => { const i = document.createElement('input'); i.type = 'range'; i.min = min; i.max = max; i.value = val; i.oninput = () => fn(+i.value); return i; };
+            group(tr('Aparência (fonte, cantos e layout)'));
+            const known = FONT_CHOICES.some(([v]) => v === (ext.font || ''));
+            row('Fonte', sel(FONT_CHOICES.concat(known ? [] : [[ext.font, ext.font]]), ext.font || '', v => setExt('font', v)));
+            row('Outra fonte (nome instalado)', txt('', 'ex.: Arial, Impact, Consolas', v => { if (v) setExt('font', "'" + v + "', sans-serif"); }, 40));
+            row('Fonte dos títulos', sel(FONT_CHOICES, ext.fontHead || '', v => setExt('fontHead', v)));
+            row('Cantos arredondados', rng(0, 32, ext.radius != null ? ext.radius : 16, v => setExt('radius', v)));
+            row('Largura do chat', rng(560, 1100, ext.chatWidth || 780, v => setExt('chatWidth', v)));
+            row('Barra de digitação', sel([['', 'Padrão do tema'], ['card', 'Cartão (texto em cima)'], ['pill', 'Pílula (uma linha)'], ['flat', 'Reta (sem caixa)']], trt.input || '', v => setExt('input', v, true)));
+            row('Mensagens', sel([['', 'Padrão do tema'], ['soft', 'Só a sua em balão'], ['filled', 'Todas em balão']], trt.bubbles || '', v => setExt('bubbles', v, true)));
+            row('Lateral', sel([['', 'Padrão do tema'], ['left', 'À esquerda'], ['right', 'À direita']], trt.sidebar || '', v => setExt('sidebar', v, true)));
+            row('Logo da tela inicial', sel([['', 'Padrão do tema'], ['mark', 'Símbolo'], ['wordmark', 'Nome grande'], ['circle', 'Símbolo em círculo'], ['none', 'Nenhum']], trt.logo || '', v => setExt('logo', v, true)));
+            row('Posição da tela inicial', sel([['', 'Padrão do tema'], ['center', 'Tudo no meio'], ['bottom', 'Barra embaixo']], trt.hero || '', v => setExt('hero', v, true)));
+            row('Frase da tela inicial', txt(trt.greet ? trt.greet.pt : '', 'vazio = a do tema', v => { if (v) setExt('greet', { pt: v, en: v }, true); else setExt('greet', '', true); }, 60));
+            group(tr('Fundo'));
+            row('Brilho/gradiente (CSS)', txt(ext.bgCss, 'ex.: radial-gradient(circle at 50% 0, #4a1d96, transparent 60%)', v => setExt('bgCss', v), 200));
+            const file = document.createElement('input'); file.type = 'file'; file.accept = 'image/*';
+            file.onchange = () => { const f = file.files[0]; if (!f) return; const img = new Image(), rd = new FileReader(); rd.onload = () => { img.onload = () => { const k = Math.min(1, 1600 / Math.max(img.width, img.height)), c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); setExt('bgImage', c.toDataURL('image/jpeg', 0.82)); }; img.src = rd.result; }; rd.readAsDataURL(f); };
+            row('Imagem de fundo', file);
+            row('Opacidade da imagem', rng(0, 100, ext.bgOpacity != null ? ext.bgOpacity : 40, v => setExt('bgOpacity', v)));
+            const clr = document.createElement('button'); clr.className = 'tp-btn'; clr.textContent = tr('Tirar a imagem e o brilho'); clr.onclick = () => { delete ext.bgImage; delete ext.bgCss; delete ext.bgOpacity; previewExt(); renderThemePanel(); }; box.appendChild(clr);
         }
         function renderSavedThemes() {
             const box = $('theme-saved'); box.innerHTML = '';
@@ -4167,8 +4378,8 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 const row = document.createElement('div'); row.className = 'tp-saved';
                 const load = document.createElement('button'); load.className = 'tp-btn'; load.textContent = t.name;
                 load.onclick = () => {
-                    editWork = { base: t.base || 'dark', vars: Object.assign({}, t.vars), iconLight: t.iconLight !== false };
-                    document.body.setAttribute('data-theme', editWork.base);
+                    editWork = { base: t.base || defaultTheme(), vars: Object.assign({}, t.vars), iconLight: t.iconLight !== false, ext: extOf(t) };
+                    document.body.setAttribute('data-theme', editWork.base); previewExt();
                     Object.entries(editWork.vars).forEach(([k, v]) => document.body.style.setProperty(k, v));
                     setIconLight(editWork.iconLight); $('tp-icons').checked = editWork.iconLight; $('theme-name').value = t.name; renderThemePanel();
                 };
@@ -4186,7 +4397,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             const name = $('theme-name').value.trim();
             if (!name) { showInfo('Dê um nome ao tema.'); $('theme-name').focus(); return; }
             try {
-                const r = await (await fetch(API + '/api/custom_theme', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, theme: { base: editWork.base, vars: editWork.vars, iconLight: editWork.iconLight } }) })).json();
+                const r = await (await fetch(API + '/api/custom_theme', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, theme: Object.assign({ base: editWork.base, vars: editWork.vars, iconLight: editWork.iconLight }, editWork.ext || {}) }) })).json();
                 await loadCustomThemes(); config.theme = 'custom:' + r.name;
                 exitThemeEditor(true); showInfo(tr('Tema salvo em {path}', { path: r.path }), 10000);
             } catch (e) { showInfo('Não consegui salvar o tema.'); }
