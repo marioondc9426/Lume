@@ -1178,7 +1178,7 @@ def stream_groq(model, messages, cfg):
 # ---------------------------------------------------------------- OpenRouter (so modelos GRATIS)
 OR_URL = "https://openrouter.ai/api/v1"
 # Fora das listas (OpenRouter e Cloudflare): Llama, MiniMax, Krea, Z.ai/GLM e a Cloudflare em si; modelos de moderacao (nao conversam); LoRA (precisam de adaptador); e os pouco conhecidos / fracos.
-MODEL_EXCLUDE = re.compile(r"llama|minimax|krea|zai|glm|cloudflare/|safety|guard|lora|phonellm|sea-lion|granite|apertus|eurollm|dots-studio|recursive/|xingchen|liquid/|lfm", re.I)
+MODEL_EXCLUDE = re.compile(r"llama|minimax|krea|zai|glm|cloudflare/|safety|guard|lora|phonellm|sea-lion|granite|apertus|eurollm|dots-studio|recursive/|xingchen|liquid/|lfm|mistral|cohere|north-mini|poolside|laguna|thinkingmachines|inkling", re.I)
 _or_cache = {"t": 0, "models": []}
 
 def openrouter_free_models(force=False):
@@ -1283,8 +1283,13 @@ def cloudflare_models(cfg, force=False, raw=False):
             props = {p.get("property_id"): p.get("value") for p in (m.get("properties") or []) if isinstance(p, dict)}
             try: ctx = int(props.get("context_window") or 0)
             except (TypeError, ValueError): ctx = 0
-            parts = name.split("/")
-            out.append({"id": name, "name": parts[-1], "vendor": parts[1] if len(parts) > 2 else "cloudflare", "ctx": ctx,
+            parts = name.split("/"); pin = pout = None
+            for pr in (props.get("price") or []) if isinstance(props.get("price"), list) else []:
+                u = str(pr.get("unit", "")).lower()
+                if "cached" in u: continue
+                if "input" in u: pin = pr.get("price")
+                elif "output" in u: pout = pr.get("price")
+            out.append({"id": name, "pin": pin, "pout": pout, "name": parts[-1], "vendor": parts[1] if len(parts) > 2 else "cloudflare", "ctx": ctx,
                         "vision": bool(props.get("vision")) or "vision" in name.lower() or "-vl" in name.lower()})
         if len(items) < 100: break
         page += 1
@@ -1316,6 +1321,49 @@ def cloudflare_probe():
         log("CLOUDFLARE", f"Conferencia dos modelos falhou: {e}", COLOR_YELLOW)
     finally:
         _cf_probe["running"] = False
+
+# ---- monitor de neuronios (o plano gratis do Workers AI da 10.000 por dia; zera as 00:00 UTC)
+CF_NEURON_LIMIT = 10000
+_cf_gql = {"t": 0, "val": None, "fail_until": 0}
+
+def _utc_day(): return time.strftime("%Y-%m-%d", time.gmtime())
+
+def cf_neurons_for(model_id, tin, tout):
+    """Estimativa: 1.000 neuronios = US$ 0,011; usa o preco por milhao de tokens do catalogo (se nao souber, supoe 0,5)."""
+    pin = pout = 0.5
+    for m in _cf_cache["models"]:
+        if m["id"] == model_id: pin = m.get("pin") if m.get("pin") is not None else 0.5; pout = m.get("pout") if m.get("pout") is not None else 0.5; break
+    return (tin * pin + tout * pout) / 1e6 / 0.000011
+
+def cf_add_neurons(model_id, tin, tout):
+    cfg = load_config(); d = cfg.get("cloudflare_neurons") or {}
+    if d.get("day") != _utc_day(): d = {"day": _utc_day(), "n": 0.0, "offset": 0.0}
+    d["n"] = round(d.get("n", 0.0) + cf_neurons_for(model_id, tin, tout), 3); cfg["cloudflare_neurons"] = d; save_config(cfg)
+
+def cf_gql_neurons(token, acc):
+    """Neuronios usados hoje (UTC) segundo a propria Cloudflare. Precisa de um token com a permissao "Account Analytics: Read"."""
+    now = time.time()
+    if _cf_gql["val"] is not None and now - _cf_gql["t"] < 60: return _cf_gql["val"]
+    if now < _cf_gql["fail_until"]: return None
+    q = ('query { viewer { accounts(filter:{accountTag:"%s"}) { aiInferenceAdaptiveGroups(limit:100, filter:{datetime_geq:"%sT00:00:00Z", datetime_leq:"%s"}) { sum { totalNeurons } } } } }'
+         % (acc, _utc_day(), time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())))
+    try:
+        req = urllib.request.Request(CF_API + "/graphql", data=json.dumps({"query": q}).encode(), headers={"Authorization": "Bearer " + token, "Content-Type": "application/json", "User-Agent": "lume-app"})
+        with urllib.request.urlopen(req, timeout=15) as r: d = json.load(r)
+        if d.get("errors"): raise Exception(d["errors"][0].get("message", "erro"))
+        groups = d["data"]["viewer"]["accounts"][0]["aiInferenceAdaptiveGroups"]
+        val = sum(float((g.get("sum") or {}).get("totalNeurons") or 0) for g in groups)
+    except Exception:
+        _cf_gql["fail_until"] = now + 600; return None   # sem permissao de analise: usa a estimativa e tenta de novo daqui a 10 min
+    _cf_gql.update(t=now, val=val); return val
+
+def cf_usage():
+    cfg = load_config(); token, acc = cf_creds(cfg)
+    d = cfg.get("cloudflare_neurons") or {}
+    if d.get("day") != _utc_day(): d = {"day": _utc_day(), "n": 0.0, "offset": 0.0}
+    real = cf_gql_neurons(token, acc) if token and acc else None
+    est = max(0.0, d.get("n", 0.0) + d.get("offset", 0.0))
+    return {"neurons": real if real is not None else est, "limit": CF_NEURON_LIMIT, "source": "api" if real is not None else "estimate", "day": d["day"]}
 
 CF_HTTP_ERRORS = {5035: "Este modelo do Cloudflare nao esta disponivel no plano gratuito (so no Workers Paid): ele foi tirado da lista.", 5018: "Esta conta do Cloudflare nao tem acesso a este modelo: ele foi tirado da lista.",
                   5016: "Este modelo do Cloudflare exige aceitar um acordo de licenca no painel da Cloudflare: ele foi tirado da lista.", 401: "Token do Cloudflare invalido (401). Confira o token e o Account ID em Configuracoes.", 403: "O token do Cloudflare nao tem permissao para o Workers AI (403).",
@@ -1359,7 +1407,7 @@ STATIC_PAGES = ("/", "/index.html")
 PAGE_ALIAS = {"/share": "/share.html", "/dashboard": "/dashboard.html"}
 # So o proprio PC (janela do app) pode usar estas rotas
 LOCAL_ONLY_POST = ("/api/save_config", "/api/save_key", "/api/server_config", "/api/perf_interval",
-                   "/api/custom_theme", "/api/custom_theme_delete", "/api/resolve_pending", "/api/export", "/api/ios_profile_save", "/api/undo", "/api/stats_clear", "/api/open_url", "/api/update_apply", "/api/restart_app", "/api/run_code", "/api/tunnel_start", "/api/tunnel_stop", "/api/tunnel_install", "/api/app_options", "/api/model_pull", "/api/model_delete", "/api/models_update_now")
+                   "/api/custom_theme", "/api/custom_theme_delete", "/api/resolve_pending", "/api/export", "/api/ios_profile_save", "/api/undo", "/api/stats_clear", "/api/open_url", "/api/update_apply", "/api/restart_app", "/api/run_code", "/api/tunnel_start", "/api/tunnel_stop", "/api/tunnel_install", "/api/app_options", "/api/model_pull", "/api/model_delete", "/api/models_update_now", "/api/cloudflare_usage_set")
 PUBLIC_POST = ("/api/auth/login", "/api/auth/logout", "/api/guest/register", "/api/guest/code")
 LOGIN_MAX_FAILS, LOGIN_LOCK_SECONDS = 5, 60
 login_failures = {}   # ip -> [falhas, inicio]
@@ -1751,6 +1799,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             if not has: return self.send_json({"key_saved": False, "models": []})
             try: return self.send_json({"key_saved": True, "models": openrouter_free_models()})
             except Exception as e: return self.send_json({"key_saved": True, "models": [], "error": str(e)[:200]})
+        if p == '/api/cloudflare_usage':
+            if not local: return self.send_json({"error": "local_only"}, 403)
+            return self.send_json(cf_usage())
         if p == '/api/cloudflare_models':
             if not local: return self.send_json({"error": "local_only"}, 403)
             cfg = load_config()
@@ -2012,6 +2063,13 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 pending_command["resolve"](approved)
             return self.send_json({"ok": True})
 
+        if p == '/api/cloudflare_usage_set':   # o dono digita o numero que o painel da Cloudflare mostra: a estimativa passa a partir dele
+            try: v = float(str(data.get("neurons", "")).replace(",", ".").strip())
+            except ValueError: return self.send_json({"error": "numero invalido"}, 400)
+            cfg = load_config(); d = cfg.get("cloudflare_neurons") or {}
+            if d.get("day") != _utc_day(): d = {"day": _utc_day(), "n": 0.0, "offset": 0.0}
+            d["offset"] = round(max(0.0, min(CF_NEURON_LIMIT * 10, v)) - d.get("n", 0.0), 3); cfg["cloudflare_neurons"] = d; save_config(cfg)
+            return self.send_json({"ok": True, **cf_usage()})
         if p == '/api/stop':
             rid = str(data.get("rid") or "")
             log("STOP", "Parada solicitada pelo usuario" + (f" ({rid})" if rid else " (todas)"), COLOR_YELLOW)
@@ -2484,6 +2542,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 save_config(cfg)
             record_event({"type": "chat", **({"user": gid} if gid else {}), "model": model, "cloud": model.startswith(("groq", "or:", "cf:")), "tab": "code" if agent else "chat",
                           "tokens": req_tokens or total_chars // 4, "seconds": req_seconds or (time.time() - started), "prompt_tokens": req_prompt, "chars": total_chars})
+            if model.startswith("cf:") and not gid:
+                try: cf_add_neurons(model[3:], req_prompt, req_tokens or total_chars // 4)
+                except Exception: pass
             u = model_usage.setdefault(model, {"uses": 0, "chars": 0})
             u["uses"] += 1; u["chars"] += total_chars; u["last_used"] = time.time()
             log("CHAT", f"concluido: {total_chars} caracteres em {time.time() - started:.1f}s", COLOR_GREEN)

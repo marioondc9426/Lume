@@ -95,6 +95,9 @@
         .mm-prog { display: flex; align-items: center; gap: 10px; padding: 6px 4px 2px; font-size: 0.8em; width: 100%; } .mm-prog .hint { flex: 1; min-width: 0; margin: 0; }
         .mm-bar { flex: 0 0 120px; height: 6px; border-radius: 4px; background: rgba(128,128,128,0.25); overflow: hidden; } .mm-bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
         .srv-row.mm-row { flex-wrap: wrap; } .srv-row.mm-row .grow { flex: 1; min-width: 120px; }
+        #cf-badge { display: none; font-size: 0.78em; padding: 3px 10px; border-radius: 12px; background: rgba(128,128,128,0.15); cursor: pointer; white-space: nowrap; color: var(--text-muted); }
+        #cf-badge i { display: inline-block; width: 46px; height: 5px; border-radius: 3px; background: rgba(128,128,128,0.3); margin-left: 7px; vertical-align: middle; overflow: hidden; } #cf-badge i b { display: block; height: 100%; background: #3fb950; transition: width .3s; }
+        #cf-badge.warn i b { background: #d29922; } #cf-badge.bad i b { background: #f85149; }
         .mem-suggest { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
         .mem-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 7px 10px; border-radius: 10px; border: 1px dashed var(--border-color); background: rgba(128,128,128,0.08); font-size: 0.85em; }
         .mem-row .grow { flex: 1; min-width: 140px; } .mem-row .btn { margin: 0; padding: 3px 10px; font-size: 0.9em; }
@@ -607,7 +610,10 @@
                     <button class="icon-btn" id="menu-btn" onclick="toggleDrawer()" title="Menu">☰</button>
                     <span id="chat-header-title">Novo Chat</span>
                 </div>
-                <button class="icon-btn" onclick="openExport()" title="Copiar / exportar chat"><img class="ic" src="icons/copy.png" style="width:16px;height:16px;"></button>
+                <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;">
+                    <span id="cf-badge" onclick="cfBadgeClick()"></span>
+                    <button class="icon-btn" onclick="openExport()" title="Copiar / exportar chat"><img class="ic" src="icons/copy.png" style="width:16px;height:16px;"></button>
+                </div>
             </div>
             <div id="chat-wrap"><div id="chat"></div><button id="to-bottom" type="button" onclick="scrollToEnd()" title="Ir para o fim">↓</button></div>
 
@@ -707,7 +713,8 @@
                 <button type="button" class="eye" onclick="toggleKey('cf-token-input', this)">Mostrar</button>
             </div>
             <input type="text" id="cf-acc-input" placeholder="Account ID (32 letras e números)" autocomplete="off" spellcheck="false" style="margin-top:6px;">
-            <div class="srv-actions"><button type="button" class="btn btn-secondary" onclick="loadCloudflareModels(true)">Reconferir quais modelos meu plano aceita</button></div>
+            <span class="hint" id="cf-usage-line"></span>
+            <div class="srv-actions"><button type="button" class="btn btn-secondary" onclick="loadCloudflareModels(true)">Reconferir quais modelos meu plano aceita</button><button type="button" class="btn btn-secondary" onclick="cfBadgeClick(true)">Ajustar o contador de neurônios</button></div>
             <span class="hint">Deixe vazio para manter o que já está salvo. Crie o token em dash.cloudflare.com/profile/api-tokens (modelo "Workers AI") e copie o Account ID na página inicial da conta. O plano gratuito dá 10.000 "neurônios" por dia (alguns milhares de respostas curtas) e para quando acaba; só uma conta no plano pago (Workers Paid) pode ser cobrada além disso, então mantenha no plano gratuito.</span>
         </div>
         <div class="form-group host-only">
@@ -1088,7 +1095,11 @@
             'Iniciar com o Windows': 'Start with Windows', 'Abre o Lume sozinho quando você entra no Windows. Só no Lume.exe.': 'Opens Lume by itself when you sign in to Windows. Lume.exe only.',
             'Pesquisar na web nas respostas': 'Search the web in answers', 'A IA pesquisa na internet quando a pergunta pede dados atuais.': 'The AI searches the internet when the question needs current data.',
             'Verificar atualizações ao abrir': 'Check for updates on startup', 'Avisa quando há uma versão nova.': 'Tells you when there is a new version.', 'Animações': 'Animations', 'Desligue se a interface pesar na placa de vídeo.': 'Turn off if the interface is heavy on the graphics card.',
-            'Painel de desempenho': 'Performance panel', 'Mostra a VRAM e a velocidade no canto da tela.': 'Shows VRAM and speed in the corner of the screen.', 'Acesso pela rede (celular e amigos)': 'Network access (phone and friends)', 'Deixa outros aparelhos entrarem. A senha continua exigida pela internet.': 'Lets other devices in. The password is still required over the internet.', 'Bem-vindo!': 'Welcome!', 'Conferindo quais modelos do Cloudflare o seu plano aceita (uns 30 segundos)...': 'Checking which Cloudflare models your plan accepts (about 30 seconds)...', 'Reconferir quais modelos meu plano aceita': 'Re-check which models my plan accepts', 'Conectando ao Cloudflare': 'Connecting to Cloudflare', 'Não consegui carregar os modelos do Cloudflare: {e}': 'Could not load the Cloudflare models: {e}', 'não salvo': 'not saved', 'salvo ✓': 'saved ✓',
+            'Painel de desempenho': 'Performance panel', 'Mostra a VRAM e a velocidade no canto da tela.': 'Shows VRAM and speed in the corner of the screen.', 'Acesso pela rede (celular e amigos)': 'Network access (phone and friends)', 'Deixa outros aparelhos entrarem. A senha continua exigida pela internet.': 'Lets other devices in. The password is still required over the internet.', 'Bem-vindo!': 'Welcome!', 'Neurônios do Cloudflare usados hoje (medido pela própria Cloudflare). Zera às 00:00 UTC.': 'Cloudflare neurons used today (measured by Cloudflare itself). Resets at 00:00 UTC.',
+            'Neurônios do Cloudflare usados hoje, ESTIMADOS pelo Lume (só conta o que passou por aqui). Clique para ajustar ao número do painel da Cloudflare.': 'Cloudflare neurons used today, ESTIMATED by Lume (it only counts what went through here). Click to match the number on the Cloudflare dashboard.',
+            'Neurônios hoje: {n} de {l} ({s}). Zera às 00:00 UTC.': 'Neurons today: {n} of {l} ({s}). Resets at 00:00 UTC.', 'medido pela Cloudflare': 'measured by Cloudflare', 'estimado pelo Lume': 'estimated by Lume',
+            'O contador já vem direto da Cloudflare: não precisa ajustar.': 'The counter already comes straight from Cloudflare: no need to adjust.', 'Ajustar o contador de neurônios': 'Adjust the neuron counter', 'Ajustar': 'Adjust', 'ex.: 135,62': 'e.g. 135.62', 'Número inválido.': 'Invalid number.',
+            'O Lume só conta o que passou por aqui. Digite o número que aparece no painel da Cloudflare (Workers AI → uso de hoje) e a contagem continua a partir dele. Para o Lume ler o número real sozinho, o token precisa da permissão "Account Analytics: Read".': 'Lume only counts what went through here. Type the number shown on the Cloudflare dashboard (Workers AI → today\'s usage) and the count continues from it. For Lume to read the real number by itself, the token needs the "Account Analytics: Read" permission.', 'Conferindo quais modelos do Cloudflare o seu plano aceita (uns 30 segundos)...': 'Checking which Cloudflare models your plan accepts (about 30 seconds)...', 'Reconferir quais modelos meu plano aceita': 'Re-check which models my plan accepts', 'Conectando ao Cloudflare': 'Connecting to Cloudflare', 'Não consegui carregar os modelos do Cloudflare: {e}': 'Could not load the Cloudflare models: {e}', 'não salvo': 'not saved', 'salvo ✓': 'saved ✓',
             'Dividir o limite de contexto para deixar mais usável': 'Divide the context limit to make it more usable', 'dividir por': 'divide by', 'ou digite': 'or type', 'outro': 'other', 'Ex.: {a} do {m} ÷ {k} = {b}.': 'E.g.: {a} of {m} ÷ {k} = {b}.',
             'Deixe vazio para manter o que já está salvo. Crie o token em dash.cloudflare.com/profile/api-tokens (modelo "Workers AI") e copie o Account ID na página inicial da conta. O plano gratuito dá 10.000 "neurônios" por dia (alguns milhares de respostas curtas) e para quando acaba; só uma conta no plano pago (Workers Paid) pode ser cobrada além disso, então mantenha no plano gratuito.': 'Leave empty to keep what is already saved. Create the token at dash.cloudflare.com/profile/api-tokens (the "Workers AI" template) and copy the Account ID from the account home page. The free plan gives 10,000 "neurons" per day (a few thousand short answers) and stops when they run out; only an account on the paid plan (Workers Paid) can be billed beyond that, so keep it on the free plan.', 'Conectando ao OpenRouter': 'Connecting to OpenRouter', 'Não consegui carregar a lista do OpenRouter: {e}': 'Could not load the OpenRouter list: {e}',
             'Com a chave salva, os modelos GRATUITOS do OpenRouter aparecem na lista de modelos (aba Chat). O Lume nunca usa um modelo pago. Chave em openrouter.ai/keys. O plano grátis tem limite de pedidos por minuto e por dia.': 'With the key saved, the FREE OpenRouter models show up in the model list (Chat tab). Lume never uses a paid model. Get a key at openrouter.ai/keys. The free plan has per-minute and per-day request limits.', 'Apagar esta memória': 'Delete this memory', 'Lembrar?': 'Remember?', 'Lembrar': 'Remember', 'Não': 'No', 'Guardado na Memória.': 'Saved to Memory.',
@@ -1775,6 +1786,34 @@
             renderModelOptions();
         }
         const CF_VENDORS = { meta: 'Meta', google: 'Google', openai: 'OpenAI', qwen: 'Qwen', mistralai: 'Mistral', 'deepseek-ai': 'DeepSeek', nousresearch: 'Nous', microsoft: 'Microsoft', ibm: 'IBM', zai: 'Z.ai', moonshotai: 'Moonshot' };
+        // ---------- monitor de neuronios do Cloudflare (10.000 por dia no plano gratis; zera as 00:00 UTC) ----------
+        let cfUsage = null, cfUsageAt = 0;
+        async function refreshCfUsage(force) {
+            const m = modelById(selectedModel), badge = $('cf-badge');
+            const show = !!(m && m.cf && auth.local);
+            badge.style.display = show ? 'inline-block' : 'none';
+            if (!auth.local || !(show || force)) return;
+            if (!force && Date.now() - cfUsageAt < 20000) { if (cfUsage) paintCfUsage(); return; }
+            cfUsageAt = Date.now();
+            try { cfUsage = await (await fetch(API + '/api/cloudflare_usage')).json(); } catch (e) { return; }
+            paintCfUsage();
+        }
+        function paintCfUsage() {
+            const u = cfUsage; if (!u || u.error) return;
+            const pct = Math.min(100, u.neurons / u.limit * 100), n = u.neurons.toLocaleString(curLang() === 'en' ? 'en-US' : 'pt-BR', { maximumFractionDigits: 1 });
+            const b = $('cf-badge'); b.className = pct >= 90 ? 'bad' : pct >= 70 ? 'warn' : ''; b.style.display = modelById(selectedModel).cf ? 'inline-block' : 'none';
+            b.innerHTML = `☁ ${esc(n)} / ${(u.limit / 1000)}k <i><b style="width:${pct}%"></b></i>`;
+            b.title = tr(u.source === 'api' ? 'Neurônios do Cloudflare usados hoje (medido pela própria Cloudflare). Zera às 00:00 UTC.' : 'Neurônios do Cloudflare usados hoje, ESTIMADOS pelo Lume (só conta o que passou por aqui). Clique para ajustar ao número do painel da Cloudflare.');
+            const line = $('cf-usage-line'); if (line) line.textContent = tr('Neurônios hoje: {n} de {l} ({s}). Zera às 00:00 UTC.', { n, l: u.limit.toLocaleString(curLang() === 'en' ? 'en-US' : 'pt-BR'), s: tr(u.source === 'api' ? 'medido pela Cloudflare' : 'estimado pelo Lume') });
+        }
+        async function cfBadgeClick(fromSettings) {
+            await refreshCfUsage(true);
+            if (cfUsage && cfUsage.source === 'api') { showInfo('O contador já vem direto da Cloudflare: não precisa ajustar.', 5000); return; }
+            const r = await ask({ title: 'Ajustar o contador de neurônios', body: 'O Lume só conta o que passou por aqui. Digite o número que aparece no painel da Cloudflare (Workers AI → uso de hoje) e a contagem continua a partir dele. Para o Lume ler o número real sozinho, o token precisa da permissão "Account Analytics: Read".', buttons: ['Ajustar', 'Cancelar'], input: { type: 'text', placeholder: 'ex.: 135,62', value: cfUsage ? String(Math.round(cfUsage.neurons * 100) / 100) : '' } });
+            if (r.index !== 0 || !r.value) return;
+            try { const d = await (await fetch(API + '/api/cloudflare_usage_set', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ neurons: r.value }) })).json(); if (d.error) { showInfo('Número inválido.'); return; } cfUsage = d; paintCfUsage(); } catch (e) { showInfo('Servidor não respondeu.'); }
+        }
+        setInterval(() => { if (modelById(selectedModel) && modelById(selectedModel).cf) refreshCfUsage(true); }, 60000);
         async function loadCloudflareModels(reprobe) {   // modelos do Cloudflare Workers AI (plano gratis: 10.000 neuronios/dia); so aparecem com o token e o Account ID salvos
             if (!(auth.local || auth.authed) || isGuest()) return;
             let d; try { d = await (await fetch(API + '/api/cloudflare_models' + (reprobe === true ? '?reprobe=1' : ''))).json(); } catch (e) { return; }
@@ -2781,7 +2820,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 textSpan.textContent = em;
                 if (isCur()) setOverlayStatus('Erro'); else showInfo(em);
             } finally {
-                stLine.remove(); delete gens[chatId];
+                stLine.remove(); delete gens[chatId]; if (model.cf) refreshCfUsage(true);
                 if (isCur()) { syncBusy(); updateCtxBar(); promptInput.focus(); if (fork && !failed) loadChat(chatId); }   // recarrega para mostrar o seletor de versoes
                 else if (chats[chatId] && !failed) { unread.add(chatId); showInfo(tr('"{t}" terminou de responder.', { t: dispTitle(chat.title) })); }
                 if (!Object.keys(gens).length) hidePerfStreaming();
@@ -3704,6 +3743,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             return { used: est, exact: false };
         }
         function updateCtxBar() {
+            refreshCfUsage();
             const bar = $('ctx-bar');
             bar.style.display = config.showCtxBar ? '' : 'none';
             placePerf();
