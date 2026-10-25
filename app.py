@@ -1261,11 +1261,16 @@ def _cf_get(url, token):
     req = urllib.request.Request(url, headers={"Authorization": "Bearer " + token, "User-Agent": "lume-app"})
     with urllib.request.urlopen(req, timeout=20) as r: return json.load(r)
 
-def cloudflare_models(cfg, force=False):
-    """Modelos de texto do Workers AI disponiveis para a conta ([{id, name, vendor, ctx, vision}]); em cache por 1 h."""
+def cf_probe_key(cfg):
+    token, acc = cf_creds(cfg); return f"{acc}:{hashlib.sha1(token.encode()).hexdigest()[:8]}"
+
+def cloudflare_models(cfg, force=False, raw=False):
+    """Modelos de texto do Workers AI disponiveis para a conta ([{id, name, vendor, ctx, vision}]); em cache por 1 h.
+    Sem raw, tira os que o plano da conta nao aceita (descobertos por cloudflare_probe ou por um erro ao usar)."""
     token, acc = cf_creds(cfg)
     if not token or not acc: return []
-    if not force and _cf_cache["models"] and _cf_cache["acc"] == acc and time.time() - _cf_cache["t"] < 3600: return _cf_cache["models"]
+    if not raw and not force and _cf_cache["models"] and _cf_cache["acc"] == acc and time.time() - _cf_cache["t"] < 3600:
+        return [m for m in _cf_cache["models"] if m["id"] not in set(cfg.get("cloudflare_blocked") or [])]
     out, page = [], 1
     while page <= 4:
         d = _cf_get(f"{CF_API}/accounts/{urllib.parse.quote(acc)}/ai/models/search?task=Text%20Generation&per_page=100&page={page}", token)
@@ -1282,9 +1287,36 @@ def cloudflare_models(cfg, force=False):
         if len(items) < 100: break
         page += 1
     out.sort(key=lambda x: (x["vendor"], x["name"])); _cf_cache.update(t=time.time(), acc=acc, models=out)
-    return out
+    return out if raw else [m for m in out if m["id"] not in set(cfg.get("cloudflare_blocked") or [])]
 
-CF_HTTP_ERRORS = {401: "Token do Cloudflare invalido (401). Confira o token e o Account ID em Configuracoes.", 403: "O token do Cloudflare nao tem permissao para o Workers AI (403).",
+_cf_probe = {"running": False}
+
+def cf_block(model_id):
+    cfg = load_config(); bl = set(cfg.get("cloudflare_blocked") or []); bl.add(model_id); cfg["cloudflare_blocked"] = sorted(bl); save_config(cfg)
+
+def cloudflare_probe():
+    """Manda um pedido minusculo (6 tokens) a cada modelo para descobrir quais o plano da conta aceita; os que recusam saem da lista. Uma vez por token."""
+    if _cf_probe["running"]: return
+    _cf_probe["running"] = True
+    try:
+        cfg = load_config(); token, acc = cf_creds(cfg); blocked = set()
+        for m in cloudflare_models(cfg, True, raw=True):
+            body = json.dumps({"model": m["id"], "messages": [{"role": "user", "content": "oi"}], "max_tokens": 6}).encode()
+            req = urllib.request.Request(f"{CF_API}/accounts/{urllib.parse.quote(acc)}/ai/v1/chat/completions", data=body, headers={"Authorization": "Bearer " + token, "Content-Type": "application/json", "User-Agent": "lume-app"})
+            try: urllib.request.urlopen(req, timeout=60).read()
+            except urllib.error.HTTPError as e:
+                if e.code in (401, 429): log("CLOUDFLARE", f"Conferencia dos modelos interrompida ({e.code}).", COLOR_YELLOW); return   # token ruim ou limite do dia: tenta de novo outra hora
+                blocked.add(m["id"])
+            except Exception: pass
+        cfg = load_config(); cfg["cloudflare_blocked"] = sorted(blocked); cfg["cloudflare_probe_acc"] = cf_probe_key(cfg); save_config(cfg)
+        log("CLOUDFLARE", f"Conferencia pronta: {len(blocked)} modelo(s) fora do seu plano.", COLOR_GREEN)
+    except Exception as e:
+        log("CLOUDFLARE", f"Conferencia dos modelos falhou: {e}", COLOR_YELLOW)
+    finally:
+        _cf_probe["running"] = False
+
+CF_HTTP_ERRORS = {5035: "Este modelo do Cloudflare nao esta disponivel no plano gratuito (so no Workers Paid): ele foi tirado da lista.", 5018: "Esta conta do Cloudflare nao tem acesso a este modelo: ele foi tirado da lista.",
+                  5016: "Este modelo do Cloudflare exige aceitar um acordo de licenca no painel da Cloudflare: ele foi tirado da lista.", 401: "Token do Cloudflare invalido (401). Confira o token e o Account ID em Configuracoes.", 403: "O token do Cloudflare nao tem permissao para o Workers AI (403).",
                   429: "Limite diario gratis do Cloudflare atingido (10.000 neuronios). Volta amanha ou espere um pouco.", 4006: "Limite diario gratis do Cloudflare atingido (10.000 neuronios). Volta amanha."}
 
 def stream_cloudflare(model, messages, think, cfg, max_tokens=None):
@@ -1308,6 +1340,7 @@ def stream_cloudflare(model, messages, think, cfg, max_tokens=None):
         body = e.read().decode("utf-8", "replace"); code = None; msg = body[:200]
         try: err = (json.loads(body).get("errors") or [{}])[0]; code, msg = err.get("code"), str(err.get("message") or msg)[:200]
         except (ValueError, AttributeError, IndexError): pass
+        if code in (5035, 5018, 5016): cf_block(model[3:])   # o plano nao aceita este modelo: some da lista
         raise Exception(CF_HTTP_ERRORS.get(code) or CF_HTTP_ERRORS.get(e.code) or f"Cloudflare respondeu {e.code}: {msg}")
     yield from _sse_chat(response, t0, CF_HTTP_ERRORS)
 
@@ -1473,6 +1506,8 @@ ERR_EN = {
     "Token do Cloudflare nao configurado": "Cloudflare token not set. Open Settings and paste the token and Account ID.", "Token do Cloudflare invalido": "Invalid Cloudflare token (401). Check the token and Account ID in Settings.",
     "O token do Cloudflare nao tem permissao": "The Cloudflare token has no Workers AI permission (403).", "Limite diario gratis do Cloudflare": "Cloudflare daily free limit reached (10,000 neurons). Come back tomorrow or wait a bit.",
     "Modelo do Cloudflare invalido": "Invalid Cloudflare model: only Workers AI (@cf/...) models are used.",
+    "Este modelo do Cloudflare nao esta disponivel": "This Cloudflare model is not available on the free plan (Workers Paid only): it was removed from the list.", "Esta conta do Cloudflare nao tem acesso": "This Cloudflare account has no access to this model: it was removed from the list.",
+    "Este modelo do Cloudflare exige aceitar": "This Cloudflare model requires accepting a license agreement in the Cloudflare dashboard: it was removed from the list.",
     "Biblioteca Groq nao instalada": "Groq library not installed (pip install groq).",
     "Nao consegui iniciar o Ollama": "Could not start Ollama. Is it installed?",
 }
@@ -1718,7 +1753,11 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             if not local: return self.send_json({"error": "local_only"}, 403)
             cfg = load_config()
             if not all(cf_creds(cfg)): return self.send_json({"saved": False, "models": []})
-            try: return self.send_json({"saved": True, "models": cloudflare_models(cfg)})
+            probing = cfg.get("cloudflare_probe_acc") != cf_probe_key(cfg) or (self.query.get("reprobe") or [""])[0] == "1"
+            try:
+                models = cloudflare_models(cfg)
+                if probing and not _cf_probe["running"]: threading.Thread(target=cloudflare_probe, daemon=True).start()
+                return self.send_json({"saved": True, "models": models, "probing": probing})
             except urllib.error.HTTPError as e: return self.send_json({"saved": True, "models": [], "error": CF_HTTP_ERRORS.get(e.code) or f"Cloudflare respondeu {e.code}"})
             except Exception as e: return self.send_json({"saved": True, "models": [], "error": str(e)[:200]})
         if p == '/api/config_status':
