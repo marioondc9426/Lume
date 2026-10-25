@@ -1266,7 +1266,7 @@ def _cloud_open(req, label, timeout=None):
         if "timed out" in str(e).lower(): raise Exception(f"{label} nao respondeu em {timeout or CLOUD_CONNECT_TIMEOUT} s (sem conexao ou fora do ar).") from None
         raise Exception(f"Sem conexao com {label}: {str(e)[:100]}") from None
 # Fora das listas (OpenRouter e Cloudflare): Llama, MiniMax, Krea, Z.ai/GLM e a Cloudflare em si; modelos de moderacao (nao conversam); LoRA (precisam de adaptador); e os pouco conhecidos / fracos.
-MODEL_EXCLUDE = re.compile(r"llama|minimax|krea|zai|glm|cloudflare/|safety|guard|lora|phonellm|sea-lion|granite|apertus|eurollm|dots-studio|recursive/|xingchen|liquid/|lfm|mistral|cohere|north-mini|poolside|laguna|thinkingmachines|inkling", re.I)
+MODEL_EXCLUDE = re.compile(r"^openrouter/|llama|minimax|krea|zai|glm|cloudflare/|safety|guard|lora|phonellm|sea-lion|granite|apertus|eurollm|dots-studio|recursive/|xingchen|liquid/|lfm|mistral|cohere|north-mini|poolside|laguna|thinkingmachines|inkling", re.I)
 _or_cache = {"t": 0, "models": []}
 
 def openrouter_free_models(force=False):
