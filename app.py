@@ -1242,14 +1242,39 @@ def stream_ollama(model, messages, think, num_ctx=None, max_tokens=None):
                                     "total_seconds": data.get("total_duration", 0) / 1e9}
         return
 
-def stream_groq(model, messages, cfg):
-    if not HAS_GROQ: raise Exception("Biblioteca Groq nao instalada (pip install groq).")
-    if not cfg.get("groq_api_key"): raise Exception("Chave do Groq nao configurada. Abra Configuracoes e cole sua chave.")
-    client = Groq(api_key=cfg["groq_api_key"])
-    messages = [{"role": m["role"], "content": m["content"]} for m in messages]   # Groq nao aceita o campo "images"
-    for chunk in client.chat.completions.create(model=model.replace("groq-", "", 1), messages=messages, stream=True):
-        if chunk.choices and chunk.choices[0].delta.content:
-            yield "content", chunk.choices[0].delta.content
+GROQ_URL = "https://api.groq.com/openai/v1"
+GROQ_EXCLUDE = re.compile(r"whisper|orpheus|guard|safeguard|allam|tts|embed", re.I)
+_groq_cache = {"t": 0, "models": []}
+
+def groq_models(cfg, force=False):
+    """Modelos de conversa do Groq ([{id, ctx, max_out}]); em cache por 1 h."""
+    key = (cfg.get("groq_api_key") or "").strip()
+    if not key: return []
+    if not force and _groq_cache["models"] and time.time() - _groq_cache["t"] < 3600: return _groq_cache["models"]
+    req = urllib.request.Request(GROQ_URL + "/models", headers={"Authorization": "Bearer " + key, "User-Agent": "lume-app"})
+    with urllib.request.urlopen(req, timeout=20) as r: data = json.load(r).get("data", [])
+    out = [{"id": m["id"], "ctx": m.get("context_window") or 0, "max_out": m.get("max_completion_tokens") or 0} for m in data if m.get("id") and m.get("active", True) and not GROQ_EXCLUDE.search(m["id"])]
+    out.sort(key=lambda m: m["id"]); _groq_cache.update(t=time.time(), models=out)
+    return out
+
+def stream_groq(model, messages, cfg, max_tokens=None):
+    key = (cfg.get("groq_api_key") or "").strip()
+    if not key: raise Exception("Chave do Groq nao configurada. Abra Configuracoes e cole sua chave.")
+    msgs = [{"role": m["role"], "content": m["content"]} for m in messages]   # Groq nao aceita o campo "images"
+    payload = {"model": model.replace("groq-", "", 1), "messages": msgs, "stream": True, "stream_options": {"include_usage": True}}
+    if max_tokens: payload["max_tokens"] = int(max_tokens)
+    req = urllib.request.Request(GROQ_URL + "/chat/completions", data=json.dumps(payload).encode("utf-8"), headers={"Authorization": "Bearer " + key, "Content-Type": "application/json", "User-Agent": "lume-app"})
+    t0 = time.time()
+    try: response = _cloud_open(req, "O Groq")
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", "replace"); msg = body[:300]
+        try: msg = str((json.loads(body).get("error") or {}).get("message") or msg)[:300]
+        except (ValueError, AttributeError): pass
+        wait = e.headers.get("retry-after")
+        if e.code == 429: raise Exception(f"Limite do Groq atingido (tokens por minuto ou pedidos por dia){f'. Tente de novo em {wait} s' if wait else ''}. {msg}")
+        if e.code in (401, 403): raise Exception("Chave do Groq invalida ou sem permissao. Confira em Configuracoes.")
+        raise Exception(f"Groq respondeu {e.code}: {msg}")
+    yield from _sse_chat(response, t0, {})
 
 # ---------------------------------------------------------------- OpenRouter (so modelos GRATIS)
 OR_URL = "https://openrouter.ai/api/v1"
@@ -1328,10 +1353,20 @@ def _kill_response(response):
         try: response.close()
         except Exception: pass
 
+def parse_ratelimit(h):
+    """Limites que o provedor informa nos cabecalhos (Groq: pedidos por dia e tokens por minuto). None se nao informar."""
+    if not h: return None
+    def num(k):
+        try: return int(float(h.get(k)))
+        except (TypeError, ValueError): return None
+    out = {"req_limit": num("x-ratelimit-limit-requests"), "req_left": num("x-ratelimit-remaining-requests"), "tok_limit": num("x-ratelimit-limit-tokens"), "tok_left": num("x-ratelimit-remaining-tokens"),
+           "req_reset": h.get("x-ratelimit-reset-requests"), "tok_reset": h.get("x-ratelimit-reset-tokens")}
+    return out if (out["req_left"] is not None or out["tok_left"] is not None) else None
+
 def _sse_chat(response, t0, err_map, first_timeout=None, idle_timeout=None):
     """Le a resposta em stream (SSE) de uma API compativel com OpenAI e gera ('content'|'thinking'|'stats', valor).
     Se nao chegar nenhum dado dentro do tempo (first_timeout no comeco, idle_timeout depois), a conexao e cortada e vira um erro."""
-    first = None; usage = None; cut = False; tcalls = {}
+    first = None; usage = None; cut = False; tcalls = {}; limits = parse_ratelimit(getattr(response, "headers", None))
     first_timeout = first_timeout or CLOUD_FIRST_TIMEOUT; idle_timeout = idle_timeout or CLOUD_IDLE_TIMEOUT
     state = {"timed": False, "limit": first_timeout}
     def arm(secs):
@@ -1377,7 +1412,7 @@ def _sse_chat(response, t0, err_map, first_timeout=None, idle_timeout=None):
         # Se quase todo o tempo foi espera antes do 1o dado, ou o resultado e impossivel, vale o tempo total do pedido.
         burst = bool(first) and (first - t0) > 1.0 and win < 0.2 * total
         gen = total if (burst or usage["completion_tokens"] / win > 2500) else win
-        yield "stats", {"tokens": usage["completion_tokens"], "seconds": gen, "buffered": gen == total, "prompt_tokens": usage.get("prompt_tokens", 0), "prompt_seconds": (first - t0) if first else 0, "load_seconds": 0, "total_seconds": now - t0}
+        yield "stats", {"tokens": usage["completion_tokens"], "seconds": gen, "buffered": gen == total, "limits": limits, "prompt_tokens": usage.get("prompt_tokens", 0), "prompt_seconds": (first - t0) if first else 0, "load_seconds": 0, "total_seconds": now - t0}
 
 def cf_creds(cfg): return (cfg.get("cloudflare_api_token") or "").strip(), (cfg.get("cloudflare_account_id") or "").strip()
 
@@ -1531,7 +1566,6 @@ POL_MODELS = [
     ("community/CloudCompile/nvidia-nemotron-3-ultra-550b-a55b:free", {"free": True}), ("community/YoannDev90/vercel-nemotron-3.5-lightning:free", {"free": True}),
     ("community/CloudCompile/reflection-beam-free", {"free": True}), ("community/YoannDev90/vercel-beam:free", {"free": True}),
     # tabs: "code" = so na aba Code; "both" = nas duas. warn = aviso (triangulo) mostrado ao escolher o provedor
-    ("openai/gpt-5.3-codex", {"tabs": "code"}),
     ("community/morriszdweck/glm-5.3-flash-free", {"free": True, "tabs": "code"}), ("community/scriptsnsenses-sys/glm-5.3-flash-free", {"free": True, "tabs": "code"}),
     ("community/MarcosFRG/glm-5.3-flash", {"tabs": "code"}),   # pago: a reserva dos gratis (o Lume tenta o proximo mais barato se um falhar)
     ("community/MarcosFRG/glm-4.6v-flash", {"free": True, "tabs": "code", "warn": "Limite de 3 pedidos por minuto: pode dar erro de limite se voce mandar varias mensagens seguidas."}),
@@ -1539,7 +1573,11 @@ POL_MODELS = [
     ("community/scriptsnsenses-sys/muse-spark-1.3-contributor", {"free": True, "flaky": True, "tabs": "code", "warn": "Este provedor registra (loga) as suas conversas. Nao envie nada privado ou secreto."}),
     ("community/CloudCompile/poolside-laguna-s-2.1:free", {"free": True, "tabs": "code"}),
     ("community/ZapGaming/llama3.1-8b-xturbo", {"free": True, "speed": 2, "tabs": "both"}),
-    ("community/Saauf/minimax-m3.1-flash", {"tabs": "both"}),
+    ("community/Saauf/minimax-m3.1-flash", {"tabs": "both"}), ("minimax/minimax-m3", {"tabs": "both"}),
+    # modelos que ja existiam oficiais: a versao da comunidade (mais barata) vira a padrao e a oficial fica de reserva (o Lume ordena pelo preco)
+    ("moonshotai/kimi-k2.6", {"tabs": "both"}), ("moonshotai/kimi-k3", {"tabs": "both"}), ("community/vendouple/kimi-k3", {"tabs": "both"}),
+    ("community/sonofstrange/gpt-6.1-sol-quest", {"tabs": "both"}), ("community/JustScriptzz/gpt-5.6-sol", {"tabs": "both"}),
+    ("community/vendouple/qwen-3.8-max", {"tabs": "both"}),
     ("community/scriptsnsenses-sys/deepseek-v4-flash-0731", {"free": True, "tabs": "both"}),
     ("community/scriptsnsenses-sys/gemini-3.1-pro-free", {"free": True, "tabs": "both", "warn": "Provedor da comunidade, nao oficial: o Lume nao controla o que ele faz com as suas mensagens."}),
 ]
@@ -1609,7 +1647,7 @@ def pollinations_models(cfg):
         free = bool(ex.get("free")) or (bool(m) and pin == 0 and pout == 0)
         out.append({"id": mid, "name": m.get("title") or mid.split("/")[-1], "provider": mid.split("/")[1] if mid.startswith("community/") else "oficial",
                     "ctx": m.get("context_length") or 128000, "vision": "image" in inm, "pin": pin, "pout": pout, "free": free, "guess": bool(ex.get("guess")),
-                    "health": hl.get("status") or ("degraded" if ex.get("flaky") else "?"), "success": hl.get("success_rate"), "speed": ex.get("speed", 0), "tabs": ex.get("tabs", "chat"),
+                    "health": hl.get("status") or ("degraded" if ex.get("flaky") else "?"), "success": hl.get("success_rate"), "official": not mid.startswith("community/"), "speed": ex.get("speed", 0), "tabs": ex.get("tabs", "chat"),
                     "warn": ex.get("warn") or (f"Limite de {m['per_user_rpm']} pedidos por minuto: se mandar varias mensagens seguidas pode dar erro de limite." if m.get("per_user_rpm") and m["per_user_rpm"] <= 5 else ""),
                     "reasoning": bool(m) and ("reasoning" in (m.get("capabilities") or []) or bool(m.get("reasoning"))), "effort": "reasoning_effort" in (m.get("supported_parameters") or []),
                     "tools": ("tool_calling" in (m.get("capabilities") or []) or bool(m.get("tools"))) if m else None, "rpm": m.get("per_user_rpm"), "p50": lat.get(mid)})
@@ -1691,7 +1729,7 @@ def stream_model(model, messages, think, cfg, num_ctx=None, max_tokens=None, age
     if model.startswith("pol:"): return stream_pollinations(model, messages, think, cfg, max_tokens, agent, effort)
     if model.startswith("or:"): return stream_openrouter(model, messages, think, cfg, max_tokens)
     if model.startswith("cf:"): return stream_cloudflare(model, messages, think, cfg, max_tokens)
-    return stream_groq(model, messages, cfg) if model.startswith("groq") else stream_ollama(model, messages, think, num_ctx, max_tokens)
+    return stream_groq(model, messages, cfg, max_tokens) if model.startswith("groq") else stream_ollama(model, messages, think, num_ctx, max_tokens)
 
 # ---------------------------------------------------------------- <think> dentro do texto
 class ThinkSplitter:
@@ -2128,6 +2166,12 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             if not has: return self.send_json({"key_saved": False, "models": []})
             try: return self.send_json({"key_saved": True, "models": openrouter_free_models()})
             except Exception as e: return self.send_json({"key_saved": True, "models": [], "error": str(e)[:200]})
+        if p == '/api/groq_models':
+            if not local: return self.send_json({"error": "local_only"}, 403)
+            cfg = load_config()
+            if not cfg.get("groq_api_key"): return self.send_json({"saved": False, "models": []})
+            try: return self.send_json({"saved": True, "models": groq_models(cfg)})
+            except Exception as e: return self.send_json({"saved": True, "models": [], "error": str(e)[:200]})
         if p == '/api/pollinations_models':
             if not local: return self.send_json({"error": "local_only"}, 403)
             cfg = load_config()
