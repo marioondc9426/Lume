@@ -1602,30 +1602,31 @@
         async function guestLogout() { try { await _fetch(API + '/api/auth/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); } catch (e) {} location.href = '/share'; }
         function onUnauthorized() { auth.authed = false; showConnectBanner(); }
         function showConnectBanner() { $('connect-banner').style.display = 'flex'; }
+        let initStep = 'comecou', initDone = false;
         async function init() {
-            await checkAuth();
+            initStep = 'checkAuth'; await checkAuth();
             if (isGuest() || (!auth.local && !auth.allow_remote_code)) document.querySelector('.tab[data-tab="code"]').style.display = 'none';
             if (isGuest()) setInterval(guestPoll, 8000);
-            if (auth.local || auth.authed) await loadFromServer(); else showConnectBanner();
-            await loadCustomThemes();
-            applyBaseTheme(config.theme);
-            phoneSetup();
+            initStep = 'loadFromServer'; if (auth.local || auth.authed) await loadFromServer(); else showConnectBanner();
+            initStep = 'loadCustomThemes'; await loadCustomThemes();
+            initStep = 'applyBaseTheme'; applyBaseTheme(config.theme);
+            initStep = 'phoneSetup'; phoneSetup();
             if (auth.local && config.autoUpdate !== false) { setTimeout(() => checkUpdates(false), 4000); setInterval(() => { if (config.autoUpdate !== false) checkUpdates(false); }, 6 * 3600 * 1000); }   // ao abrir e a cada 6 h
-            translateStatic(); $('opt-lang').value = curLang(); setTimeout(maybeShowWelcome, 500);
+            initStep = 'translateStatic'; translateStatic(); $('opt-lang').value = curLang(); setTimeout(maybeShowWelcome, 500);
             document.body.classList.toggle('no-anim', config.animations === false);
-            if (window.pywebview && window.pywebview.api) setupResizeGrips(); else window.addEventListener('pywebviewready', setupResizeGrips, { once: true });
-            updateScale(config.scale); $('ui-scale').value = config.scale;
+            initStep = 'setupResizeGrips'; if (window.pywebview && window.pywebview.api) setupResizeGrips(); else window.addEventListener('pywebviewready', setupResizeGrips, { once: true });
+            initStep = 'updateScale'; updateScale(config.scale); $('ui-scale').value = config.scale;
             if (config.bgImage) {
                 document.documentElement.style.setProperty('--custom-bg-image', `url(${config.bgImage})`);
                 $('bg-opacity').value = config.bgOpacity; $('opacity-val').innerText = config.bgOpacity;
                 document.documentElement.style.setProperty('--custom-bg-opacity', config.bgOpacity / 100);
             }
-            applyPerf();
+            initStep = 'applyPerf'; applyPerf();
             if (auth.local) fetch(API + '/api/perf_interval', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ms: config.perfInterval }) }).catch(() => {});
             if (auth.local || auth.authed) fetch(API + '/api/usage').then(r => r.json()).then(updateUsageBadge).catch(() => {});
-            if (auth.local || auth.authed) { await refreshLoaded(); loadOpenRouterModels(); loadCloudflareModels(); loadPollinationsModels(); }   // descobre o que esta instalado
-            switchTab('chat');
-            startPolling();
+            initStep = 'refreshLoaded'; if (auth.local || auth.authed) { await refreshLoaded(); loadOpenRouterModels(); loadCloudflareModels(); loadPollinationsModels(); }   // descobre o que esta instalado
+            initStep = 'switchTab'; switchTab('chat');
+            initDone = true; startPolling();
             if (!metricsStarted) metricsLoop();
         }
 
@@ -3018,8 +3019,9 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
         }
 
         // ---------- permissoes / avisos (toast) ----------
+        let pollingStarted = false;
         function startPolling() {
-            if (!auth.local) return;   // aprovar comandos so e possivel no proprio PC
+            if (!auth.local || pollingStarted) return; pollingStarted = true;   // aprovar comandos so e possivel no proprio PC
             setInterval(async () => {
                 try {
                     const data = await (await fetch(API + '/api/check_pending')).json();
@@ -4112,8 +4114,9 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
         }, true));
 
         // se algo falhar (ou demorar) no meio da inicializacao, o painel de VRAM/GPU e o resto continuam funcionando
-        init().catch(e => { console.error('init:', e); window.__initError = String((e && e.stack) || e); });
-        setTimeout(() => { if (!metricsStarted) metricsLoop(); }, 5000);
+        const initFailed = e => { console.error('init:', e); window.__initError = String((e && e.stack) || e); try { showInfo('Erro ao iniciar (' + initStep + '): ' + String((e && e.message) || e), 15000); } catch (_) {} startPolling(); if (!metricsStarted) metricsLoop(); };
+        init().catch(initFailed);
+        setTimeout(() => { if (!initDone) { startPolling(); if (!metricsStarted) metricsLoop(); } }, 5000);   // inicializacao lenta: os avisos de permissao e o painel nao ficam esperando
     </script>
 </body>
 </html>
