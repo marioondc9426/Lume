@@ -1177,6 +1177,8 @@ def stream_groq(model, messages, cfg):
 
 # ---------------------------------------------------------------- OpenRouter (so modelos GRATIS)
 OR_URL = "https://openrouter.ai/api/v1"
+# Fora das listas (OpenRouter e Cloudflare): Llama, MiniMax, Krea, Z.ai/GLM e a Cloudflare em si; modelos de moderacao (nao conversam); LoRA (precisam de adaptador); e os pouco conhecidos / fracos.
+MODEL_EXCLUDE = re.compile(r"llama|minimax|krea|zai|glm|cloudflare/|safety|guard|lora|phonellm|sea-lion|granite|apertus|eurollm|dots-studio|recursive/|xingchen|liquid/|lfm", re.I)
 _or_cache = {"t": 0, "models": []}
 
 def openrouter_free_models(force=False):
@@ -1189,7 +1191,7 @@ def openrouter_free_models(force=False):
         try: free = all(float(pr.get(k) or 0) == 0 for k in ("prompt", "completion", "request", "image")) and pr.get("prompt") is not None
         except (TypeError, ValueError): free = False
         arch = m.get("architecture") or {}; outm, inm = arch.get("output_modalities") or ["text"], arch.get("input_modalities") or ["text"]
-        if not free or list(outm) != ["text"] or not m.get("id") or re.search(r"llama|safety|guard", m["id"], re.I): continue   # Llama fica de fora; modelos de moderacao nao conversam   # so os que respondem apenas texto (sai musica, imagem, audio)
+        if not free or list(outm) != ["text"] or not m.get("id") or MODEL_EXCLUDE.search(m["id"]): continue   # so os que respondem apenas texto (sai musica, imagem, audio)
         out.append({"id": m["id"], "name": m.get("name") or m["id"], "ctx": m.get("context_length") or 0, "vision": "image" in inm,
                     "think": "reasoning" in (m.get("supported_parameters") or [])})
     out.sort(key=lambda x: x["name"].lower()); _or_cache.update(t=time.time(), models=out)
@@ -1277,7 +1279,7 @@ def cloudflare_models(cfg, force=False, raw=False):
         items = d.get("result") or []
         for m in items:
             name = m.get("name") or ""
-            if not name.startswith(("@cf/", "@hf/")) or "llama" in name.lower(): continue   # Llama fica de fora
+            if not name.startswith(("@cf/", "@hf/")) or MODEL_EXCLUDE.search(name): continue
             props = {p.get("property_id"): p.get("value") for p in (m.get("properties") or []) if isinstance(p, dict)}
             try: ctx = int(props.get("context_window") or 0)
             except (TypeError, ValueError): ctx = 0
