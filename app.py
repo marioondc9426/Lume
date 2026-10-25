@@ -1189,7 +1189,7 @@ def openrouter_free_models(force=False):
         try: free = all(float(pr.get(k) or 0) == 0 for k in ("prompt", "completion", "request", "image")) and pr.get("prompt") is not None
         except (TypeError, ValueError): free = False
         arch = m.get("architecture") or {}; outm, inm = arch.get("output_modalities") or ["text"], arch.get("input_modalities") or ["text"]
-        if not free or list(outm) != ["text"] or not m.get("id"): continue   # so os que respondem apenas texto (sai musica, imagem, audio)
+        if not free or list(outm) != ["text"] or not m.get("id") or re.search(r"llama|safety|guard", m["id"], re.I): continue   # Llama fica de fora; modelos de moderacao nao conversam   # so os que respondem apenas texto (sai musica, imagem, audio)
         out.append({"id": m["id"], "name": m.get("name") or m["id"], "ctx": m.get("context_length") or 0, "vision": "image" in inm,
                     "think": "reasoning" in (m.get("supported_parameters") or [])})
     out.sort(key=lambda x: x["name"].lower()); _or_cache.update(t=time.time(), models=out)
@@ -1277,7 +1277,7 @@ def cloudflare_models(cfg, force=False, raw=False):
         items = d.get("result") or []
         for m in items:
             name = m.get("name") or ""
-            if not name.startswith(("@cf/", "@hf/")): continue
+            if not name.startswith(("@cf/", "@hf/")) or "llama" in name.lower(): continue   # Llama fica de fora
             props = {p.get("property_id"): p.get("value") for p in (m.get("properties") or []) if isinstance(p, dict)}
             try: ctx = int(props.get("context_window") or 0)
             except (TypeError, ValueError): ctx = 0

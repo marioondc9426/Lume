@@ -1658,8 +1658,18 @@
             { re: /gpt|openai|chatgpt/i, img: 'chatgpt.png', mono: true },
             { re: /nemotron|nvidia/i, img: 'nvidia.png' },
             { re: /bonsai/i, img: 'bonsai.svg', mono: true },
+            // as de baixo ainda nao tem imagem em icons/: sem o arquivo aparece so o nome (ponha o PNG com o nome exato e a logo aparece sozinha)
+            { re: /qwen|qwq/i, img: 'Qwen.png' },
+            { re: /mistral|mixtral/i, img: 'Mistral.png' },
+            { re: /glm|zai|z\.ai/i, img: 'Zai.png' },
+            { re: /granite|ibm/i, img: 'IBM.png' },
+            { re: /cohere/i, img: 'Cohere.png' },
+            { re: /liquid|lfm/i, img: 'Liquid.png' },
+            { re: /poolside|laguna/i, img: 'Poolside.png' },
+            { re: /thinkingmachines|inkling/i, img: 'ThinkingMachines.png' },
+            { re: /openrouter/i, img: 'OpenRouter.png' },
         ];
-        const brandOf = rec => { const b = BRANDS.find(x => x.re.test(`${rec.fam} ${rec.famName} ${rec.id}`)); return b && brandFile(b, rec) ? b : null; };
+        const brandOf = rec => { const s = `${rec.fam} ${rec.famName} ${rec.id}`; return BRANDS.find(b => b.re.test(s) && brandFile(b, rec)) || null; };   // a primeira marca que combina E tem imagem
         const brandFile = (b, rec) => b.pick ? b.pick(`${rec.famName} ${rec.id}`) : b.img;
         function brandEl(b, rec) {
             let el;
@@ -1778,7 +1788,7 @@
             renderModelOptions();
             if (d.probing) { if (reprobe === true || !window.__cfProbeShown) showInfo('Conferindo quais modelos do Cloudflare o seu plano aceita (uns 30 segundos)...', 6000); window.__cfProbeShown = true; clearTimeout(window.__cfTimer); window.__cfTimer = setTimeout(loadCloudflareModels, 30000); }   // quando a conferencia acaba, a lista se atualiza
         }
-        const HIDDEN_MODELS = /^(clef|deepseek-v4\.1-flash|llama3\.2)\b/i;   // instalados no Ollama, mas fora do seletor
+        const HIDDEN_MODELS = /^(clef|deepseek-v4\.1-flash)\b|llama/i;   // clef e DeepSeek V4.1 Flash: nao sao gratis; Llama: fora por escolha   // instalados no Ollama, mas fora do seletor
         async function detectVision() {   // o Ollama informa as capacidades de cada modelo instalado; a etiqueta "visao" segue isso (corrige modelos que aceitam imagem e estavam sem a etiqueta)
             if (!installed) return; let changed = false;
             await Promise.all(MODELS.filter(m => !m.phone && !m.groq && !m.or && !m.cf && installed.has(m.id) && !m._capsDone).map(async m => {
