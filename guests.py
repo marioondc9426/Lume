@@ -6,6 +6,7 @@ import json
 import os
 import re
 import secrets
+import shutil
 import threading
 import time
 
@@ -30,8 +31,8 @@ DEFAULT_SETTINGS = {
 
 
 class Guests:
-    def __init__(self, path, data_dir):
-        self.path, self.data_dir = path, data_dir
+    def __init__(self, path, data_dir, legacy_dir=None):
+        self.path, self.data_dir, self.legacy_dir = path, data_dir, legacy_dir
         self.lock = threading.RLock()
         self.codes = {}                  # codigo de acesso -> (id, vence)
         self.reg_times = {}              # ip -> horarios de cadastro (limite por hora)
@@ -188,7 +189,21 @@ class Guests:
 
     # ---------- pastas de cada amigo ----------
     def user_dir(self, uid):
-        d = os.path.join(self.data_dir, uid); os.makedirs(d, exist_ok=True); return d
+        """accounts/<nome da conta>/ (conversas, memorias e account.json). As pastas antigas (guest_data/<id>) sao movidas para ca na primeira vez."""
+        u = self.data["users"].get(uid) or {}
+        name = u.get("name") or uid
+        d = os.path.join(self.data_dir, name); os.makedirs(self.data_dir, exist_ok=True)
+        old = os.path.join(self.legacy_dir, uid) if self.legacy_dir else None
+        if old and os.path.isdir(old) and not os.path.exists(d):
+            try: shutil.move(old, d)
+            except OSError: pass
+        os.makedirs(d, exist_ok=True)
+        meta = os.path.join(d, "account.json")
+        if not os.path.exists(meta):
+            try:
+                with open(meta, "w", encoding="utf-8") as f: json.dump({"name": name, "role": "guest", "id": uid, "created": u.get("created")}, f, ensure_ascii=False, indent=1)
+            except OSError: pass
+        return d
 
     def history_file(self, uid): return os.path.join(self.user_dir(uid), "history.json")
     def state_file(self, uid): return os.path.join(self.user_dir(uid), "state.json")

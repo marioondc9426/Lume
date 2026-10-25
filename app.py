@@ -72,7 +72,9 @@ CERTS_DIR = os.path.join(BASE_DIR, "certs")
 HTTPS_PORT = 8443
 APP_NAME = "Lume"
 import guests as guests_mod   # contas de amigos (/share) e painel (/dashboard)
-guests = guests_mod.Guests(os.path.join(BASE_DIR, "guests.json"), os.path.join(BASE_DIR, "guest_data"))
+ACCOUNTS_DIR = os.path.join(BASE_DIR, "accounts")   # uma pasta por conta, com o nome dela (a do dono e a dos amigos)
+OWNER_NAME = "uhhh sla hmmm tung sim ok"
+guests = guests_mod.Guests(os.path.join(BASE_DIR, "guests.json"), ACCOUNTS_DIR, os.path.join(BASE_DIR, "guest_data"))
 stop_events = {}        # id do amigo -> Event (parar so a geracao dele)
 guest_active = {}       # id do amigo -> geracoes em andamento
 guest_recent = {}       # id do amigo -> horarios das ultimas respostas (limite por minuto)
@@ -81,8 +83,22 @@ login_recent_fails = []  # horarios das senhas erradas de qualquer IP (trava glo
 # Versao: "1.2" = versao nova com novidades (o numero depois do ponto sobe); "1.2.01", "1.2.02"... = correcoes (patches) dessa versao.
 VERSION = "2.3"
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")     # chaves de API, pasta de trabalho, uso
-HISTORY_FILE = os.path.join(BASE_DIR, "history.json")   # chats
-STATE_FILE = os.path.join(BASE_DIR, "state.json")       # preferencias da interface + memorias
+def _owner_dir():
+    """accounts/<dono>/: conversas e preferencias do dono. Na primeira vez COPIA (nao move) os history.json/state.json antigos da pasta do app."""
+    d = os.path.join(ACCOUNTS_DIR, OWNER_NAME)
+    try:
+        os.makedirs(d, exist_ok=True)
+        meta = os.path.join(d, "account.json")
+        if not os.path.exists(meta):
+            with open(meta, "w", encoding="utf-8") as f: json.dump({"name": OWNER_NAME, "role": "owner", "note": "Conta do dono: usa as chaves e as configuracoes do app (config.json). Os history.json e state.json antigos da pasta do app foram copiados para ca."}, f, ensure_ascii=False, indent=1)
+        for fn in ("history.json", "state.json"):
+            old, new = os.path.join(BASE_DIR, fn), os.path.join(d, fn)
+            if os.path.exists(old) and not os.path.exists(new): shutil.copy2(old, new)
+    except OSError: return BASE_DIR   # sem permissao de escrita: continua nos arquivos de sempre
+    return d
+OWNER_DIR = _owner_dir()
+HISTORY_FILE = os.path.join(OWNER_DIR, "history.json")  # chats do dono
+STATE_FILE = os.path.join(OWNER_DIR, "state.json")      # preferencias da interface + memorias do dono
 STATS_FILE = os.path.join(BASE_DIR, "stats.json")       # uso: tokens/s por modelo, gasto do Exa
 UNDO_DIR = os.path.join(BASE_DIR, "undo")               # copias dos arquivos que a IA sobrescreveu (botao Desfazer)
 MAX_BODY_BYTES = 60 * 1024 * 1024   # tamanho maximo de uma requisicao (anexos)
@@ -1710,8 +1726,8 @@ POL_API = "https://gen.pollinations.ai"
 # os que ele nao lista mas respondem nos testes entram com preco informado a mao. free = gratis; flaky = instavel (vai para o fim da fila de tentativas).
 POL_MODELS = [
     ("openai/gpt-5.4-nano", {}), ("openai/gpt-5.6-luna", {}), ("openai/gpt-5-nano", {}), ("openai/gpt-6-luna", {}),
-    ("openai/gpt-5.4", {}), ("openai/gpt-5.4-mini", {}), ("openai/gpt-5.5", {}), ("openai/gpt-5.6-sol", {}), ("openai/gpt-5.6-terra", {}),
-    ("openai/gpt-6-sol", {}), ("openai/gpt-6.1-sol", {}), ("openai/gpt-6-astra", {}), ("openai/gpt-oss-20b", {}),
+    ("openai/gpt-5.4", {}), ("openai/gpt-5.4-mini", {}), ("openai/gpt-5.5", {}), ("openai/gpt-5.6-sol", {"keep": True}), ("openai/gpt-5.6-terra", {}),
+    ("openai/gpt-6-sol", {}), ("openai/gpt-6.1-sol", {"keep": True}), ("openai/gpt-6-astra", {}), ("openai/gpt-oss-20b", {}),
     ("community/gggff123/gpt-5-nano", {}), ("community/chirag-gamer/gpt-oss-120b", {}),
     ("community/YoannDev90/qwen3.7-flash", {}), ("community/MarcosFRG/gemini-3.1-flash-lite", {"pin": 0.5, "pout": 1.5, "guess": True}),
     ("deepseek/deepseek-v4.1-flash", {}), ("community/MarcosFRG/deepseek-v4.1-flash", {}), ("community/scriptsnsenses-sys/deepseek-v4.1-flash", {}), ("community/vendouple/deepseek-v4.1-flash", {"pin": 0.06, "pout": 0.5}),
@@ -1729,9 +1745,9 @@ POL_MODELS = [
     ("community/ZapGaming/llama3.1-8b-xturbo", {"free": True, "speed": 2, "tabs": "both"}),
     ("community/Saauf/minimax-m3.1-flash", {"tabs": "both"}), ("community/mikl-shortcuts/ministral-3", {"tabs": "both"}), ("minimax/minimax-m3", {"tabs": "both"}),
     # modelos que ja existiam oficiais: a versao da comunidade (mais barata) vira a padrao e a oficial fica de reserva (o Lume ordena pelo preco)
-    ("moonshotai/kimi-k2.6", {"tabs": "both"}), ("moonshotai/kimi-k3", {"tabs": "both"}), ("community/vendouple/kimi-k3", {"tabs": "both", "prio": True}),
-    ("community/sonofstrange/gpt-6.1-sol-quest", {"tabs": "both"}), ("community/JustScriptzz/gpt-5.6-sol", {"tabs": "both"}),
-    ("community/vendouple/qwen-3.8-max", {"tabs": "both"}), ("qwen/qwen3.8-2.4t-a95b", {"tabs": "both"}),   # o oficial (mais caro) e o mesmo Qwen 3.8 Max: fica de reserva
+    ("moonshotai/kimi-k2.6", {"tabs": "both"}), ("moonshotai/kimi-k3", {"tabs": "both", "keep": True}), ("community/vendouple/kimi-k3", {"tabs": "both", "prio": True}),
+    ("community/sonofstrange/gpt-6.1-sol-quest", {"tabs": "both", "keep": True}), ("community/JustScriptzz/gpt-5.6-sol", {"tabs": "both", "keep": True}),
+    ("community/vendouple/qwen-3.8-max", {"tabs": "both"}), ("qwen/qwen3.8-2.4t-a95b", {"tabs": "both", "keep": True}),   # o oficial (mais caro) e o mesmo Qwen 3.8 Max: fica de reserva
     ("community/scriptsnsenses-sys/deepseek-v4-flash-0731", {"free": True, "tabs": "both"}),
     ("community/scriptsnsenses-sys/gemini-3.1-pro-free", {"free": True, "tabs": "both", "warn": "Provedor da comunidade, nao oficial: o Lume nao controla o que ele faz com as suas mensagens."}),
 ]
@@ -1803,7 +1819,7 @@ def pollinations_models(cfg):
         free = bool(ex.get("free")) or (bool(m) and pin == 0 and pout == 0)
         try: pimg = float(((m.get("pricing") or {}).get("promptImageTokens")) or 0) * 1e6 if m else 0.0
         except (TypeError, ValueError): pimg = 0.0
-        if not free and max(pin, pout, pimg) > POL_MAX_PRICE: continue   # caro demais para o seu orcamento
+        if not free and not ex.get("keep") and max(pin, pout, pimg) > POL_MAX_PRICE: continue   # caro demais para o seu orcamento
         out.append({"id": mid, "name": m.get("title") or mid.split("/")[-1], "provider": mid.split("/")[1] if mid.startswith("community/") else "oficial",
                     "ctx": m.get("context_length") or 128000, "vision": "image" in inm, "pin": pin, "pout": pout, "free": free, "guess": bool(ex.get("guess")),
                     "health": hl.get("status") or ("degraded" if ex.get("flaky") else "?"), "success": hl.get("success_rate"), "official": not mid.startswith("community/"), "prio": bool(ex.get("prio")), "speed": ex.get("speed", 0), "tabs": ex.get("tabs", "chat"),
@@ -1884,7 +1900,37 @@ def stream_pollinations(model, messages, think, cfg, max_tokens=None, agent=Fals
             if n + 1 < len(chain): yield "status", "Provedor fora do ar; tentando o proximo"
     raise last or Exception("O Pollinations nao respondeu.")
 
+KEY_FIELDS = (("pol:", "pollinations_api_key"), ("tdc:", "tomdacat_api_key"), ("vc:", "vercel_api_key"), ("l7:", "llm7_api_key"), ("or:", "openrouter_api_key"), ("groq", "groq_api_key"))
+_bad_keys = {}   # chave -> ate quando evitar (ela falhou por saldo/limite/invalida)
+KEY_FAIL_RE = re.compile(r"\b(401|402|403|429)\b|chave|saldo|pollen|credit|quota|limite|api key|unauthorized", re.I)
+
+def backup_keys(cfg, field):
+    """Chaves de reserva (campo <chave>_backup: uma por linha ou separadas por virgula)."""
+    return [k for k in re.split(r"[\s,;]+", str(cfg.get(field + "_backup") or "")) if k]
+
 def stream_model(model, messages, think, cfg, num_ctx=None, max_tokens=None, agent=False, effort=None):
+    """Usa a chave principal; se ela morrer (invalida, sem saldo, limite) antes de qualquer resposta, tenta as chaves de reserva."""
+    field = next((f for pre, f in KEY_FIELDS if model.startswith(pre)), None)
+    keys = list(dict.fromkeys(k for k in [(cfg.get(field) or "").strip()] + backup_keys(cfg, field) if k)) if field else []
+    if field and len(keys) > 1:
+        def gen():
+            now = time.time(); order = [k for k in keys if _bad_keys.get(k, 0) < now] + [k for k in keys if _bad_keys.get(k, 0) >= now]
+            for i, k in enumerate(order):
+                got = False
+                try:
+                    for ev in _stream_model_once(model, messages, think, dict(cfg, **{field: k}), num_ctx, max_tokens, agent, effort):
+                        if ev[0] in ("content", "thinking"): got = True
+                        yield ev
+                    return
+                except Exception as e:
+                    if got or i + 1 >= len(order) or not KEY_FAIL_RE.search(str(e)): raise
+                    _bad_keys[k] = time.time() + 600
+                    log("CHAVES", f"Chave {i + 1} de {field.split('_')[0]} falhou ({str(e)[:80]}); usando a de reserva.", COLOR_YELLOW)
+                    yield "status", "Chave principal falhou; usando a de reserva"
+        return gen()
+    return _stream_model_once(model, messages, think, cfg, num_ctx, max_tokens, agent, effort)
+
+def _stream_model_once(model, messages, think, cfg, num_ctx=None, max_tokens=None, agent=False, effort=None):
     if model.startswith("pol:"): return stream_pollinations(model, messages, think, cfg, max_tokens, agent, effort)
     if model.startswith("tdc:"): return stream_tomdacat(model, messages, cfg, max_tokens)
     if model.startswith("vc:"): return stream_openai_compat(model[3:], messages, VERCEL_URL, cfg.get("vercel_api_key"), "A Vercel", max_tokens)
@@ -2534,10 +2580,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 if k in data:
                     try: data[k] = max(lo, min(hi, int(data[k])))
                     except (TypeError, ValueError): return self.send_json({"error": "Opcao de pesquisa invalida."}, 400)
-            for k in ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "cloudflare_api_token", "cloudflare_account_id", "exa_api_key", "tomdacat_api_key", "vercel_api_key", "llm7_api_key", "workdir", "search_provider", "exa_type", "search_results", "search_daily_limit", "auto_allow"):
-                if k in data: cfg[k] = bool(data[k]) if k == "auto_allow" else data[k].strip() if k.endswith(("_key", "_token", "_id")) else data[k]
+            for k in ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "cloudflare_api_token", "cloudflare_account_id", "exa_api_key", "tomdacat_api_key", "vercel_api_key", "llm7_api_key", "groq_api_key_backup", "openrouter_api_key_backup", "pollinations_api_key_backup", "tomdacat_api_key_backup", "vercel_api_key_backup", "llm7_api_key_backup", "workdir", "search_provider", "exa_type", "search_results", "search_daily_limit", "auto_allow"):
+                if k in data: cfg[k] = bool(data[k]) if k == "auto_allow" else data[k].strip() if k.endswith(("_key", "_token", "_id", "_backup")) else data[k]
             save_config(cfg)
-            secrets_sent = [k for k in ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "tomdacat_api_key", "vercel_api_key", "llm7_api_key", "cloudflare_api_token", "exa_api_key") if k in data]
+            secrets_sent = [k for k in ("groq_api_key_backup", "openrouter_api_key_backup", "pollinations_api_key_backup", "tomdacat_api_key_backup", "vercel_api_key_backup", "llm7_api_key_backup", "groq_api_key", "openrouter_api_key", "pollinations_api_key", "tomdacat_api_key", "vercel_api_key", "llm7_api_key", "cloudflare_api_token", "exa_api_key") if k in data]
             log("CONFIG", "Configuracoes salvas (" + ", ".join([k for k in data if k not in secrets_sent] + [f"chave {k.split('_')[0]}" for k in secrets_sent]) + ")", COLOR_GREEN)
             return self.send_json({"ok": True})
 

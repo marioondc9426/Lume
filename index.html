@@ -884,6 +884,7 @@
         @property --lx { syntax: '<percentage>'; inherits: true; initial-value: 50%; } @property --ly { syntax: '<percentage>'; inherits: true; initial-value: 0%; }
         @property --mx { syntax: '<percentage>'; inherits: true; initial-value: 88%; } @property --my { syntax: '<percentage>'; inherits: true; initial-value: 100%; }
         body[data-ui="modern"][data-theme="lume"] { --glow: radial-gradient(ellipse 60% 46% at var(--lx) var(--ly), rgba(139,92,246,0.26), rgba(21,19,28,0) 72%), radial-gradient(ellipse 48% 38% at var(--mx) var(--my), rgba(232,70,124,0.2), rgba(21,19,28,0) 72%); transition: --lx var(--bg-dur, 12s) ease-in-out, --ly var(--bg-dur, 12s) ease-in-out, --mx var(--bg-dur, 12s) ease-in-out, --my var(--bg-dur, 12s) ease-in-out; }
+        .key-input.bkp { margin-top: 6px; } .key-input.bkp input { font-size: 0.85em; }
     </style>
 </head>
 <body data-ui="modern" data-theme="deepseek" data-bubbles="soft" data-input="card" data-logo="mark" data-hero="center" data-sidebar="left" style="--scale: 1;">
@@ -1060,6 +1061,7 @@
                 <input type="password" id="groq-key-input" placeholder="gsk_..." autocomplete="off" spellcheck="false">
                 <button type="button" class="eye" onclick="toggleKey('groq-key-input', this)">Mostrar</button>
             </div>
+            <div class="key-input bkp"><input type="password" id="groq-bkp-input" placeholder="Chave de reserva (opcional; mais de uma: separe por vírgula)" autocomplete="off" spellcheck="false"></div>
             <span class="hint">Deixe vazio para manter a chave já salva. Chaves gratuitas em console.groq.com/keys</span>
         </div>
         <div class="form-group host-only">
@@ -1068,6 +1070,7 @@
                 <input type="password" id="or-key-input" placeholder="sk-or-v1-..." autocomplete="off" spellcheck="false">
                 <button type="button" class="eye" onclick="toggleKey('or-key-input', this)">Mostrar</button>
             </div>
+            <div class="key-input bkp"><input type="password" id="or-bkp-input" placeholder="Chave de reserva (opcional; mais de uma: separe por vírgula)" autocomplete="off" spellcheck="false"></div>
             <span class="hint">Com a chave salva, os modelos GRATUITOS do OpenRouter aparecem na lista de modelos (aba Chat). O Lume nunca usa um modelo pago. Chave em openrouter.ai/keys. O plano grátis tem limite de pedidos por minuto e por dia.</span>
         </div>
         <div class="form-group host-only">
@@ -1076,6 +1079,7 @@
                 <input type="password" id="pol-key-input" placeholder="sk_..." autocomplete="off" spellcheck="false">
                 <button type="button" class="eye" onclick="toggleKey('pol-key-input', this)">Mostrar</button>
             </div>
+            <div class="key-input bkp"><input type="password" id="pol-bkp-input" placeholder="Chave de reserva (opcional; mais de uma: separe por vírgula)" autocomplete="off" spellcheck="false"></div>
             <span class="hint">Deixe vazio para manter a chave já salva. Com a chave salva aparece, no fim da lista de modelos, o grupo "Pagos": modelos que gastam pollen, o saldo do Pollinations (dá para ganhar mais nas missões do painel). O saldo aparece no topo do chat. A chave precisa da permissão de ver o saldo.</span>
         </div>
         <div class="form-group host-only">
@@ -1084,6 +1088,7 @@
                 <input type="password" id="vc-key-input" placeholder="vck_..." autocomplete="off" spellcheck="false">
                 <button type="button" class="eye" onclick="toggleKey('vc-key-input', this)">Mostrar</button>
             </div>
+            <div class="key-input bkp"><input type="password" id="vc-bkp-input" placeholder="Chave de reserva (opcional; mais de uma: separe por vírgula)" autocomplete="off" spellcheck="false"></div>
             <span class="hint">Deixe vazio para manter a chave já salva. Aparecem só os modelos gratuitos (Laguna S 2.1, Nemotron 3.5 Lightning e Beam). A Vercel exige um cartão cadastrado na conta mesmo para os gratuitos; ela dá US$ 5 de crédito por mês, mas o Lume só usa os que custam zero.</span>
         </div>
         <div class="form-group host-only">
@@ -1092,6 +1097,7 @@
                 <input type="password" id="l7-key-input" placeholder="token do llm7.io" autocomplete="off" spellcheck="false">
                 <button type="button" class="eye" onclick="toggleKey('l7-key-input', this)">Mostrar</button>
             </div>
+            <div class="key-input bkp"><input type="password" id="l7-bkp-input" placeholder="Chave de reserva (opcional; mais de uma: separe por vírgula)" autocomplete="off" spellcheck="false"></div>
             <span class="hint">Deixe vazio para manter a chave já salva. Aparecem só os modelos do plano "turbo", que funcionam com saldo zero (GPT-OSS 20B, MiniMax M2.7, Codestral, Mistral Nemo, Nemotron 3 Nano). Os outros cobram por uso e ficam de fora.</span>
         </div>
         <div class="form-group host-only">
@@ -1100,6 +1106,7 @@
                 <input type="password" id="tdc-key-input" placeholder="tdc_..." autocomplete="off" spellcheck="false">
                 <button type="button" class="eye" onclick="toggleKey('tdc-key-input', this)">Mostrar</button>
             </div>
+            <div class="key-input bkp"><input type="password" id="tdc-bkp-input" placeholder="Chave de reserva (opcional; mais de uma: separe por vírgula)" autocomplete="off" spellcheck="false"></div>
             <span class="hint">Deixe vazio para manter a chave já salva. Com a chave, aparecem os modelos do tomdacat que custam até 100 créditos por milhão de tokens e que o Lume ainda não tinha. Os créditos são cobrados lá (o Lume não mostra o saldo).</span>
         </div>
         <div class="form-group host-only">
@@ -3889,6 +3896,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 if (tdcKey) body.tomdacat_api_key = tdcKey;
                 const vcKey = $('vc-key-input').value.trim(); if (vcKey) body.vercel_api_key = vcKey;
                 const l7Key = $('l7-key-input').value.trim(); if (l7Key) body.llm7_api_key = l7Key;
+                [['groq', 'groq_api_key'], ['or', 'openrouter_api_key'], ['pol', 'pollinations_api_key'], ['vc', 'vercel_api_key'], ['l7', 'llm7_api_key'], ['tdc', 'tomdacat_api_key']].forEach(([i, f]) => { const v = $(i + '-bkp-input').value.trim(); if (v) body[f + '_backup'] = v; });
                 const exaKey = $('exa-key-input').value.trim();
                 if (exaKey) body.exa_api_key = exaKey;
                 try {
