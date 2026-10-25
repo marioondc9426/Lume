@@ -98,6 +98,12 @@
         #cf-badge { display: none; font-size: 0.78em; padding: 3px 10px; border-radius: 12px; background: rgba(128,128,128,0.15); cursor: pointer; white-space: nowrap; color: var(--text-muted); }
         #cf-badge i { display: inline-block; width: 46px; height: 5px; border-radius: 3px; background: rgba(128,128,128,0.3); margin-left: 7px; vertical-align: middle; overflow: hidden; } #cf-badge i b { display: block; height: 100%; background: #3fb950; transition: width .3s; }
         #cf-badge.warn i b { background: #d29922; } #cf-badge.bad i b { background: #f85149; }
+        :root { --k-local: #4da3ff; --k-cloud: #9aa0a6; --k-paid: #e3b341; }
+        .select-option.k-local:not(.selected) { color: var(--k-local); } .select-option.k-cloud:not(.selected) { color: var(--k-cloud); } .select-option.k-paid:not(.selected) { color: var(--k-paid); }
+        .kdots { display: inline-flex; gap: 3px; margin-left: 8px; vertical-align: middle; } .kdots i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+        .size-row select option { background: var(--bg-sidebar); }
+        .retry-note { font-size: 0.8em; color: var(--k-paid); margin-bottom: 6px; padding: 4px 8px; border-left: 2px solid var(--k-paid); background: rgba(227,179,65,0.08); border-radius: 4px; }
+        .msg-tag .tag-cost { color: var(--k-paid); }
         .mo-list { max-height: calc(8 * 42px); overflow-y: auto; } .mo-group { padding: 6px 12px 4px; font-size: 0.68em; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); border-top: 1px solid var(--border-color); background: rgba(128,128,128,0.07); }
         #pol-badge { display: none; font-size: 0.78em; padding: 3px 10px; border-radius: 12px; background: rgba(128,128,128,0.15); cursor: pointer; white-space: nowrap; color: var(--text-muted); } #pol-badge.warn { color: #d29922; } #pol-badge.bad { color: #f85149; }
         .mem-suggest { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
@@ -1106,7 +1112,9 @@
             'Iniciar com o Windows': 'Start with Windows', 'Abre o Lume sozinho quando você entra no Windows. Só no Lume.exe.': 'Opens Lume by itself when you sign in to Windows. Lume.exe only.',
             'Pesquisar na web nas respostas': 'Search the web in answers', 'A IA pesquisa na internet quando a pergunta pede dados atuais.': 'The AI searches the internet when the question needs current data.',
             'Verificar atualizações ao abrir': 'Check for updates on startup', 'Avisa quando há uma versão nova.': 'Tells you when there is a new version.', 'Animações': 'Animations', 'Desligue se a interface pesar na placa de vídeo.': 'Turn off if the interface is heavy on the graphics card.',
-            'Painel de desempenho': 'Performance panel', 'Mostra a VRAM e a velocidade no canto da tela.': 'Shows VRAM and speed in the corner of the screen.', 'Acesso pela rede (celular e amigos)': 'Network access (phone and friends)', 'Deixa outros aparelhos entrarem. A senha continua exigida pela internet.': 'Lets other devices in. The password is still required over the internet.', 'Bem-vindo!': 'Welcome!', 'Pagos (gastam pollen)': 'Paid (they spend pollen)', 'Provedor': 'Provider', 'grátis (pode estar fora do ar)': 'free (may be down)', 'pollen/mensagem': 'pollen/message', 'Conectando ao Pollinations': 'Connecting to Pollinations',
+            'Painel de desempenho': 'Performance panel', 'Mostra a VRAM e a velocidade no canto da tela.': 'Shows VRAM and speed in the corner of the screen.', 'Acesso pela rede (celular e amigos)': 'Network access (phone and friends)', 'Deixa outros aparelhos entrarem. A senha continua exigida pela internet.': 'Lets other devices in. The password is still required over the internet.', 'Bem-vindo!': 'Welcome!', 'Ollama (local)': 'Ollama (local)', 'Ollama (nuvem)': 'Ollama (cloud)', 'Celular': 'Phone', 'grátis': 'free', 'pollen/msg': 'pollen/msg',
+            'Roda no seu PC (azul)': 'Runs on your PC (blue)', 'Nuvem grátis (cinza)': 'Free cloud (grey)', 'Pago: gasta pollen (amarelo)': 'Paid: spends pollen (yellow)',
+            '{a} falhou: {e}. Recomeçando com {b}...': '{a} failed: {e}. Restarting with {b}...', 'Pollen gasto nesta mensagem (estimado pelos tokens)': 'Pollen spent on this message (estimated from tokens)', 'Pagos (gastam pollen)': 'Paid (they spend pollen)', 'Provedor': 'Provider', 'grátis (pode estar fora do ar)': 'free (may be down)', 'pollen/mensagem': 'pollen/message', 'Conectando ao Pollinations': 'Connecting to Pollinations',
             'Não consegui carregar os modelos do Pollinations: {e}': 'Could not load the Pollinations models: {e}', 'Saldo de pollen do Pollinations.': 'Pollinations pollen balance.', 'Uma mensagem média neste modelo custa ≈{c} pollen (uns {n} mensagens com o saldo).': 'An average message on this model costs ≈{c} pollen (about {n} messages with the balance).', 'Clique para abrir o Pollinations.': 'Click to open Pollinations.',
             'Provedor fora do ar; tentando o proximo': 'Provider is down; trying the next one',
             'Deixe vazio para manter a chave já salva. Com a chave salva aparece, no fim da lista de modelos, o grupo "Pagos": modelos que gastam pollen, o saldo do Pollinations (dá para ganhar mais nas missões do painel). O saldo aparece no topo do chat. A chave precisa da permissão de ver o saldo.': 'Leave empty to keep the saved key. With the key saved, a "Paid" group shows up at the end of the model list: models that spend pollen, the Pollinations balance (you can earn more from the dashboard quests). The balance shows at the top of the chat. The key needs the permission to read the balance.', 'e': 'and', 'Neurônios do Cloudflare usados hoje (medido pela própria Cloudflare). Zera às 00:00 UTC.': 'Cloudflare neurons used today (measured by Cloudflare itself). Resets at 00:00 UTC.',
@@ -1469,9 +1477,12 @@
         const PROV_TAG = m => m.or ? ' · OpenRouter' : m.cf ? ' · Cloudflare' : m.pol ? ' · Pollinations' : '';
         function parseDyn(slug, fallbackBase) {   // 'google/gemma-4-31b-it:free', '@cf/qwen/qwen3.8-27b', 'gemma2:9b'... -> { base, ver, psize }
             const raw = String(slug).replace(/^@(cf|hf)\//, '').replace(/:free$/, ''), prov = raw.includes('/') ? raw.split('/')[0] : '';
-            const s = raw.split('/').pop().toLowerCase(), sz = (s.match(/(?:^|[-_:])(\d+(?:\.\d+)?)b(?![a-z])/) || [])[1], SZ = sz ? sz + 'B' : '';
+            const s = raw.split('/').pop().toLowerCase().replace(/^(nvidia|vercel|reflection)-/, '').replace(/^(nvidia|vercel)-/, ''), sz = (s.match(/(?:^|[-_:])(\d+(?:\.\d+)?)b(?![a-z])/) || [])[1], SZ = sz ? sz + 'B' : '';
             let m;
             if ((m = s.match(/^gemma-?(\d+(?:\.\d+)?)/))) return { base: 'Gemma', ver: m[1], psize: SZ || 'Cloud' };
+            if ((m = s.match(/^gemini-(\d+(?:\.\d+)?)-?(.*)$/))) return { base: 'Gemini', ver: m[1], psize: (m[2] || '').split('-').filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(' ') || 'Base' };
+            if ((m = s.match(/^llama-?(\d+(?:\.\d+)?)/))) return { base: 'Llama', ver: m[1], psize: SZ || 'Base' };
+            if (/^beam(-free)?$/.test(s)) return { base: 'Beam', ver: '', psize: 'Cloud' };
             if (/^qwq/.test(s)) return { base: 'Qwen', ver: 'QwQ', psize: SZ };
             const tier = (s.match(/-(flash|plus|max|turbo|lite|mini|nano|luna|sol|terra|pro)$/) || [])[1], TIER = tier ? tier[0].toUpperCase() + tier.slice(1) : '';
             if ((m = s.match(/^qwen-?(\d+(?:\.\d+)?)/))) return { base: 'Qwen', ver: m[1], psize: [SZ + (/coder/.test(s) ? ' Coder' : ''), TIER].filter(Boolean).join(' ').trim() };
@@ -1491,7 +1502,9 @@
         }
         function finalizeModel(m) {   // base/versao/tamanho (os de lista fixa saem do famName "Qwen 3.5"), grupo da marca e os textos da lista
             if (m.base === undefined) { const x = /^(.*?)\s+(\d[\w.]*)$/.exec(m.famName || ''); m.base = x ? x[1] : (m.famName || ''); m.ver = x ? x[2] : ''; m.psize = m.params; }
-            m.grp = (String(m.base).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || m.fam) + (m.paid ? '-pagos' : '');   // os pagos ficam num grupo a parte, no fim da lista
+            m.grp = String(m.base).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || m.fam;
+            m.pk = (m.ver || '') + '|' + (m.psize || '');   // mesmo modelo em provedores diferentes: mesma chave
+            m.klabel = [m.ver, m.psize].filter(Boolean).join(', ') + (m.speed ? ' ' + '⚡'.repeat(m.speed) : '');
             m.plabel = [m.ver, m.psize].filter(Boolean).join(', ') + PROV_TAG(m);
             m.short = [m.base, m.ver, m.psize].filter(Boolean).join(' ');
             return m;
@@ -1505,10 +1518,10 @@
             const list = vs.length > 1 ? vs.slice(0, -1).join(', ') + ' ' + tr('e') + ' ' + vs[vs.length - 1] : vs[0] || '';
             return ms[0].base + (list ? ' ' + list : '');
         }
-        function familiesIn(tab) {   // marcas com algum modelo local primeiro, depois as so da nuvem; cada grupo em ordem alfabetica
+        function familiesIn(tab) {   // todas as marcas juntas (locais, nuvem e pagos), em ordem alfabetica; a cor mostra o tipo
             const map = new Map(); availIn(tab).forEach(m => { fin(m); if (!map.has(m.grp)) map.set(m.grp, []); map.get(m.grp).push(m); });
             map.forEach(ms => ms.sort((a, b) => verKey(a.ver) - verKey(b.ver) || sizeNum(a) - sizeNum(b) || provOrd(a) - provOrd(b) || a.plabel.localeCompare(b.plabel)));
-            const key = ([, ms]) => (ms.every(m => m.paid) ? '2' : ms.some(m => !m.cloud) ? '0' : '1') + ms[0].base.toLowerCase();
+            const key = ([, ms]) => ms[0].base.toLowerCase();
             return new Map([...map.entries()].sort((a, b) => key(a).localeCompare(key(b), 'pt', { numeric: true })));
         }
         function ensureSelected() {
@@ -1766,18 +1779,19 @@
             lastModelSig = sig;
             const box = $('model-options'); box.innerHTML = '';
             const fams = familiesIn(currentTab), cur = modelById(selectedModel);
-            let i = 0, paidHead = false; const list = document.createElement('div'); list.className = 'mo-list'; box.appendChild(list);   // 8 linhas visiveis; o resto rola
+            let i = 0; const list = document.createElement('div'); list.className = 'mo-list'; box.appendChild(list);   // 8 linhas visiveis; o resto rola
             fams.forEach((sizes, fam) => {
-                if (!paidHead && sizes.every(m => m.paid)) { paidHead = true; const h = document.createElement('div'); h.className = 'mo-group'; h.textContent = tr('Pagos (gastam pollen)'); list.appendChild(h); }
                 const rec = sizes.find(m => m.rec) || sizes[0];
                 const el = document.createElement('div');
-                el.className = 'select-option' + (fam === fin(cur).grp ? ' selected' : '') + (sizes.every(phoneBlocked) ? ' disabled' : '');
+                el.className = 'select-option k-' + famKind(sizes) + (fam === fin(cur).grp ? ' selected' : '') + (sizes.every(phoneBlocked) ? ' disabled' : '');
                 el.style.setProperty('--i', i++);
                 const label = document.createElement('span'); label.className = 'mo-label';
                 famLabelNodes(rec, famTitle(sizes)).forEach(n => label.appendChild(n));
                 if (sizes.some(m => m.vision)) { const v = document.createElement('span'); v.className = 'mo-badge vision'; v.textContent = tr('visão'); label.appendChild(v); }
-                if (sizes.some(m => !m.cloud)) label.appendChild(modeIcon('local'));
-                if (sizes.some(m => m.cloud)) label.appendChild(modeIcon('cloud'));
+                const spd = Math.max(0, ...sizes.map(m => m.speed || 0)); if (spd) label.appendChild(document.createTextNode(' ' + '⚡'.repeat(spd)));
+                const kd = document.createElement('span'); kd.className = 'kdots';
+                ['local', 'cloud', 'paid'].forEach(k => { if (sizes.some(m => kindOf(m) === k)) { const d = document.createElement('i'); d.style.background = KIND_COLOR[k]; d.title = tr(KIND_TITLE[k]); kd.appendChild(d); } });
+                label.appendChild(kd);
                 if (sizes.some(m => pendingModel[m.id])) { const b = document.createElement('span'); b.className = 'mo-badge busy'; b.textContent = tr(pendingModel[sizes.find(m => pendingModel[m.id]).id]) + '...'; label.appendChild(b); }
                 else if (sizes.some(m => loadedModels[m.id])) { const b = document.createElement('span'); b.className = 'mo-badge'; b.textContent = tr('na memória'); label.appendChild(b); }
                 el.appendChild(label);
@@ -1791,10 +1805,16 @@
                 const row = document.createElement('div'); row.className = 'size-row';
                 const lab = document.createElement('span'); lab.className = 'size-label'; lab.textContent = tr('Parâmetros');
                 const sel = document.createElement('select'); sel.id = 'size-select';
-                sizes.forEach(m => { const o = new Option(fin(m).plabel + (m.heavy ? ' ⚠' : '') + (phoneBlocked(m) ? ' ✕' : ''), m.id); o.disabled = phoneBlocked(m); sel.add(o); });
-                sel.value = cur.id; sel.onchange = () => pickSize(sel.value);
+                const keys = []; sizes.forEach(m => { let k = keys.find(x => x.pk === m.pk); if (!k) keys.push(k = { pk: m.pk, items: [] }); k.items.push(m); });
+                const variants = (keys.find(k => k.pk === cur.pk) || { items: [cur] }).items;
+                keys.forEach(k => {   // cor: azul se tem local, cinza se tem nuvem gratis, amarelo se so tem pago
+                    const rep = k.pk === cur.pk ? cur : bestVariant(k.items), kinds = new Set(k.items.map(kindOf));
+                    const o = new Option(rep.klabel + (rep.heavy ? ' ⚠' : '') + (phoneBlocked(rep) ? ' ✕' : ''), rep.id); o.disabled = phoneBlocked(rep);
+                    o.style.color = kinds.has('local') ? 'var(--k-local)' : kinds.has('cloud') ? 'var(--k-cloud)' : 'var(--k-paid)'; sel.add(o);
+                });
+                sel.value = cur.id; const paintSel = () => { const o = sel.selectedOptions[0]; sel.style.color = o ? o.style.color : ''; }; paintSel(); sel.onchange = () => pickSize(sel.value);
                 const info = document.createElement('span'); info.className = 'size-info'; info.id = 'size-info'; info.dataset.id = cur.id; info.textContent = sizeInfoText(cur);
-                row.append(lab, sel); if (cur.providers) row.appendChild(providerSelect(cur));
+                row.append(lab, sel); if (variants.length > 1) row.appendChild(providerSelect(variants, cur));
                 if (sizes.some(m => m.cloud) && sizes.some(m => !m.cloud)) {   // familia com versao local e na nuvem (ex.: Nemotron): casa = local, nuvem = nuvem
                     const mi = document.createElement('img'); mi.className = 'ic'; mi.style.margin = '0'; mi.src = cur.cloud ? 'icons/cloud.png' : 'icons/house.svg';
                     mi.title = tr(cur.cloud ? 'Roda na nuvem (precisa de internet)' : 'Roda no seu PC'); row.append(mi);
@@ -1820,19 +1840,37 @@
             $('model-trigger-text').textContent = br && br.wordmark ? [cur.ver, cur.psize].filter(Boolean).join(' ') : cur.short;
             updateCtxBar();
         }
-        function providerSelect(m) {   // provedores do mesmo modelo (ex.: DeepSeek V4.1): o padrao e o mais barato que nao e gratis; se cair, o Lume tenta o proximo
+        // ---------- tipos: local = azul, nuvem gratis = cinza, pago (gasta pollen) = amarelo
+        const kindOf = m => m.paid ? 'paid' : (!m.cloud && !m.phone) ? 'local' : 'cloud';
+        const KIND_COLOR = { local: 'var(--k-local)', cloud: 'var(--k-cloud)', paid: 'var(--k-paid)' };
+        const KIND_TITLE = { local: 'Roda no seu PC (azul)', cloud: 'Nuvem grátis (cinza)', paid: 'Pago: gasta pollen (amarelo)' };
+        const isLocalM = m => !m.cloud && !m.phone;
+        const famKind = ms => ms.every(m => m.paid) ? 'paid' : ms.some(isLocalM) ? 'local' : 'cloud';
+        const pollenPerMsg = m => (500 * (m.priceIn || 0) + 500 * (m.priceOut || 0)) / 1e6;
+        const providerName = m => m.pol ? 'Pollinations · ' + (m.provider || '') : m.cf ? 'Cloudflare' : m.or ? 'OpenRouter' : m.phone ? tr('Celular') : isLocalM(m) ? tr('Ollama (local)') : tr('Ollama (nuvem)');
+        const provInfo = m => !m.pol ? '' : (m.free ? ' · ' + tr('grátis') : ' · ≈' + pollenPerMsg(m).toFixed(5) + ' ' + tr('pollen/msg')) + (m.health === 'degraded' ? ' ⚠' : '');
+        // qual provedor usar por padrao: o que voce escolheu antes; senao local > nuvem do Ollama > Cloudflare > OpenRouter > Pollinations gratis (se estiver bem) > Pollinations pago mais barato > gratis instavel
+        const variantRank = m => isLocalM(m) ? 0 : (!m.or && !m.cf && !m.pol) ? 1 : m.cf ? 2 : m.or ? 3 : !m.pol ? 4 : m.free ? (m.health === 'degraded' ? 30 : 5) : 10 + pollenPerMsg(m) * 1000 + (m.health === 'degraded' ? 5 : 0);
+        const bestVariant = items => items.find(m => (config.provPref || {})[m.grp + '|' + m.pk] === m.id) || [...items].sort((a, b) => variantRank(a) - variantRank(b))[0];
+        const costRank = m => (m.pol && !m.free ? pollenPerMsg(m) : 0) + (m.health === 'degraded' ? 0.5 : 0);   // gratis = 0; instavel vai para o fim
+        function fallbackChain(m, tab) {   // se o provedor escolhido falhar: os outros provedores do MESMO modelo (menos o local), do mais barato ao mais caro
+            fin(m); return MODELS.filter(x => x !== m && fin(x).grp === m.grp && x.pk === m.pk && !isLocalM(x) && !x.phone && x.tabs.includes(tab) && isAvail(x)).sort((a, b) => costRank(a) - costRank(b));
+        }
+        function providerSelect(items, cur) {
             const sel = document.createElement('select'); sel.id = 'prov-select'; sel.title = tr('Provedor');
-            m.providers.forEach(p => sel.add(new Option(`${p.label} · ${p.free ? tr('grátis (pode estar fora do ar)') : '≈' + p.cost.toFixed(5) + ' ' + tr('pollen/mensagem')}${p.health === 'degraded' ? ' ⚠' : ''}`, p.id)));
-            sel.value = (config.polProv || {})[m.id] || m.provider_default;
-            sel.onchange = () => { config.polProv = Object.assign({}, config.polProv, { [m.id]: sel.value }); saveState(); };
+            items.forEach(m => { const o = new Option(providerName(m) + provInfo(m), m.id); o.style.color = m.pol ? 'var(--k-paid)' : isLocalM(m) ? 'var(--k-local)' : 'var(--k-cloud)'; sel.add(o); });
+            sel.value = cur.id;
+            const paint = () => { const o = sel.selectedOptions[0]; sel.style.color = o ? o.style.color : ''; }; paint();
+            sel.onchange = () => { paint(); pickSize(sel.value); };
             return sel;
         }
-        const apiModelId = m => m.providers ? 'pol:' + ((config.polProv || {})[m.id] || m.provider_default) : m.id;   // o que vai para o servidor
+        const apiModelId = m => m.id;   // o que vai para o servidor
         async function selectFamily(fam) {
             const sizes = familiesIn(currentTab).get(fam); if (!sizes || fin(modelById(selectedModel)).grp === fam) return;
             const usable = sizes.filter(m => !phoneBlocked(m)); if (!usable.length) return;
             const remembered = usable.find(m => config.famSize && config.famSize[fam] === m.id);
-            await selectModel((remembered || usable.find(m => m.rec) || usable.find(m => !m.heavy) || usable[0]).id, true);
+            const pick0 = remembered || usable.find(m => m.rec) || usable.find(m => !m.heavy) || usable[0];
+            await selectModel((remembered ? pick0 : bestVariant(usable.filter(x => x.pk === pick0.pk))).id, true);
             renderModelOptions();
         }
         async function pickSize(id) { await selectModel(id); renderModelOptions(); }
@@ -1885,8 +1923,8 @@
             for (let i = MODELS.length - 1; i >= 0; i--) if (MODELS[i].pol) MODELS.splice(i, 1);
             if (d.error && !(d.models || []).length) showInfo(tr('Não consegui carregar os modelos do Pollinations: {e}', { e: d.error }), 8000);
             (d.models || []).forEach(x => {
-                MODELS.push(Object.assign({ id: 'pol:' + x.id, fam: 'pol:' + x.id, famName: x.name, params: x.name, label: x.name + ' (Pollinations · pollen)', icon: 'cloud', tabs: ['chat'], cloud: true, pol: true, paid: true, vision: !!x.vision, ctx: x.ctx || 32768, priceIn: x.pin, priceOut: x.pout,
-                    ...(x.providers ? { providers: x.providers, provider_default: x.provider_default } : {}) }, parseDyn(x.id, x.name)));
+                MODELS.push(Object.assign({ id: 'pol:' + x.id, fam: 'pol:' + x.id, famName: x.name, params: x.name, label: x.name + ' (Pollinations · ' + x.provider + ')', icon: 'cloud', tabs: ['chat'], cloud: true, pol: true, paid: !x.free, free: !!x.free, provider: x.provider,
+                    health: x.health, vision: !!x.vision, ctx: x.ctx || 32768, priceIn: x.pin, priceOut: x.pout, speed: x.speed || 0 }, parseDyn(x.id, x.name)));
             });
             if (String(config.model).startsWith('pol:') && modelById(config.model) && currentTab === 'chat') selectedModel = config.model;
             renderModelOptions();
@@ -1978,7 +2016,7 @@
                 if (r.index !== 0) return;
             }
             selectedModel = id; config.model = id; if (!m.cloud) lastLocalModel = id;
-            config.famSize = Object.assign({}, config.famSize, { [fin(m).grp]: id });
+            config.famSize = Object.assign({}, config.famSize, { [fin(m).grp]: id }); config.provPref = Object.assign({}, config.provPref, { [m.grp + '|' + m.pk]: id });
             saveState(); renderModelOptions();
         }
         const ctxDiv = () => config.maxCtx && config.ctxDivide ? Math.max(1, +config.ctxDivisor || 4) : 1;   // "dividir o limite": 256K / 4 = 64K usaveis
@@ -2126,7 +2164,7 @@
             addMessageToUI('ai', WELCOMES[curLang()][chats[id].welcome], { welcome: true, animate: false });
             stickBottom = true;
             const g = gens[id];   // se este chat esta gerando em segundo plano, volta a mostrar a resposta que chega
-            (g && g.view ? g.view : chats[id].messages).forEach((m, i) => addMessageToUI(m.role, m.content, { animate: false, index: i, vars: m.vars, vi: m.vi, images: m.images, files: m.files, sources: m.sources, memSuggest: m.memSuggest, count: m.count, model: m.role === 'ai' ? m.model : undefined, tps: m.tps }));
+            (g && g.view ? g.view : chats[id].messages).forEach((m, i) => addMessageToUI(m.role, m.content, { animate: false, index: i, vars: m.vars, vi: m.vi, images: m.images, files: m.files, sources: m.sources, memSuggest: m.memSuggest, count: m.count, model: m.role === 'ai' ? m.model : undefined, tps: m.tps, pollen: m.pollen }));
             if (g) { g.aiDiv.classList.add('noanim'); chatBox.appendChild(g.aiDiv); }
             renderQueued(id);
             chatBox.scrollTop = chatBox.scrollHeight;
@@ -2142,15 +2180,17 @@
 
         // ---------- mensagens ----------
         // etiqueta pequena no canto de cada resposta: logo + nome do modelo (+ velocidade quando se sabe)
-        function modelTag(modelId, tps) {
+        function modelTag(modelId, tps, pollen) {
             const m = modelById(modelId), tag = document.createElement('div'); tag.className = 'msg-tag';
             fin(m); famLabelNodes(m, m.base + (m.ver ? ' ' + m.ver : '')).forEach(n => tag.appendChild(n));
             const br = brandOf(m);
             if (!br) tag.lastChild.textContent = m.short;
             else tag.appendChild(document.createTextNode(' ' + (br.wordmark ? [m.ver, m.psize].filter(Boolean).join(' ') : m.psize)));
             const sp = document.createElement('span'); sp.className = 'tag-tps'; tag.appendChild(sp); setTagTps(tag, tps);
+            const cs = document.createElement('span'); cs.className = 'tag-cost'; tag.appendChild(cs); setTagCost(tag, pollen);
             return tag;
         }
+        function setTagCost(tag, c) { const sp = tag.querySelector('.tag-cost'); sp.textContent = c ? ' · 🌸 ' + (c < 0.00001 ? '<0.00001' : c.toFixed(c < 0.001 ? 6 : 5)) : ''; sp.title = tr('Pollen gasto nesta mensagem (estimado pelos tokens)'); }
         function setTagTps(tag, tps) { const sp = tag.querySelector('.tag-tps'); sp.textContent = tps ? ' · ' + tps.toFixed(1) + ' t/s' : ''; tag._tps = tps || 0; }
         function copyPayload(div, span) {   // texto original (markdown) + rodape com o modelo e a velocidade
             let raw = div._raw;
@@ -2183,7 +2223,7 @@
                 div.appendChild(box);
             }
             if (role === 'summary') { const h = document.createElement('div'); h.className = 'sum-head'; h.textContent = tr('Conversa compactada ({n} mensagens resumidas)', { n: opts.count || '?' }); div.appendChild(h); }
-            if (role === 'ai' && !opts.welcome && opts.model) div.appendChild(modelTag(opts.model, opts.tps));
+            if (role === 'ai' && !opts.welcome && opts.model) div.appendChild(modelTag(opts.model, opts.tps, opts.pollen));
             if (role === 'ai') div.appendChild(think);
             div.appendChild(span);
             div._raw = opts.html ? null : text;
@@ -2534,10 +2574,11 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
         // ---------- caixa de texto ----------
         function autosize() {   // cresce com o texto, no maximo 6 linhas (depois disso rola)
             const cs = getComputedStyle(promptInput), lh = parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.4;
-            const max = lh * 6 + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+            const max = lh * 6 + parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom), pinned = atBottom();   // se voce esta no fim do chat, ele continua no fim (o texto da IA sobe em vez de ficar escondido atras da caixa)
             promptInput.style.height = 'auto';
             promptInput.style.height = Math.min(promptInput.scrollHeight, max) + 'px';
             promptInput.style.overflowY = promptInput.scrollHeight > max ? 'auto' : 'hidden';
+            if (pinned) chatBox.scrollTop = chatBox.scrollHeight;
         }
         promptInput.addEventListener('input', function () {
             autosize(); updateSendBtn();
@@ -2833,6 +2874,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             }
             renderSidebar();
             let fullResponse = '', gotText = false, chars = 0, lastStats = null, failed = false, applied = false; const msgSources = []; let srcEl = null;
+            let active = model; const chain = fallbackChain(model, isCode ? 'code' : 'chat'), ci0 = -1; let ci = ci0;   // active = provedor em uso; chain = os proximos mais baratos do mesmo modelo
             let curThink = null, thinkLast = null, thinkN = 0;   // um bloco de pensamento por rodada: a IA pode pensar de novo depois de usar uma ferramenta ou pesquisar
             const thinkBox = () => {
                 if (!curThink) {
@@ -2855,15 +2897,6 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 const apiMessages = buildApiMessages(chat, model, sys, job.view);
 
                 status('Iniciando');
-                let reader = null, decoder = null, buf = '';
-                if (!model.phone) {
-                    const response = await fetch(API + '/api/chat', {
-                        method: 'POST', headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ model: apiModelId(model), rid: job.rid, messages: apiMessages, stream: true, think: opts.think, search_web: !isCode && config.webSearch && !blockedFeature('web'), agent: isCode && !isGuest(), lang: curLang(), num_ctx: model.cloud ? undefined : effCtx(model) })
-                    });
-                    if (!response.ok) { let err = {}; try { err = await response.json(); } catch (e) {} throw new Error(err.error || ('HTTP ' + response.status)); }
-                    reader = response.body.getReader(); decoder = new TextDecoder();
-                }
                 const handle = line => {
                     if (!line.trim()) return;
                     let data; try { data = JSON.parse(line); } catch (e) { return; }
@@ -2881,25 +2914,50 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                     }
                     if (isCur()) followBottom();
                 };
-                if (model.phone) {
-                    await phoneStream(model, apiMessages, handle, (p, text) => {   // p: 0..100 enquanto baixa/carrega; -1 quando comeca a gerar
-                        if (p >= 0 && p < 100) { const t = tr('Baixando/carregando o modelo no celular... {p}%', { p }); stLine.querySelector('.st-text').textContent = t; if (!gotText) textSpan.innerHTML = `<span class="loading-dots">${esc(t)}</span>`; }
-                        else if (p === -1) status('Escrevendo');
-                    });
-                } else while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-                    buf += decoder.decode(value, { stream: true });
-                    const lines = buf.split('\n'); buf = lines.pop();
-                    lines.forEach(handle);
+                while (true) {
+                    let reader = null, decoder = null, buf = '';
+                    const retry = why => {   // este provedor falhou antes de responder: mostra o erro e recomeca com o proximo mais barato do mesmo modelo
+                        const nx = chain[ci + 1]; if (!nx || job.stopped) return false;
+                        const note = document.createElement('div'); note.className = 'retry-note';
+                        note.textContent = '⚠ ' + tr('{a} falhou: {e}. Recomeçando com {b}...', { a: providerName(active), e: String(why).replace(/\s+/g, ' ').slice(0, 170), b: providerName(nx) });
+                        aiDiv.insertBefore(note, textSpan);
+                        ci++; active = nx; aiDiv.dataset.model = nx.id; const tg0 = aiDiv.querySelector('.msg-tag'); if (tg0) tg0.replaceWith(modelTag(nx.id));
+                        fullResponse = ''; gotText = false; chars = 0; lastStats = null; textSpan.innerHTML = `<span class="loading-dots">${esc(tr('Iniciando'))}</span>`;
+                        return true;
+                    };
+                    try {
+                        if (!active.phone) {
+                            const response = await fetch(API + '/api/chat', {
+                                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ model: apiModelId(active), rid: job.rid, messages: apiMessages, stream: true, think: opts.think, search_web: !isCode && config.webSearch && !blockedFeature('web'), agent: isCode && !isGuest(), lang: curLang(), num_ctx: active.cloud ? undefined : effCtx(active) })
+                            });
+                            if (!response.ok) { let err = {}; try { err = await response.json(); } catch (e) {} throw new Error(err.error || ('HTTP ' + response.status)); }
+                            reader = response.body.getReader(); decoder = new TextDecoder();
+                        }
+                        if (active.phone) {
+                            await phoneStream(active, apiMessages, handle, (p, text) => {   // p: 0..100 enquanto baixa/carrega; -1 quando comeca a gerar
+                                if (p >= 0 && p < 100) { const t = tr('Baixando/carregando o modelo no celular... {p}%', { p }); stLine.querySelector('.st-text').textContent = t; if (!gotText) textSpan.innerHTML = `<span class="loading-dots">${esc(t)}</span>`; }
+                                else if (p === -1) status('Escrevendo');
+                            });
+                        } else while (true) {
+                            const { done, value } = await reader.read();
+                            if (done) break;
+                            buf += decoder.decode(value, { stream: true });
+                            const lines = buf.split('\n'); buf = lines.pop();
+                            lines.forEach(handle);
+                        }
+                        if (!active.phone) handle(buf);
+                    } catch (err) { if (!gotText && retry(err.message)) continue; throw err; }
+                    if (/^\s*\[(Erro|Error):/.test(fullResponse) && fullResponse.length < 700 && retry(fullResponse.replace(/^\s*\[(Erro|Error):\s*/, '').replace(/\]\s*$/, ''))) continue;
+                    break;
                 }
-                if (!model.phone) handle(buf);
                 if (!gotText) textSpan.textContent = tr('(sem resposta)');
                 const tps = lastStats && lastStats.seconds ? lastStats.tokens / lastStats.seconds : 0;
-                const tg = aiDiv.querySelector('.msg-tag'); if (tg) setTagTps(tg, tps);
+                const pollen = active.pol && !active.free && lastStats ? ((lastStats.prompt_tokens || 0) * (active.priceIn || 0) + (lastStats.tokens || 0) * (active.priceOut || 0)) / 1e6 : 0;   // quanto esta mensagem gastou (estimado pelos tokens)
+                const tg = aiDiv.querySelector('.msg-tag'); if (tg) { setTagTps(tg, tps); setTagCost(tg, pollen); }
                 if (chats[chatId]) {   // o chat pode ter sido apagado enquanto a IA respondia
                     const facts = !isCode && config.memorySuggest !== false ? memFacts(fullResponse) : [];
-                    const aiMsg = { role: 'ai', content: stripMem(fullResponse), ...(facts.length ? { memSuggest: facts } : {}), model: opts.model, ...(tps ? { tps: +tps.toFixed(1) } : {}), ...(msgSources.length ? { sources: msgSources } : {}) };
+                    const aiMsg = { role: 'ai', content: stripMem(fullResponse), ...(facts.length ? { memSuggest: facts } : {}), model: active.id, ...(tps ? { tps: +tps.toFixed(1) } : {}), ...(pollen ? { pollen: +pollen.toFixed(6) } : {}), ...(msgSources.length ? { sources: msgSources } : {}) };
                     if (!fork) { chat.messages.push(aiMsg); aiDiv.dataset.idx = chat.messages.length - 1; applied = true; if (facts.length) memBar(aiDiv, facts); }
                     else if (fullResponse.trim()) {   // editar/regenerar: a versao nova entra ao lado da antiga
                         if (fork.kind === 'edit') { forkAt(chat, fork.i, fork.userMsg); chat.messages.push(aiMsg); } else forkAt(chat, fork.i, aiMsg);
@@ -2916,7 +2974,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 textSpan.textContent = em;
                 if (isCur()) setOverlayStatus('Erro'); else showInfo(em);
             } finally {
-                stLine.remove(); delete gens[chatId]; if (model.cf) refreshCfUsage(true); if (model.pol) refreshPolUsage(true);
+                stLine.remove(); delete gens[chatId]; if (active.cf) refreshCfUsage(true); if (active.pol) refreshPolUsage(true);
                 if (isCur()) { syncBusy(); updateCtxBar(); promptInput.focus(); if (fork && !failed) loadChat(chatId); }   // recarrega para mostrar o seletor de versoes
                 else if (chats[chatId] && !failed) { unread.add(chatId); showInfo(tr('"{t}" terminou de responder.', { t: dispTitle(chat.title) })); }
                 if (!Object.keys(gens).length) hidePerfStreaming();

@@ -1397,9 +1397,18 @@ def stream_cloudflare(model, messages, think, cfg, max_tokens=None):
 
 # ---------------------------------------------------------------- Pollinations (pollen: saldo gratis por missoes; os modelos gastam pollen)
 POL_API = "https://gen.pollinations.ai"
-POL_CURATED = ("openai/gpt-5.4-nano", "openai/gpt-5.6-luna", "openai/gpt-5-nano", "openai/gpt-6-luna", "community/YoannDev90/qwen3.7-flash")
-POL_DS = "deepseek-v4.1-flash"   # modelo com varios provedores (oficial + comunitarios); o gratis pode estar fora do ar
-POL_DS_FREE = ["community/Lorodn4x/deepseek-v4.1-flash"]
+# Modelos do Pollinations que o Lume mostra (id, ajustes). Os de "community/" sao feitos por usuarios: preco e saude vem do catalogo quando ele os lista;
+# os que ele nao lista mas respondem nos testes entram com preco informado a mao. free = gratis; flaky = instavel (vai para o fim da fila de tentativas).
+POL_MODELS = [
+    ("openai/gpt-5.4-nano", {}), ("openai/gpt-5.6-luna", {}), ("openai/gpt-5-nano", {}), ("openai/gpt-6-luna", {}),
+    ("community/YoannDev90/qwen3.7-flash", {}), ("community/MarcosFRG/gemini-3.1-flash-lite", {"pin": 0.5, "pout": 1.5, "guess": True}),
+    ("community/tomdacatto/llama-3.1-8B", {"speed": 2}),
+    ("deepseek/deepseek-v4.1-flash", {}), ("community/MarcosFRG/deepseek-v4.1-flash", {}), ("community/scriptsnsenses-sys/deepseek-v4.1-flash", {}), ("community/vendouple/deepseek-v4.1-flash", {"pin": 0.06, "pout": 0.5}),
+    ("deepseek/deepseek-v4-flash", {}), ("community/gggff123/deepseek-v4-flash:free", {"free": True, "flaky": True}),
+    ("community/gggff123/qwen3.8-27b:free", {"free": True, "flaky": True}),
+    ("community/CloudCompile/nvidia-nemotron-3-ultra-550b-a55b:free", {"free": True}), ("community/YoannDev90/vercel-nemotron-3.5-lightning:free", {"free": True}),
+    ("community/CloudCompile/reflection-beam-free", {"free": True}), ("community/YoannDev90/vercel-beam:free", {"free": True}),
+]
 _pol_cache = {"t": 0, "key": "", "cat": {}}
 
 def _pol_req(path, key, body=None, timeout=30):
@@ -1418,39 +1427,23 @@ def _pol_price(m):
     try: return float(p.get("promptTextTokens") or 0) * 1e6, float(p.get("completionTextTokens") or 0) * 1e6
     except (TypeError, ValueError): return 0.0, 0.0
 
-def pol_providers(cat):
-    """Provedores do DeepSeek V4.1 Flash, do mais barato (por mensagem de 500+500 tokens) ao mais caro; os gratis ficam por ultimo."""
-    ids = [i for i in cat if i.split("/")[-1] == POL_DS and not i.endswith(":free")] + [i for i in POL_DS_FREE if i not in cat]
-    out = []
-    for i in ids:
-        pin, pout = _pol_price(cat.get(i)); free = (pin == 0 and pout == 0)
-        out.append({"id": i, "label": "oficial" if i.startswith("deepseek/") else i.split("/")[1], "pin": pin, "pout": pout, "free": free,
-                    "health": ((cat.get(i) or {}).get("health") or {}).get("status", "?"), "cost": (500 * pin + 500 * pout) / 1e6})
-    out.sort(key=lambda p: (p["free"], p["cost"]))
-    return out
-
 def pollinations_models(cfg):
+    """Cada provedor e um modelo a parte ([{id, name, provider, ctx, vision, pin, pout, free, health, success, speed}]); a interface junta os que sao o mesmo modelo."""
     key = cfg.get("pollinations_api_key") or ""
     cat = pollinations_catalog(key); out = []
-    def base(mid, m):
-        pin, pout = _pol_price(m); inm = m.get("input_modalities") or ["text"]
-        return {"id": mid, "name": m.get("title") or mid, "ctx": m.get("context_length") or 0, "vision": "image" in inm, "pin": pin, "pout": pout, "health": (m.get("health") or {}).get("status", "?")}
-    for mid in POL_CURATED:
-        if mid in cat: out.append(base(mid, cat[mid]))
-    provs = pol_providers(cat)
-    if provs:
-        main = cat.get("deepseek/deepseek-v4.1-flash") or cat.get(provs[0]["id"]) or {}
-        paid = [p for p in provs if not p["free"]]
-        default = next((p for p in paid if p["health"] == "healthy"), (paid or provs)[0])
-        e = base("deepseek/deepseek-v4.1-flash", main); e.update(providers=provs, provider_default=default["id"]); out.append(e)
+    for mid, ex in POL_MODELS:
+        m = cat.get(mid) or {}; pin, pout = _pol_price(m) if m else (ex.get("pin", 0.0), ex.get("pout", 0.0))
+        if m and not m.get("pricing"): pin, pout = ex.get("pin", 0.0), ex.get("pout", 0.0)
+        hl = m.get("health") or {}; inm = m.get("input_modalities") or ["text"]
+        free = bool(ex.get("free")) or (bool(m) and pin == 0 and pout == 0)
+        out.append({"id": mid, "name": m.get("title") or mid.split("/")[-1], "provider": mid.split("/")[1] if mid.startswith("community/") else "oficial",
+                    "ctx": m.get("context_length") or 128000, "vision": "image" in inm, "pin": pin, "pout": pout, "free": free, "guess": bool(ex.get("guess")),
+                    "health": hl.get("status") or ("degraded" if ex.get("flaky") else "?"), "success": hl.get("success_rate"), "speed": ex.get("speed", 0)})
     return out
 
 def pol_chain(slug, cfg):
-    """Ordem de tentativa: o escolhido; se cair, os pagos do mais barato ao mais caro; por fim os gratis. So o DeepSeek V4.1 tem provedores."""
-    if slug.split("/")[-1] != POL_DS: return [slug]
-    try: provs = [p["id"] for p in pol_providers(pollinations_catalog(cfg.get("pollinations_api_key") or ""))]
-    except Exception: provs = []
-    return [slug] + [p for p in provs if p != slug]
+    """So o provedor escolhido: se ele falhar, o erro sobe e a interface recomeca com o proximo mais barato (assim voce ve o erro)."""
+    return [slug]
 
 POL_HTTP_ERRORS = {401: "Chave do Pollinations invalida (401). Confira a chave em Configuracoes.", 403: "A chave do Pollinations nao tem permissao (403).", 402: "Saldo de pollen insuficiente (402). Ganhe pollen nas missoes ou compre mais.", 429: "Limite do Pollinations atingido (429). Espere um pouco."}
 
