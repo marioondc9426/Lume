@@ -6,7 +6,7 @@ Como numerar:
 - O número fica em `VERSION` no topo do `app.py` e aparece em Configurações > Atualizações.
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
-## v2.0 (em desenvolvimento, ainda não enviado ao GitHub)
+## v2.1
 Tudo que for pedido até o "push tudo isso aí" entra aqui. Já está dentro: o `Lume.exe` (antes `Qwen.exe`) e a geração automática (v1.8.x), a tela de boas-vindas com a aba de configurações (v1.9) e:
 - Animações: Configurações, Memória, Estatísticas, Exportar e as caixas de diálogo agora entram e saem com fade e deslize (e as abas internas das Configurações também). Respeitam "Animações" desligadas e a preferência de menos movimento do Windows.
 - **Várias conversas ao mesmo tempo**: dá para trocar de chat enquanto a IA ainda responde e conversar em outro; cada chat tem a sua geração (o "parar" só para a do chat aberto). Na barra lateral um ponto azul pulsa nos chats respondendo e um verde marca os que terminaram enquanto você estava em outro.
