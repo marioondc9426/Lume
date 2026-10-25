@@ -1151,14 +1151,19 @@ def stream_ollama(model, messages, think, num_ctx=None, max_tokens=None):
                 payload["think"] = False
                 continue
             raise Exception(f"Ollama respondeu {e.code}: {body[:200]}")
+        t_first = None
         with response:
             for raw in response:
                 if not raw.strip(): continue
                 data = json.loads(raw)
                 if data.get("error"): raise Exception(data["error"])
                 msg = data.get("message", {})
+                if (msg.get("thinking") or msg.get("content")) and t_first is None: t_first = time.time()
                 if msg.get("thinking"): yield "thinking", msg["thinking"]
                 if msg.get("content"): yield "content", msg["content"]
+                if data.get("done") and data.get("eval_count") and not data.get("eval_duration") and t_first:   # a nuvem do Ollama nao informa o tempo de geracao: mede pelo relogio
+                    yield "stats", {"tokens": data["eval_count"], "seconds": max(0.001, time.time() - t_first), "prompt_tokens": data.get("prompt_eval_count", 0), "prompt_seconds": 0,
+                                    "load_seconds": 0, "total_seconds": data.get("total_duration", 0) / 1e9}
                 if data.get("done") and data.get("eval_count") and data.get("eval_duration"):
                     yield "stats", {"tokens": data["eval_count"], "seconds": data["eval_duration"] / 1e9,
                                     "prompt_tokens": data.get("prompt_eval_count", 0),
@@ -1256,7 +1261,7 @@ def _kill_response(response):
 def _sse_chat(response, t0, err_map, first_timeout=None, idle_timeout=None):
     """Le a resposta em stream (SSE) de uma API compativel com OpenAI e gera ('content'|'thinking'|'stats', valor).
     Se nao chegar nenhum dado dentro do tempo (first_timeout no comeco, idle_timeout depois), a conexao e cortada e vira um erro."""
-    first = None; usage = None
+    first = None; usage = None; cut = False
     first_timeout = first_timeout or CLOUD_FIRST_TIMEOUT; idle_timeout = idle_timeout or CLOUD_IDLE_TIMEOUT
     state = {"timed": False, "limit": first_timeout}
     def arm(secs):
@@ -1279,14 +1284,16 @@ def _sse_chat(response, t0, err_map, first_timeout=None, idle_timeout=None):
             for ch in j.get("choices") or []:
                 delta = ch.get("delta") or {}
                 rs = delta.get("reasoning") or delta.get("reasoning_content")
-                if rs: yield "thinking", rs
+                if rs: first = first or time.time(); yield "thinking", rs
                 if delta.get("content"): first = first or time.time(); yield "content", delta["content"]
+                if ch.get("finish_reason") == "length": cut = True
     except Exception:
         if state["timed"]: raise Exception(f"O provedor parou de responder (sem dados por {state['limit']} s).") from None
         raise
     finally:
         timer.cancel()
     if state["timed"]: raise Exception(f"O provedor parou de responder (sem dados por {state['limit']} s).")
+    if cut: yield "content", "\n\n[Cortado: o modelo atingiu o limite de tokens da resposta]"
     if usage and usage.get("completion_tokens"):
         now = time.time(); gen = max(0.001, now - (first or t0))
         yield "stats", {"tokens": usage["completion_tokens"], "seconds": gen, "prompt_tokens": usage.get("prompt_tokens", 0), "prompt_seconds": (first - t0) if first else 0, "load_seconds": 0, "total_seconds": now - t0}
@@ -1414,8 +1421,7 @@ def stream_cloudflare(model, messages, think, cfg, max_tokens=None):
         imgs = m.get("images") or []
         if imgs and m["role"] == "user": msgs.append({"role": "user", "content": [{"type": "text", "text": m["content"]}] + [{"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + b}} for b in imgs]})
         else: msgs.append({"role": m["role"], "content": m["content"]})
-    payload = {"model": slug, "messages": msgs, "stream": True, "stream_options": {"include_usage": True}}
-    if max_tokens: payload["max_tokens"] = int(max_tokens)
+    payload = {"model": slug, "messages": msgs, "stream": True, "stream_options": {"include_usage": True}, "max_tokens": int(max_tokens or 8192)}   # sem isso a Cloudflare corta em 256 tokens e os modelos que pensam (R1) acabavam sem resposta
     req = urllib.request.Request(f"{CF_API}/accounts/{urllib.parse.quote(acc)}/ai/v1/chat/completions", data=json.dumps(payload).encode("utf-8"),
                                  headers={"Authorization": "Bearer " + token, "Content-Type": "application/json", "User-Agent": "lume-app"})
     t0 = time.time()
