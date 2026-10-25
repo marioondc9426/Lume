@@ -1526,7 +1526,7 @@ POL_MODELS = [
     ("community/gggff123/gpt-5-nano", {}), ("community/chirag-gamer/gpt-oss-120b", {}),
     ("community/YoannDev90/qwen3.7-flash", {}), ("community/MarcosFRG/gemini-3.1-flash-lite", {"pin": 0.5, "pout": 1.5, "guess": True}),
     ("deepseek/deepseek-v4.1-flash", {}), ("community/MarcosFRG/deepseek-v4.1-flash", {}), ("community/scriptsnsenses-sys/deepseek-v4.1-flash", {}), ("community/vendouple/deepseek-v4.1-flash", {"pin": 0.06, "pout": 0.5}),
-    ("deepseek/deepseek-v4-flash", {}), ("community/gggff123/deepseek-v4-flash:free", {"free": True, "flaky": True}),
+    ("deepseek/deepseek-v4-flash", {}), ("community/vendouple/deepseek-v4-flash", {"pin": 0.02, "pout": 0.10}), ("community/gggff123/deepseek-v4-flash:free", {"free": True, "flaky": True}),
     ("community/gggff123/qwen3.8-27b:free", {"free": True, "flaky": True}),
     ("community/CloudCompile/nvidia-nemotron-3-ultra-550b-a55b:free", {"free": True}), ("community/YoannDev90/vercel-nemotron-3.5-lightning:free", {"free": True}),
     ("community/CloudCompile/reflection-beam-free", {"free": True}), ("community/YoannDev90/vercel-beam:free", {"free": True}),
