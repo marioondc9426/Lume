@@ -1525,12 +1525,22 @@ POL_MODELS = [
     ("openai/gpt-6-sol", {}), ("openai/gpt-6.1-sol", {}), ("openai/gpt-6-astra", {}), ("openai/gpt-oss-20b", {}),
     ("community/gggff123/gpt-5-nano", {}), ("community/chirag-gamer/gpt-oss-120b", {}),
     ("community/YoannDev90/qwen3.7-flash", {}), ("community/MarcosFRG/gemini-3.1-flash-lite", {"pin": 0.5, "pout": 1.5, "guess": True}),
-    ("community/scriptsnsenses-sys/gemini-3.1-pro-free", {"free": True}),
     ("deepseek/deepseek-v4.1-flash", {}), ("community/MarcosFRG/deepseek-v4.1-flash", {}), ("community/scriptsnsenses-sys/deepseek-v4.1-flash", {}), ("community/vendouple/deepseek-v4.1-flash", {"pin": 0.06, "pout": 0.5}),
     ("deepseek/deepseek-v4-flash", {}), ("community/gggff123/deepseek-v4-flash:free", {"free": True, "flaky": True}),
     ("community/gggff123/qwen3.8-27b:free", {"free": True, "flaky": True}),
     ("community/CloudCompile/nvidia-nemotron-3-ultra-550b-a55b:free", {"free": True}), ("community/YoannDev90/vercel-nemotron-3.5-lightning:free", {"free": True}),
     ("community/CloudCompile/reflection-beam-free", {"free": True}), ("community/YoannDev90/vercel-beam:free", {"free": True}),
+    # tabs: "code" = so na aba Code; "both" = nas duas. warn = aviso (triangulo) mostrado ao escolher o provedor
+    ("community/morriszdweck/glm-5.3-flash-free", {"free": True, "tabs": "code"}), ("community/scriptsnsenses-sys/glm-5.3-flash-free", {"free": True, "tabs": "code"}),
+    ("community/MarcosFRG/glm-5.3-flash", {"tabs": "code"}),   # pago: a reserva dos gratis (o Lume tenta o proximo mais barato se um falhar)
+    ("community/MarcosFRG/glm-4.6v-flash", {"free": True, "tabs": "code", "warn": "Limite de 3 pedidos por minuto: pode dar erro de limite se voce mandar varias mensagens seguidas."}),
+    ("community/YoannDev90/muse-glimmer-30b:free", {"free": True, "tabs": "code"}),
+    ("community/scriptsnsenses-sys/muse-spark-1.3-contributor", {"free": True, "flaky": True, "tabs": "code", "warn": "Este provedor registra (loga) as suas conversas. Nao envie nada privado ou secreto."}),
+    ("community/CloudCompile/poolside-laguna-s-2.1:free", {"free": True, "tabs": "code"}),
+    ("community/ZapGaming/llama3.1-8b-xturbo", {"free": True, "speed": 2, "tabs": "both"}),
+    ("community/Saauf/minimax-m3.1-flash", {"tabs": "both"}),
+    ("community/scriptsnsenses-sys/deepseek-v4-flash-0731", {"free": True, "tabs": "both"}),
+    ("community/scriptsnsenses-sys/gemini-3.1-pro-free", {"free": True, "tabs": "both", "warn": "Provedor da comunidade, nao oficial: o Lume nao controla o que ele faz com as suas mensagens."}),
 ]
 _pol_cache = {"t": 0, "key": "", "cat": {}}
 
@@ -1561,7 +1571,7 @@ def pollinations_models(cfg):
         free = bool(ex.get("free")) or (bool(m) and pin == 0 and pout == 0)
         out.append({"id": mid, "name": m.get("title") or mid.split("/")[-1], "provider": mid.split("/")[1] if mid.startswith("community/") else "oficial",
                     "ctx": m.get("context_length") or 128000, "vision": "image" in inm, "pin": pin, "pout": pout, "free": free, "guess": bool(ex.get("guess")),
-                    "health": hl.get("status") or ("degraded" if ex.get("flaky") else "?"), "success": hl.get("success_rate"), "speed": ex.get("speed", 0)})
+                    "health": hl.get("status") or ("degraded" if ex.get("flaky") else "?"), "success": hl.get("success_rate"), "speed": ex.get("speed", 0), "tabs": ex.get("tabs", "chat"), "warn": ex.get("warn", "")})
     return out
 
 def pol_chain(slug, cfg):

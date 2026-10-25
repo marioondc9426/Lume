@@ -1500,6 +1500,10 @@
                 const keep = tiers.filter(w => !(SZ && (w === 'super' || w === 'ultra'))).map(w => w === 'vl' ? 'VL' : w[0].toUpperCase() + w.slice(1));
                 return { base: 'Nemotron', ver, psize: [SZ, ...keep].filter(Boolean).join(' ') || 'Cloud' };
             }
+            if ((m = s.match(/^glm-(\d+(?:\.\d+)?v?)(?:-(.*))?$/))) return { base: 'GLM', ver: m[1].replace(/v$/, 'V'), psize: (m[2] || '').split('-').filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(' ') || 'Base' };
+            if ((m = s.match(/^muse-(.+)$/))) return { base: 'Muse', ver: '', psize: m[1].split('-').filter(Boolean).map(w => /^\d+b$/.test(w) ? w.toUpperCase() : w[0].toUpperCase() + w.slice(1)).join(' ') };
+            if ((m = s.match(/^(?:poolside-)?laguna-(\w+)-(\d+(?:\.\d+)?)/))) return { base: 'Laguna', ver: m[2], psize: m[1].toUpperCase() };
+            if ((m = s.match(/^minimax-m(\d+(?:\.\d+)?)(?:-(.*))?$/))) return { base: 'MiniMax', ver: 'M' + m[1], psize: (m[2] || '').split('-').filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(' ') || 'Base' };
             if ((m = s.match(/^gpt-oss-(\d+)b/))) return { base: 'GPT-OSS', ver: '', psize: m[1] + 'B' };
             if ((m = s.match(/^gpt-(\d+(?:\.\d+)?)(?:-(.+))?$/))) return { base: 'GPT', ver: m[1], psize: (m[2] || '').split('-').filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(' ') || 'Base' };
             if ((m = s.match(/^deepseek-v(\d+(?:\.\d+)?)-(\w+)/))) return { base: 'DeepSeek', ver: 'V' + m[1], psize: m[2][0].toUpperCase() + m[2].slice(1) };
@@ -1753,6 +1757,8 @@
             { re: /cohere/i, img: 'Cohere.png' },
             { re: /liquid|lfm/i, img: 'Liquid.png' },
             { re: /poolside|laguna/i, img: 'Poolside.png' },
+            { re: /llama|muse|meta\//i, img: 'Meta.png' },
+            { re: /minimax/i, img: 'MiniMax.png' },
             { re: /thinkingmachines|inkling/i, img: 'ThinkingMachines.png' },
             { re: /openrouter/i, img: 'OpenRouter.png' },
         ];
@@ -1855,7 +1861,7 @@
         const famKind = ms => ms.every(m => m.paid) ? 'paid' : ms.some(isLocalM) ? 'local' : 'cloud';
         const pollenPerMsg = m => (500 * (m.priceIn || 0) + 500 * (m.priceOut || 0)) / 1e6;
         const providerName = m => m.pol ? 'Pollinations · ' + (m.provider || '') : m.cf ? 'Cloudflare' : m.or ? 'OpenRouter' : m.phone ? tr('Celular') : isLocalM(m) ? tr('Ollama (local)') : tr('Ollama (nuvem)');
-        const provInfo = m => !m.pol ? '' : (m.free ? ' · ' + tr('grátis') : ' · ≈' + pollenPerMsg(m).toFixed(5) + ' ' + tr('pollen/msg')) + (m.health === 'degraded' ? ' ⚠' : '');
+        const provInfo = m => !m.pol ? '' : (m.free ? ' · ' + tr('grátis') : ' · ≈' + pollenPerMsg(m).toFixed(5) + ' ' + tr('pollen/msg')) + (m.health === 'degraded' || m.warn ? ' ⚠' : '');
         // qual provedor usar por padrao: o que voce escolheu antes; senao local > nuvem do Ollama > Cloudflare > OpenRouter > Pollinations gratis (se estiver bem) > Pollinations pago mais barato > gratis instavel
         const variantRank = m => isLocalM(m) ? 0 : (!m.or && !m.cf && !m.pol) ? 1 : m.cf ? 2 : m.or ? 3 : !m.pol ? 4 : m.free ? (m.health === 'degraded' ? 30 : 5) : 10 + pollenPerMsg(m) * 1000 + (m.health === 'degraded' ? 5 : 0);
         const bestVariant = items => items.find(m => (config.provPref || {})[m.grp + '|' + m.pk] === m.id) || [...items].sort((a, b) => variantRank(a) - variantRank(b))[0];
@@ -1864,7 +1870,7 @@
             fin(m); return MODELS.filter(x => x !== m && fin(x).grp === m.grp && x.pk === m.pk && !isLocalM(x) && !x.phone && x.tabs.includes(tab) && isAvail(x)).sort((a, b) => costRank(a) - costRank(b));
         }
         function providerSelect(items, cur) {
-            return miniSelect(items.map(m => ({ value: m.id, label: providerName(m) + provInfo(m), color: m.pol ? 'var(--k-paid)' : isLocalM(m) ? 'var(--k-local)' : 'var(--k-cloud)' })), cur.id, v => pickSize(v), tr('Provedor'));
+            return miniSelect(items.map(m => ({ value: m.id, label: providerName(m) + provInfo(m), title: m.warn || '', color: m.pol ? 'var(--k-paid)' : isLocalM(m) ? 'var(--k-local)' : 'var(--k-cloud)' })), cur.id, v => pickSize(v), tr('Provedor'));
         }
         function miniSelect(opts, value, onChange, title) {   // lista suspensa propria (a do navegador ficava feia dentro do seletor de modelos): abre para baixo dentro da propria linha
             const wrap = document.createElement('div'); wrap.className = 'ms'; wrap.title = title || '';
@@ -1873,7 +1879,7 @@
             const t = document.createElement('span'); t.textContent = cur.label; t.style.color = cur.color || ''; const ar = document.createElement('i'); ar.className = 'ms-arrow'; btn.append(t, ar);
             const panel = document.createElement('div'); panel.className = 'ms-panel';
             opts.forEach(o => {
-                const it = document.createElement('div'); it.className = 'ms-opt' + (o.value === value ? ' sel' : '') + (o.disabled ? ' dis' : ''); it.textContent = o.label; it.style.color = o.color || '';
+                const it = document.createElement('div'); it.className = 'ms-opt' + (o.value === value ? ' sel' : '') + (o.disabled ? ' dis' : ''); it.textContent = o.label; if (o.title) it.title = o.title; it.style.color = o.color || '';
                 it.onclick = e => { e.stopPropagation(); if (o.disabled) return; wrap.classList.remove('open'); onChange(o.value); };
                 panel.appendChild(it);
             });
@@ -1939,7 +1945,7 @@
             for (let i = MODELS.length - 1; i >= 0; i--) if (MODELS[i].pol) MODELS.splice(i, 1);
             if (d.error && !(d.models || []).length) showInfo(tr('Não consegui carregar os modelos do Pollinations: {e}', { e: d.error }), 8000);
             (d.models || []).forEach(x => {
-                MODELS.push(Object.assign({ id: 'pol:' + x.id, fam: 'pol:' + x.id, famName: x.name, params: x.name, label: x.name + ' (Pollinations · ' + x.provider + ')', icon: 'cloud', tabs: /(^|\/)gpt/i.test(x.id) ? ['chat', 'code'] : ['chat'], cloud: true, pol: true, paid: !x.free, free: !!x.free, provider: x.provider,
+                MODELS.push(Object.assign({ id: 'pol:' + x.id, fam: 'pol:' + x.id, famName: x.name, params: x.name, label: x.name + ' (Pollinations · ' + x.provider + ')', icon: 'cloud', tabs: x.tabs === 'code' ? ['code'] : (x.tabs === 'both' || /(^|\/)gpt/i.test(x.id)) ? ['chat', 'code'] : ['chat'], cloud: true, pol: true, paid: !x.free, free: !!x.free, provider: x.provider, warn: x.warn || '',
                     health: x.health, vision: !!x.vision, ctx: x.ctx || 32768, priceIn: x.pin, priceOut: x.pout, speed: x.speed || 0 }, parseDyn(x.id, x.name)));
             });
             if (String(config.model).startsWith('pol:') && modelById(config.model) && currentTab === 'chat') selectedModel = config.model;
@@ -2025,6 +2031,7 @@
 
         async function selectModel(id, keepOpen = false) {
             const m = modelById(id);
+            if (m && m.warn) showInfo('⚠ ' + m.warn, 9000);   // provedor com aviso (ex.: registra as conversas)
             if (!keepOpen) { $('model-select').classList.remove('open'); clearInterval(openTimer); }
             if (m.groq && !(await hasGroqKey())) { await noKeyDialog(); return; }   // continua no modelo anterior
             if (m.heavy) {
