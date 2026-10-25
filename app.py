@@ -79,7 +79,7 @@ guest_recent = {}       # id do amigo -> horarios das ultimas respostas (limite 
 guest_lock = threading.Lock()
 login_recent_fails = []  # horarios das senhas erradas de qualquer IP (trava global contra tentativas pela internet)
 # Versao: "1.2" = versao nova com novidades (o numero depois do ponto sobe); "1.2.01", "1.2.02"... = correcoes (patches) dessa versao.
-VERSION = "2.1"
+VERSION = "2.2"
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")     # chaves de API, pasta de trabalho, uso
 HISTORY_FILE = os.path.join(BASE_DIR, "history.json")   # chats
 STATE_FILE = os.path.join(BASE_DIR, "state.json")       # preferencias da interface + memorias
@@ -950,7 +950,8 @@ def find_tool_call(text):
 ANNOUNCE_RE = re.compile(r"(?i)\b(vou|vamos|irei|farei|i'?ll|i will|let me)\s+(agora\s+)?(atualizar|criar|escrever|editar|rodar|executar|salvar|gravar|ler|abrir|instalar|update|create|write|edit|run|save|read|open|install)\b[^?]{0,200}$")
 def announces_action(text):
     """O modelo disse que ia fazer algo (\"vou atualizar o arquivo\") mas terminou sem chamar nenhuma ferramenta."""
-    return bool(ANNOUNCE_RE.search((text or "").strip()[-300:]))
+    tail = (text or "").strip()[-300:]
+    return bool(ANNOUNCE_RE.search(tail) or re.search(r"(?i)need (a |the )?tool call", tail))   # alguns modelos vazam "need tool call" no texto em vez de chamar
 
 def looks_like_failed_call(text):
     """A IA tentou chamar uma ferramenta mas errou o formato (nada foi reconhecido)."""

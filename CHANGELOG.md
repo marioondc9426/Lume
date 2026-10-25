@@ -6,6 +6,11 @@ Como numerar:
 - O número fica em `VERSION` no topo do `app.py` e aparece em Configurações > Atualizações.
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
+## v2.2
+- **Aba Code**: o botão Rodar vira **Parar** enquanto o código roda (encerra o programa e os filhos); vários pedidos de ferramenta de uma vez (até 5, em ordem); chamada de ferramenta nativa nos modelos da Pollinations (os GPT Luna não seguiam o formato de texto); aviso automático quando o modelo diz "vou atualizar…" e não chama nada.
+- **GPT**: todos os GPT de texto da Pollinations (5.4, 5.4 Mini, 5.5, 5.6 Sol/Terra, 6 Sol, 6.1 Sol, 6 Astra, GPT-OSS 20B/120B da comunidade) e os GPT da Pollinations/OpenRouter também na aba Code; sem o botão Pensar, os GPT 5/6 respondem bem mais rápido (raciocínio mínimo).
+- **Correções**: erro "can only concatenate str" com Qwen Coder da Cloudflare; painel de VRAM/GPU e popup de permissão não dependem mais da inicialização terminar (e a tela diz em que passo ela falhou); lista de modelos não quebra a inicialização; modelos sem sufixo (gpt-5.5) não derrubam mais o carregamento da lista da Pollinations.
+
 ## v2.1
 Tudo que for pedido até o "push tudo isso aí" entra aqui. Já está dentro: o `Lume.exe` (antes `Qwen.exe`) e a geração automática (v1.8.x), a tela de boas-vindas com a aba de configurações (v1.9) e:
 - Animações: Configurações, Memória, Estatísticas, Exportar e as caixas de diálogo agora entram e saem com fade e deslize (e as abas internas das Configurações também). Respeitam "Animações" desligadas e a preferência de menos movimento do Windows.
