@@ -7,6 +7,7 @@ Como numerar:
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
 ## v3.0 (em desenvolvimento)
+- **Pesquisa**: a IA escolhe quantos resultados pedir (3 a 5 nas perguntas simples), até o máximo das configurações (agora 1 a 25, padrão 8). **Tokens/s** de resposta curta voltou a ser medido pelo ritmo real (só vale o tempo total quando a resposta inteira chega de uma vez). **Histórico**: o limite de 12 MB que recusava, em silêncio, conversas com muitos anexos subiu para 55 MB, com aviso se não salvar e as imagens das conversas mais antigas saem da cópia do PC se passar de 50 MB.
 - Configurações: **mostrar a mensagem completa da IA no terminal** (raciocínio, resposta inteira, chamadas de ferramenta e resultados, sem cortar). A busca na web agora diz ao modelo (e na dica de "Fontes") com que texto pesquisou, para ele não inventar o motivo de resultados estranhos.
 - **tomdacat** como provedor (Configurações > Chaves de API): só entram modelos de até 100 créditos por milhão de tokens e que o Lume ainda não tinha: GPT-5 Mini, MiMo V2.5, Mercury 2, Celeris 1, DiffusionGemma 4 26B e Nemotron 3 Nano Omni. O padrão continua sendo o mais barato; os do tomdacat ficam depois dos grátis.
 - Planejado para a 3.0 (depois): redesenho completo da interface com um botão para voltar à interface original, e vários temas que mudam o layout e não só a cor.

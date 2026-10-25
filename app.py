@@ -221,7 +221,7 @@ def load_config():
     cfg.setdefault("exa_api_key", "")            # pesquisa feita para IAs (exa.ai); vazio = usa DuckDuckGo
     cfg.setdefault("search_provider", "auto")    # auto | exa | duckduckgo
     cfg.setdefault("exa_type", "lite")           # lite (US$ 0,004/busca) | auto (US$ 0,007) | deep-lite
-    cfg.setdefault("search_results", 5)          # resultados por busca (ate 10 o preco do Exa e o mesmo)
+    cfg.setdefault("search_results", 8)          # maximo de resultados por busca (a IA escolhe quantos, ate aqui; 1 a 25)
     cfg.setdefault("search_daily_limit", 100)    # maximo de buscas pagas do Exa por dia (0 = sem limite)
     changed = False
     if not cfg.get("password"):
@@ -272,11 +272,14 @@ def get_workdir(cfg=None):
 # ---------------------------------------------------------------- ferramentas
 SEARCH_UA = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
              'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8'}
-MAX_SEARCH_RESULTS = 5   # padrao; o valor real vem da configuracao "search_results"
+MAX_SEARCH_RESULTS = 8   # padrao; o valor real vem da configuracao "search_results"
+_res_override = threading.local()   # quantos resultados a IA pediu nesta busca (nunca passa do maximo das configuracoes)
 
 def max_results():
-    try: return max(1, min(10, int(load_config().get("search_results", MAX_SEARCH_RESULTS))))
-    except (TypeError, ValueError): return MAX_SEARCH_RESULTS
+    try: cap = max(1, min(25, int(load_config().get("search_results", MAX_SEARCH_RESULTS))))
+    except (TypeError, ValueError): cap = MAX_SEARCH_RESULTS
+    n = getattr(_res_override, "n", None)
+    return max(1, min(cap, n)) if n else cap
 
 
 def _clean_html(text):
@@ -754,11 +757,21 @@ def needs_web(text):
     if CREATIVE_RE.match(t) and not FRESH_HINT_RE.search(t): return False   # pedido criativo/de transformacao: nao precisa de internet
     return True
 
-def search_web_results(query, guest=False):
+def _to_int(v):
+    try: return int(float(v))
+    except (TypeError, ValueError): return None
+
+def search_web_results(query, guest=False, n=None):
+    """Pesquisa com no maximo n resultados (n vem da IA; o teto e o das configuracoes)."""
+    _res_override.n = _to_int(n)
+    try: return _search_web_results(query, guest, _to_int(n))
+    finally: _res_override.n = None
+
+def _search_web_results(query, guest=False, n=None):
     """Exa (se houver chave e limite diario), depois DuckDuckGo, depois Wikipedia. Retorna ([(titulo, trecho, link)], fonte) ou ([], None)."""
     cfg = load_config(); key = exa_api_key(cfg); provider = cfg.get("search_provider", "auto")
     if guest: key, provider = "", "duckduckgo"   # amigos nunca gastam o Exa
-    ck = ("g:" if guest else "") + re.sub(r"\s+", " ", (query or "").strip().lower())
+    ck = ("g:" if guest else "") + re.sub(r"\s+", " ", (query or "").strip().lower()) + (f"#{max_results()}" if n else "")
     hit = _search_cache.get(ck)
     if hit and time.time() - hit[0] < SEARCH_CACHE_TTL:
         log("WEB", "Resultado reaproveitado do cache (busca repetida, sem custo).", COLOR_GRAY)
@@ -797,8 +810,8 @@ def format_search(results, source):
 SEARCH_UNAVAILABLE = ("Pesquisa na web indisponivel agora / Web search unavailable right now. "
                       "NAO invente a resposta: diga ao usuario que nao foi possivel pesquisar. / Do NOT make up an answer: tell the user the search was not possible.")
 
-def search_web(query):
-    results, source = search_web_results(query)
+def search_web(query, n=None):
+    results, source = search_web_results(query, n=n)
     if not results:
         return SEARCH_UNAVAILABLE
     log("WEB", f"{len(results)} resultado(s) via {source}", COLOR_GREEN)
@@ -825,7 +838,8 @@ WEB_TOOL_PROMPT = """
 
 PESQUISA NA WEB (ferramenta): voce pode pesquisar na internet quando precisar de informacao atual ou que voce nao sabe. Quem decide e voce: NAO pesquise em cumprimentos, conversa comum, ou o que voce ja sabe.
 Para pesquisar, responda SO com isto e pare de escrever (a busca e feita com as palavras-chave que VOCE escolher):
-$$[TOOL: search_web] {"query": "palavras-chave da busca"}$$
+$$[TOOL: search_web] {"query": "palavras-chave da busca", "results": 5}$$
+"results" e quantos resultados voce quer (1 a 25; 3 a 5 bastam para perguntas simples, use mais so para pesquisas amplas: menos resultados = mais rapido e mais barato).
 Para ler uma pagina de uma fonte: $$[TOOL: read_url] {"url": "https://..."}$$
 Depois de receber os resultados, responda ao usuario citando os links usados. Se os resultados nao ajudarem, diga isso.
 """
@@ -834,7 +848,8 @@ WEB_TOOL_PROMPT_EN = """
 
 WEB SEARCH (tool): you can search the internet when you need current information or something you do not know. YOU decide: do NOT search for greetings, small talk, or things you already know.
 To search, reply ONLY with this and stop writing (the search uses the keywords YOU choose):
-$$[TOOL: search_web] {"query": "search keywords"}$$
+$$[TOOL: search_web] {"query": "search keywords", "results": 5}$$
+"results" is how many results you want (1-25; 3 to 5 is enough for simple questions, use more only for broad research: fewer results = faster and cheaper).
 To read a page from a source: $$[TOOL: read_url] {"url": "https://..."}$$
 After you receive the results, answer the user citing the links you used. If the results do not help, say so.
 """
@@ -949,7 +964,7 @@ def execute_tool(tool_name, tool_args, workdir, lang="pt"):
             if r.returncode != 0: out += L(f"\n[codigo de saida {r.returncode}]", f"\n[exit code {r.returncode}]")
             return truncate(out.strip() or L("(sem saida)", "(no output)"))
         if tool_name == "search_web":
-            return truncate(search_web(tool_args.get("query", "")))
+            return truncate(search_web(tool_args.get("query", ""), tool_args.get("results")))
         if tool_name == "read_url":
             title, page = read_url_text(tool_args.get("url", ""))
             return truncate(f"{title}\n\n{page}")
@@ -1029,7 +1044,7 @@ NATIVE_TOOLS_ALL = [
     _schema("write_file", "Create or overwrite a file", {"path": {"type": "string"}, "content": {"type": "string"}}, ["path", "content"]),
     _schema("cmd", "Run a command in the Windows CMD", {"command": {"type": "string"}}, ["command"]),
     _schema("powershell", "Run a command in PowerShell", {"command": {"type": "string"}}, ["command"]),
-    _schema("search_web", "Search the web", {"query": {"type": "string"}}, ["query"]),
+    _schema("search_web", "Search the web. Choose how many results you need (fewer = cheaper and faster)", {"query": {"type": "string"}, "results": {"type": "integer", "description": "how many results (1-25); 3 to 5 is enough for simple questions"}}, ["query"]),
     _schema("read_url", "Read the text of a web page", {"url": {"type": "string"}}, ["url"]),
 ]
 NATIVE_TOOLS = NATIVE_TOOLS_ALL
@@ -1482,7 +1497,7 @@ def _sse_chat(response, t0, err_map, first_timeout=None, idle_timeout=None):
         now = time.time(); win = max(0.001, now - (first or t0)); total = max(0.001, now - t0)
         # alguns provedores (Pollinations) seguram a resposta e soltam tudo de uma vez no fim: o tempo entre o 1o e o ultimo pedaco nao e o de geracao (dava 7.000 t/s).
         # Se quase todo o tempo foi espera antes do 1o dado, ou o resultado e impossivel, vale o tempo total do pedido.
-        burst = bool(first) and (first - t0) > 1.0 and win < 0.2 * total
+        burst = bool(first) and win < 0.25   # a resposta toda chegou junta: nao da para medir o ritmo; se chegou espalhada (mesmo curta), a janela vale
         gen = total if (burst or usage["completion_tokens"] / win > 2500) else win
         yield "stats", {"tokens": usage["completion_tokens"], "seconds": gen, "buffered": gen == total, "limits": limits, "prompt_tokens": usage.get("prompt_tokens", 0), "prompt_seconds": (first - t0) if first else 0, "load_seconds": 0, "total_seconds": now - t0}
 
@@ -2429,7 +2444,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 return self.send_json({"error": "Pasta de trabalho nao existe."}, 400)
             if data.get("search_provider") not in (None, "auto", "exa", "duckduckgo") or data.get("exa_type") not in (None, *EXA_TYPES):
                 return self.send_json({"error": "Opcao de pesquisa invalida."}, 400)
-            for k, lo, hi in (("search_results", 1, 10), ("search_daily_limit", 0, 100000)):
+            for k, lo, hi in (("search_results", 1, 25), ("search_daily_limit", 0, 100000)):
                 if k in data:
                     try: data[k] = max(lo, min(hi, int(data[k])))
                     except (TypeError, ValueError): return self.send_json({"error": "Opcao de pesquisa invalida."}, 400)
@@ -2652,7 +2667,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         pol = guests.policy(u)
         if p == '/api/chat': return self.handle_chat(data, False, guest=gu)
         if p == '/api/history':
-            if len(post_data) > 12 * 1024 * 1024: return self.send_json({"error": "Historico grande demais."}, 413)
+            if len(post_data) > 55 * 1024 * 1024: return self.send_json({"error": "Historico grande demais."}, 413)
             if isinstance(data, dict): _write_json(guests.history_file(uid), data)
             return self.send_json({"ok": True})
         if p == '/api/state':
@@ -3016,7 +3031,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     elif blocked:
                         result = L(f"Erro: comando BLOQUEADO por seguranca ({blocked}). O modo \"permitir sozinho\" nunca roda isso. Nao tente de novo: explique ao usuario ou use outra forma.", f"Error: command BLOCKED for safety ({blocked}). Auto-allow mode never runs this. Do not retry: explain it to the user or find another way.")
                     elif tool_name == "search_web":   # emite as fontes para a interface mostrar os cartoes
-                        results, src = search_web_results(tool_args.get("query", ""))
+                        results, src = search_web_results(tool_args.get("query", ""), n=tool_args.get("results") or tool_args.get("num_results") or tool_args.get("max_results"))
                         result = format_search(results, src) if results else SEARCH_UNAVAILABLE
                         if results: emit({"sources": [{"title": t, "url": u} for t, _, u in results], "provider": src, "query": tool_args.get("query", "")})
                     elif tool_name == "read_url":
