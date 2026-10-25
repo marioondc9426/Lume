@@ -1402,7 +1402,7 @@ POL_API = "https://gen.pollinations.ai"
 POL_MODELS = [
     ("openai/gpt-5.4-nano", {}), ("openai/gpt-5.6-luna", {}), ("openai/gpt-5-nano", {}), ("openai/gpt-6-luna", {}),
     ("community/YoannDev90/qwen3.7-flash", {}), ("community/MarcosFRG/gemini-3.1-flash-lite", {"pin": 0.5, "pout": 1.5, "guess": True}),
-    ("community/tomdacatto/llama-3.1-8B", {"speed": 2}),
+    ("community/scriptsnsenses-sys/gemini-3.1-pro-free", {"free": True}),
     ("deepseek/deepseek-v4.1-flash", {}), ("community/MarcosFRG/deepseek-v4.1-flash", {}), ("community/scriptsnsenses-sys/deepseek-v4.1-flash", {}), ("community/vendouple/deepseek-v4.1-flash", {"pin": 0.06, "pout": 0.5}),
     ("deepseek/deepseek-v4-flash", {}), ("community/gggff123/deepseek-v4-flash:free", {"free": True, "flaky": True}),
     ("community/gggff123/qwen3.8-27b:free", {"free": True, "flaky": True}),

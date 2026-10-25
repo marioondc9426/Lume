@@ -102,6 +102,12 @@
         .select-option.k-local:not(.selected) { color: var(--k-local); } .select-option.k-cloud:not(.selected) { color: var(--k-cloud); } .select-option.k-paid:not(.selected) { color: var(--k-paid); }
         .kdots { display: inline-flex; gap: 3px; margin-left: 8px; vertical-align: middle; } .kdots i { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
         .size-row select option { background: var(--bg-sidebar); }
+        .ms { position: relative; min-width: 96px; max-width: 100%; } .ms-btn { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 6px 10px; font-size: 0.85em; font-family: inherit; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-input); color: var(--text-main); cursor: pointer; text-align: left; transition: border-color .18s, background .18s; }
+        .ms-btn:hover, .ms.open .ms-btn { border-color: var(--accent); }
+        .ms-arrow { width: 7px; height: 7px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(45deg) translateY(-2px); opacity: .6; flex-shrink: 0; transition: transform .2s; } .ms.open .ms-arrow { transform: rotate(-135deg) translateY(-2px); }
+        .ms-panel { display: none; margin-top: 4px; max-height: 190px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-main); padding: 3px; }
+        .ms.open .ms-panel { display: block; animation: msIn .16s ease both; } @keyframes msIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+        .ms-opt { padding: 6px 9px; font-size: 0.85em; border-radius: 6px; cursor: pointer; white-space: nowrap; } .ms-opt:hover { background: rgba(128,128,128,0.18); } .ms-opt.sel { background: rgba(128,128,128,0.25); font-weight: bold; } .ms-opt.dis { opacity: .35; cursor: not-allowed; }
         .retry-note { font-size: 0.8em; color: var(--k-paid); margin-bottom: 6px; padding: 4px 8px; border-left: 2px solid var(--k-paid); background: rgba(227,179,65,0.08); border-radius: 4px; }
         .msg-tag .tag-cost { color: var(--k-paid); }
         .mo-list { max-height: calc(8 * 42px); overflow-y: auto; } .mo-group { padding: 6px 12px 4px; font-size: 0.68em; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); border-top: 1px solid var(--border-color); background: rgba(128,128,128,0.07); }
@@ -1477,7 +1483,7 @@
         const PROV_TAG = m => m.or ? ' · OpenRouter' : m.cf ? ' · Cloudflare' : m.pol ? ' · Pollinations' : '';
         function parseDyn(slug, fallbackBase) {   // 'google/gemma-4-31b-it:free', '@cf/qwen/qwen3.8-27b', 'gemma2:9b'... -> { base, ver, psize }
             const raw = String(slug).replace(/^@(cf|hf)\//, '').replace(/:free$/, ''), prov = raw.includes('/') ? raw.split('/')[0] : '';
-            const s = raw.split('/').pop().toLowerCase().replace(/^(nvidia|vercel|reflection)-/, '').replace(/^(nvidia|vercel)-/, ''), sz = (s.match(/(?:^|[-_:])(\d+(?:\.\d+)?)b(?![a-z])/) || [])[1], SZ = sz ? sz + 'B' : '';
+            const s = raw.split('/').pop().toLowerCase().replace(/-free$/, '').replace(/^(nvidia|vercel|reflection)-/, '').replace(/^(nvidia|vercel)-/, ''), sz = (s.match(/(?:^|[-_:])(\d+(?:\.\d+)?)b(?![a-z])/) || [])[1], SZ = sz ? sz + 'B' : '';
             let m;
             if ((m = s.match(/^gemma-?(\d+(?:\.\d+)?)/))) return { base: 'Gemma', ver: m[1], psize: SZ || 'Cloud' };
             if ((m = s.match(/^gemini-(\d+(?:\.\d+)?)-?(.*)$/))) return { base: 'Gemini', ver: m[1], psize: (m[2] || '').split('-').filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(' ') || 'Base' };
@@ -1804,15 +1810,12 @@
             if (sizes.length) {
                 const row = document.createElement('div'); row.className = 'size-row';
                 const lab = document.createElement('span'); lab.className = 'size-label'; lab.textContent = tr('Parâmetros');
-                const sel = document.createElement('select'); sel.id = 'size-select';
                 const keys = []; sizes.forEach(m => { let k = keys.find(x => x.pk === m.pk); if (!k) keys.push(k = { pk: m.pk, items: [] }); k.items.push(m); });
                 const variants = (keys.find(k => k.pk === cur.pk) || { items: [cur] }).items;
-                keys.forEach(k => {   // cor: azul se tem local, cinza se tem nuvem gratis, amarelo se so tem pago
+                const sel = miniSelect(keys.map(k => {   // cor: azul se tem local, cinza se tem nuvem gratis, amarelo se so tem pago
                     const rep = k.pk === cur.pk ? cur : bestVariant(k.items), kinds = new Set(k.items.map(kindOf));
-                    const o = new Option(rep.klabel + (rep.heavy ? ' ⚠' : '') + (phoneBlocked(rep) ? ' ✕' : ''), rep.id); o.disabled = phoneBlocked(rep);
-                    o.style.color = kinds.has('local') ? 'var(--k-local)' : kinds.has('cloud') ? 'var(--k-cloud)' : 'var(--k-paid)'; sel.add(o);
-                });
-                sel.value = cur.id; const paintSel = () => { const o = sel.selectedOptions[0]; sel.style.color = o ? o.style.color : ''; }; paintSel(); sel.onchange = () => pickSize(sel.value);
+                    return { value: rep.id, label: rep.klabel + (rep.heavy ? ' ⚠' : '') + (phoneBlocked(rep) ? ' ✕' : ''), disabled: phoneBlocked(rep), color: kinds.has('local') ? 'var(--k-local)' : kinds.has('cloud') ? 'var(--k-cloud)' : 'var(--k-paid)' };
+                }), cur.id, v => pickSize(v), tr('Parâmetros'));
                 const info = document.createElement('span'); info.className = 'size-info'; info.id = 'size-info'; info.dataset.id = cur.id; info.textContent = sizeInfoText(cur);
                 row.append(lab, sel); if (variants.length > 1) row.appendChild(providerSelect(variants, cur));
                 if (sizes.some(m => m.cloud) && sizes.some(m => !m.cloud)) {   // familia com versao local e na nuvem (ex.: Nemotron): casa = local, nuvem = nuvem
@@ -1857,12 +1860,21 @@
             fin(m); return MODELS.filter(x => x !== m && fin(x).grp === m.grp && x.pk === m.pk && !isLocalM(x) && !x.phone && x.tabs.includes(tab) && isAvail(x)).sort((a, b) => costRank(a) - costRank(b));
         }
         function providerSelect(items, cur) {
-            const sel = document.createElement('select'); sel.id = 'prov-select'; sel.title = tr('Provedor');
-            items.forEach(m => { const o = new Option(providerName(m) + provInfo(m), m.id); o.style.color = m.pol ? 'var(--k-paid)' : isLocalM(m) ? 'var(--k-local)' : 'var(--k-cloud)'; sel.add(o); });
-            sel.value = cur.id;
-            const paint = () => { const o = sel.selectedOptions[0]; sel.style.color = o ? o.style.color : ''; }; paint();
-            sel.onchange = () => { paint(); pickSize(sel.value); };
-            return sel;
+            return miniSelect(items.map(m => ({ value: m.id, label: providerName(m) + provInfo(m), color: m.pol ? 'var(--k-paid)' : isLocalM(m) ? 'var(--k-local)' : 'var(--k-cloud)' })), cur.id, v => pickSize(v), tr('Provedor'));
+        }
+        function miniSelect(opts, value, onChange, title) {   // lista suspensa propria (a do navegador ficava feia dentro do seletor de modelos): abre para baixo dentro da propria linha
+            const wrap = document.createElement('div'); wrap.className = 'ms'; wrap.title = title || '';
+            const cur = opts.find(o => o.value === value) || opts[0] || { label: '', color: '' };
+            const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'ms-btn';
+            const t = document.createElement('span'); t.textContent = cur.label; t.style.color = cur.color || ''; const ar = document.createElement('i'); ar.className = 'ms-arrow'; btn.append(t, ar);
+            const panel = document.createElement('div'); panel.className = 'ms-panel';
+            opts.forEach(o => {
+                const it = document.createElement('div'); it.className = 'ms-opt' + (o.value === value ? ' sel' : '') + (o.disabled ? ' dis' : ''); it.textContent = o.label; it.style.color = o.color || '';
+                it.onclick = e => { e.stopPropagation(); if (o.disabled) return; wrap.classList.remove('open'); onChange(o.value); };
+                panel.appendChild(it);
+            });
+            btn.onclick = e => { e.stopPropagation(); document.querySelectorAll('.ms.open').forEach(x => { if (x !== wrap) x.classList.remove('open'); }); wrap.classList.toggle('open'); };
+            wrap.append(btn, panel); return wrap;
         }
         const apiModelId = m => m.id;   // o que vai para o servidor
         async function selectFamily(fam) {
