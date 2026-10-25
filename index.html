@@ -3534,7 +3534,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             $('groq-key-input').value = ''; $('or-key-input').value = ''; $('cf-token-input').value = ''; $('cf-acc-input').value = ''; $('pol-key-input').value = ''; $('tdc-key-input').value = ''; $('vc-key-input').value = ''; $('l7-key-input').value = ''; $('exa-key-input').value = '';
             showModal('settings-modal');
             showSettingsTab('general');
-            if (!config.uiLegacy) buildSettingsNav();
+            if (!config.uiLegacy && innerWidth > 760) buildSettingsNav(); else document.querySelectorAll('#set-general .sec-hidden').forEach(e => e.classList.remove('sec-hidden'));   // classica e celular: tudo numa rolagem so
             if (auth.local) { renderAppSettings(); refreshModelManager(); }
             if (!auth.local && !auth.authed) { showSettingsTab('server'); return; }
             try {
