@@ -7,6 +7,7 @@ Como numerar:
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
 ## v3.0 (em desenvolvimento)
+- **tomdacat** como provedor (Configurações > Chaves de API): só entram modelos de até 100 créditos por milhão de tokens e que o Lume ainda não tinha: GPT-5 Mini, MiMo V2.5, Mercury 2, Celeris 1, DiffusionGemma 4 26B e Nemotron 3 Nano Omni. O padrão continua sendo o mais barato; os do tomdacat ficam depois dos grátis.
 - Planejado para a 3.0 (depois): redesenho completo da interface com um botão para voltar à interface original, e vários temas que mudam o layout e não só a cor.
 - O tema "Kimi" (que é roxo) agora se chama **Roxo**. Todos os GLM 5.3 Flash (2 grátis, MarcosFRG e Saauf) e o GLM 4.6V nas duas abas; Qwen 3.8 Max (vendouple) com o oficial de reserva; grátis com 90%+ de sucesso continuam na frente dos pagos.
 - **Groq** de volta, agora sem a biblioteca: Qwen 3.8 27B, GPT-OSS 120B e 20B (abas Chat e Code), com os limites do Groq (pedidos por dia e tokens por minuto) no painel e um aviso quando estão acabando; erro de limite explica o que estourou e quando renova. **Kimi** K2.6 e K3, GPT 6.1 Sol / 5.6 Sol e Qwen 3.8 Max mais baratos da comunidade (o oficial fica de reserva), MiniMax M3 oficial. Tirei o GPT 5.3 Codex. Em "Pollinations", o provedor mais barato vira o padrão mesmo se o catálogo o marcar como instável.

@@ -179,7 +179,7 @@ class Guests:
     def check_model(self, u, model):
         """Motivo (texto curto) se este amigo nao pode usar o modelo, ou None."""
         p = self.policy(u)
-        if (model or "").startswith(("groq", "or:", "cf:", "pol:")): return "model"   # usam as chaves do dono
+        if (model or "").startswith(("groq", "or:", "cf:", "pol:", "tdc:")): return "model"   # usam as chaves do dono
         if model in p["blocked_models"]: return "model"
         cloud = bool(re.search(r"(:|-)cloud$", model or ""))
         if cloud and "cloud" in p["blocked_features"]: return "cloud"
