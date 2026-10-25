@@ -1575,7 +1575,7 @@ POL_MODELS = [
     ("community/ZapGaming/llama3.1-8b-xturbo", {"free": True, "speed": 2, "tabs": "both"}),
     ("community/Saauf/minimax-m3.1-flash", {"tabs": "both"}), ("minimax/minimax-m3", {"tabs": "both"}),
     # modelos que ja existiam oficiais: a versao da comunidade (mais barata) vira a padrao e a oficial fica de reserva (o Lume ordena pelo preco)
-    ("moonshotai/kimi-k2.6", {"tabs": "both"}), ("moonshotai/kimi-k3", {"tabs": "both"}), ("community/vendouple/kimi-k3", {"tabs": "both"}),
+    ("moonshotai/kimi-k2.6", {"tabs": "both"}), ("moonshotai/kimi-k3", {"tabs": "both"}), ("community/vendouple/kimi-k3", {"tabs": "both", "prio": True}),
     ("community/sonofstrange/gpt-6.1-sol-quest", {"tabs": "both"}), ("community/JustScriptzz/gpt-5.6-sol", {"tabs": "both"}),
     ("community/vendouple/qwen-3.8-max", {"tabs": "both"}),
     ("community/scriptsnsenses-sys/deepseek-v4-flash-0731", {"free": True, "tabs": "both"}),
@@ -1647,7 +1647,7 @@ def pollinations_models(cfg):
         free = bool(ex.get("free")) or (bool(m) and pin == 0 and pout == 0)
         out.append({"id": mid, "name": m.get("title") or mid.split("/")[-1], "provider": mid.split("/")[1] if mid.startswith("community/") else "oficial",
                     "ctx": m.get("context_length") or 128000, "vision": "image" in inm, "pin": pin, "pout": pout, "free": free, "guess": bool(ex.get("guess")),
-                    "health": hl.get("status") or ("degraded" if ex.get("flaky") else "?"), "success": hl.get("success_rate"), "official": not mid.startswith("community/"), "speed": ex.get("speed", 0), "tabs": ex.get("tabs", "chat"),
+                    "health": hl.get("status") or ("degraded" if ex.get("flaky") else "?"), "success": hl.get("success_rate"), "official": not mid.startswith("community/"), "prio": bool(ex.get("prio")), "speed": ex.get("speed", 0), "tabs": ex.get("tabs", "chat"),
                     "warn": ex.get("warn") or (f"Limite de {m['per_user_rpm']} pedidos por minuto: se mandar varias mensagens seguidas pode dar erro de limite." if m.get("per_user_rpm") and m["per_user_rpm"] <= 5 else ""),
                     "reasoning": bool(m) and ("reasoning" in (m.get("capabilities") or []) or bool(m.get("reasoning"))), "effort": "reasoning_effort" in (m.get("supported_parameters") or []),
                     "tools": ("tool_calling" in (m.get("capabilities") or []) or bool(m.get("tools"))) if m else None, "rpm": m.get("per_user_rpm"), "p50": lat.get(mid)})
