@@ -8,6 +8,7 @@
 if (window.__lumeBackend) return;
 window.__lumeBackend = true;
 window.__LUME_IOS = true;
+document.documentElement.classList.add('is-ios');
 const D = window.LUME_DATA || { POL_MODELS: [], VERCEL_MODELS: [], TDC_MODELS: [], POL_MAX_PRICE: 4.5, TDC_MAX_CR: 100, MODEL_EXCLUDE: '^$', GROQ_EXCLUDE: '^$' };
 const VERSION = '3.0';
 const realFetch = window.fetch.bind(window);
