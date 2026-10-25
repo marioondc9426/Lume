@@ -1327,8 +1327,8 @@ def _sse_chat(response, t0, err_map, first_timeout=None, idle_timeout=None):
         timer.cancel()
     if state["timed"]: raise Exception(f"O provedor parou de responder (sem dados por {state['limit']} s).")
     if cut: yield "content", "\n\n[Cortado: o modelo atingiu o limite de tokens da resposta]"
-    for _, c in sorted(tcalls.items())[:1]:   # uma ferramenta por passo
-        if c["name"] in TOOL_NAMES: yield "content", "$$[TOOL: %s] %s$$" % (c["name"], c["args"] or "{}")
+    calls_txt = ["$$[TOOL: %s] %s$$" % (c["name"], c["args"] or "{}") for _, c in sorted(tcalls.items())[:5] if c["name"] in TOOL_NAMES]
+    if calls_txt: yield "content", chr(10).join(calls_txt)   # tudo num pedaco so: o laco do agente le a primeira e depois as outras
     if usage and usage.get("completion_tokens"):
         now = time.time(); win = max(0.001, now - (first or t0)); total = max(0.001, now - t0)
         # alguns provedores (Pollinations) seguram a resposta e soltam tudo de uma vez no fim: o tempo entre o 1o e o ultimo pedaco nao e o de geracao (dava 7.000 t/s).
@@ -2741,35 +2741,46 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                         send(L("\n\n[Nenhuma ferramenta foi executada: a IA nao conseguiu chamar a ferramenta no formato correto. Se ela disse que executou algo, isso nao aconteceu. Modelos pequenos as vezes falham ao usar ferramentas: e so pedir de novo.]",
                                "\n\n[No tool was run: the AI could not call the tool in the correct format. If it said it ran something, that did not happen. Small models sometimes fail when using tools: just ask again.]"))
                     break
-                tool_name, tool_args, end = call
+                # a IA pode pedir varias ferramentas de uma vez (chamadas em paralelo): roda ate 5, uma depois da outra, e devolve todos os resultados juntos
+                calls = [call]; rest_from = call[2]
+                while len(calls) < 5:
+                    nxt = find_tool_call(full[rest_from:])
+                    if not nxt: break
+                    calls.append((nxt[0], nxt[1], rest_from + nxt[2])); rest_from = rest_from + nxt[2]
                 failed_pending = False; corrections = 0; native_tries = 0   # cada passo ganha as suas tentativas
-                tool_args = normalize_args(tool_name, tool_args)
-                full = full[:end]
-                log("TOOL", f"{tool_name} {tool_args}", COLOR_CYAN)
-                if needs_permission(tool_name):
-                    status("Aguardando permissão")
-                    if not ask_permission(describe_tool(tool_name, tool_args), stopped):
-                        send(L("\n\n[Acao negada pelo usuario]", "\n\n[Action denied by the user]"))
-                        break
-                status(f"Executando: {tool_name}")
-                if tool_name == "search_web":   # emite as fontes para a interface mostrar os cartoes
-                    results, src = search_web_results(tool_args.get("query", ""))
-                    result = format_search(results, src) if results else SEARCH_UNAVAILABLE
-                    if results: emit({"sources": [{"title": t, "url": u} for t, _, u in results], "provider": src})
-                elif tool_name == "read_url":
-                    try:
-                        page_title, page = read_url_text(tool_args.get("url", ""))
-                        result = truncate(f"{page_title}\n\n{page}")
-                        emit({"sources": [{"title": page_title, "url": tool_args.get("url", "")}], "provider": "read_url"})
-                    except Exception as e:
-                        result = f"Erro: {e}"
-                else:
-                    result = execute_tool(tool_name, tool_args, workdir, lang)
-                log("TOOL", f"resultado de {tool_name}: {len(result)} caracteres", COLOR_GREEN if not result.startswith("Erro") else COLOR_RED)
-                send(L(f"\n\n[resultado de {tool_name}]\n{result}\n[/resultado]\n\n", f"\n\n[result of {tool_name}]\n{result}\n[/result]\n\n"))
+                full = full[:calls[-1][2]]; denied = False; results_txt = []
+                for tool_name, tool_args, _end in calls:
+                    tool_args = normalize_args(tool_name, tool_args)
+                    log("TOOL", f"{tool_name} {tool_args}", COLOR_CYAN)
+                    if needs_permission(tool_name):
+                        status("Aguardando permissão")
+                        if not ask_permission(describe_tool(tool_name, tool_args), stopped):
+                            send(L("\n\n[Acao negada pelo usuario]", "\n\n[Action denied by the user]"))
+                            denied = True; break
+                    status(f"Executando: {tool_name}")
+                    if tool_name == "search_web":   # emite as fontes para a interface mostrar os cartoes
+                        results, src = search_web_results(tool_args.get("query", ""))
+                        result = format_search(results, src) if results else SEARCH_UNAVAILABLE
+                        if results: emit({"sources": [{"title": t, "url": u} for t, _, u in results], "provider": src})
+                    elif tool_name == "read_url":
+                        try:
+                            page_title, page = read_url_text(tool_args.get("url", ""))
+                            result = truncate(f"{page_title}\n\n{page}")
+                            emit({"sources": [{"title": page_title, "url": tool_args.get("url", "")}], "provider": "read_url"})
+                        except Exception as e:
+                            result = f"Erro: {e}"
+                    else:
+                        result = execute_tool(tool_name, tool_args, workdir, lang)
+                    log("TOOL", f"resultado de {tool_name}: {len(result)} caracteres", COLOR_GREEN if not result.startswith("Erro") else COLOR_RED)
+                    send(L(f"\n\n[resultado de {tool_name}]\n{result}\n[/resultado]\n\n", f"\n\n[result of {tool_name}]\n{result}\n[/result]\n\n"))
+                    results_txt.append((tool_name, result))
+                if denied and not results_txt: break
+                tool_name = calls[0][0]
+                joined = "\n\n".join((f"[{n}]\n{r}" if len(calls) > 1 else r) for n, r in results_txt)
                 pair = [{"role": "assistant", "content": full},
-                        {"role": "user", "content": L(f"Resultado da ferramenta {tool_name}:\n{result}", f"Tool result for {tool_name}:\n{result}")}]
+                        {"role": "user", "content": L(f"Resultado da ferramenta {tool_name}:\n{joined}", f"Tool result for {tool_name}:\n{joined}") if len(calls) == 1 else L(f"Resultados das ferramentas:\n{joined}", f"Tool results:\n{joined}")}]
                 messages.extend(pair); clean.extend(pair)
+                if denied: break
                 status("Pensando")
             else:
                 if agent:
