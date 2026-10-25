@@ -207,6 +207,7 @@ def load_config():
     cfg.setdefault("cloudflare_api_token", "")   # Cloudflare Workers AI: token + id da conta
     cfg.setdefault("cloudflare_account_id", "")
     cfg.setdefault("pollinations_api_key", "")   # Pollinations: modelos que gastam pollen
+    cfg.setdefault("google_api_key", "")         # Google AI Studio (Gemini; plano gratis)
     cfg.setdefault("tomdacat_api_key", "")       # tomdacat (ai.tomdacat.com): gateway de modelos cobrado em creditos
     cfg.setdefault("workdir", "")
     cfg.setdefault("usage", {}).setdefault("groq", 0)
@@ -309,7 +310,7 @@ def build_stats(days=30):
     # Ollama: a conta so mede o uso da nuvem por tempo de GPU em janelas de 5 h e 7 dias; aqui e a soma do que passou por este app
     oll = {"h5": {"requests": 0, "seconds": 0.0, "tokens": 0}, "d7": {"requests": 0, "seconds": 0.0, "tokens": 0}, "month": {}, "local": {"requests": 0, "seconds": 0.0, "tokens": 0}}
     for e in allev:
-        if e.get("type") != "chat" or str(e.get("model", "")).startswith(("groq", "or:", "cf:", "pol:", "tdc:")) or e.get("ts", 0) < now - 30 * 86400: continue
+        if e.get("type") != "chat" or str(e.get("model", "")).startswith(("groq", "or:", "cf:", "pol:", "tdc:", "gai:")) or e.get("ts", 0) < now - 30 * 86400: continue
         sec, tk, age = e.get("seconds", 0.0), e.get("tokens", 0), now - e["ts"]
         if is_ollama_cloud(e.get("model")):
             if age <= 5 * 3600: oll["h5"]["requests"] += 1; oll["h5"]["seconds"] += sec; oll["h5"]["tokens"] += tk
@@ -1277,6 +1278,50 @@ def stream_groq(model, messages, cfg, max_tokens=None):
         raise Exception(f"Groq respondeu {e.code}: {msg}")
     yield from _sse_chat(response, t0, {})
 
+# ---------------------------------------------------------------- Google AI Studio (Gemini; plano gratis com limites por minuto e por dia)
+GAI_URL = "https://generativelanguage.googleapis.com/v1beta/openai"
+GAI_EXCLUDE = re.compile(r"embed|imagen|veo|tts|live|image|aqa|audio|robotics|computer-use|learnlm|transcribe", re.I)
+_gai_cache = {"t": 0, "models": []}
+
+def google_models(cfg, force=False):
+    """Modelos de conversa (Gemini/Gemma) da conta no Google AI Studio ([{id, name}]); em cache por 1 h."""
+    key = (cfg.get("google_api_key") or "").strip()
+    if not key: return []
+    if not force and _gai_cache["models"] and time.time() - _gai_cache["t"] < 3600: return _gai_cache["models"]
+    req = urllib.request.Request(GAI_URL + "/models", headers={"Authorization": "Bearer " + key, "User-Agent": "lume-app"})
+    with urllib.request.urlopen(req, timeout=20) as r: data = json.load(r).get("data", [])
+    out = []
+    for m in data:
+        mid = str(m.get("id") or "").replace("models/", "", 1)
+        if not mid or not re.match(r"(gemini|gemma)", mid) or GAI_EXCLUDE.search(mid): continue
+        out.append({"id": mid})
+    out.sort(key=lambda m: m["id"]); _gai_cache.update(t=time.time(), models=out)
+    return out
+
+def stream_google(model, messages, cfg, max_tokens=None):
+    key = (cfg.get("google_api_key") or "").strip()
+    if not key: raise Exception("Chave do Google AI Studio nao configurada. Abra Configuracoes e cole sua chave.")
+    msgs = []
+    for m in messages:
+        imgs = m.get("images") or []
+        if imgs and m["role"] == "user": msgs.append({"role": "user", "content": [{"type": "text", "text": m["content"]}] + [{"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + b}} for b in imgs]})
+        else: msgs.append({"role": m["role"], "content": m["content"]})
+    payload = {"model": model[4:], "messages": msgs, "stream": True, "stream_options": {"include_usage": True}}
+    if max_tokens: payload["max_tokens"] = int(max_tokens)
+    req = urllib.request.Request(GAI_URL + "/chat/completions", data=json.dumps(payload).encode("utf-8"), headers={"Authorization": "Bearer " + key, "Content-Type": "application/json", "User-Agent": "lume-app"})
+    t0 = time.time()
+    try: response = _cloud_open(req, "O Google AI Studio")
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", "replace"); msg = body[:250]
+        try:
+            j = json.loads(body); j = j[0] if isinstance(j, list) and j else j
+            msg = str((j.get("error") or {}).get("message") or msg)[:250]
+        except (ValueError, AttributeError, TypeError): pass
+        if e.code in (400, 401, 403) and "API key" in body: raise Exception("Chave do Google AI Studio invalida. Confira em Configuracoes (comeca com AIza).")
+        if e.code == 429: raise Exception(f"Limite do plano gratis do Google AI Studio (pedidos por minuto ou por dia): {msg}")
+        raise Exception(f"O Google AI Studio respondeu {e.code}: {msg}")
+    yield from _sse_chat(response, t0, {})
+
 # ---------------------------------------------------------------- tomdacat (gateway com creditos; a interface e compativel com a da OpenAI)
 TDC_URL = "https://ai.tomdacat.com"
 TDC_MAX_CR = 100   # so entram modelos de ate 100 creditos por milhao de tokens (entrada e saida)
@@ -1780,6 +1825,7 @@ def stream_pollinations(model, messages, think, cfg, max_tokens=None, agent=Fals
 def stream_model(model, messages, think, cfg, num_ctx=None, max_tokens=None, agent=False, effort=None):
     if model.startswith("pol:"): return stream_pollinations(model, messages, think, cfg, max_tokens, agent, effort)
     if model.startswith("tdc:"): return stream_tomdacat(model, messages, cfg, max_tokens)
+    if model.startswith("gai:"): return stream_google(model, messages, cfg, max_tokens)
     if model.startswith("or:"): return stream_openrouter(model, messages, think, cfg, max_tokens)
     if model.startswith("cf:"): return stream_cloudflare(model, messages, think, cfg, max_tokens)
     return stream_groq(model, messages, cfg, max_tokens) if model.startswith("groq") else stream_ollama(model, messages, think, num_ctx, max_tokens)
@@ -2219,6 +2265,12 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             if not has: return self.send_json({"key_saved": False, "models": []})
             try: return self.send_json({"key_saved": True, "models": openrouter_free_models()})
             except Exception as e: return self.send_json({"key_saved": True, "models": [], "error": str(e)[:200]})
+        if p == '/api/google_models':
+            if not local: return self.send_json({"error": "local_only"}, 403)
+            cfg = load_config()
+            if not cfg.get("google_api_key"): return self.send_json({"saved": False, "models": []})
+            try: return self.send_json({"saved": True, "models": google_models(cfg)})
+            except Exception as e: return self.send_json({"saved": True, "models": [], "error": str(e)[:200]})
         if p == '/api/tomdacat_models':
             if not local: return self.send_json({"error": "local_only"}, 403)
             cfg = load_config()
@@ -2260,7 +2312,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             except Exception as e: return self.send_json({"saved": True, "models": [], "error": str(e)[:200]})
         if p == '/api/config_status':
             cfg = load_config()
-            return self.send_json({"groq_key_saved": bool(cfg.get("groq_api_key")), "openrouter_key_saved": bool(cfg.get("openrouter_api_key")), "cloudflare_saved": all(cf_creds(cfg)), "pollinations_saved": bool(cfg.get("pollinations_api_key")), "tomdacat_saved": bool(cfg.get("tomdacat_api_key")), "exa_key_saved": bool(exa_api_key(cfg)), "search_provider": cfg.get("search_provider", "auto"), "exa_type": cfg.get("exa_type", "lite"), "search_results": max_results(), "search_daily_limit": cfg.get("search_daily_limit", 100), "exa_today": exa_searches_today(), "auto_allow": bool(cfg.get("auto_allow")), "workdir": get_workdir(cfg) if local else "", "default_workdir": BASE_DIR if local else ""})
+            return self.send_json({"groq_key_saved": bool(cfg.get("groq_api_key")), "openrouter_key_saved": bool(cfg.get("openrouter_api_key")), "cloudflare_saved": all(cf_creds(cfg)), "pollinations_saved": bool(cfg.get("pollinations_api_key")), "tomdacat_saved": bool(cfg.get("tomdacat_api_key")), "google_saved": bool(cfg.get("google_api_key")), "exa_key_saved": bool(exa_api_key(cfg)), "search_provider": cfg.get("search_provider", "auto"), "exa_type": cfg.get("exa_type", "lite"), "search_results": max_results(), "search_daily_limit": cfg.get("search_daily_limit", 100), "exa_today": exa_searches_today(), "auto_allow": bool(cfg.get("auto_allow")), "workdir": get_workdir(cfg) if local else "", "default_workdir": BASE_DIR if local else ""})
         if p == '/api/models_status':
             tags = ollama_tags(); running = tags is not None
             used, total, _ = get_gpu_metrics()
@@ -2413,10 +2465,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 if k in data:
                     try: data[k] = max(lo, min(hi, int(data[k])))
                     except (TypeError, ValueError): return self.send_json({"error": "Opcao de pesquisa invalida."}, 400)
-            for k in ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "cloudflare_api_token", "cloudflare_account_id", "exa_api_key", "tomdacat_api_key", "workdir", "search_provider", "exa_type", "search_results", "search_daily_limit", "auto_allow"):
+            for k in ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "cloudflare_api_token", "cloudflare_account_id", "exa_api_key", "tomdacat_api_key", "google_api_key", "workdir", "search_provider", "exa_type", "search_results", "search_daily_limit", "auto_allow"):
                 if k in data: cfg[k] = bool(data[k]) if k == "auto_allow" else data[k].strip() if k.endswith(("_key", "_token", "_id")) else data[k]
             save_config(cfg)
-            secrets_sent = [k for k in ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "tomdacat_api_key", "cloudflare_api_token", "exa_api_key") if k in data]
+            secrets_sent = [k for k in ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "tomdacat_api_key", "google_api_key", "cloudflare_api_token", "exa_api_key") if k in data]
             log("CONFIG", "Configuracoes salvas (" + ", ".join([k for k in data if k not in secrets_sent] + [f"chave {k.split('_')[0]}" for k in secrets_sent]) + ")", COLOR_GREEN)
             return self.send_json({"ok": True})
 
@@ -2467,6 +2519,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 cfg["start_with_terminal"] = bool(data["start_with_terminal"]); save_config(cfg); set_terminal(cfg["start_with_terminal"])
             if "auto_update_models" in data:
                 cfg["auto_update_models"] = bool(data["auto_update_models"]); save_config(cfg)
+            if "log_full" in data:
+                cfg["log_full"] = bool(data["log_full"]); save_config(cfg)
             if "tray" in data:
                 cfg["tray_enabled"] = bool(data["tray"]); save_config(cfg)
                 if cfg["tray_enabled"] and not tray_start(): cfg["tray_enabled"] = False; save_config(cfg); return self.send_json({"error": "Nao consegui criar o icone da bandeja (falta o pacote pystray)."}, 500)
@@ -2853,6 +2907,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         num_ctx = req_json.get("num_ctx")
         workdir = get_workdir(cfg)
         n_images = sum(len(m.get("images", [])) for m in messages)
+        if cfg.get("log_full"): log("USUARIO", next((m["content"] for m in reversed(messages) if m.get("role") == "user"), ""), COLOR_YELLOW)
         log("CHAT", f"modelo={model} modo={'agente' if agent else 'chat'} mensagens={len(messages)} imagens={n_images} contexto={num_ctx or 'padrao'} pensar={think} web={bool(req_json.get('search_web'))}" + ("" if local else f" origem={self.client_address[0]}"), COLOR_CYAN)
 
         self.send_response(200)
@@ -2861,20 +2916,23 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
         def emit(obj):
             self.wfile.write((json.dumps(obj) + '\n').encode()); self.wfile.flush()
-        def send(text, kind="content"): emit({"message": {"role": "assistant", kind: text}})
+        verbose = bool(cfg.get("log_full")); think_buf = []   # "mostrar tudo no terminal": imprime o raciocinio, a resposta inteira, as chamadas de ferramenta e os resultados
+        def send(text, kind="content"):
+            if kind == "thinking" and verbose: think_buf.append(text)
+            emit({"message": {"role": "assistant", kind: text}})
         def status(text): emit({"status": text})
 
         total_chars = 0
         kw_model = {k: v for k, v in (("agent", True if agent else None), ("effort", str(req_json.get("effort") or "") or None)) if v}   # so manda o que foi pedido
         try:
-            if not model.startswith(("groq", "or:", "cf:", "pol:", "tdc:")):
+            if not model.startswith(("groq", "or:", "cf:", "pol:", "tdc:", "gai:")):
                 if not ollama_is_running():
                     status("Iniciando Ollama")
                     if not start_ollama(): raise Exception("Nao consegui iniciar o Ollama. Ele esta instalado?")
                 if model not in [m["name"] for m in ollama_ps()]:
                     status("Carregando modelo")
             else:
-                status("Esperando o tomdacat responder" if model.startswith("tdc:") else "Conectando ao OpenRouter" if model.startswith("or:") else "Conectando ao Cloudflare" if model.startswith("cf:") else "Esperando o Pollinations responder" if model.startswith("pol:") else "Conectando ao Groq")
+                status("Esperando o Google AI Studio responder" if model.startswith("gai:") else "Esperando o tomdacat responder" if model.startswith("tdc:") else "Conectando ao OpenRouter" if model.startswith("or:") else "Conectando ao Cloudflare" if model.startswith("cf:") else "Esperando o Pollinations responder" if model.startswith("pol:") else "Conectando ao Groq")
 
             if not messages or messages[0].get("role") != "system":
                 messages.insert(0, {"role": "system", "content": ""})
@@ -2887,8 +2945,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     log("WEB", f"Pesquisando: {query}", COLOR_CYAN)
                     results, source = search_web_results(query, guest=bool(gid))
                     if results:
-                        emit({"sources": [{"title": t, "url": u} for t, _, u in results], "provider": source})
-                        messages[0]["content"] += L("\n\n[PESQUISA NA WEB - use se for relevante e cite os links]", "\n\n[WEB SEARCH - use it if relevant and cite the links]") + format_search(results, source)
+                        emit({"sources": [{"title": t, "url": u} for t, _, u in results], "provider": source, "query": query})
+                        messages[0]["content"] += L(f"\n\n[PESQUISA NA WEB - use se for relevante e cite os links. Quem pesquisou foi o app Lume, automaticamente, usando exatamente o texto da ultima mensagem do usuario como consulta: \"{query}\". Voce nao controla nem ve como a busca decide os resultados: se eles nao combinam com a pergunta, diga so que a busca trouxe coisas sem relacao, sem inventar o motivo.]",
+                                                    f"\n\n[WEB SEARCH - use it if relevant and cite the links. The Lume app searched automatically using exactly the user's last message as the query: \"{query}\". You do not control or see how the search ranks results: if they do not fit the question, just say the search returned unrelated things, without inventing the reason.]") + format_search(results, source)
                     else:
                         status("Pesquisa na web indisponível")
                         messages[0]["content"] += L("\n\n[A pesquisa na web falhou: voce NAO tem dados atuais. Se a pergunta depender de informacao recente, diga isso ao usuario em vez de inventar.]",
@@ -2925,6 +2984,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 finally:
                     gen.close()
                 total_chars += len(full)
+                if verbose:
+                    if think_buf: log("IA · RACIOCINIO", "".join(think_buf), COLOR_GRAY); think_buf.clear()
+                    log("IA · RESPOSTA", full, COLOR_CYAN)
                 if stopped():
                     send(L("\n\n[Geracao parada]", "\n\n[Generation stopped]"))
                     break
@@ -2992,6 +3054,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     else:
                         result = execute_tool(tool_name, tool_args, workdir, lang)
                     log("TOOL", f"resultado de {tool_name}: {len(result)} caracteres", COLOR_GREEN if not result.startswith("Erro") else COLOR_RED)
+                    if verbose: log("TOOL · RESULTADO", result, COLOR_GRAY)
                     send(L(f"\n\n[resultado de {tool_name}]\n{result}\n[/resultado]\n\n", f"\n\n[result of {tool_name}]\n{result}\n[/result]\n\n"))
                     results_txt.append((tool_name, result))
                 if denied and not results_txt: break
@@ -3011,7 +3074,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 cfg = load_config()
                 cfg["usage"]["groq"] += total_chars
                 save_config(cfg)
-            record_event({"type": "chat", **({"user": gid} if gid else {}), "model": model, "cloud": model.startswith(("groq", "or:", "cf:", "pol:", "tdc:")), "tab": "code" if agent else "chat",
+            record_event({"type": "chat", **({"user": gid} if gid else {}), "model": model, "cloud": model.startswith(("groq", "or:", "cf:", "pol:", "tdc:", "gai:")), "tab": "code" if agent else "chat",
                           "tokens": req_tokens or total_chars // 4, "seconds": req_seconds or (time.time() - started), "prompt_tokens": req_prompt, "chars": total_chars})
             if model.startswith("cf:") and not gid:
                 try: cf_add_neurons(model[3:], req_prompt, req_tokens or total_chars // 4)
@@ -3292,7 +3355,7 @@ def tray_available():
 def app_options():
     cfg = load_config()
     return {"frozen": FROZEN, "start_with_terminal": bool(cfg.get("start_with_terminal")), "terminal_open": terminal_is_open(), "start_with_windows": autostart_get(), "remote_enabled": bool(cfg.get("remote_enabled")),
-            "tray": bool(cfg.get("tray_enabled")), "tray_available": tray_available(), "auto_update_models": bool(cfg.get("auto_update_models")),
+            "tray": bool(cfg.get("tray_enabled")), "tray_available": tray_available(), "auto_update_models": bool(cfg.get("auto_update_models")), "log_full": bool(cfg.get("log_full")),
             "models_updated_at": cfg.get("models_updated_at", 0), "model_update": dict(model_update_state)}
 
 # ---------------------------------------------------------------- tunel para acessar de fora de casa

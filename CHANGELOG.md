@@ -7,6 +7,7 @@ Como numerar:
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
 ## v3.0 (em desenvolvimento)
+- Configurações: **mostrar a mensagem completa da IA no terminal** (raciocínio, resposta inteira, chamadas de ferramenta e resultados, sem cortar). **Google AI Studio** (Gemini/Gemma, plano grátis) como provedor: cole a chave `AIza...` em Chaves de API. A busca na web agora diz ao modelo (e na dica de "Fontes") com que texto pesquisou, para ele não inventar o motivo de resultados estranhos.
 - **tomdacat** como provedor (Configurações > Chaves de API): só entram modelos de até 100 créditos por milhão de tokens e que o Lume ainda não tinha: GPT-5 Mini, MiMo V2.5, Mercury 2, Celeris 1, DiffusionGemma 4 26B e Nemotron 3 Nano Omni. O padrão continua sendo o mais barato; os do tomdacat ficam depois dos grátis.
 - Planejado para a 3.0 (depois): redesenho completo da interface com um botão para voltar à interface original, e vários temas que mudam o layout e não só a cor.
 - O tema "Kimi" (que é roxo) agora se chama **Roxo**. Todos os GLM 5.3 Flash (2 grátis, MarcosFRG e Saauf) e o GLM 4.6V nas duas abas; Qwen 3.8 Max (vendouple) com o oficial de reserva; grátis com 90%+ de sucesso continuam na frente dos pagos.
