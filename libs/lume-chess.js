@@ -10,7 +10,7 @@
         excellent: { n: 'Excelente', en: 'Excellent', sym: '✓', c: '#96bc4b' }, good: { n: 'Bom', en: 'Good', sym: '✓', c: '#a3b27a' }, inaccuracy: { n: 'Imprecisão', en: 'Inaccuracy', sym: '?!', c: '#f7c631' },
         mistake: { n: 'Erro', en: 'Mistake', sym: '?', c: '#e58f2a' }, blunder: { n: 'Erro grave', en: 'Blunder', sym: '??', c: '#ca3431' }, miss: { n: 'Perdeu', en: 'Miss', sym: '✕', c: '#ff7769' },
     };
-    let game = null, st = null, ov = null, engine = null, engQ = Promise.resolve();
+    const winPos = { x: 0, y: 0 }; let game = null, st = null, ov = null, engine = null, engQ = Promise.resolve();
 
     const css = document.createElement('style');
     css.textContent = `
@@ -313,8 +313,7 @@
         });
         board.addEventListener('pointerdown', e => { if (e.pointerType !== 'touch') return; const s = sqAt(e); press = setTimeout(() => { press = null; lpress = s; }, 380); });
         board.addEventListener('pointerup', e => { if (e.pointerType !== 'touch') return; if (press) { clearTimeout(press); press = null; } if (lpress) { const to = sqAt(e), from = lpress; lpress = null; if (to && to !== from) { st.arrows.push({ from, to, color: '#15781B' }); render(); } e.preventDefault(); } });
-        board.addEventListener('click', e => {
-            if (lpress) return; const s = sqAt(e); if (!s) return;
+        const act = s => {
             if (st.review === null || st.review === undefined) {
                 if (st.thinking && !game.game_over() && !st.over) {   // vez do modelo: clique monta uma jogada adiantada
                     const p = game.get(s);
@@ -334,6 +333,26 @@
             if (selP && selP.type === 'k' && clk && clk.type === 'r' && clk.color === selP.color) { const dest = (s[0] > st.sel[0] ? 'g' : 'c') + st.sel[1]; if (st.targets.includes(dest)) { tryMove(st.sel, dest); return; } }   // clicar na propria torre = roque
             const p = game.get(s); if (p && p.color === st.human) { st.sel = s; st.targets = game.moves({ square: s, verbose: true }).map(m => m.to); } else { st.sel = null; st.targets = []; }
             render();
+        };
+        let drag = null, noClick = 0;
+        board.addEventListener('click', e => { if (lpress || Date.now() < noClick) return; const s = sqAt(e); if (s) act(s); });
+        board.addEventListener('pointerdown', e => {
+            if (e.pointerType === 'touch' || e.button !== 0 || !st || (st.review !== null && st.review !== undefined)) return;
+            const s = sqAt(e), p = s && game.get(s); if (!p || p.color !== st.human || game.game_over() || st.over) return;
+            drag = { from: s, x: e.clientX, y: e.clientY, ghost: null, moved: false, src: p };
+        });
+        window.addEventListener('pointermove', e => {
+            if (!drag) return;
+            if (!drag.moved) { if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 6) return; drag.moved = true; act(drag.from); if (st.sel !== drag.from && st.psel !== drag.from) { drag = null; return; }
+                const g = pieceEl(drag.src); g.style.cssText = 'position:fixed;z-index:7000;pointer-events:none;width:' + (board.clientWidth / 8) + 'px;height:' + (board.clientWidth / 8) + 'px;transform:translate(-50%,-50%)'; document.body.appendChild(g); drag.ghost = g; const sq = board.querySelector('.chess-sq[data-sq="' + drag.from + '"] .chess-pc'); if (sq) sq.style.opacity = '.35'; }
+            drag.ghost.style.left = e.clientX + 'px'; drag.ghost.style.top = e.clientY + 'px';
+        });
+        window.addEventListener('pointerup', e => {
+            if (!drag) return; const d = drag; drag = null; if (!d.moved) return;
+            if (d.ghost) d.ghost.remove(); noClick = Date.now() + 80;
+            const r = board.getBoundingClientRect(); let to = null;
+            if (e.clientX >= r.left && e.clientX < r.right && e.clientY >= r.top && e.clientY < r.bottom) { const c = Math.floor((e.clientX - r.left) / r.width * 8), rw = Math.floor((e.clientY - r.top) / r.height * 8), f = st.flip ? 7 - c : c, rk = st.flip ? rw : 7 - rw; to = FILES[f] + (rk + 1); }
+            if (to && to !== d.from) act(to); else { st.sel = null; st.targets = []; st.psel = null; render(); }
         });
     }
 
@@ -344,7 +363,10 @@
         const bsz = Math.max(280, Math.min(560, innerWidth - 80, innerHeight - 120)); wrap.style.setProperty('--cb', bsz + 'px');
         const bw = mk('div', 'chess-bw'); wrap.appendChild(bw); const evb = mk('div', 'chess-eval'); evb.appendChild(mk('i')); evb.appendChild(mk('b')); bw.appendChild(evb);
         const board = mk('div', 'chess-board'); board.appendChild(document.createElementNS('http://www.w3.org/2000/svg', 'svg')); const svg = board.lastChild; svg.setAttribute('class', 'chess-arrows'); svg.setAttribute('viewBox', '0 0 8 8'); bw.appendChild(board);
-        const side = mk('div', 'chess-side'); wrap.appendChild(side); side.appendChild(mk('h3', '', T('Xadrez contra um modelo')));
+        const side = mk('div', 'chess-side'); wrap.appendChild(side); const h3 = mk('h3', '', T('Xadrez contra um modelo')); h3.title = T('Arraste para mover a janela'); h3.style.cssText = 'cursor:move;touch-action:none;user-select:none;-webkit-user-select:none'; side.appendChild(h3);
+        wrap.style.transform = 'translate(' + winPos.x + 'px,' + winPos.y + 'px)';
+        wrap.addEventListener('animationend', e => { if (e.target === wrap && e.animationName === 'chPop') wrap.style.animation = 'none'; });
+        h3.addEventListener('pointerdown', e => { if (e.button) return; const sx = e.clientX - winPos.x, sy = e.clientY - winPos.y; h3.setPointerCapture(e.pointerId); const mv = ev => { winPos.x = ev.clientX - sx; winPos.y = ev.clientY - sy; wrap.style.animation = 'none'; wrap.style.transform = 'translate(' + winPos.x + 'px,' + winPos.y + 'px)'; }, up = () => { h3.removeEventListener('pointermove', mv); h3.removeEventListener('pointerup', up); }; h3.addEventListener('pointermove', mv); h3.addEventListener('pointerup', up); });
         const provOf = m => { try { return providerName(m); } catch (e) { return ''; } }, logoOf = m => { const sp = mk('span', 'cm-logo'); try { fin(m); const br = brandOf(m); if (br) sp.appendChild(brandEl(br, m)); else sp.textContent = '☁'; } catch (e) { sp.textContent = '☁'; } return sp; };
         let pick = Math.max(0, list.findIndex(m => m.id === (typeof selectedModel !== 'undefined' ? selectedModel : '')));
         const cw = mk('div', 'cm-wrap'), cb = mk('button', 'cm-btn'); cb.type = 'button'; const pop = mk('div', 'cm-pop'), srch = document.createElement('input'); srch.type = 'text'; srch.placeholder = T('Buscar modelo…'); srch.autocomplete = 'off'; const lst = mk('div', 'cm-list'); pop.append(srch, lst); cw.append(cb, pop);
