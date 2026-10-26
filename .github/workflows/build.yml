@@ -29,9 +29,12 @@ jobs:
           name: Lume-windows
           path: dist/Lume.exe
           retention-days: 30
+      - name: Texto da Release (a secao do CHANGELOG)
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: python .github/scripts/release_notes.py ${{ github.ref_name }}
       - name: Publicar na Release (so em tags v*)
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: dist/Lume.exe
-          generate_release_notes: true
+          body_path: release_notes.md

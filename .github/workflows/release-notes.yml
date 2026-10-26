@@ -1,0 +1,23 @@
+name: Descricao das Releases
+
+# Sempre que o CHANGELOG.md muda na main, a descricao de cada Release (v*) passa a ser a secao "## vX" do CHANGELOG.
+on:
+  push:
+    branches: [main]
+    paths: ["CHANGELOG.md", ".github/workflows/release-notes.yml", ".github/scripts/release_notes.py"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  notes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Atualizar a descricao de cada Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python .github/scripts/release_notes.py --edit-all
