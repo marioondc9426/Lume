@@ -76,22 +76,35 @@
     async function getEngine() {
         if (engine) return engine;
         const { w, kind } = await makeWorker(), E = { w, kind, on: null };
+        w.onerror = () => { if (engine === E) engine = null; if (E.fail) E.fail(new Error('o motor caiu')); };
         w.onmessage = e => { if (E.on) E.on(typeof e.data === 'string' ? e.data : String(e.data)); };
         const cmd = E.cmd = (c, until, ms) => new Promise((res, rej) => { const t = setTimeout(() => { E.on = null; rej(new Error('o motor nao respondeu')); }, ms || 30000); E.on = l => { if (until.test(l)) { clearTimeout(t); E.on = null; res(); } }; w.postMessage(c); });
         await cmd('uci', /uciok/); w.postMessage('setoption name MultiPV value 2'); await cmd('isready', /readyok/);
         engine = E; return E;
     }
     const wpct = cp => 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * cp)) - 1);   // 0..100 (chance de ganhar), do ponto de vista de quem tem o cp positivo
+    function fenSafe(fen) {   // lance ilegal do modelo pode deixar uma posicao impossivel (sem rei, reis colados, quem acabou de jogar em xeque...): o Stockfish cai com isso
+        try {
+            const parts = fen.split(' '), rows = parts[0].split('/'); if (rows.length !== 8) return false;
+            const flat = rows.map(r => r.replace(/\d/g, m => '.'.repeat(+m))); if (flat.some(r => r.length !== 8)) return false;
+            const all = flat.join(''); if ((all.match(/K/g) || []).length !== 1 || (all.match(/k/g) || []).length !== 1) return false;
+            if (/[Pp]/.test(flat[0] + flat[7])) return false;
+            const ki = all.indexOf('K'), kj = all.indexOf('k'); if (Math.abs((ki >> 3) - (kj >> 3)) <= 1 && Math.abs((ki & 7) - (kj & 7)) <= 1) return false;
+            const other = new Chess([parts[0], parts[1] === 'w' ? 'b' : 'w', '-', '-', '0', '1'].join(' ')); if (other.in_check()) return false;   // o lado que nao joga nao pode estar em xeque
+            return !!new Chess(fen).fen();
+        } catch (e) { return false; }
+    }
     function analyze(fen, ms) {   // {best, lines:[{mv, cp}]} com cp do ponto de vista das BRANCAS (mate vira +-10000)
         if (st.an[fen]) return Promise.resolve(st.an[fen]);
+        if (!fenSafe(fen)) return Promise.resolve(st.an[fen] = { best: '', lines: [], bad: true });   // posicao impossivel: nao manda para o motor
         const job = engQ.then(async () => {
             if (st.an[fen]) return st.an[fen]; const E = await getEngine(), white = fen.split(' ')[1] === 'w', S = st;
             E.w.postMessage('stop'); await E.cmd('isready', /readyok/, 8000);   // descarta qualquer busca antiga que ainda estivesse rodando
             return new Promise((res, rej) => {
-                const lines = {}, t = setTimeout(() => { E.on = null; try { E.w.terminate(); } catch (x) { /* ok */ } if (engine === E) engine = null; rej(new Error('tempo esgotado')); }, 15000);   // travou: joga o motor fora, o proximo recria
+                const lines = {}; E.fail = err => { clearTimeout(t); E.on = null; E.fail = null; rej(err); }; const t = setTimeout(() => { E.on = null; try { E.w.terminate(); } catch (x) { /* ok */ } if (engine === E) engine = null; rej(new Error('tempo esgotado')); }, 15000);   // travou: joga o motor fora, o proximo recria
                 E.on = l => {
                     if (l.startsWith('info') && / score (cp|mate) /.test(l) && / pv /.test(l)) { const pv = +((/ multipv (\d+)/.exec(l) || [0, 1])[1]), sc = / score (cp|mate) (-?\d+)/.exec(l), mv = (/ pv (\S+)/.exec(l) || [])[1]; let cp = sc[1] === 'cp' ? +sc[2] : (+sc[2] > 0 ? 10000 - +sc[2] : -10000 - +sc[2]); if (!white) cp = -cp; lines[pv] = { mv, cp, mate: sc[1] === 'mate' }; }
-                    else if (l.startsWith('bestmove')) { clearTimeout(t); E.on = null; const arr = Object.keys(lines).sort().map(k => lines[k]); const r = { best: l.split(' ')[1], lines: arr }; S.an[fen] = r; res(r); }
+                    else if (l.startsWith('bestmove')) { clearTimeout(t); E.on = null; E.fail = null; const arr = Object.keys(lines).sort().map(k => lines[k]); const r = { best: l.split(' ')[1], lines: arr }; S.an[fen] = r; res(r); }
                 };
                 E.w.postMessage('position fen ' + fen); E.w.postMessage('go movetime ' + (ms || 600));
             });

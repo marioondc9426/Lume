@@ -7,6 +7,7 @@ Como numerar:
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
 ## v3.1 (em desenvolvimento)
+- **Xadrez: o Stockfish não cai mais com lance ilegal.** Um lance ilegal pode deixar uma posição impossível (sem rei, reis colados, peão na última fileira, rei de quem não joga em xeque), e o motor travava com ela. Agora essas posições não são enviadas ao motor (o lance só fica sem nota), e se o motor cair mesmo assim ele é recriado na próxima análise.
 - **Xadrez: seletor de modelo igual ao do chat** (famílias na lista, com logos dos provedores, e embaixo "Parâmetros" e "Provedor"), com busca. A lista é relida toda vez que o seletor abre, então provedores que carregaram depois de abrir o xadrez aparecem. Tabuleiro no verde clássico.
 - **Xadrez: exportar a partida em PGN** (o formato padrão, aceito por Lichess, chess.com, Stockfish e qualquer programa de xadrez). O botão "Exportar PGN" copia o texto e baixa o arquivo `lume-partida.pgn`, com os nomes, a data e o resultado. Lances ilegais do modelo não existem no PGN: viram comentário `{lance ILEGAL ...}` e a posição final vai no cabeçalho (FEN).
 - **Xadrez: arrastar.** Dá para arrastar a janela pelo título e arrastar as peças com o mouse (soltar na casa de destino; vale também para a jogada adiantada). No celular, o toque continua sendo clicar na peça e depois na casa.
