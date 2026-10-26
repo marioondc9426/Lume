@@ -1555,13 +1555,15 @@ def voidai_plan(key):
     except Exception: p = _vd_plan["plan"]
     _vd_plan.update(t=time.time(), plan=p); return p
 
-_tk_cache = {"t": 0, "free": set()}
+_tk_cache = {"t": 0, "free": set(), "price": {}}
 def tokenreply_free():
     """TokenReply: os do nivel gratis (model_ratio 0) e os "semanais em destaque" (gastam o credito gratis da conta); os "Plus" respondem 403 plus_required. A tabela de precos e publica (nao leva a chave)."""
     if time.time() - _tk_cache["t"] < 3600 and _tk_cache["free"]: return _tk_cache["free"]
     try:
         with urllib.request.urlopen(urllib.request.Request(TK_URL[:-3] + "/api/pricing", headers={"User-Agent": "lume-app"}), timeout=20) as r: d = json.load(r)
-        _tk_cache.update(t=time.time(), free={x["model_name"] for x in d.get("data", []) if x.get("access_tier") in ("free", "weekly_featured")})   # free = ratio 0; weekly_featured gasta do credito gratis da conta (US$ 1)
+        ok = [x for x in d.get("data", []) if x.get("access_tier") in ("free", "weekly_featured")]
+        # US$ por token: model_ratio x 0,002 / 1000 na entrada; x completion_ratio na saida (confere com o painel deles: 4111 + 11 tokens no sonnet-4-5 = US$ 0,0125)
+        _tk_cache.update(t=time.time(), free={x["model_name"] for x in ok}, price={x["model_name"]: (float(x.get("model_ratio") or 0) * 2e-6, float(x.get("model_ratio") or 0) * float(x.get("completion_ratio") or 1) * 2e-6) for x in ok})   # free = ratio 0; weekly_featured gasta do credito gratis da conta (US$ 1)
     except Exception: pass
     return _tk_cache["free"]
 
@@ -1589,7 +1591,8 @@ def extra_models(prov, cfg, force=False, raw=False):
             out.append({"id": mid, "name": mid, "ctx": m.get("max_context_tokens") or 128000, "vision": False, "cin": m.get("input_multiplier") or 0, "cout": m.get("output_multiplier") or 0, "cbase": m.get("base_cost") or 0})   # creditos = base + entrada x cin + saida x cout (docs.voidai.app/guides/credits)
         elif prov == "tk":   # TokenReply: so os gratis (ratio 0)
             if mid not in tokenreply_free() or X_NONCHAT.search(mid) or re.search(r"grok", mid, re.I): continue
-            out.append({"id": mid, "name": mid.split("/")[-1], "ctx": 128000, "vision": False})
+            pin, pout = _tk_cache["price"].get(mid, (0, 0))
+            out.append({"id": mid, "name": mid.split("/")[-1], "ctx": 128000, "vision": False, "cin": pin, "cout": pout})   # cin/cout em US$ por token
         elif prov == "px":   # Paxsenix: so o plano free (os "High Engine" nao entram) e sem os "(Provider N)" repetidos
             if m.get("type") != "chat.completions" or X_NONCHAT.search(mid): continue
             out.append({"id": mid, "name": m.get("name") or mid, "ctx": m.get("max_context_tokens") or 128000, "vision": bool(m.get("supports_vision"))})
@@ -2707,6 +2710,14 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             if not cfg.get("vercel_api_key"): return self.send_json({"saved": False, "models": []})
             try: return self.send_json({"saved": True, "models": vercel_models(cfg)})
             except Exception as e: return self.send_json({"saved": True, "models": [], "error": str(e)[:200]})
+        if p == '/api/tokenreply_usage':
+            if not local: return self.send_json({"error": "local_only"}, 403)
+            key = (load_config().get("tokenreply_api_key") or "").strip()
+            if not key: return self.send_json({"error": "sem chave"}, 400)
+            try:
+                with urllib.request.urlopen(urllib.request.Request(TK_URL[:-3] + "/api/usage/token/", headers={"Authorization": "Bearer " + key, "User-Agent": "lume-app"}), timeout=15) as r: j = (json.load(r) or {}).get("data") or {}
+                return self.send_json({"available": j.get("total_available_usd"), "granted": j.get("total_granted_usd"), "used": j.get("total_used_usd")})
+            except Exception as e: return self.send_json({"error": str(e)[:160]}, 502)
         if p == '/api/voidai_credits':
             if not local: return self.send_json({"error": "local_only"}, 403)
             key = (load_config().get("voidai_api_key") or "").strip()

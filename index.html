@@ -2722,7 +2722,15 @@
             if (!force && Date.now() - vdAt < 30000) { if (vdCredits != null) b.textContent = '💳 ' + vdCredits.toLocaleString('pt-BR'); return; }
             vdAt = Date.now(); try { const d = await (await fetch(API + '/api/voidai_credits')).json(); if (d.credits != null) { vdCredits = d.credits; b.textContent = '💳 ' + d.credits.toLocaleString('pt-BR') + (d.limit ? ' / ' + d.limit.toLocaleString('pt-BR') : ''); b.title = tr('Créditos do VoidAI') + (d.plan ? ' · ' + tr('plano') + ' ' + d.plan : ''); } } catch (e) { /* sem saldo agora */ }
         }
-        { const _rpu = refreshPolUsage; refreshPolUsage = async f => { await _rpu(f); refreshVdCredits(f); }; }
+        let tkUsage = null, tkAt = 0;   // saldo do credito gratis do TokenReply (so aparece com um modelo dele escolhido)
+        async function refreshTkUsage(force) {
+            const m = modelById(selectedModel); let b = $('tk-badge'); if (!b) { b = document.createElement('span'); b.id = 'tk-badge'; b.style.cssText = 'display:none;font-size:.78em;padding:3px 10px;border-radius:12px;background:rgba(128,128,128,0.15);white-space:nowrap;color:var(--text-muted)'; ($('vd-badge') || $('pol-badge')).after(b); }
+            const show = !!(m && m.xp === 'tk' && (auth.local || auth.authed)); b.style.display = show ? 'inline-block' : 'none'; if (!show) return;
+            const paint = () => { if (!tkUsage) return; b.textContent = '💵 US$ ' + tkUsage.available.toFixed(3) + ' / ' + tkUsage.granted.toFixed(2); b.title = tr('Crédito grátis do TokenReply: sobra US$ {a} de US$ {g} (já gastou US$ {u})', { a: tkUsage.available.toFixed(4), g: tkUsage.granted.toFixed(2), u: tkUsage.used.toFixed(4) }); };
+            if (!force && Date.now() - tkAt < 30000) { paint(); return; }
+            tkAt = Date.now(); try { const d = await (await fetch(API + '/api/tokenreply_usage')).json(); if (d.available != null) { tkUsage = d; paint(); } } catch (e) { /* sem saldo agora */ }
+        }
+        { const _rpu = refreshPolUsage; refreshPolUsage = async f => { await _rpu(f); refreshVdCredits(f); refreshTkUsage(f); }; }
         function polBadgeClick() { refreshPolUsage(true); openExternal('https://pollinations.ai'); }
         setInterval(() => { const m = modelById(selectedModel); if (m && m.pol) refreshPolUsage(true); }, 60000);
         async function loadVercelModels() {   // modelos gratis da Vercel AI Gateway (exigem cartao cadastrado na conta Vercel)
@@ -3047,7 +3055,7 @@
             addMessageToUI('ai', WELCOMES[curLang()][chats[id].welcome], { welcome: true, animate: false });
             stickBottom = true;
             const g = gens[id];   // se este chat esta gerando em segundo plano, volta a mostrar a resposta que chega
-            (g && g.view ? g.view : chats[id].messages).forEach((m, i) => addMessageToUI(m.role, m.content, { animate: false, index: i, vars: m.vars, vi: m.vi, images: m.images, files: m.files, sources: m.sources, memSuggest: m.memSuggest, count: m.count, model: m.role === 'ai' ? m.model : undefined, tps: m.tps, pollen: m.pollen, credits: m.credits }));
+            (g && g.view ? g.view : chats[id].messages).forEach((m, i) => addMessageToUI(m.role, m.content, { animate: false, index: i, vars: m.vars, vi: m.vi, images: m.images, files: m.files, sources: m.sources, memSuggest: m.memSuggest, count: m.count, model: m.role === 'ai' ? m.model : undefined, tps: m.tps, pollen: m.pollen, credits: m.credits, usd: m.usd }));
             if (g) { g.aiDiv.classList.add('noanim'); chatBox.appendChild(g.aiDiv); }
             renderQueued(id);
             chatBox.scrollTop = chatBox.scrollHeight;
@@ -3063,17 +3071,17 @@
 
         // ---------- mensagens ----------
         // etiqueta pequena no canto de cada resposta: logo + nome do modelo (+ velocidade quando se sabe)
-        function modelTag(modelId, tps, pollen, credits) {
+        function modelTag(modelId, tps, pollen, credits, usd) {
             const m = modelById(modelId), tag = document.createElement('div'); tag.className = 'msg-tag';
             fin(m); famLabelNodes(m, m.base + (m.ver ? ' ' + m.ver : '')).forEach(n => tag.appendChild(n));
             const br = brandOf(m);
             if (!br) tag.lastChild.textContent = m.short;
             else tag.appendChild(document.createTextNode(' ' + (br.wordmark ? [m.ver, m.psize].filter(Boolean).join(' ') : m.psize)));
             const sp = document.createElement('span'); sp.className = 'tag-tps'; tag.appendChild(sp); setTagTps(tag, tps);
-            const cs = document.createElement('span'); cs.className = 'tag-cost'; tag.appendChild(cs); setTagCost(tag, pollen, credits);
+            const cs = document.createElement('span'); cs.className = 'tag-cost'; tag.appendChild(cs); setTagCost(tag, pollen, credits, usd);
             return tag;
         }
-        function setTagCost(tag, c, credits) { const sp = tag.querySelector('.tag-cost'); sp.textContent = credits ? ' · 💳 ' + credits.toLocaleString('pt-BR') + ' ' + tr('créditos') : c ? ' · 🌸 ' + (c < 0.00001 ? '<0.00001' : c.toFixed(c < 0.001 ? 6 : 5)) : ''; sp.title = credits ? tr('Créditos do VoidAI gastos nesta mensagem (entrada × taxa de entrada + saída × taxa de saída)') : tr('Pollen gasto nesta mensagem (estimado pelos tokens)'); }
+        function setTagCost(tag, c, credits, usd) { const sp = tag.querySelector('.tag-cost'); if (usd) { sp.textContent = ' · 💵 US$ ' + (usd < 0.0001 ? '<0.0001' : usd.toFixed(usd < 0.01 ? 5 : 4)); sp.title = tr('Gasto do crédito do TokenReply nesta mensagem (tokens × preço do modelo)'); return; } sp.textContent = credits ? ' · 💳 ' + credits.toLocaleString('pt-BR') + ' ' + tr('créditos') : c ? ' · 🌸 ' + (c < 0.00001 ? '<0.00001' : c.toFixed(c < 0.001 ? 6 : 5)) : ''; sp.title = credits ? tr('Créditos do VoidAI gastos nesta mensagem (entrada × taxa de entrada + saída × taxa de saída)') : tr('Pollen gasto nesta mensagem (estimado pelos tokens)'); }
         function setTagTps(tag, tps) { const sp = tag.querySelector('.tag-tps'); sp.textContent = tps ? ' · ' + tps.toFixed(1) + ' t/s' : ''; tag._tps = tps || 0; }
         function copyPayload(div, span) {   // texto original (markdown) + rodape com o modelo e a velocidade
             let raw = div._raw;
@@ -3106,7 +3114,7 @@
                 div.appendChild(box);
             }
             if (role === 'summary') { const h = document.createElement('div'); h.className = 'sum-head'; h.textContent = tr('Conversa compactada ({n} mensagens resumidas)', { n: opts.count || '?' }); div.appendChild(h); }
-            if (role === 'ai' && !opts.welcome && opts.model) div.appendChild(modelTag(opts.model, opts.tps, opts.pollen, opts.credits));
+            if (role === 'ai' && !opts.welcome && opts.model) div.appendChild(modelTag(opts.model, opts.tps, opts.pollen, opts.credits, opts.usd));
             if (role === 'ai') div.appendChild(think);
             div.appendChild(span);
             div._raw = opts.html ? null : text;
@@ -3517,6 +3525,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             const own = Math.ceil(txt.length / 4) + pendingFiles.reduce((s, f) => s + Math.ceil((f.text || '').length / 4), 0) + pendingImages.length * 400;
             const chat = chats[currentChatId], ctx = chat ? ctxInfo(chat).used : Math.ceil(((currentTab === 'code' ? config.codePrompt : config.systemPrompt) || '').length / 4), total = ctx + own, m = modelById(selectedModel);
             let s = tr('{n} tokens nesta mensagem · {t} no envio', { n: fmtTok(own), t: fmtTok(total) });
+            if (m && m.xp === 'tk' && (m.credIn || m.credOut)) s += ' · ≈US$ ' + (total * (m.credIn || 0) + COST_OUT_GUESS * (m.credOut || 0)).toFixed(4) + (tkUsage ? ' (' + tr('saldo') + ' US$ ' + tkUsage.available.toFixed(3) + ')' : '');
             if (m && m.xp === 'vd' && (m.credIn || m.credOut || m.credBase)) s += ' · ≈' + Math.round((m.credBase || 0) + total * (m.credIn || 0) + COST_OUT_GUESS * (m.credOut || 0)).toLocaleString('pt-BR') + ' ' + tr('créditos') + (vdCredits != null ? ' (' + tr('saldo') + ' ' + vdCredits.toLocaleString('pt-BR') + ')' : '');
             if (m && m.pol) s += m.free ? ' · ' + tr('grátis') : ' · ≈' + (((total * (m.priceIn || 0) + COST_OUT_GUESS * (m.priceOut || 0)) / 1e6).toFixed(5)) + ' pollen';
             el.textContent = s; el.title = tr('Estimativa: o envio leva o contexto da conversa junto; a resposta é chutada em {o} tokens.', { o: COST_OUT_GUESS }); el.style.display = '';
@@ -3911,10 +3920,11 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 const tps = lastStats && lastStats.seconds ? lastStats.tokens / lastStats.seconds : 0;
                 const pollen = active.pol && !active.free && lastStats ? ((lastStats.prompt_tokens || 0) * (active.priceIn || 0) + (lastStats.tokens || 0) * (active.priceOut || 0)) / 1e6 : 0;   // quanto esta mensagem gastou (estimado pelos tokens)
                 const credits = active.xp === 'vd' && lastStats ? Math.round((active.credBase || 0) + (lastStats.prompt_tokens || 0) * (active.credIn || 0) + (lastStats.tokens || 0) * (active.credOut || 0)) : 0;
-                const tg = aiDiv.querySelector('.msg-tag'); if (tg) { setTagTps(tg, tps); setTagCost(tg, pollen, credits); } if (active.xp === 'vd') refreshVdCredits(true);
+                const usd = active.xp === 'tk' && lastStats ? (lastStats.prompt_tokens || 0) * (active.credIn || 0) + (lastStats.tokens || 0) * (active.credOut || 0) : 0;
+                const tg = aiDiv.querySelector('.msg-tag'); if (tg) { setTagTps(tg, tps); setTagCost(tg, pollen, credits, usd); } if (active.xp === 'vd') refreshVdCredits(true); if (active.xp === 'tk') refreshTkUsage(true);
                 if (chats[chatId]) {   // o chat pode ter sido apagado enquanto a IA respondia
                     const facts = !isCode && config.memorySuggest !== false ? memFacts(fullResponse) : [];
-                    const aiMsg = { role: 'ai', content: stripMem(fullResponse), ...(facts.length ? { memSuggest: facts } : {}), model: active.id, ...(tps ? { tps: +tps.toFixed(1) } : {}), ...(pollen ? { pollen: +pollen.toFixed(6) } : {}), ...(credits ? { credits } : {}), ...(msgSources.length ? { sources: msgSources } : {}) };
+                    const aiMsg = { role: 'ai', content: stripMem(fullResponse), ...(facts.length ? { memSuggest: facts } : {}), model: active.id, ...(tps ? { tps: +tps.toFixed(1) } : {}), ...(pollen ? { pollen: +pollen.toFixed(6) } : {}), ...(credits ? { credits } : {}), ...(usd ? { usd: +usd.toFixed(6) } : {}), ...(msgSources.length ? { sources: msgSources } : {}) };
                     if (!fork) { chat.messages.push(aiMsg); aiDiv.dataset.idx = chat.messages.length - 1; applied = true; if (facts.length) memBar(aiDiv, facts); }
                     else if (fullResponse.trim()) {   // editar/regenerar: a versao nova entra ao lado da antiga
                         if (fork.kind === 'edit') { forkAt(chat, fork.i, fork.userMsg); chat.messages.push(aiMsg); } else forkAt(chat, fork.i, aiMsg);

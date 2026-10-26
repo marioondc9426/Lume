@@ -173,10 +173,10 @@ function polCost(model, ptok, otok) {   // pollen gasto (precos por milhao de to
 const XEX = () => re(D.X_EXCLUDE || '^$'), XNONCHAT = /safety|guard|embed|whisper|tts|image/i, SHOW_ALL = new Set(['vd', 'px', 'lr', 'tk']);   // vd/px/lr: todos os modelos de chat, sem teste de saude nem filtro de plano
    // modelos que nao entram (aleatorios, Llama, Grok...)
 const XFIELD = Object.fromEntries(Object.entries(XPROV).map(([p, v]) => [p, v[0]])), XBASE = Object.fromEntries(Object.entries(XPROV).map(([p, v]) => [p, v[1]]));
-let tkFreeSet = null;
+let tkFreeSet = null, tkPrice = {};
 async function tkFree() {   // TokenReply: so os gratis (model_ratio 0); a tabela de precos e publica
     if (tkFreeSet) return tkFreeSet;
-    try { const d = await getJson(TK_URL.replace(/\/v1$/, '') + '/api/pricing', {}, 20000, 'O TokenReply'); tkFreeSet = new Set((d.data || []).filter(x => x.access_tier === 'free' || x.access_tier === 'weekly_featured').map(x => x.model_name)); } catch (e) { return new Set(); }
+    try { const d = await getJson(TK_URL.replace(/\/v1$/, '') + '/api/pricing', {}, 20000, 'O TokenReply'); const ok = (d.data || []).filter(x => x.access_tier === 'free' || x.access_tier === 'weekly_featured'); tkFreeSet = new Set(ok.map(x => x.model_name)); ok.forEach(x => { const r = Number(x.model_ratio || 0); tkPrice[x.model_name] = [r * 2e-6, r * Number(x.completion_ratio || 1) * 2e-6]; }); } catch (e) { return new Set(); }
     return tkFreeSet;
 }
 async function extraRaw(p, cfg) {
@@ -188,7 +188,7 @@ async function extraRaw(p, cfg) {
         if (p === 'ac') { const caps = m.capabilities || []; if (m.tier !== 'free' || !caps.includes('chat') || XEX().test(id)) continue; list.push({ id, name: id.split('/').pop(), ctx: m.context_window || 128000, vision: caps.includes('multimodal') }); }
         else if (p === 'ah') { if (!/(^|[-:/])free$/.test(id) || XEX().test(id)) continue; list.push({ id, name: id.split('/').pop(), ctx: 128000, vision: false }); }
         else if (p === 'vd') { if (!(m.endpoints || []).includes('/v1/chat/completions') || /gemma/i.test(id) || XNONCHAT.test(id)) continue; if (m.supports_streaming === false) noStream.add(XBASE[p] + '|' + id); list.push({ id, name: id, ctx: m.max_context_tokens || 128000, vision: false, cin: m.input_multiplier || 0, cout: m.output_multiplier || 0, cbase: m.base_cost || 0 }); }
-        else if (p === 'tk') { if (!(await tkFree()).has(id) || XNONCHAT.test(id) || /grok/i.test(id)) continue; list.push({ id, name: id.split('/').pop(), ctx: 128000, vision: false }); }
+        else if (p === 'tk') { if (!(await tkFree()).has(id) || XNONCHAT.test(id) || /grok/i.test(id)) continue; list.push({ id, name: id.split('/').pop(), ctx: 128000, vision: false, cin: (tkPrice[id] || [0, 0])[0], cout: (tkPrice[id] || [0, 0])[1] }); }
         else if (p === 'px') { if (m.type !== 'chat.completions' || XNONCHAT.test(id)) continue; list.push({ id, name: m.name || id, ctx: m.max_context_tokens || 128000, vision: !!m.supports_vision }); }
         else { if (!id.endsWith(':free') || m.type !== 'chat' || XNONCHAT.test(id)) continue; list.push({ id, name: m.display_name || id, ctx: m.context_window || 128000, vision: !!(m.capabilities || {}).vision }); }
     }
@@ -655,7 +655,12 @@ const ROUTES = {
     'GET /api/vercel_models': listModels('vercel_api_key', vercelModels),
     'GET /api/llm7_models': listModels('llm7_api_key', llm7Models),
     'GET /api/tomdacat_models': listModels('tomdacat_api_key', tomdacatModels),
-        'GET /api/voidai_credits': async () => {
+        'GET /api/tokenreply_usage': async () => {
+        const key = ((await loadConfig()).tokenreply_api_key || '').trim(); if (!key) return json({ error: 'sem chave' }, 400);
+        try { const j = ((await getJson(TK_URL.replace(/\/v1$/, '') + '/api/usage/token/', { Authorization: 'Bearer ' + key }, 15000, 'O TokenReply')) || {}).data || {}; return json({ available: j.total_available_usd, granted: j.total_granted_usd, used: j.total_used_usd }); }
+        catch (e) { return json({ error: String(e.message || e).slice(0, 160) }, 502); }
+    },
+    'GET /api/voidai_credits': async () => {
         const key = ((await loadConfig()).voidai_api_key || '').trim(); if (!key) return json({ error: 'sem chave' }, 400);
         try { const j = await getJson(VD_URL + '/credits', { Authorization: 'Bearer ' + key }, 15000, 'O VoidAI'); return json({ credits: j.current_credits, limit: j.daily_limit, plan: j.plan, used: j.credits_used }); }
         catch (e) { return json({ error: String(e.message || e).slice(0, 160) }, 502); }

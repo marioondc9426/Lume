@@ -7,6 +7,7 @@ Como numerar:
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
 ## v3.1 (em desenvolvimento)
+- **Monitor de gastos do TokenReply**: saldo do crédito grátis no topo (💵 US$ 0,973 / 1,00, vindo da própria conta), estimativa ao digitar (≈US$ 0,0123) e, em cada resposta, quanto ela gastou (tokens × preço do modelo; confere centavo por centavo com o painel deles).
 - **Tela de carregamento do Mac com o som original:** coloque `mac-startup.mp3` (ou .wav/.m4a/.ogg) na pasta `sounds/` e o Lume toca na abertura; **1 vez em 25** toca `secret-boot.*` no lugar (o som secreto). Os arquivos ficam só no seu PC (o som é da Apple, por isso não vão para o GitHub); sem eles a tela abre em silêncio. A imitação sintetizada saiu de uso.
 - **Mascote ao lado das respostas** (como no Kimi): a bolinha azul com olhos aparece à esquerda de cada resposta da IA, pisca, olha para o cursor, fica pensando enquanto a IA responde e **olha para baixo, para a mensagem, quando você está digitando**. Continua customizável (cor, estilo bolha/LED, olhos, tamanho); o mascote flutuante virou opção.
 - **TokenReply** como provedor (chave em Configurações; 53 modelos: os do nível gratuito e os "semanais em destaque", como Claude Sonnet 4.5 e Gemini 3 Flash, que gastam o crédito grátis da conta; os "Plus" pedem assinatura e respondem 403). "Ratio" é o multiplicador de preço deles em créditos próprios (entrada x ratio, saída x ratio x completion ratio); ratio 0 = grátis.
