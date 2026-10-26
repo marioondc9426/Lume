@@ -694,7 +694,7 @@ async function pcSync() {
         const dv = deviceId();
         const r = await fetchT(base + '/api/device_sync', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ name: ACCT, device: 'iPhone', device_id: dv.id, secret: dv.secret, history: await kv.get('history', {}), state: await kv.get('state', {}) }) }, 20000, 'O PC');
         const j = await r.json().catch(() => ({}));
-        if (!r.ok) { setPcStatus(j.error === 'remote_off' ? 'ligue "acessar de outros aparelhos" no PC' : j.error === 'taken' ? 'nome ja usado no PC' : j.error === 'device_secret' ? 'o PC nao reconhece este aparelho (remova-o la)' : 'o PC recusou'); return; }
+        if (!r.ok) { setPcStatus(j.error === 'remote_off' ? 'ligue "acessar de outros aparelhos" no PC' : j.error === 'taken' ? 'nome ja usado no PC' : j.error === 'owner_untrusted' ? 'confie neste aparelho no PC (Servidor > Aparelhos confiaveis) para sincronizar a conta do dono' : j.error === 'device_secret' ? 'o PC nao reconhece este aparelho (remova-o la)' : j.error === 'forbidden' ? 'o PC so aceita a rede de casa (este endereco veio de fora)' : 'o PC recusou (' + (j.error || r.status) + ')'); return; }
         if (j.trusted) await pcPull(base); else setPcStatus('copiado ✓ (confie neste aparelho no PC para receber as chaves)');
     } catch (e) { setPcStatus('PC fora do ar'); }
 }

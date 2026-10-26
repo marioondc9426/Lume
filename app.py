@@ -2798,19 +2798,24 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         err, code, dev = self._device_check(d, False)
         if err: return reply({"error": err}, code)
         name = safe_account_name(d.get("name"))
-        if not name or name.lower() == OWNER_NAME.lower(): return reply({"error": "name"}, 400)
-        folder = os.path.join(ACCOUNTS_DIR, name); meta_path = os.path.join(folder, "account.json")
+        if not name: return reply({"error": "name"}, 400)
+        is_owner = name.lower() == OWNER_NAME.lower()
+        if is_owner and not (dev and dev.get("trusted")): return reply({"error": "owner_untrusted"}, 403)   # a conta do dono so troca dados com aparelho confiavel
+        folder = OWNER_DIR if is_owner else os.path.join(ACCOUNTS_DIR, name); meta_path = os.path.join(folder, "account.json")
         old = _read_json(meta_path, None) if os.path.exists(meta_path) else None
-        if old is not None and old.get("role") not in ("iphone", "account"): return reply({"error": "taken"}, 409)   # nao sobrescreve a conta do dono nem a de um amigo
+        if not is_owner and old is not None and old.get("role") not in ("iphone", "account"): return reply({"error": "taken"}, 409)   # nao sobrescreve a conta de um amigo
         try:
             os.makedirs(folder, exist_ok=True)
-            meta = dict(old or {}); meta.update({"name": name, "role": meta.get("role") or "iphone", "device": str(d.get("device") or "iPhone")[:60], "last_sync": time.time()})
-            if old is None: meta["note"] = "Conta criada pelo app do iPhone."
+            meta = dict(old or {})
+            if is_owner: meta["last_sync"] = time.time()   # a conta do dono mantem o nome e o papel; so anota a ultima sincronizacao
+            else:
+                meta.update({"name": name, "role": meta.get("role") or "iphone", "device": str(d.get("device") or "iPhone")[:60], "last_sync": time.time()})
+                if old is None: meta["note"] = "Conta criada pelo app do iPhone."
             _write_json(meta_path, meta)
             for key, fn in (("history", "history.json"), ("state", "state.json")):
                 if not isinstance(d.get(key), dict): continue
                 path = os.path.join(folder, fn); data = d[key]
-                if name == ACTIVE_ACCOUNT or (dev and dev.get("trusted")):   # a conta tambem esta em uso no PC (ou o aparelho e confiavel): junta em vez de apagar o que so existe aqui
+                if is_owner or name == ACTIVE_ACCOUNT or (dev and dev.get("trusted")):   # a conta tambem esta em uso no PC (ou o aparelho e confiavel): junta em vez de apagar o que so existe aqui
                     data = (merge_history if key == "history" else merge_state)(_read_json(path, {}), data)
                 _write_json(path, data)
         except OSError as e:
@@ -2826,9 +2831,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         if not isinstance(d, dict): return reply({"error": "json"}, 400)
         err, code, dev = self._device_check(d, True)
         if err: return reply({"error": err}, code)
-        name = safe_account_name(d.get("name")); folder = os.path.join(ACCOUNTS_DIR, name) if name else ""
+        name = safe_account_name(d.get("name")); is_owner = bool(name) and name.lower() == OWNER_NAME.lower()
+        folder = OWNER_DIR if is_owner else (os.path.join(ACCOUNTS_DIR, name) if name else "")
         meta = _read_json(os.path.join(folder, "account.json"), None) if folder else None
-        if not name or not isinstance(meta, dict) or meta.get("role") not in ("iphone", "account"): return reply({"ok": True, "history": {}, "state": {}, "keys": {}})
+        if not name or not isinstance(meta, dict) or meta.get("role") not in (("owner",) if is_owner else ("iphone", "account")): return reply({"ok": True, "history": {}, "state": {}, "keys": {}})
         cfg = load_config()
         log("IPHONE", f"Aparelho confiavel '{dev.get('name')}' puxou a conta '{name}' (conversas, memorias e chaves)", COLOR_YELLOW)
         return reply({"ok": True, "history": _read_json(os.path.join(folder, "history.json"), {}), "state": _read_json(os.path.join(folder, "state.json"), {}), "keys": {k: cfg.get(k) for k in SYNC_KEYS if cfg.get(k)}})
