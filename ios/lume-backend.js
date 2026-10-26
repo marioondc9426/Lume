@@ -31,22 +31,32 @@ const ACCT_KEYS = ['history', 'state', 'stats', 'themes', 'ollama_key'];
 let ACCT = String(LS.get('account', '') || '');
 const scoped = k => (ACCT && ACCT_KEYS.includes(k)) ? 'a:' + ACCT + ':' + k : k;
 const kv = (() => {
-    let dbp = null;
-    const open = () => dbp || (dbp = new Promise((res, rej) => { const r = indexedDB.open('lume', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }));
+    // guarda em DOIS lugares (IndexedDB e localStorage) e le de onde houver dado; se o IndexedDB travar ou falhar, o localStorage segura
+    let dbp = null, idbState = 'nao testado';
+    const open = () => dbp || (dbp = new Promise((res, rej) => { const r = indexedDB.open('lume', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); r.onblocked = () => rej(new Error('bloqueado')); }));
+    const limit = (p, ms) => { let t; return Promise.race([p, new Promise((_, rej) => { t = setTimeout(() => rej(new Error('demorou demais')), ms); })]).finally(() => clearTimeout(t)); };
+    const idbGet = async k => { const db = await open(); return new Promise((res, rej) => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); };
+    const idbPut = async (k, v) => { const db = await open(); return new Promise((res, rej) => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = res; t.onerror = () => rej(t.error); t.onabort = () => rej(t.error || new Error('abortou')); }); };
+    const lsGet = k => { try { const v = localStorage.getItem('lume.' + k); return v == null ? undefined : JSON.parse(v); } catch (e) { return undefined; } };
+    const lsPut = (k, v) => { try { localStorage.setItem('lume.' + k, JSON.stringify(v)); return true; } catch (e) { return false; } };
     return {
+        get state() { return idbState; },
         async get(k, d) { return this.rawGet(scoped(k), d); },
         async rawGet(k, d) {
-            try { const db = await open(); return await new Promise(res => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result === undefined ? d : q.result); q.onerror = () => res(d); }); }
-            catch (e) { return LS.get(k, d); }
+            let v; try { v = await limit(idbGet(k), 2500); idbState = 'ok'; } catch (e) { v = undefined; idbState = 'falhou: ' + String(e && e.message || e).slice(0, 40); }
+            if (v === undefined) v = lsGet(k);
+            return v === undefined ? d : v;
         },
-        async del(k) {
-            try { const db = await open(); await new Promise((res, rej) => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').delete(k); t.oncomplete = res; t.onerror = () => rej(t.error); }); }
-            catch (e) { try { localStorage.removeItem('lume.' + k); } catch (e2) { /* nada */ } }
-        },
+        async del(k) { try { await limit((async () => { const db = await open(); await new Promise((res, rej) => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').delete(k); t.oncomplete = res; t.onerror = () => rej(t.error); }); })(), 2500); } catch (e) { /* so o localStorage */ } try { localStorage.removeItem('lume.' + k); } catch (e) { /* nada */ } },
         async set(k, v) { return this.rawSet(scoped(k), v); },
         async rawSet(k, v) {
-            try { const db = await open(); await new Promise((res, rej) => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = res; t.onerror = () => rej(t.error); }); }
-            catch (e) { LS.set(k, v); }
+            let ok = false; try { await limit(idbPut(k, v), 2500); ok = true; idbState = 'ok'; } catch (e) { idbState = 'falhou: ' + String(e && e.message || e).slice(0, 40); }
+            const l = lsPut(k, v); return ok || l;
+        },
+        async probe() {   // grava e le de volta nos dois lugares (para o diagnostico)
+            const stamp = String(Date.now()); let idb = false, ls = false;
+            try { await limit(idbPut('__probe', stamp), 2500); idb = (await limit(idbGet('__probe'), 2500)) === stamp; } catch (e) { idb = false; }
+            ls = lsPut('__probe', stamp) && lsGet('__probe') === stamp; return { idb, ls };
         },
     };
 })();
@@ -703,6 +713,20 @@ function updateBanner(text, label, onClick, warn) {
 }
 window.lumeUpdateReady = v => updateBanner('Atualização do Lume pronta' + (v ? ' (' + v + ')' : '') + '.', 'Reiniciar', () => { try { window.webkit.messageHandlers.lume.postMessage('reload'); } catch (e) { location.reload(); } }, false);
 window.lumeUpdateFailed = msg => updateBanner(msg, 'Fechar', null, true);
+
+// diagnostico do armazenamento: mostra se o aparelho esta guardando mesmo e quantas vezes o app abriu
+async function storageReport() {
+    const el = document.getElementById('storage-row'); if (!el) return;
+    const pr = await kv.probe(), cfg = await loadConfig(), hist = await kv.get('history', {}), keys = Object.keys(cfg).filter(k => /_api_key$|_token$/.test(k) && cfg[k]).length;
+    const boots = LS.get('boots', 0), ibo = await kv.rawGet('boots', 0);
+    el.textContent = 'Armazenamento: IndexedDB ' + (pr.idb ? '✓' : '✗ (' + kv.state + ')') + ' · localStorage ' + (pr.ls ? '✓' : '✗') + ' · aberturas ' + boots + '/' + ibo + ' · conversas ' + Object.keys(hist).length + ' · chaves ' + keys + (ACCT ? ' · conta ' + ACCT : '');
+}
+if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', async () => {
+    LS.set('boots', (LS.get('boots', 0) || 0) + 1); await kv.rawSet('boots', ((await kv.rawGet('boots', 0)) || 0) + 1);
+    const row = document.getElementById('acct-row'); if (!row) return;
+    const el = document.createElement('div'); el.id = 'storage-row'; el.style.cssText = 'margin:0 0 10px;padding:8px 14px;border-radius:12px;background:rgba(128,128,128,0.10);font-size:.78em;color:var(--text-muted);line-height:1.4'; row.after(el);
+    storageReport(); setInterval(storageReport, 6000);
+});
 
 // o iPhone nao tem terminal, Windows, GPU nem pasta de trabalho: some o que so existe no PC
 function iosTrim() {
