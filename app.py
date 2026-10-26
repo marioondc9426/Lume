@@ -1456,7 +1456,7 @@ AC_URL = "https://www.aichixia.xyz/api/v1"   # Aichixia: so os modelos do plano 
 AH_URL = "https://aihubmix.com/v1"           # AIHubMix: so os que terminam em "free"
 LR_URL = "https://api.literouter.com/v1"     # LiteRouter: so os ":free" (1 pedido a cada 7 s no plano gratis)
 LR_BLOCKED = {"kimi-k3-cheap:free", "muse-spark-1.2-contributor:free"}   # a API responde "model is not available" (o resto dos ":free" respondeu num teste com 1024 tokens; com 16 os modelos que pensam davam 502 por resposta vazia)
-AH_EXCLUDE = re.compile(r"llama|grok|safety|guard|embed|whisper|tts|image", re.I)   # sem Llama nem Grok (voce nao quer)
+AH_EXCLUDE = re.compile(r"phi-|north-|mythomax|intern-|dots-|lfm|xing|flint|agents-a|step-|command-|compound|magistral|mistral-7b|llama|grok|safety|guard|embed|whisper|tts|image", re.I)   # sem Llama nem Grok, e sem modelos "aleatorios" que ninguem pediu
 _x_cache = {"ac": [0, []], "ah": [0, []], "lr": [0, []]}
 # Vercel: so os gratis que pediu. Eles so funcionam com um cartao cadastrado na conta Vercel (a Vercel exige, mesmo para os "-free").
 VERCEL_MODELS = [("poolside/laguna-s-2.1-free", "Laguna S 2.1"), ("nvidia/nemotron-3.5-lightning-free", "Nemotron 3.5 Lightning"), ("reflection/beam-free", "Beam")]
@@ -1557,7 +1557,7 @@ def extra_models(prov, cfg, force=False, raw=False):
             if not re.search(r"(^|[-:/])free$", mid) or AH_EXCLUDE.search(mid): continue
             out.append({"id": mid, "name": mid.split("/")[-1], "ctx": 128000, "vision": False})
         else:
-            if not mid.endswith(":free") or m.get("type") != "chat" or mid in LR_BLOCKED: continue
+            if not mid.endswith(":free") or m.get("type") != "chat" or mid in LR_BLOCKED or AH_EXCLUDE.search(mid): continue
             caps = m.get("capabilities") or {}
             out.append({"id": mid, "name": m.get("display_name") or mid, "ctx": m.get("context_window") or 128000, "vision": bool(caps.get("vision"))})
     out.sort(key=lambda x: x["id"]); _x_cache[prov] = [time.time(), out]

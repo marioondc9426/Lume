@@ -7,7 +7,7 @@ import app
 data = {
     "POL_MODELS": [[mid, ex] for mid, ex in app.POL_MODELS], "POL_MAX_PRICE": app.POL_MAX_PRICE,
     "VERCEL_MODELS": [list(x) for x in app.VERCEL_MODELS], "TDC_MODELS": [list(x) for x in app.TDC_MODELS], "TDC_MAX_CR": app.TDC_MAX_CR,
-    "LR_BLOCKED": sorted(app.LR_BLOCKED), "MODEL_EXCLUDE": app.MODEL_EXCLUDE.pattern, "GROQ_EXCLUDE": app.GROQ_EXCLUDE.pattern,
+    "LR_BLOCKED": sorted(app.LR_BLOCKED), "X_EXCLUDE": app.AH_EXCLUDE.pattern, "MODEL_EXCLUDE": app.MODEL_EXCLUDE.pattern, "GROQ_EXCLUDE": app.GROQ_EXCLUDE.pattern,
 }
 with open(os.path.join(HERE, "backend-data.js"), "w", encoding="utf-8") as f:
     f.write("/* gerado por ios/gen_data.py a partir do app.py: nao edite a mao */\nwindow.LUME_DATA = " + json.dumps(data, ensure_ascii=False) + ";\n")

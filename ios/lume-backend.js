@@ -169,15 +169,16 @@ function polCost(model, ptok, otok) {   // pollen gasto (precos por milhao de to
     return (ptok * pin + otok * pout) / 1e6;
 }
 // ---------------------------------------------------------------- Aichixia / AIHubMix / LiteRouter: lista crua + teste de saude a cada 10 min
+const XEX = () => re(D.X_EXCLUDE || '^$');   // modelos que nao entram (aleatorios, Llama, Grok...)
 const XFIELD = { ac: 'aichixia_api_key', ah: 'aihubmix_api_key', lr: 'literouter_api_key' }, XBASE = { ac: AC_URL, ah: AH_URL, lr: LR_URL };
 async function extraRaw(p, cfg) {
     const c = cache[p] || (cache[p] = { t: 0, v: null }); if (c.v && now() - c.t < 3600) return c.v;
     const list = [];
     for (const m of await oaiModels(XBASE[p], cfg[XFIELD[p]])) {
         const id = String(m.id || ''); if (!id) continue;
-        if (p === 'ac') { const caps = m.capabilities || []; if (m.tier !== 'free' || !caps.includes('chat') || /llama|grok/i.test(id)) continue; list.push({ id, name: id.split('/').pop(), ctx: m.context_window || 128000, vision: caps.includes('multimodal') }); }
-        else if (p === 'ah') { if (!/(^|[-:/])free$/.test(id) || /llama|grok|safety|guard|embed|whisper|tts|image/i.test(id)) continue; list.push({ id, name: id.split('/').pop(), ctx: 128000, vision: false }); }
-        else { if (!id.endsWith(':free') || m.type !== 'chat' || (D.LR_BLOCKED || []).includes(id)) continue; list.push({ id, name: m.display_name || id, ctx: m.context_window || 128000, vision: !!(m.capabilities || {}).vision }); }
+        if (p === 'ac') { const caps = m.capabilities || []; if (m.tier !== 'free' || !caps.includes('chat') || XEX().test(id)) continue; list.push({ id, name: id.split('/').pop(), ctx: m.context_window || 128000, vision: caps.includes('multimodal') }); }
+        else if (p === 'ah') { if (!/(^|[-:/])free$/.test(id) || XEX().test(id)) continue; list.push({ id, name: id.split('/').pop(), ctx: 128000, vision: false }); }
+        else { if (!id.endsWith(':free') || m.type !== 'chat' || (D.LR_BLOCKED || []).includes(id) || XEX().test(id)) continue; list.push({ id, name: m.display_name || id, ctx: m.context_window || 128000, vision: !!(m.capabilities || {}).vision }); }
     }
     list.sort((a, b) => a.id < b.id ? -1 : 1); c.v = list; c.t = now(); return list;
 }
