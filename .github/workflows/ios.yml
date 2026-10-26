@@ -94,10 +94,12 @@ jobs:
         if: success()
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release edit latest-ios --title "Lume iOS (.ipa sem assinatura) - OK: abre e nao fecha" --notes "Build de ${GITHUB_REF_NAME} (${GITHUB_SHA::7}). O app abriu e continuou aberto no simulador por 20 s. Assine com o seu certificado e instale."
+        run: |
+          gh release edit latest-ios --title "Lume iOS (.ipa sem assinatura) - OK: abre e nao fecha" --notes "Build de ${GITHUB_REF_NAME} (${GITHUB_SHA::7}). O app abriu e continuou aberto no simulador por 20 s. Assine com o seu certificado e instale."
 
       - name: Avisar na Release que o app fechou
         if: failure()
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release edit latest-ios --title "Lume iOS (.ipa sem assinatura) - ATENCAO: o app FECHOU no teste" --notes "Build de ${GITHUB_REF_NAME} (${GITHUB_SHA::7}). No simulador o app fechou sozinho: nao use este .ipa; veja o log da aba Actions." || true
+        run: |
+          gh release edit latest-ios --title "Lume iOS (.ipa sem assinatura) - ATENCAO: o app FECHOU no teste" --notes "Build de ${GITHUB_REF_NAME} (${GITHUB_SHA::7}). No simulador o app fechou sozinho: nao use este .ipa; veja o log da aba Actions." || true
