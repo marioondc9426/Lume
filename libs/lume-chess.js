@@ -39,6 +39,20 @@
         .chess-moves i.cl { font-style: normal; font-weight: 700; font-size: .85em; margin-left: 1px; }
         .chess-sum { font-size: .82em; line-height: 1.5; padding: 8px 10px; border-radius: 12px; background: rgba(128,128,128,.08); }
         .chess-hint { font-size: .76em; color: var(--text-muted); line-height: 1.4; }
+        .chess-ov { animation: chFade .22s ease both; } .chess-ov.out { animation: chFadeOut .18s ease both; } .chess-wrap { animation: chPop .32s cubic-bezier(.2,.85,.25,1.05) both; } .chess-ov.out .chess-wrap { animation: chPopOut .18s ease both; }
+        @keyframes chFade { from { opacity: 0; } to { opacity: 1; } } @keyframes chFadeOut { from { opacity: 1; } to { opacity: 0; } }
+        @keyframes chPop { from { opacity: 0; transform: translateY(18px) scale(.96); } to { opacity: 1; transform: none; } } @keyframes chPopOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(10px) scale(.97); } }
+        @media (prefers-reduced-motion: reduce) { .chess-ov, .chess-wrap { animation: none !important; } }
+        .chess-tog { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 12px; border-radius: 12px; background: rgba(128,128,128,.10); font-size: .88em; cursor: pointer; }
+        .chess-tog input { position: absolute; opacity: 0; pointer-events: none; } .chess-tog .sw { position: relative; flex: none; width: 38px; height: 22px; border-radius: 999px; background: rgba(128,128,128,.45); transition: background .2s; } .chess-tog .sw::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .2s cubic-bezier(.3,.9,.3,1.2); box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+        .chess-tog input:checked + .sw { background: var(--accent); } .chess-tog input:checked + .sw::after { transform: translateX(16px); } .chess-tog input:focus-visible + .sw { outline: 2px solid var(--accent); outline-offset: 2px; }
+        .chess-seg { display: flex; padding: 3px; border-radius: 12px; background: rgba(128,128,128,.14); gap: 2px; } .chess-seg button { flex: 1; border: 0; background: transparent; color: var(--text-muted); padding: 8px 6px; border-radius: 9px; cursor: pointer; font-size: .86em; transition: background .2s, color .2s; } .chess-seg button.on { background: var(--bg-main); color: var(--text-main); box-shadow: 0 1px 4px rgba(0,0,0,.3); }
+        .cm-wrap { position: relative; } .cm-btn { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border-color); background: rgba(128,128,128,.10); color: var(--text-main); cursor: pointer; text-align: left; font-size: .92em; transition: border-color .2s, background .2s; } .cm-btn:hover, .cm-btn.on { border-color: var(--accent); background: rgba(128,128,128,.16); }
+        .cm-logo { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; flex: none; } .cm-logo > * { max-height: 20px; max-width: 22px; height: 20px; display: inline-block; object-fit: contain; }
+        .cm-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; } .cm-prov { font-size: .8em; color: var(--text-muted); white-space: nowrap; } .cm-car { color: var(--text-muted); transition: transform .2s; } .cm-btn.on .cm-car { transform: rotate(180deg); }
+        .cm-pop { position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 6px); display: none; flex-direction: column; background: var(--bg-input, var(--bg-main)); border: 1px solid var(--border-color); border-radius: 14px; box-shadow: 0 14px 40px rgba(0,0,0,.5); overflow: hidden; } .cm-pop.on { display: flex; animation: chPop .2s cubic-bezier(.2,.85,.25,1.05) both; transform-origin: top; }
+        .cm-pop input { margin: 8px; width: calc(100% - 16px); } .cm-list { overflow-y: auto; max-height: min(340px, 48vh); padding-bottom: 6px; }
+        .cm-grp { position: sticky; top: 0; padding: 6px 12px 4px; font-size: .68em; letter-spacing: .1em; text-transform: uppercase; color: var(--text-muted); background: var(--bg-input, var(--bg-main)); } .cm-row { display: flex; align-items: center; gap: 10px; padding: 8px 12px; cursor: pointer; font-size: .9em; } .cm-row:hover { background: rgba(128,128,128,.16); } .cm-row.on { background: color-mix(in srgb, var(--accent) 22%, transparent); } .cm-row .cm-name { font-weight: 500; }
         .chess-promo { position: absolute; inset: 0; z-index: 5; display: flex; align-items: center; justify-content: center; gap: 8px; background: rgba(0,0,0,.55); }
         .chess-promo button { font-size: 2.4em; width: 1.5em; height: 1.5em; border-radius: 12px; border: 0; background: #ecd9b4; cursor: pointer; }`;
     document.head.appendChild(css);
@@ -47,7 +61,7 @@
     const sqXY = sq => ({ f: FILES.indexOf(sq[0]), r: +sq[1] - 1 });
     const mk = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
     const uciOf = m => m.from + m.to + (m.promotion || '');
-    function models() { return (typeof MODELS !== 'undefined' ? MODELS : []).filter(m => { try { return m.tabs.includes('chat') && isAvail(m); } catch (e) { return false; } }); }
+    function models() { return (typeof MODELS !== 'undefined' ? MODELS : []).filter(m => { try { return isAvail(m); } catch (e) { return false; } }); }   // qualquer modelo disponivel, de qualquer aba
     function movesText() { let o = ''; st.log.forEach((e, i) => { if (i % 2 === 0) o += (i / 2 + 1) + '. '; o += e.san + ' '; }); return o.trim(); }
 
     // ---------------------------------------------------------------- motor (Stockfish) para ranking e analise
@@ -291,23 +305,34 @@
         const bw = mk('div', 'chess-bw'); wrap.appendChild(bw); const evb = mk('div', 'chess-eval'); evb.appendChild(mk('i')); evb.appendChild(mk('b')); bw.appendChild(evb);
         const board = mk('div', 'chess-board'); board.appendChild(document.createElementNS('http://www.w3.org/2000/svg', 'svg')); const svg = board.lastChild; svg.setAttribute('class', 'chess-arrows'); svg.setAttribute('viewBox', '0 0 8 8'); bw.appendChild(board);
         const side = mk('div', 'chess-side'); wrap.appendChild(side); side.appendChild(mk('h3', '', T('Xadrez contra um modelo')));
-        const sel = document.createElement('select'); list.forEach((m, i) => { const o = document.createElement('option'); o.value = i; o.textContent = m.label || m.id; sel.appendChild(o); });
-        const cur = list.findIndex(m => m.id === (typeof selectedModel !== 'undefined' ? selectedModel : '')); if (cur >= 0) sel.value = cur; side.appendChild(sel);
-        const col = document.createElement('select'); [['w', 'Jogar de brancas'], ['b', 'Jogar de pretas'], ['random', 'Cor aleatória']].forEach(([v, l]) => { const o = document.createElement('option'); o.value = v; o.textContent = T(l); col.appendChild(o); }); side.appendChild(col);
-        const opt = (id, label, key) => { const l = mk('label', 'chess-opt'), c = document.createElement('input'); c.type = 'checkbox'; c.id = id; c.onchange = () => { st.opts[key] = c.checked; if (key === 'rank') { if (c.checked) rankBackfill(); render(); } }; l.append(c, document.createTextNode(T(label))); side.appendChild(l); return c; };
+        const provOf = m => { try { return providerName(m); } catch (e) { return ''; } }, logoOf = m => { const sp = mk('span', 'cm-logo'); try { fin(m); const br = brandOf(m); if (br) sp.appendChild(brandEl(br, m)); else sp.textContent = '☁'; } catch (e) { sp.textContent = '☁'; } return sp; };
+        let pick = Math.max(0, list.findIndex(m => m.id === (typeof selectedModel !== 'undefined' ? selectedModel : '')));
+        const cw = mk('div', 'cm-wrap'), cb = mk('button', 'cm-btn'); cb.type = 'button'; const pop = mk('div', 'cm-pop'), srch = document.createElement('input'); srch.type = 'text'; srch.placeholder = T('Buscar modelo…'); srch.autocomplete = 'off'; const lst = mk('div', 'cm-list'); pop.append(srch, lst); cw.append(cb, pop);
+        const paintBtn = () => { cb.textContent = ''; const m = list[pick]; cb.append(logoOf(m), mk('span', 'cm-name', m.label || m.id), mk('span', 'cm-prov', provOf(m)), mk('span', 'cm-car', '▾')); };
+        const fillList = () => {
+            const term = srch.value.trim().toLowerCase(), groups = new Map(); lst.textContent = '';
+            list.forEach((m, i) => { const label = (m.label || m.id) + ' ' + provOf(m); if (term && !label.toLowerCase().includes(term)) return; const g = provOf(m) || '—'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push([m, i]); });
+            [...groups.keys()].sort().forEach(g => { lst.appendChild(mk('div', 'cm-grp', g)); groups.get(g).sort((x, y) => (x[0].label || '').localeCompare(y[0].label || '')).forEach(([m, i]) => { const r = mk('div', 'cm-row' + (i === pick ? ' on' : '')); r.append(logoOf(m), mk('span', 'cm-name', m.label || m.id)); r.onclick = () => { pick = i; paintBtn(); closePop(); if (st && !st.log.length) { st.token = Math.random(); newGame({ model: list[pick], color: colorVal }); } }; lst.appendChild(r); }); });
+            if (!lst.firstChild) lst.appendChild(mk('div', 'cm-grp', T('Nenhum modelo encontrado')));
+        };
+        const closePop = () => { pop.classList.remove('on'); cb.classList.remove('on'); };
+        cb.onclick = () => { const on = !pop.classList.contains('on'); if (on) { srch.value = ''; fillList(); } pop.classList.toggle('on', on); cb.classList.toggle('on', on); if (on) { srch.focus(); const cur = lst.querySelector('.cm-row.on'); if (cur) cur.scrollIntoView({ block: 'center' }); } };
+        srch.oninput = fillList; ov.addEventListener('mousedown', e => { if (!cw.contains(e.target)) closePop(); }); paintBtn(); side.appendChild(cw);
+        let colorVal = 'w'; const seg = mk('div', 'chess-seg'); [['w', 'Brancas'], ['b', 'Pretas'], ['random', 'Aleatório']].forEach(([v, l]) => { const b = mk('button', v === colorVal ? 'on' : '', T(l)); b.type = 'button'; b.onclick = () => { colorVal = v; seg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); if (st && !st.log.length) { st.token = Math.random(); newGame({ model: list[pick], color: colorVal }); } }; seg.appendChild(b); }); side.appendChild(seg);
+        const opt = (id, label, key) => { const l = mk('label', 'chess-tog'), c = document.createElement('input'); c.type = 'checkbox'; c.id = id; c.onchange = () => { st.opts[key] = c.checked; if (key === 'rank') { if (c.checked) rankBackfill(); render(); } }; l.append(mk('span', '', T(label)), c, mk('span', 'sw')); side.appendChild(l); return c; };
         opt('chess-ill', 'Permitir lances ilegais do modelo', 'illegal'); opt('chess-rank', 'Ranking dos lances (Brilhante, Melhor, Erro…)', 'rank');
         const row = mk('div', 'chess-row'); side.appendChild(row);
         const btn = (txt, fn) => { const b = mk('button', 'btn btn-secondary', T(txt)); b.type = 'button'; b.onclick = fn; row.appendChild(b); return b; };
-        const start = btn('Novo jogo', () => { if (st) st.token = Math.random(); newGame({ model: list[+sel.value], color: col.value }); }); start.classList.replace('btn-secondary', 'btn-primary');
+        const start = btn('Novo jogo', () => { if (st) st.token = Math.random(); newGame({ model: list[pick], color: colorVal }); }); start.classList.replace('btn-secondary', 'btn-primary');
         btn('Desfazer', undo); btn('Virar', () => { st.flip = !st.flip; render(); });
         btn('Desistir', () => { if (game && !game.game_over() && !st.over) { st.token = Math.random(); st.thinking = false; st.over = T('Você desistiu.'); render(); } });
         btn('Analisar partida', analyzeGame);
-        btn('Fechar', () => { if (st) st.token = Math.random(); if (st && st.rid) { try { fetch(API + '/api/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rid: st.rid }) }); } catch (e) { /* ok */ } } ov.remove(); ov = null; });
+        btn('Fechar', () => { if (st) st.token = Math.random(); if (st && st.rid) { try { fetch(API + '/api/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rid: st.rid }) }); } catch (e) { /* ok */ } } const o = ov; ov = null; o.classList.add('out'); setTimeout(() => o.remove(), 190); });
         const navRow = mk('div', 'chess-row chess-nav'); [['⏮', 'start'], ['◀', -1], ['▶', 1], ['⏭', 'end']].forEach(([t, d]) => { const b = mk('button', 'btn btn-secondary', t); b.type = 'button'; b.onclick = () => nav(d); navRow.appendChild(b); }); const ex = mk('button', 'btn btn-secondary', T('Sair da análise')); ex.type = 'button'; ex.onclick = () => { st.review = null; render(); }; navRow.appendChild(ex); side.appendChild(navRow);
         side.appendChild(mk('div', 'chess-status', '')); side.appendChild(mk('div', 'chess-moves', '')); const sum = mk('div', 'chess-sum', ''); sum.style.whiteSpace = 'pre-line'; side.appendChild(sum);
         side.appendChild(mk('div', 'chess-hint', T('Botão direito: segure e arraste para desenhar uma seta (Shift vermelha, Ctrl azul, Alt amarela); clique direito numa casa marca a casa; clique esquerdo limpa. No celular: segure o dedo numa casa e arraste.')));
         wire(board); document.body.appendChild(ov);
-        newGame({ model: list[+sel.value], color: 'w' });
+        newGame({ model: list[pick], color: 'w' });
     }
     async function rankBackfill() { for (let i = 0; i < st.log.length; i++) { if (st.cls[i]) continue; const my = st.token; try { await analyze(st.log[i].fen); await analyze(i + 1 < st.log.length ? st.log[i + 1].fen : game.fen()); if (my !== st.token) return; const c = classify(i); if (c) st.cls[i] = c; render(); } catch (e) { st.note = T('Motor de análise indisponível: ') + String(e.message || e).slice(0, 80); st.opts.rank = false; render(); return; } } }
     window.openChess = open;
