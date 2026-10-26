@@ -1543,6 +1543,15 @@ def health_loop():
         except Exception as e: log("SAUDE", f"Erro no teste dos modelos: {e}", COLOR_RED)
         time.sleep(HEALTH_EVERY)
 
+_vd_plan = {"t": 0, "plan": ""}
+def voidai_plan(key):
+    """Plano da conta VoidAI (GET /v1/credits -> plan); so entram os modelos que esse plano cobre."""
+    if time.time() - _vd_plan["t"] < 3600 and _vd_plan["plan"]: return _vd_plan["plan"]
+    try:
+        with urllib.request.urlopen(urllib.request.Request(VD_URL + "/credits", headers={"Authorization": "Bearer " + key, "User-Agent": "lume-app"}), timeout=15) as r: p = str(json.load(r).get("plan") or "").strip().lower()
+    except Exception: p = _vd_plan["plan"]
+    _vd_plan.update(t=time.time(), plan=p); return p
+
 def extra_models(prov, cfg, force=False, raw=False):
     """Modelos gratis de Aichixia (ac), AIHubMix (ah) e LiteRouter (lr): [{id, name, ctx, vision}]; em cache por 1 h. Os que falharam no teste de saude ficam de fora (raw=True traz todos)."""
     field, base = X_PROVIDERS[prov][:2]
@@ -1563,6 +1572,8 @@ def extra_models(prov, cfg, force=False, raw=False):
             out.append({"id": mid, "name": mid.split("/")[-1], "ctx": 128000, "vision": False})
         elif prov == "vd":   # VoidAI: todos os de chat (menos Gemma 4); os que o plano nao cobre caem no teste de saude e somem
             if "/v1/chat/completions" not in (m.get("endpoints") or []) or re.search(r"gemma", mid, re.I): continue
+            plan = voidai_plan(key)
+            if plan and plan not in (m.get("plan_requirements") or []): continue   # o seu plano nao cobre este modelo
             if m.get("supports_streaming") is False: _NO_STREAM.add((base, mid))
             out.append({"id": mid, "name": mid, "ctx": m.get("max_context_tokens") or 128000, "vision": False, "cin": m.get("input_multiplier") or 0, "cout": m.get("output_multiplier") or 0, "cbase": m.get("base_cost") or 0})   # creditos = base + entrada x cin + saida x cout (docs.voidai.app/guides/credits)
         elif prov == "px":   # Paxsenix: so o plano free (os "High Engine" nao entram) e sem os "(Provider N)" repetidos
@@ -2596,7 +2607,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         alias = PAGE_ALIAS.get(p.rstrip('/') or '/')
         if alias:
             self.path = alias; log("HTTP", f"Pagina {p} aberta" + ("" if self.is_local() else f" por {self.client_ip()}"), COLOR_BLUE); return super().do_GET()
-        icon_ok = ((p.startswith('/icons/') and '/' not in p[len('/icons/'):]) or (p.startswith('/fonts/') and p.endswith('.woff2') and '/' not in p[len('/fonts/'):]) or (p.startswith('/libs/') and p.endswith('.js') and '/' not in p[len('/libs/'):])) and '\\' not in p and '..' not in p
+        icon_ok = ((p.startswith('/icons/') and '/' not in p[len('/icons/'):]) or (p.startswith('/fonts/') and p.endswith('.woff2') and '/' not in p[len('/fonts/'):]) or (p.startswith('/libs/') and re.fullmatch(r'/libs/(?:stockfish/)?[\w.\-]+\.(?:js|wasm|txt)', p) is not None)) and '\\' not in p and '..' not in p
         if p not in STATIC_PAGES and not icon_ok:
             self.send_response(404); self.end_headers(); return
         if p in STATIC_PAGES:

@@ -174,12 +174,13 @@ const XEX = () => re(D.X_EXCLUDE || '^$');   // modelos que nao entram (aleatori
 const XFIELD = Object.fromEntries(Object.entries(XPROV).map(([p, v]) => [p, v[0]])), XBASE = Object.fromEntries(Object.entries(XPROV).map(([p, v]) => [p, v[1]]));
 async function extraRaw(p, cfg) {
     const c = cache[p] || (cache[p] = { t: 0, v: null }); if (c.v && now() - c.t < 3600) return c.v;
+    let vdPlan = ''; if (p === 'vd') { try { vdPlan = String((await getJson(VD_URL + '/credits', { Authorization: 'Bearer ' + cfg[XFIELD[p]] }, 15000, 'O VoidAI')).plan || '').trim().toLowerCase(); } catch (e) { vdPlan = ''; } }
     const list = [];
     for (const m of await oaiModels(XBASE[p], cfg[XFIELD[p]])) {
         const id = String(m.id || ''); if (!id) continue;
         if (p === 'ac') { const caps = m.capabilities || []; if (m.tier !== 'free' || !caps.includes('chat') || XEX().test(id)) continue; list.push({ id, name: id.split('/').pop(), ctx: m.context_window || 128000, vision: caps.includes('multimodal') }); }
         else if (p === 'ah') { if (!/(^|[-:/])free$/.test(id) || XEX().test(id)) continue; list.push({ id, name: id.split('/').pop(), ctx: 128000, vision: false }); }
-        else if (p === 'vd') { if (!(m.endpoints || []).includes('/v1/chat/completions') || /gemma/i.test(id)) continue; if (m.supports_streaming === false) noStream.add(XBASE[p] + '|' + id); list.push({ id, name: id, ctx: m.max_context_tokens || 128000, vision: false, cin: m.input_multiplier || 0, cout: m.output_multiplier || 0, cbase: m.base_cost || 0 }); }
+        else if (p === 'vd') { if (!(m.endpoints || []).includes('/v1/chat/completions') || /gemma/i.test(id)) continue; if (vdPlan && !(m.plan_requirements || []).includes(vdPlan)) continue; if (m.supports_streaming === false) noStream.add(XBASE[p] + '|' + id); list.push({ id, name: id, ctx: m.max_context_tokens || 128000, vision: false, cin: m.input_multiplier || 0, cout: m.output_multiplier || 0, cbase: m.base_cost || 0 }); }
         else if (p === 'px') { if (m.type !== 'chat.completions' || m.min_plan || id.startsWith('provider-') || XEX().test(id)) continue; list.push({ id, name: m.name || id, ctx: m.max_context_tokens || 128000, vision: !!m.supports_vision }); }
         else { if (!id.endsWith(':free') || m.type !== 'chat' || (D.LR_BLOCKED || []).includes(id) || XEX().test(id)) continue; list.push({ id, name: m.display_name || id, ctx: m.context_window || 128000, vision: !!(m.capabilities || {}).vision }); }
     }
