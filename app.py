@@ -1557,11 +1557,11 @@ def voidai_plan(key):
 
 _tk_cache = {"t": 0, "free": set()}
 def tokenreply_free():
-    """TokenReply: so os modelos do nivel gratis (model_ratio 0); os "Plus" respondem 403 plus_required. A tabela de precos e publica (nao leva a chave)."""
+    """TokenReply: os do nivel gratis (model_ratio 0) e os "semanais em destaque" (gastam o credito gratis da conta); os "Plus" respondem 403 plus_required. A tabela de precos e publica (nao leva a chave)."""
     if time.time() - _tk_cache["t"] < 3600 and _tk_cache["free"]: return _tk_cache["free"]
     try:
         with urllib.request.urlopen(urllib.request.Request(TK_URL[:-3] + "/api/pricing", headers={"User-Agent": "lume-app"}), timeout=20) as r: d = json.load(r)
-        _tk_cache.update(t=time.time(), free={x["model_name"] for x in d.get("data", []) if x.get("model_ratio") == 0 and not x.get("model_price") and x.get("access_tier") == "free"})
+        _tk_cache.update(t=time.time(), free={x["model_name"] for x in d.get("data", []) if x.get("access_tier") in ("free", "weekly_featured")})   # free = ratio 0; weekly_featured gasta do credito gratis da conta (US$ 1)
     except Exception: pass
     return _tk_cache["free"]
 

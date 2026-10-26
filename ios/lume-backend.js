@@ -176,7 +176,7 @@ const XFIELD = Object.fromEntries(Object.entries(XPROV).map(([p, v]) => [p, v[0]
 let tkFreeSet = null;
 async function tkFree() {   // TokenReply: so os gratis (model_ratio 0); a tabela de precos e publica
     if (tkFreeSet) return tkFreeSet;
-    try { const d = await getJson(TK_URL.replace(/\/v1$/, '') + '/api/pricing', {}, 20000, 'O TokenReply'); tkFreeSet = new Set((d.data || []).filter(x => x.model_ratio === 0 && !x.model_price && x.access_tier === 'free').map(x => x.model_name)); } catch (e) { return new Set(); }
+    try { const d = await getJson(TK_URL.replace(/\/v1$/, '') + '/api/pricing', {}, 20000, 'O TokenReply'); tkFreeSet = new Set((d.data || []).filter(x => x.access_tier === 'free' || x.access_tier === 'weekly_featured').map(x => x.model_name)); } catch (e) { return new Set(); }
     return tkFreeSet;
 }
 async function extraRaw(p, cfg) {
