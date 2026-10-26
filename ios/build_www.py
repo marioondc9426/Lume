@@ -1,8 +1,10 @@
 """Monta ios/www (a pagina do app) e o icone a partir do index.html, icons/ e fonts/ da raiz.
-Uso: python ios/build_www.py   (depois: cd ios && xcodegen generate)"""
-import json, os, re, shutil, sys
+Uso: python ios/build_www.py [--out PASTA] [--no-icon]   (depois: cd ios && xcodegen generate)
+Escreve tambem version.json (quando foi montado) e manifest.json (lista de arquivos): o app compara e se atualiza sozinho."""
+import json, os, re, shutil, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
-WWW = os.path.join(HERE, "www")
+ARGS = sys.argv[1:]
+WWW = os.path.abspath(ARGS[ARGS.index("--out") + 1]) if "--out" in ARGS else os.path.join(HERE, "www")
 shutil.rmtree(WWW, ignore_errors=True); os.makedirs(WWW)
 
 html = open(os.path.join(ROOT, "index.html"), encoding="utf-8").read()
@@ -21,8 +23,15 @@ for d in ("icons", "fonts"):
     src = os.path.join(ROOT, d); dst = os.path.join(WWW, d)
     shutil.copytree(src, dst, ignore=shutil.ignore_patterns("originals", "*.ico"))
 
+# versao e lista de arquivos (o app compara "built" com a que ele tem)
+built = int(time.time()); version = (os.environ.get("GITHUB_SHA") or "local")[:7]
+json.dump({"built": built, "version": version}, open(os.path.join(WWW, "version.json"), "w"))
+files = sorted(os.path.relpath(os.path.join(r, f), WWW).replace(os.sep, "/") for r, _, fs in os.walk(WWW) for f in fs if f != "manifest.json")
+json.dump({"built": built, "version": version, "min_native": 1, "files": [{"p": p, "s": os.path.getsize(os.path.join(WWW, p))} for p in files]}, open(os.path.join(WWW, "manifest.json"), "w"))
+
 # icone do app (1024x1024, sem transparencia)
 try:
+    if "--no-icon" in ARGS: raise RuntimeError("--no-icon")
     from PIL import Image
     png = os.path.join(ROOT, "icons", "lume-mobile.png")   # ja e quadrada e opaca (o iOS arredonda os cantos sozinho)
     cat = os.path.join(HERE, "Lume", "Assets.xcassets"); app = os.path.join(cat, "AppIcon.appiconset"); os.makedirs(app, exist_ok=True)

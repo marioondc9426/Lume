@@ -469,7 +469,7 @@ const ROUTES = {
     'POST /api/resolve_pending': () => json({ ok: true }),
     'GET /api/metrics': () => json({ vram_used: null, vram_total: null, vram: null, gpu: null, vram_warn: '', generation_active: false, alert: { id: 0 } }),
     'GET /api/server_info': () => json({ remote_enabled: false, allow_remote_code: false, password: '', password_required: false, internet_password_required: false, owner_link_enabled: false, owner_code: '', port: 0, configured_port: 0, listening: '', addresses: [], https_addresses: [], devices: [] }),
-    'GET /api/update_check': () => json({ available: false, error: 'No iPhone o app se atualiza pela AltStore/Sideloadly: instale o .ipa novo.' }),
+    'GET /api/update_check': () => json({ available: false, error: 'No iPhone o Lume se atualiza sozinho ao abrir (avisa se nao conseguir).' }),
     'GET /api/tunnel': () => json({ running: false, url: '', error: '', tool: '', cloudflared: false, tailscale: {}, port: 0 }),
     'GET /api/history': async () => json(await kv.get('history', {})),
     'POST /api/history': async (u, b) => { await kv.set('history', b || {}); schedulePcSync(); return json({ ok: true }); },
@@ -582,6 +582,20 @@ async function pcSync() {
     } catch (e) { setPcStatus('PC fora do ar'); }
 }
 function schedulePcSync() { clearTimeout(pcTimer); pcTimer = setTimeout(pcSync, 4000); }
+
+// avisos da atualizacao automatica (o app nativo chama window.lumeUpdateReady / window.lumeUpdateFailed)
+function updateBanner(text, label, onClick, warn) {
+    if (typeof document === 'undefined') return;
+    const old = document.getElementById('upd-banner'); if (old) old.remove();
+    const b = document.createElement('div'); b.id = 'upd-banner';
+    b.style.cssText = 'position:fixed;left:10px;right:10px;top:calc(8px + env(safe-area-inset-top));z-index:9000;display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:14px;font-size:14px;line-height:1.35;color:#fff;box-shadow:0 8px 28px rgba(0,0,0,.5);background:' + (warn ? '#a15c00' : '#1f7a4d');
+    const t = document.createElement('span'); t.style.flex = '1'; t.textContent = text; b.appendChild(t);
+    const btn = document.createElement('button'); btn.textContent = label; btn.style.cssText = 'border:0;border-radius:999px;padding:6px 14px;font-weight:600;background:rgba(255,255,255,.22);color:#fff';
+    btn.addEventListener('click', () => { b.remove(); if (onClick) onClick(); }); b.appendChild(btn);
+    document.body.appendChild(b);
+}
+window.lumeUpdateReady = v => updateBanner('Atualização do Lume pronta' + (v ? ' (' + v + ')' : '') + '.', 'Reiniciar', () => { try { window.webkit.messageHandlers.lume.postMessage('reload'); } catch (e) { location.reload(); } }, false);
+window.lumeUpdateFailed = msg => updateBanner(msg, 'Fechar', null, true);
 
 // o iPhone nao tem terminal, Windows, GPU nem pasta de trabalho: some o que so existe no PC
 function iosTrim() {

@@ -1,0 +1,38 @@
+name: iOS ao vivo (atualizacao sem reinstalar)
+
+# A cada push na main que mexe no app, monta a pagina do iPhone e publica na branch "ios-live".
+# O app do iPhone olha essa branch ao abrir e se atualiza sozinho (e avisa se nao conseguir).
+on:
+  push:
+    branches: [main]
+    paths: ["index.html", "ios/**", "icons/**", "fonts/**", ".github/workflows/ios-live.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ios-live
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+
+      - name: Montar a pagina do iPhone
+        run: python ios/build_www.py --out live --no-icon
+
+      - name: Publicar na branch ios-live
+        run: |
+          cd live
+          git init -q -b ios-live
+          git config user.name "lume-ios-live"
+          git config user.email "actions@users.noreply.github.com"
+          git add -A
+          git commit -q -m "iOS live ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" ios-live
