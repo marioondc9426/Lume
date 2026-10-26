@@ -6,6 +6,11 @@ Como numerar:
 - O número fica em `VERSION` no topo do `app.py` e aparece em Configurações > Atualizações.
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
+## v3.1 (em desenvolvimento)
+- **Descobrir os níveis de raciocínio**: no seletor de modelos, o botão ↻ ao lado do "Esforço de raciocínio" descobre de uma vez quais níveis o modelo aceita (1 pedido de 1 token; se o modelo não listar, testa um por um) e a lista passa a mostrar só esses.
+- **Gasto em pollen nas estatísticas**: cada resposta do Pollinations guarda o custo real (tokens de entrada e saída × preço do catálogo). Aparece o cartão "Pollen gasto", uma coluna por modelo e o total por dia no gráfico (PC e iPhone).
+- **Exportar e importar contas**: na folha "Conta" (Configurações > Logar/Trocar): exportar esta conta, exportar todas e importar de um arquivo `.json` (junta conversas por id e memórias sem repetir; não mexe em contas de amigos). No iPhone o arquivo sai pela folha de compartilhar do iOS (precisa do `.ipa` novo; antes disso baixa pelo navegador).
+
 ## v3.0
 - **iPhone se atualiza sozinho**: a cada push na `main`, o GitHub monta a página do iPhone e publica na branch `ios-live`; ao abrir, o app confere, baixa a versão nova e mostra "Atualização pronta · Reiniciar". Se não conseguir (sem internet, GitHub fora do ar, arquivo incompleto, ou versão que exige um `.ipa` novo) aparece um aviso em laranja e o app segue na versão que já tem. O `.ipa` só precisa ser reinstalado quando o app nativo mudar.
 - **Aparelhos confiáveis**: o PC guarda `trusted_devices.json` com os aparelhos que mandaram uma cópia de conta; em Configurações > Servidor você marca o iPhone como "Confiar neste aparelho" e ele passa a receber de volta conversas, memórias e chaves de API (só as que ele ainda não tem). O PC também tem o botão **Logar** (troca para `accounts/<nome>`) e junta as conversas quando a mesma conta existe nos dois. **Pollen**: a lista mostra o preço normal (entrada / saída por 1.000 tokens) e, ao digitar, uma estimativa no canto da caixa: tokens da mensagem, tokens do envio (com o contexto) e o custo estimado. Esforço de raciocínio: só os níveis que o modelo aceita (descobertos no primeiro uso e guardados). A lista de modelos não passa mais do topo da janela.

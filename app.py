@@ -309,6 +309,36 @@ def use_account(name):
     HISTORY_FILE, STATE_FILE = os.path.join(d, "history.json"), os.path.join(d, "state.json"); ACTIVE_ACCOUNT = name
     return True
 
+def account_folder(name):
+    return OWNER_DIR if (not name or name == OWNER_NAME) else os.path.join(ACCOUNTS_DIR, name)
+
+def export_accounts(all_accounts):
+    names = ([""] + list_accounts()) if all_accounts else [ACTIVE_ACCOUNT]
+    out = []
+    for n in names:
+        d = account_folder(n)
+        out.append({"name": n or OWNER_NAME, "owner": not n, "history": _read_json(os.path.join(d, "history.json"), {}), "state": _read_json(os.path.join(d, "state.json"), {})})
+    return {"format": "lume-accounts", "version": 1, "exported": time.time(), "accounts": out}
+
+def import_accounts(data):
+    """Junta as contas de um arquivo exportado nas contas daqui (conversas por id, memorias sem repetir). Devolve o resumo."""
+    if not isinstance(data, dict) or data.get("format") != "lume-accounts" or not isinstance(data.get("accounts"), list): raise ValueError("Esse arquivo nao e uma exportacao de contas do Lume.")
+    done = []
+    for a in data["accounts"][:50]:
+        if not isinstance(a, dict): continue
+        name = "" if (a.get("owner") or str(a.get("name")) == OWNER_NAME) else safe_account_name(a.get("name"))
+        if a.get("owner") is False and not name: continue
+        d = account_folder(name)
+        meta = _read_json(os.path.join(d, "account.json"), None) if name else {"role": "owner"}
+        if name and meta is not None and (meta or {}).get("role") not in ("iphone", "account"): continue   # nao mexe em conta de amigo
+        os.makedirs(d, exist_ok=True)
+        if name and meta is None: _write_json(os.path.join(d, "account.json"), {"name": name, "role": "account", "created": time.time(), "note": "Conta importada de um arquivo."})
+        hp, sp = os.path.join(d, "history.json"), os.path.join(d, "state.json")
+        h = merge_history(_read_json(hp, {}), a.get("history") if isinstance(a.get("history"), dict) else {}); _write_json(hp, h)
+        s = merge_state(_read_json(sp, {}), a.get("state") if isinstance(a.get("state"), dict) else {}); _write_json(sp, s)
+        done.append({"name": name or OWNER_NAME, "chats": len(h)})
+    return done
+
 def merge_history(a, b):
     """Uniao das conversas (id -> conversa); na mesma conversa vale a que tem mais mensagens (empate: a segunda)."""
     out = dict(a) if isinstance(a, dict) else {}
@@ -371,6 +401,16 @@ def _fetch(url, data=None, headers=None):
 # ---------------------------------------------------------------- estatisticas de uso
 _stats_lock = threading.Lock()
 
+def pol_cost(model, ptok, otok):
+    """Pollen gasto numa resposta do Pollinations (precos por milhao de tokens do catalogo; os gratis custam 0)."""
+    if not str(model).startswith("pol:"): return 0.0
+    slug = model[4:]; ex = dict(POL_MODELS).get(slug, {})
+    if ex.get("free"): return 0.0
+    try: m = pollinations_catalog(load_config().get("pollinations_api_key") or "").get(slug)
+    except Exception: m = None
+    pin, pout = _pol_price(m) if (m and m.get("pricing")) else (ex.get("pin", 0.0), ex.get("pout", 0.0))
+    return (ptok * pin + otok * pout) / 1e6
+
 def record_event(ev):
     ev["ts"] = time.time()
     try:
@@ -401,15 +441,16 @@ def build_stats(days=30):
             oll["local"]["requests"] += 1; oll["local"]["seconds"] += sec; oll["local"]["tokens"] += tk
     models, daily = {}, {}
     exa = {"searches": 0, "reads": 0, "cost": 0.0}
-    tot = {"requests": 0, "tokens": 0, "seconds": 0.0}
+    tot = {"requests": 0, "tokens": 0, "seconds": 0.0, "pollen": 0.0}
     for e in evs:
-        d = daily.setdefault(time.strftime("%Y-%m-%d", time.localtime(e["ts"])), {"requests": 0, "tokens": 0, "exa_cost": 0.0})
+        d = daily.setdefault(time.strftime("%Y-%m-%d", time.localtime(e["ts"])), {"requests": 0, "tokens": 0, "exa_cost": 0.0, "pollen": 0.0})
         if e.get("type") == "chat":
             m = models.setdefault(e.get("model", "?"), {"requests": 0, "tokens": 0, "seconds": 0.0, "best_tps": 0.0, "cloud": bool(e.get("cloud"))})
             tk, sec = e.get("tokens", 0), e.get("seconds", 0.0)
             m["requests"] += 1; m["tokens"] += tk; m["seconds"] += sec
             if sec > 0.2 and tk: m["best_tps"] = max(m["best_tps"], tk / sec)
             d["requests"] += 1; d["tokens"] += tk
+            pl = e.get("pollen") or 0.0; d["pollen"] += pl; m["pollen"] = m.get("pollen", 0.0) + pl; tot["pollen"] += pl
             tot["requests"] += 1; tot["tokens"] += tk; tot["seconds"] += sec
         elif e.get("type") == "exa":
             exa["reads" if e.get("kind") == "contents" else "searches"] += 1
@@ -418,7 +459,7 @@ def build_stats(days=30):
     series = []
     for i in range(min(days, 14) - 1, -1, -1):
         day = time.strftime("%Y-%m-%d", time.localtime(now - i * 86400))
-        series.append({"day": day, **daily.get(day, {"requests": 0, "tokens": 0, "exa_cost": 0.0})})
+        series.append({"day": day, **daily.get(day, {"requests": 0, "tokens": 0, "exa_cost": 0.0, "pollen": 0.0})})
     return {"days": days, "totals": tot, "models": models, "exa": exa, "series": series, "since": min((e["ts"] for e in evs), default=None), "ollama": oll}
 
 # ---------------------------------------------------------------- rodar codigo dos blocos
@@ -1858,6 +1899,30 @@ def _remember_efforts(model, levels):
         c = load_config(); c.setdefault("pol_effort_ok", {})[model] = list(levels); save_config(c)
     except Exception: pass
 
+def probe_pol_efforts(slug, cfg):
+    """Descobre os niveis de raciocinio que o modelo aceita. 1 pedido de 1 token com um valor invalido: o erro do modelo lista os aceitos; se ele nao listar, testa um por um."""
+    key = (cfg.get("pollinations_api_key") or "").strip()
+    if not key: raise Exception("Chave do Pollinations nao configurada.")
+    if not re.fullmatch(r"[\w.\-/:]+", slug): raise Exception("Modelo invalido.")
+    def ask(level):
+        body = {"model": slug, "messages": [{"role": "user", "content": "1"}], "max_tokens": 1, "reasoning_effort": level}
+        try:
+            with _pol_req("/v1/chat/completions", key, body, timeout=60) as r: r.read(); return 200, ""
+        except urllib.error.HTTPError as e: return e.code, e.read().decode("utf-8", "replace")
+    code, txt = ask("lume_probe")
+    if code in (401, 402, 403, 429): raise Exception(POL_HTTP_ERRORS.get(code) or f"Pollinations respondeu {code}")
+    mm = re.search(r"upported values are:?([^.\"]*)", txt)
+    levels = [x for x in re.findall(r"'(\w+)'", mm.group(1)) if x in EFFORT_ORDER] if mm else []
+    source = "lista do proprio modelo"
+    if not levels:
+        source = "teste um a um"
+        for lv in EFFORT_ORDER:
+            c, _ = ask(lv)
+            if c in (401, 402, 403, 429): raise Exception(POL_HTTP_ERRORS.get(c) or f"Pollinations respondeu {c}")
+            if c == 200: levels.append(lv)
+    if levels: _pol_effort_ok[slug] = levels; _remember_efforts(slug, levels)
+    return levels, source
+
 def _near_effort(want, allowed):
     allowed = [a for a in EFFORT_ORDER if a in allowed]
     if not allowed: return None
@@ -2050,7 +2115,7 @@ STATIC_PAGES = ("/", "/index.html")
 PAGE_ALIAS = {"/share": "/share.html", "/dashboard": "/dashboard.html"}
 # So o proprio PC (janela do app) pode usar estas rotas
 LOCAL_ONLY_POST = ("/api/save_config", "/api/save_key", "/api/server_config", "/api/perf_interval",
-                   "/api/custom_theme", "/api/custom_theme_delete", "/api/trusted_devices_set", "/api/account/login", "/api/account/logout", "/api/resolve_pending", "/api/export", "/api/ios_profile_save", "/api/undo", "/api/stats_clear", "/api/open_url", "/api/update_apply", "/api/restart_app", "/api/run_code", "/api/run_stop", "/api/tunnel_start", "/api/tunnel_stop", "/api/tunnel_install", "/api/app_options", "/api/model_pull", "/api/model_delete", "/api/models_update_now", "/api/cloudflare_usage_set")
+                   "/api/custom_theme", "/api/custom_theme_delete", "/api/trusted_devices_set", "/api/account_import", "/api/pol_effort_probe", "/api/account/login", "/api/account/logout", "/api/resolve_pending", "/api/export", "/api/ios_profile_save", "/api/undo", "/api/stats_clear", "/api/open_url", "/api/update_apply", "/api/restart_app", "/api/run_code", "/api/run_stop", "/api/tunnel_start", "/api/tunnel_stop", "/api/tunnel_install", "/api/app_options", "/api/model_pull", "/api/model_delete", "/api/models_update_now", "/api/cloudflare_usage_set")
 PUBLIC_POST = ("/api/auth/login", "/api/auth/logout", "/api/guest/register", "/api/guest/code")
 LOGIN_MAX_FAILS, LOGIN_LOCK_SECONDS = 5, 60
 login_failures = {}   # ip -> [falhas, inicio]
@@ -2523,6 +2588,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         if p == '/api/trusted_devices':
             if not local: return self.send_json({"error": "local_only"}, 403)
             return self.send_json({"devices": [{"id": k, "name": v.get("name", ""), "account": v.get("account", ""), "trusted": bool(v.get("trusted")), "last": v.get("last", 0), "ip": v.get("ip", "")} for k, v in load_trusted()["devices"].items()]})
+        if p == '/api/account_export':
+            if not local: return self.send_json({"error": "local_only"}, 403)
+            return self.send_json(export_accounts((self.query.get('all') or ['0'])[0] == '1'))
         if p == '/api/account':
             if not local: return self.send_json({"error": "local_only"}, 403)
             return self.send_json({"name": ACTIVE_ACCOUNT, "owner": OWNER_NAME, "accounts": list_accounts()})
@@ -2660,6 +2728,14 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             if not use_account(name): return self.send_json({"error": "Nao da para entrar nessa conta."}, 400)
             cfg = load_config(); cfg["active_account"] = ACTIVE_ACCOUNT; save_config(cfg); log("CONTA", f"Conta ativa no PC: {ACTIVE_ACCOUNT or OWNER_NAME}", COLOR_GREEN)
             return self.send_json({"ok": True, "name": ACTIVE_ACCOUNT})
+        if p == '/api/account_import':
+            try: res = import_accounts(data.get("data"))
+            except ValueError as e: return self.send_json({"error": str(e)}, 400)
+            log("CONTA", f"Importadas {len(res)} conta(s) de um arquivo", COLOR_GREEN); return self.send_json({"ok": True, "imported": res})
+        if p == '/api/pol_effort_probe':
+            try: levels, source = probe_pol_efforts(str(data.get("model") or ""), load_config())
+            except Exception as e: return self.send_json({"error": str(e)[:200]})
+            log("ESFORCO", f"{data.get('model')}: aceita {levels} ({source})", COLOR_GREEN); return self.send_json({"ok": True, "levels": levels, "source": source})
         if p == '/api/account/logout':
             use_account(""); cfg = load_config(); cfg["active_account"] = ""; save_config(cfg); return self.send_json({"ok": True})
         if p in ('/api/guest/register', '/api/guest/code'):
@@ -3354,7 +3430,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 cfg["usage"]["groq"] += total_chars
                 save_config(cfg)
             record_event({"type": "chat", **({"user": gid} if gid else {}), "model": model, "cloud": model.startswith(("groq", "or:", "cf:", "pol:", "tdc:", "vc:", "l7:")), "tab": "code" if agent else "chat",
-                          "tokens": req_tokens or total_chars // 4, "seconds": req_seconds or (time.time() - started), "prompt_tokens": req_prompt, "chars": total_chars})
+                          "tokens": req_tokens or total_chars // 4, "seconds": req_seconds or (time.time() - started), "prompt_tokens": req_prompt, "chars": total_chars,
+                          **({"pollen": round(pol_cost(model, req_prompt, req_tokens or total_chars // 4), 8)} if model.startswith("pol:") else {})})
             if model.startswith("cf:") and not gid:
                 try: cf_add_neurons(model[3:], req_prompt, req_tokens or total_chars // 4)
                 except Exception: pass

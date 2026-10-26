@@ -6,7 +6,7 @@ import WebKit
 /// se achar, baixa para a pasta do app e avisa; se nao conseguir, avisa tambem.
 class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {
     private var web: WKWebView!
-    private let nativeVersion = 1   // sobe quando o app nativo muda de um jeito que a pagina nova exige (manifest "min_native")
+    private let nativeVersion = 2   // sobe quando o app nativo muda de um jeito que a pagina nova exige (manifest "min_native")
     private let liveBase = "https://raw.githubusercontent.com/marioondc9426/Lume/ios-live/"
     private var checked = false
 
@@ -40,6 +40,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, WKSc
         cfg.setValue(true, forKey: "allowUniversalAccessFromFileURLs")
         cfg.allowsInlineMediaPlayback = true
         cfg.userContentController.add(self, name: "lume")
+        cfg.userContentController.addUserScript(WKUserScript(source: "window.__LUME_NATIVE = \(nativeVersion);", injectionTime: .atDocumentStart, forMainFrameOnly: true))   // a pagina sabe que recursos nativos existem
         web = WKWebView(frame: .zero, configuration: cfg)
         web.navigationDelegate = self
         web.uiDelegate = self
@@ -70,7 +71,23 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, WKSc
 
     // ---------- atualizacao ----------
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        if message.name == "lume", let s = message.body as? String, s == "reload" { loadStart() }
+        guard message.name == "lume" else { return }
+        if let s = message.body as? String, s == "reload" { loadStart(); return }
+        if let d = message.body as? [String: Any], let share = d["share"] as? [String: Any], let name = share["name"] as? String, let text = share["text"] as? String { shareFile(name: name, text: text) }
+    }
+
+    /// folha de compartilhar do iOS (Salvar em Arquivos, AirDrop...) para exportar contas
+    private func shareFile(name: String, text: String) {
+        let safe = name.replacingOccurrences(of: "/", with: "_")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(safe)
+        do { try text.write(to: url, atomically: true, encoding: .utf8) } catch {
+            notify("lumeUpdateFailed", "Não consegui preparar o arquivo para salvar.")
+            return
+        }
+        let vc = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+        vc.popoverPresentationController?.sourceView = view
+        vc.popoverPresentationController?.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.midY, width: 1, height: 1)
+        present(vc, animated: true)
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {

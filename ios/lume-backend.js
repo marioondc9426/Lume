@@ -33,8 +33,8 @@ const kv = (() => {
     let dbp = null;
     const open = () => dbp || (dbp = new Promise((res, rej) => { const r = indexedDB.open('lume', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }));
     return {
-        async get(k, d) {
-            k = scoped(k);
+        async get(k, d) { return this.rawGet(scoped(k), d); },
+        async rawGet(k, d) {
             try { const db = await open(); return await new Promise(res => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result === undefined ? d : q.result); q.onerror = () => res(d); }); }
             catch (e) { return LS.get(k, d); }
         },
@@ -42,8 +42,8 @@ const kv = (() => {
             try { const db = await open(); await new Promise((res, rej) => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').delete(k); t.oncomplete = res; t.onerror = () => rej(t.error); }); }
             catch (e) { try { localStorage.removeItem('lume.' + k); } catch (e2) { /* nada */ } }
         },
-        async set(k, v) {
-            k = scoped(k);
+        async set(k, v) { return this.rawSet(scoped(k), v); },
+        async rawSet(k, v) {
             try { const db = await open(); await new Promise((res, rej) => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = res; t.onerror = () => rej(t.error); }); }
             catch (e) { LS.set(k, v); }
         },
@@ -89,6 +89,7 @@ async function polLatency(key) {
     try { const rows = (await getJson(POL_API + '/models/status', bearer(key), 15000)).data || []; rows.forEach(r => { if (String(r.event_type || '').endsWith('text') && r.model && r.latency_p50_ms) lat[r.model] = Math.round(r.latency_p50_ms / 100) / 10; }); } catch (e) { /* sem latencia */ }
     c.t = now(); c.v = lat; return lat;
 }
+const rememberEfforts = async (slug, levels) => { polEffortOk[slug] = levels; const c = Object.assign({}, await loadConfig()); c.pol_effort_ok = Object.assign({}, c.pol_effort_ok, { [slug]: levels }); await saveConfig(c); };
 const polPrice = m => { const p = (m && m.pricing) || {}; return [(+p.promptTextTokens || 0) * 1e6, (+p.completionTextTokens || 0) * 1e6]; };
 
 async function pollinationsModels(cfg) {
@@ -104,7 +105,7 @@ async function pollinationsModels(cfg) {
             health: hl.status || (ex.flaky ? 'degraded' : '?'), success: hl.success_rate == null ? null : hl.success_rate, official: !mid.startsWith('community/'), prio: !!ex.prio, speed: ex.speed || 0, tabs: ex.tabs || 'chat',
             warn: ex.warn || (rpm && rpm <= 5 ? `Limite de ${rpm} pedidos por minuto: se mandar varias mensagens seguidas pode dar erro de limite.` : ''),
             reasoning: has && (caps.includes('reasoning') || !!m.reasoning), effort: (m.supported_parameters || []).includes('reasoning_effort'),
-            tools: has ? (caps.includes('tool_calling') || !!m.tools) : null, rpm: rpm == null ? null : rpm, p50: lat[mid] == null ? null : lat[mid] });
+            tools: has ? (caps.includes('tool_calling') || !!m.tools) : null, rpm: rpm == null ? null : rpm, p50: lat[mid] == null ? null : lat[mid], efforts: polEffortOk[mid] || (cfg.pol_effort_ok || {})[mid] || null });
     }
     return out;
 }
@@ -151,19 +152,24 @@ async function tomdacatModels(cfg) {
     c.t = now(); c.v = out; return out;
 }
 
+function polCost(model, ptok, otok) {   // pollen gasto (precos por milhao de tokens do catalogo; gratis = 0)
+    if (!String(model).startsWith('pol:')) return 0; const slug = model.slice(4), ex = (D.POL_MODELS.find(x => x[0] === slug) || [0, {}])[1];
+    if (ex.free) return 0; const m = cache.pol.cat && cache.pol.cat[slug], [pin, pout] = (m && m.pricing) ? polPrice(m) : [ex.pin || 0, ex.pout || 0];
+    return (ptok * pin + otok * pout) / 1e6;
+}
 // ---------------------------------------------------------------- estatisticas
 async function recordEvent(ev) { const s = await kv.get('stats', { events: [] }); s.events.push(Object.assign({ ts: now() }, ev)); if (s.events.length > 5000) s.events = s.events.slice(-5000); await kv.set('stats', s); }
 async function buildStats(days) {
     const t = now(), all = (await kv.get('stats', { events: [] })).events, evs = all.filter(e => e.ts >= t - days * 86400 && !e.user);
-    const models = {}, daily = {}, tot = { requests: 0, tokens: 0, seconds: 0 }, day = ts => { const d = new Date(ts * 1000); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+    const models = {}, daily = {}, tot = { requests: 0, tokens: 0, seconds: 0, pollen: 0 }, day = ts => { const d = new Date(ts * 1000); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
     for (const e of evs) {
         if (e.type !== 'chat') continue;
-        const d = daily[day(e.ts)] || (daily[day(e.ts)] = { requests: 0, tokens: 0, exa_cost: 0 }), m = models[e.model || '?'] || (models[e.model || '?'] = { requests: 0, tokens: 0, seconds: 0, best_tps: 0, cloud: !!e.cloud });
+        const d = daily[day(e.ts)] || (daily[day(e.ts)] = { requests: 0, tokens: 0, exa_cost: 0, pollen: 0 }), m = models[e.model || '?'] || (models[e.model || '?'] = { requests: 0, tokens: 0, seconds: 0, best_tps: 0, cloud: !!e.cloud });
         const tk = e.tokens || 0, sec = e.seconds || 0; m.requests++; m.tokens += tk; m.seconds += sec; if (sec > 0.2 && tk) m.best_tps = Math.max(m.best_tps, tk / sec);
-        d.requests++; d.tokens += tk; tot.requests++; tot.tokens += tk; tot.seconds += sec;
+        const pl = e.pollen || 0; d.pollen += pl; m.pollen = (m.pollen || 0) + pl; tot.pollen += pl; d.requests++; d.tokens += tk; tot.requests++; tot.tokens += tk; tot.seconds += sec;
     }
     Object.values(models).forEach(m => { m.avg_tps = m.seconds > 0 ? m.tokens / m.seconds : 0; });
-    const series = []; for (let i = Math.min(days, 14) - 1; i >= 0; i--) { const k = day(t - i * 86400); series.push(Object.assign({ day: k }, daily[k] || { requests: 0, tokens: 0, exa_cost: 0 })); }
+    const series = []; for (let i = Math.min(days, 14) - 1; i >= 0; i--) { const k = day(t - i * 86400); series.push(Object.assign({ day: k }, daily[k] || { requests: 0, tokens: 0, exa_cost: 0, pollen: 0 })); }
     const z = () => ({ requests: 0, seconds: 0, tokens: 0 });
     return { days, totals: tot, models, exa: { searches: 0, reads: 0, cost: 0 }, series, since: evs.length ? Math.min(...evs.map(e => e.ts)) : null, ollama: { h5: z(), d7: z(), month: {}, local: z() } };
 }
@@ -240,7 +246,7 @@ async function* streamPollinations(model, messages, think, cfg, maxTokens, effor
     const payload = { model: sl, messages: toOai(messages), stream: true, stream_options: { include_usage: true } }; if (maxTokens) payload.max_tokens = +maxTokens;
     const cat = await polCatalog(key).catch(() => null), m = cat && cat[sl];
     const useEffort = m ? (m.supported_parameters || []).includes('reasoning_effort') : (/(^|\/)gpt-[56]/.test(sl) && !/oss|codex/.test(sl));
-    if (useEffort) { const want = EFFORT_ORDER.includes(effort) ? effort : (think ? 'medium' : 'none'), known = polEffortOk[sl]; payload.reasoning_effort = (known ? nearEffort(want, known) : want) || want; }
+    if (useEffort) { const want = EFFORT_ORDER.includes(effort) ? effort : (think ? 'medium' : 'none'), known = polEffortOk[sl] || (cfg.pol_effort_ok || {})[sl]; payload.reasoning_effort = (known ? nearEffort(want, known) : want) || want; }
     const t0 = now();
     for (let attempt = 0; attempt < 3; attempt++) {
         const r = await fetchT(POL_API + '/v1/chat/completions', { method: 'POST', headers: bearer(key), body: JSON.stringify(payload), signal }, 45000, 'O Pollinations');
@@ -249,7 +255,7 @@ async function* streamPollinations(model, messages, think, cfg, maxTokens, effor
         if (r.status === 429 && attempt < 2) { const wait = Math.min(15, parseFloat(r.headers.get('Retry-After') || 3) || 3); yield ['status', `Limite de pedidos do provedor; esperando ${wait.toFixed(0)} s`]; await sleep(wait * 1000); continue; }
         if (r.status === 400 && payload.reasoning_effort && attempt < 2) {
             const mm = /upported values are:?([^."]*)/.exec(body), ok = mm ? (mm[1].match(/'(\w+)'/g) || []).map(x => x.replace(/'/g, '')).filter(x => EFFORT_ORDER.includes(x)) : [];
-            if (ok.length) { polEffortOk[sl] = ok; payload.reasoning_effort = nearEffort(payload.reasoning_effort, ok); } else delete payload.reasoning_effort; continue;
+            if (ok.length) { rememberEfforts(sl, ok); payload.reasoning_effort = nearEffort(payload.reasoning_effort, ok); } else delete payload.reasoning_effort; continue;
         }
         throw new Error(HTTP_ERR.pol[r.status] || `Pollinations respondeu ${r.status}: ${msg}`);
     }
@@ -428,7 +434,7 @@ function handleChat(req) {
                 for (const [k2, p2] of sp.flush()) { if (k2 === 'thinking') send(p2, 'thinking'); else { full += p2; send(p2); } }
                 total = full.length;
                 if (ctl.signal.aborted) send(L('\n\n[Geracao parada]', '\n\n[Generation stopped]'));
-                await recordEvent({ type: 'chat', model, cloud: CLOUD_PREFIX.test(model), tab: 'chat', tokens: tokens || Math.floor(total / 4), seconds: seconds || (now() - started), prompt_tokens: prompt, chars: total });
+                await recordEvent({ type: 'chat', model, cloud: CLOUD_PREFIX.test(model), tab: 'chat', tokens: tokens || Math.floor(total / 4), seconds: seconds || (now() - started), prompt_tokens: prompt, chars: total, pollen: polCost(model, prompt, tokens || Math.floor(total / 4)) });
             } catch (e) {
                 if (!ctl.signal.aborted) send(L(`\n[Erro: ${e.message || e}]`, `\n[Error: ${e.message || e}]`));
             } finally { delete stops[rid]; try { c.close(); } catch (e) { /* ja fechou */ } }
@@ -451,6 +457,37 @@ const ROUTES = {
     'GET /api/auth/status': () => json({ local: true, root: true, authed: true, role: 'owner', remote_enabled: false, allow_remote_code: false, password_required: false, version: VERSION, app_name: 'Lume', https_port: 0, secure: true, share_open: false, invite_required: false, ios: true }),
     'POST /api/auth/logout': () => json({ ok: true }),
     'GET /api/discover': () => json({ servers: [] }),
+    'POST /api/pol_effort_probe': async (u, b) => {
+        const cfg = await loadConfig(), key = (cfg.pollinations_api_key || '').trim(), slug = String((b && b.model) || '');
+        if (!key) return json({ error: 'Chave do Pollinations nao configurada.' });
+        if (!/^[\w.\-/:]+$/.test(slug)) return json({ error: 'Modelo invalido.' });
+        const ask = async lv => { const r = await fetchT(POL_API + '/v1/chat/completions', { method: 'POST', headers: bearer(key), body: JSON.stringify({ model: slug, messages: [{ role: 'user', content: '1' }], max_tokens: 1, reasoning_effort: lv }) }, 60000, 'O Pollinations'); return { code: r.status, txt: r.ok ? '' : await r.text().catch(() => '') }; };
+        try {
+            let a = await ask('lume_probe'); if ([401, 402, 403, 429].includes(a.code)) return json({ error: HTTP_ERR.pol[a.code] || 'Pollinations respondeu ' + a.code });
+            const mm = /upported values are:?([^."]*)/.exec(a.txt); let levels = mm ? (mm[1].match(/'(\w+)'/g) || []).map(x => x.replace(/'/g, '')).filter(x => EFFORT_ORDER.includes(x)) : [], source = 'lista do proprio modelo';
+            if (!levels.length) { source = 'teste um a um'; for (const lv of EFFORT_ORDER) { const r = await ask(lv); if ([401, 402, 403, 429].includes(r.code)) return json({ error: HTTP_ERR.pol[r.code] || 'Pollinations respondeu ' + r.code }); if (r.code === 200) levels.push(lv); } }
+            if (levels.length) await rememberEfforts(slug, levels); return json({ ok: true, levels, source });
+        } catch (e) { return json({ error: String(e.message || e).slice(0, 200) }); }
+    },
+    'GET /api/account_export': async u => {
+        const all = u.searchParams.get('all') === '1', list = all ? [''].concat(LS.get('accounts', [])) : [ACCT], out = [];
+        for (const n of list) { const pre = n ? 'a:' + n + ':' : ''; out.push({ name: n || 'Aparelho (sem conta)', owner: false, noaccount: !n, history: await kv.rawGet(pre + 'history', {}), state: await kv.rawGet(pre + 'state', {}) }); }
+        return json({ format: 'lume-accounts', version: 1, exported: now(), accounts: out });
+    },
+    'POST /api/account_import': async (u, b) => {
+        const data = b && b.data; if (!data || data.format !== 'lume-accounts' || !Array.isArray(data.accounts)) return json({ error: 'Esse arquivo nao e uma exportacao de contas do Lume.' }, 400);
+        const done = [], names = LS.get('accounts', []);
+        for (const a of data.accounts.slice(0, 50)) {
+            if (!a || typeof a !== 'object') continue;
+            const n = (a.owner || a.noaccount) ? ACCT : String(a.name || '').trim().replace(/\s+/g, ' ').slice(0, 40); const pre = n ? 'a:' + n + ':' : '';
+            const h = mergeHistory(await kv.rawGet(pre + 'history', {}), a.history || {}); await kv.rawSet(pre + 'history', h);
+            const old = await kv.rawGet(pre + 'state', {}), st = Object.assign({}, a.state || {}, old), mem = Array.isArray(old.memories) ? old.memories.slice() : [];
+            for (const m of (a.state && a.state.memories) || []) if (!mem.some(x => JSON.stringify(x) === JSON.stringify(m))) mem.push(m);
+            if (mem.length) st.memories = mem; await kv.rawSet(pre + 'state', st);
+            if (n && !names.includes(n)) names.push(n); done.push({ name: n || 'Aparelho (sem conta)', chats: Object.keys(h).length });
+        }
+        LS.set('accounts', names); return json({ ok: true, imported: done });
+    },
     'GET /api/account': () => json({ name: ACCT, accounts: LS.get('accounts', []) }),
     'POST /api/account/login': (u, b) => {
         const n = String((b && b.name) || '').trim().replace(/\s+/g, ' ').slice(0, 40); if (!n) { LS.set('account', ''); ACCT = ''; return json({ ok: true, name: '' }); }

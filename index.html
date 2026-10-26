@@ -2413,6 +2413,16 @@
                     const EFF = [['', 'Automático'], ['none', 'Nenhum'], ['low', 'Baixo'], ['medium', 'Médio'], ['high', 'Alto'], ['max', 'Máximo']], curE = (config.effort || {})[cur.id] || '';
                     const sup = cur.efforts, SUP = { none: ['none', 'minimal'], low: ['low', 'minimal'], medium: ['medium'], high: ['high'], max: ['max', 'xhigh'] }, EFFS = EFF.filter(([v]) => !v || !sup || !sup.length || v === curE || SUP[v].some(x => sup.includes(x)));
                     er.append(el, miniSelect(EFFS.map(([v, l]) => ({ value: v, label: tr(l) })), curE, v => { config.effort = Object.assign({}, config.effort, { [cur.id]: v }); saveState(); renderModelOptions(); }, tr('Esforço de raciocínio')));
+                    const pb = document.createElement('button'); pb.type = 'button'; pb.className = 'btn btn-secondary'; pb.style.cssText = 'margin:0 0 0 6px;padding:2px 9px;font-size:.8em'; pb.textContent = '↻'; pb.title = tr('Descobrir os níveis que este modelo aceita (1 pedido de 1 token)');
+                    pb.onclick = async ev => {
+                        ev.stopPropagation(); pb.disabled = true; pb.textContent = '…';
+                        try {
+                            const r = await (await fetch(API + '/api/pol_effort_probe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: cur.id.replace(/^pol:/, '') }) })).json();
+                            if (r.error) showInfo(tr(r.error)); else { showInfo(tr('Níveis aceitos: {l}', { l: (r.levels || []).join(', ') || tr('nenhum') })); await loadPollinationsModels(); }
+                        } catch (e) { showInfo(tr('Não deu para descobrir agora.')); }
+                        renderModelOptions();
+                    };
+                    er.appendChild(pb);
                     box.appendChild(er);
                 }
             }
@@ -4156,7 +4166,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             $('stats-sort').value = statsSort.key; $('stats-dir').textContent = statsSort.dir < 0 ? tr('↓ Maior primeiro') : tr('↑ Menor primeiro');
             let st; try { st = await (await fetch(API + '/api/stats?days=' + $('stats-days').value)).json(); } catch (e) { return; }
             const card = (v, l) => `<div class="stat-card"><div class="v">${esc(String(v))}</div><div class="l">${esc(tr(l))}</div></div>`;
-            $('stats-cards').innerHTML = card(nfmt(st.totals.requests), 'Respostas') + card(nfmt(st.totals.tokens), 'Tokens gerados') + card(fmtDur(st.totals.seconds), 'Tempo gerando') +
+            $('stats-cards').innerHTML = card(nfmt(st.totals.requests), 'Respostas') + card(nfmt(st.totals.tokens), 'Tokens gerados') + card(fmtDur(st.totals.seconds), 'Tempo gerando') + (st.totals.pollen ? card(st.totals.pollen.toFixed(4), 'Pollen gasto') : '') +
                 card('US$ ' + st.exa.cost.toFixed(3), 'Exa: ' + st.exa.searches + ' ' + tr('buscas') + ' · ' + st.exa.reads + ' ' + tr('leituras'));
             const o = st.ollama, oc = (v, l) => `<div class="stat-card"><div class="v">${esc(String(v))}</div><div class="l">${esc(tr(l))}</div></div>`;
             const om = statsSorted(o.month);
@@ -4164,11 +4174,11 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 (om.length ? `<table class="stats-table"><tr><th>${esc(tr('Modelo da nuvem (30 dias)'))}</th><th>${esc(tr('Respostas'))}</th><th>${esc(tr('Tokens'))}</th><th>${esc(tr('Tempo de GPU'))}</th></tr>` + om.map(([n, m]) => { const mod = modelById(n); return `<tr><td>${esc(mod ? mod.label : n)}</td><td>${nfmt(m.requests)}</td><td>${nfmt(m.tokens)}</td><td>${fmtDur(m.seconds)}</td></tr>`; }).join('') + '</table>' : `<span class="hint">${esc(tr('Nenhuma resposta de modelo da nuvem do Ollama registrada ainda.'))}</span>`) +
                 `<div class="srv-actions" style="margin-top:8px;"><button class="btn btn-secondary" onclick="openExternal('https://ollama.com/settings')">${esc(tr('Ver o uso na conta do Ollama'))}</button></div><span class="hint">${esc(tr('O Ollama mede o plano grátis por tempo de GPU (janelas de 5 horas e 7 dias) e não oferece uma forma de o app ler a % usada. Os números acima são só o que passou por este app.'))}</span>`;
             const rows = statsSorted(st.models);
-            $('stats-models').innerHTML = rows.length ? `<table class="stats-table"><tr><th>${esc(tr('Modelo'))}</th><th>${esc(tr('Respostas'))}</th><th>${esc(tr('Tokens'))}</th><th>${esc(tr('Média tok/s'))}</th><th>${esc(tr('Melhor tok/s'))}</th></tr>` +
-                rows.map(([name, m]) => { const mod = modelById(name), tilde = m.cloud ? '~' : ''; return `<tr><td>${esc(mod ? mod.label : name)}${m.cloud ? ' ☁' : ''}</td><td>${nfmt(m.requests)}</td><td>${tilde}${nfmt(m.tokens)}</td><td>${tilde}${m.avg_tps.toFixed(1)}</td><td>${tilde}${m.best_tps.toFixed(1)}</td></tr>`; }).join('') + '</table>'
+            $('stats-models').innerHTML = rows.length ? `<table class="stats-table"><tr><th>${esc(tr('Modelo'))}</th><th>${esc(tr('Respostas'))}</th><th>${esc(tr('Tokens'))}</th><th>${esc(tr('Média tok/s'))}</th><th>${esc(tr('Melhor tok/s'))}</th><th>pollen</th></tr>` +
+                rows.map(([name, m]) => { const mod = modelById(name), tilde = m.cloud ? '~' : ''; return `<tr><td>${esc(mod ? mod.label : name)}${m.cloud ? ' ☁' : ''}</td><td>${nfmt(m.requests)}</td><td>${tilde}${nfmt(m.tokens)}</td><td>${tilde}${m.avg_tps.toFixed(1)}</td><td>${tilde}${m.best_tps.toFixed(1)}</td><td>${m.pollen ? m.pollen.toFixed(5) : ''}</td></tr>`; }).join('') + '</table>'
                 : `<span class="hint">${esc(tr('Ainda não há dados. As estatísticas passam a ser registradas a partir de agora.'))}</span>`;
             const max = Math.max(1, ...st.series.map(d => d.tokens));
-            $('stats-chart').innerHTML = st.series.map(d => `<div class="bar-wrap" title="${esc(d.day)}: ${nfmt(d.tokens)} tokens, ${d.requests} ${esc(tr('respostas'))}${d.exa_cost ? ', Exa US$ ' + d.exa_cost.toFixed(3) : ''}"><div class="bar" style="height:${Math.max(2, d.tokens / max * 100)}%"></div><div class="bar-label">${esc(d.day.slice(8))}/${esc(d.day.slice(5, 7))}</div></div>`).join('');
+            $('stats-chart').innerHTML = st.series.map(d => `<div class="bar-wrap" title="${esc(d.day)}: ${nfmt(d.tokens)} tokens, ${d.requests} ${esc(tr('respostas'))}${d.exa_cost ? ', Exa US$ ' + d.exa_cost.toFixed(3) : ''}${d.pollen ? ', ' + d.pollen.toFixed(4) + ' pollen' : ''}"><div class="bar" style="height:${Math.max(2, d.tokens / max * 100)}%"></div><div class="bar-label">${esc(d.day.slice(8))}/${esc(d.day.slice(5, 7))}</div></div>`).join('');
             $('stats-note').textContent = (st.since ? tr('Dados desde {d}.', { d: new Date(st.since * 1000).toLocaleDateString(curLang() === 'en' ? 'en-US' : 'pt-BR') }) + ' ' : '') + tr('Tokens de modelos na nuvem (~) são estimados; os locais são contados pelo Ollama.');
         }
         async function clearStats() {
@@ -4644,6 +4654,31 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 r.appendChild(t); r.appendChild(b); r.appendChild(x); box.appendChild(r);
             });
         }
+        // salvar um arquivo de texto: no PC baixa; no iPhone abre a folha de compartilhar (Salvar em Arquivos) se o app nativo for novo o bastante
+        function saveTextFile(name, text) {
+            if (window.__LUME_IOS && (window.__LUME_NATIVE || 0) >= 2 && window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.lume) { window.webkit.messageHandlers.lume.postMessage({ share: { name, text } }); return; }
+            if (window.__LUME_IOS) showInfo(tr('Para salvar arquivos no iPhone, instale o .ipa mais recente do Lume.'));
+            const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' })); a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+        }
+        async function exportAccounts(all) {
+            let d; try { d = await (await fetch(API + '/api/account_export?all=' + (all ? 1 : 0))).json(); } catch (e) { showInfo(tr('Não deu para exportar agora.')); return; }
+            if (d.error) { showInfo(tr(d.error)); return; }
+            const day = new Date().toISOString().slice(0, 10), nm = all ? 'todas' : ((d.accounts[0] || {}).name || 'conta').replace(/[^\w\- ]+/g, '_');
+            saveTextFile('lume-contas-' + nm + '-' + day + '.json', JSON.stringify(d)); showInfo(tr('Exportadas {n} conta(s).', { n: (d.accounts || []).length }));
+        }
+        function importAccounts() {
+            const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
+            inp.onchange = async () => {
+                const f = inp.files && inp.files[0]; if (!f) return;
+                let data; try { data = JSON.parse(await f.text()); } catch (e) { showInfo(tr('Esse arquivo não é um JSON válido.')); return; }
+                try {
+                    const r = await (await fetch(API + '/api/account_import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data }) })).json();
+                    if (r.error) { showInfo(tr(r.error)); return; }
+                    alert(tr('Importadas: {l}', { l: (r.imported || []).map(x => x.name + ' (' + x.chats + ' ' + tr('conversas') + ')').join(', ') || tr('nenhuma') })); location.reload();
+                } catch (e) { showInfo(tr('Não deu para importar agora.')); }
+            };
+            inp.click();
+        }
         // conta (PC e iPhone): botao "Logar" no topo das configuracoes; sem senha
         async function initAccountRow() {
             const row = $('acct-row'), btn = $('acct-btn'), lab = $('acct-label'); if (!row || !auth.local || auth.guest) return;
@@ -4664,6 +4699,9 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 const inp = mk('input'); inp.type = 'text'; inp.placeholder = tr('Nome da conta (nova ou existente)'); inp.maxLength = 40; inp.autocomplete = 'off'; sh.appendChild(inp);
                 const ok = mk('button', 'btn btn-primary', tr('Entrar')); ok.onclick = () => { if (inp.value.trim()) go(inp.value.trim()); }; sh.appendChild(ok);
                 if (cur && window.__LUME_IOS) { const out = mk('button', 'btn btn-secondary', tr('Sair da conta')); out.onclick = () => go(''); sh.appendChild(out); }
+                const ex1 = mk('button', 'btn btn-secondary', tr('Exportar esta conta')); ex1.onclick = () => { ov.remove(); exportAccounts(false); }; sh.appendChild(ex1);
+                const ex2 = mk('button', 'btn btn-secondary', tr('Exportar todas as contas')); ex2.onclick = () => { ov.remove(); exportAccounts(true); }; sh.appendChild(ex2);
+                const im = mk('button', 'btn btn-secondary', tr('Importar contas de um arquivo')); im.onclick = () => { ov.remove(); importAccounts(); }; sh.appendChild(im);
                 const cl = mk('button', 'btn btn-secondary', tr('Fechar')); cl.onclick = () => ov.remove(); sh.appendChild(cl);
                 ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); }); document.body.appendChild(ov);
             };
