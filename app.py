@@ -1462,6 +1462,8 @@ AC_URL = "https://www.aichixia.xyz/api/v1"   # Aichixia: so os modelos do plano 
 AH_URL = "https://aihubmix.com/v1"           # AIHubMix: so os que terminam em "free"
 LR_URL = "https://api.literouter.com/v1"     # LiteRouter: so os ":free" (1 pedido a cada 7 s no plano gratis)
 LR_BLOCKED = {"kimi-k3-cheap:free", "muse-spark-1.2-contributor:free"}   # a API responde "model is not available" (o resto dos ":free" respondeu num teste com 1024 tokens; com 16 os modelos que pensam davam 502 por resposta vazia)
+X_NONCHAT = re.compile(r"safety|guard|embed|whisper|tts|image", re.I)   # VoidAI, Paxsenix e LiteRouter trazem TODOS os modelos de chat; so sai o que nao e conversa
+X_SHOW_ALL = {"vd", "px", "lr"}   # sem teste de saude e sem filtro de plano: aparecem todos (os que o plano nao cobrir respondem com erro na hora de usar)
 AH_EXCLUDE = re.compile(r"phi-|north-|mythomax|intern-|dots-|lfm|xing|flint|agents-a|step-|command-|compound|sarvam|nova-|seed-|hy4|gpt-3\.5|grok|safety|guard|embed|whisper|tts|image", re.I)   # sem Llama nem Grok, e sem modelos "aleatorios" que ninguem pediu
 _x_cache = {p: [0, []] for p in X_PROVIDERS}
 # Vercel: so os gratis que pediu. Eles so funcionam com um cartao cadastrado na conta Vercel (a Vercel exige, mesmo para os "-free").
@@ -1492,6 +1494,7 @@ def _health_load():
 
 def model_is_healthy(prov, mid):
     """Modelo que falhou no ultimo teste (duas tentativas seguidas) some da lista; sem teste ainda = aparece."""
+    if prov in X_SHOW_ALL: return True
     h = _health.get(prov + ":" + mid); return h is None or bool(h.get("ok", True))
 
 def health_test(prov, mid, cfg):
@@ -1517,7 +1520,7 @@ def health_cycle():
     """Reconfere os modelos que falharam (para voltarem quando melhorarem) e um grupo dos outros; quem falha duas vezes seguidas some da lista."""
     cfg = load_config(); changed = False
     for prov in X_PROVIDERS:
-        if not cfg.get(X_PROVIDERS[prov][0]): continue
+        if not cfg.get(X_PROVIDERS[prov][0]) or prov in X_SHOW_ALL: continue   # os que mostram tudo nao gastam pedidos (nem creditos) em teste de saude
         try: ids = [m["id"] for m in extra_models(prov, cfg, force=True, raw=True)]
         except Exception: continue
         failed = [i for i in ids if not model_is_healthy(prov, i)]
@@ -1571,16 +1574,14 @@ def extra_models(prov, cfg, force=False, raw=False):
             if not re.search(r"(^|[-:/])free$", mid) or AH_EXCLUDE.search(mid): continue
             out.append({"id": mid, "name": mid.split("/")[-1], "ctx": 128000, "vision": False})
         elif prov == "vd":   # VoidAI: todos os de chat (menos Gemma 4); os que o plano nao cobre caem no teste de saude e somem
-            if "/v1/chat/completions" not in (m.get("endpoints") or []) or re.search(r"gemma", mid, re.I): continue
-            plan = voidai_plan(key)
-            if plan and plan not in (m.get("plan_requirements") or []): continue   # o seu plano nao cobre este modelo
+            if "/v1/chat/completions" not in (m.get("endpoints") or []) or re.search(r"gemma", mid, re.I) or X_NONCHAT.search(mid): continue
             if m.get("supports_streaming") is False: _NO_STREAM.add((base, mid))
             out.append({"id": mid, "name": mid, "ctx": m.get("max_context_tokens") or 128000, "vision": False, "cin": m.get("input_multiplier") or 0, "cout": m.get("output_multiplier") or 0, "cbase": m.get("base_cost") or 0})   # creditos = base + entrada x cin + saida x cout (docs.voidai.app/guides/credits)
         elif prov == "px":   # Paxsenix: so o plano free (os "High Engine" nao entram) e sem os "(Provider N)" repetidos
-            if m.get("type") != "chat.completions" or m.get("min_plan") or mid.startswith("provider-") or AH_EXCLUDE.search(mid): continue
+            if m.get("type") != "chat.completions" or X_NONCHAT.search(mid): continue
             out.append({"id": mid, "name": m.get("name") or mid, "ctx": m.get("max_context_tokens") or 128000, "vision": bool(m.get("supports_vision"))})
         else:
-            if not mid.endswith(":free") or m.get("type") != "chat" or mid in LR_BLOCKED or AH_EXCLUDE.search(mid): continue
+            if not mid.endswith(":free") or m.get("type") != "chat" or X_NONCHAT.search(mid): continue
             caps = m.get("capabilities") or {}
             out.append({"id": mid, "name": m.get("display_name") or mid, "ctx": m.get("context_window") or 128000, "vision": bool(caps.get("vision"))})
     out.sort(key=lambda x: x["id"]); _x_cache[prov] = [time.time(), out]

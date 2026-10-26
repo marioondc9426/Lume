@@ -170,19 +170,19 @@ function polCost(model, ptok, otok) {   // pollen gasto (precos por milhao de to
     return (ptok * pin + otok * pout) / 1e6;
 }
 // ---------------------------------------------------------------- Aichixia / AIHubMix / LiteRouter: lista crua + teste de saude a cada 10 min
-const XEX = () => re(D.X_EXCLUDE || '^$');   // modelos que nao entram (aleatorios, Llama, Grok...)
+const XEX = () => re(D.X_EXCLUDE || '^$'), XNONCHAT = /safety|guard|embed|whisper|tts|image/i, SHOW_ALL = new Set(['vd', 'px', 'lr']);   // vd/px/lr: todos os modelos de chat, sem teste de saude nem filtro de plano
+   // modelos que nao entram (aleatorios, Llama, Grok...)
 const XFIELD = Object.fromEntries(Object.entries(XPROV).map(([p, v]) => [p, v[0]])), XBASE = Object.fromEntries(Object.entries(XPROV).map(([p, v]) => [p, v[1]]));
 async function extraRaw(p, cfg) {
     const c = cache[p] || (cache[p] = { t: 0, v: null }); if (c.v && now() - c.t < 3600) return c.v;
-    let vdPlan = ''; if (p === 'vd') { try { vdPlan = String((await getJson(VD_URL + '/credits', { Authorization: 'Bearer ' + cfg[XFIELD[p]] }, 15000, 'O VoidAI')).plan || '').trim().toLowerCase(); } catch (e) { vdPlan = ''; } }
     const list = [];
     for (const m of await oaiModels(XBASE[p], cfg[XFIELD[p]])) {
         const id = String(m.id || ''); if (!id) continue;
         if (p === 'ac') { const caps = m.capabilities || []; if (m.tier !== 'free' || !caps.includes('chat') || XEX().test(id)) continue; list.push({ id, name: id.split('/').pop(), ctx: m.context_window || 128000, vision: caps.includes('multimodal') }); }
         else if (p === 'ah') { if (!/(^|[-:/])free$/.test(id) || XEX().test(id)) continue; list.push({ id, name: id.split('/').pop(), ctx: 128000, vision: false }); }
-        else if (p === 'vd') { if (!(m.endpoints || []).includes('/v1/chat/completions') || /gemma/i.test(id)) continue; if (vdPlan && !(m.plan_requirements || []).includes(vdPlan)) continue; if (m.supports_streaming === false) noStream.add(XBASE[p] + '|' + id); list.push({ id, name: id, ctx: m.max_context_tokens || 128000, vision: false, cin: m.input_multiplier || 0, cout: m.output_multiplier || 0, cbase: m.base_cost || 0 }); }
-        else if (p === 'px') { if (m.type !== 'chat.completions' || m.min_plan || id.startsWith('provider-') || XEX().test(id)) continue; list.push({ id, name: m.name || id, ctx: m.max_context_tokens || 128000, vision: !!m.supports_vision }); }
-        else { if (!id.endsWith(':free') || m.type !== 'chat' || (D.LR_BLOCKED || []).includes(id) || XEX().test(id)) continue; list.push({ id, name: m.display_name || id, ctx: m.context_window || 128000, vision: !!(m.capabilities || {}).vision }); }
+        else if (p === 'vd') { if (!(m.endpoints || []).includes('/v1/chat/completions') || /gemma/i.test(id) || XNONCHAT.test(id)) continue; if (m.supports_streaming === false) noStream.add(XBASE[p] + '|' + id); list.push({ id, name: id, ctx: m.max_context_tokens || 128000, vision: false, cin: m.input_multiplier || 0, cout: m.output_multiplier || 0, cbase: m.base_cost || 0 }); }
+        else if (p === 'px') { if (m.type !== 'chat.completions' || XNONCHAT.test(id)) continue; list.push({ id, name: m.name || id, ctx: m.max_context_tokens || 128000, vision: !!m.supports_vision }); }
+        else { if (!id.endsWith(':free') || m.type !== 'chat' || XNONCHAT.test(id)) continue; list.push({ id, name: m.display_name || id, ctx: m.context_window || 128000, vision: !!(m.capabilities || {}).vision }); }
     }
     list.sort((a, b) => a.id < b.id ? -1 : 1); c.v = list; c.t = now(); return list;
 }
@@ -201,7 +201,7 @@ async function healthCycle() {   // reconfere os que falharam + 12 dos outros; f
     try {
         const cfg = await loadConfig(), health = await kv.rawGet('health', {}), gap = Object.fromEntries(Object.entries(XPROV).map(([p, v]) => [p, v[3]]));
         for (const p of Object.keys(XPROV)) {
-            if (!cfg[XFIELD[p]]) continue; let ids; try { ids = (await extraRaw(p, cfg)).map(m => m.id); } catch (e) { continue; }
+            if (!cfg[XFIELD[p]] || SHOW_ALL.has(p)) continue; let ids; try { ids = (await extraRaw(p, cfg)).map(m => m.id); } catch (e) { continue; }
             const bad = ids.filter(i => (health[p + ':' + i] || {}).ok === false), rest = ids.filter(i => !bad.includes(i)).sort((a, b) => ((health[p + ':' + a] || {}).ts || 0) - ((health[p + ':' + b] || {}).ts || 0)).slice(0, 12);
             for (const id of bad.concat(rest)) {
                 if (Object.keys(stops).length) { healthRunning = false; return; }   // conversando: nao disputa o limite de pedidos
@@ -656,7 +656,7 @@ const ROUTES = {
         const cfg = await loadConfig(), out = {}, health = await kv.rawGet('health', {});
         for (const p of Object.keys(XPROV)) {
             if (!cfg[XFIELD[p]]) { out[p] = { saved: false, models: [] }; continue; }
-            try { const list = await extraRaw(p, cfg); out[p] = { saved: true, models: list.filter(m => !health[p + ':' + m.id] || health[p + ':' + m.id].ok !== false) }; }
+            try { const list = await extraRaw(p, cfg); out[p] = { saved: true, models: SHOW_ALL.has(p) ? list : list.filter(m => !health[p + ':' + m.id] || health[p + ':' + m.id].ok !== false) }; }
             catch (e) { out[p] = { saved: true, models: [], error: String(e.message || e).slice(0, 200) }; }
         }
         return json(out);
