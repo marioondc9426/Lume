@@ -297,6 +297,22 @@
         const hw = st.human === 'w'; st.summary = T('Você') + ' (' + (hw ? T('brancas') : T('pretas')) + '): ' + avg(acc[st.human]) + ' — ' + fmt(st.human) + '\n' + T('Modelo') + ': ' + avg(acc[hw ? 'b' : 'w']) + ' — ' + fmt(hw ? 'b' : 'w');
         st.busy = ''; st.review = 0; render();
     }
+    function pgnText() {   // PGN padrao; lances ilegais do modelo nao existem no PGN, entao viram comentario e a FEN final vai no cabecalho
+        const d = new Date(), pad = n => String(n).padStart(2, '0'), me = st.human === 'w', mdl = st.model.label || st.model.id, over = st.over || '';
+        let res = '*'; if (game.in_checkmate()) res = game.turn() === 'w' ? '0-1' : '1-0'; else if (game.in_draw() || game.in_stalemate()) res = '1/2-1/2'; else if (/desistiu|modelo ganhou/i.test(over)) res = me ? '0-1' : '1-0'; else if (/você capturou|você ganhou/i.test(over)) res = me ? '1-0' : '0-1';
+        const hasIll = st.log.some(e => e.illegal), H = { Event: 'Lume: Xadrez contra um modelo', Site: 'Lume', Date: d.getFullYear() + '.' + pad(d.getMonth() + 1) + '.' + pad(d.getDate()), Round: '1', White: me ? 'Voce' : mdl, Black: me ? mdl : 'Voce', Result: res };
+        if (hasIll) { H.SetUp = '1'; H.FEN = game.fen(); H.Variant = 'Lume (lances ilegais)'; }
+        let mt = '', prevIll = false;
+        st.log.forEach((e, i) => { const w = i % 2 === 0, no = Math.floor(i / 2) + 1; mt += (w ? no + '. ' : (prevIll || i === 0 ? no + '... ' : '')) + (e.illegal ? '{lance ILEGAL ' + e.san.replace('⚠', '') + '} ' : e.san + ' '); prevIll = !!e.illegal; });
+        return Object.keys(H).map(k => '[' + k + ' "' + String(H[k]).replace(/"/g, "'") + '"]').join('\n') + '\n\n' + mt.trim() + ' ' + res + '\n';
+    }
+    function exportPgn() {
+        if (!game || !st.log.length) { st.note = T('Jogue pelo menos um lance para exportar.'); render(); return; }
+        const txt = pgnText(); let msg = '';
+        try { if (navigator.clipboard) navigator.clipboard.writeText(txt); msg = T('PGN copiado.'); } catch (e) { /* sem area de transferencia */ }
+        try { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([txt], { type: 'application/x-chess-pgn' })); a.download = 'lume-partida.pgn'; document.body.appendChild(a); a.click(); setTimeout(() => { a.remove(); URL.revokeObjectURL(a.href); }, 500); msg += ' ' + T('Arquivo lume-partida.pgn baixado.'); } catch (e) { /* ok */ }
+        st.note = msg.trim(); render();
+    }
     function nav(d) { if (st.review === null || st.review === undefined) return; st.review = Math.max(0, Math.min(st.log.length, d === 'end' ? st.log.length : d === 'start' ? 0 : st.review + d)); render(); }
 
     // ---------------------------------------------------------------- interface
@@ -388,7 +404,7 @@
         const start = btn('Novo jogo', () => { if (st) st.token = Math.random(); newGame({ model: list[pick], color: colorVal }); }); start.classList.replace('btn-secondary', 'btn-primary');
         btn('Desfazer', undo); btn('Virar', () => { st.flip = !st.flip; render(); });
         btn('Desistir', () => { if (game && !game.game_over() && !st.over) { st.token = Math.random(); st.thinking = false; st.over = T('Você desistiu.'); st.pre = null; st.psel = null; render(); } });
-        btn('Analisar partida', analyzeGame);
+        btn('Analisar partida', analyzeGame); btn('Exportar PGN', exportPgn);
         btn('Fechar', () => { if (st) st.token = Math.random(); if (st && st.rid) { try { fetch(API + '/api/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rid: st.rid }) }); } catch (e) { /* ok */ } } const o = ov; ov = null; o.classList.add('out'); setTimeout(() => o.remove(), 190); });
         const navRow = mk('div', 'chess-row chess-nav'); [['⏮', 'start'], ['◀', -1], ['▶', 1], ['⏭', 'end']].forEach(([t, d]) => { const b = mk('button', 'btn btn-secondary', t); b.type = 'button'; b.onclick = () => nav(d); navRow.appendChild(b); }); const ex = mk('button', 'btn btn-secondary', T('Sair da análise')); ex.type = 'button'; ex.onclick = () => { st.review = null; render(); }; navRow.appendChild(ex); side.appendChild(navRow);
         side.appendChild(mk('div', 'chess-status', '')); side.appendChild(mk('div', 'chess-moves', '')); const sum = mk('div', 'chess-sum', ''); sum.style.whiteSpace = 'pre-line'; side.appendChild(sum);
@@ -398,5 +414,5 @@
     }
     async function rankBackfill() { for (let i = 0; i < st.log.length; i++) { if (st.cls[i]) continue; const my = st.token; try { await analyze(st.log[i].fen); await analyze(i + 1 < st.log.length ? st.log[i + 1].fen : game.fen()); if (my !== st.token) return; const c = classify(i); if (c) st.cls[i] = c; render(); } catch (e) { st.note = T('Motor de análise indisponível: ') + String(e.message || e).slice(0, 80); st.opts.rank = false; render(); return; } } }
     window.openChess = open;
-    window.__chess = { get game() { return game; }, get st() { return st; }, parseMove, parseCoord, classify, analyze, wpct, forceMove };
+    window.__chess = { get game() { return game; }, get st() { return st; }, parseMove, parseCoord, classify, analyze, wpct, forceMove, pgnText };
 })();
