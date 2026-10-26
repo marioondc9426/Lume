@@ -10,11 +10,11 @@
         excellent: { n: 'Excelente', en: 'Excellent', sym: '✓', c: '#96bc4b' }, good: { n: 'Bom', en: 'Good', sym: '✓', c: '#a3b27a' }, inaccuracy: { n: 'Imprecisão', en: 'Inaccuracy', sym: '?!', c: '#f7c631' },
         mistake: { n: 'Erro', en: 'Mistake', sym: '?', c: '#e58f2a' }, blunder: { n: 'Erro grave', en: 'Blunder', sym: '??', c: '#ca3431' }, miss: { n: 'Perdeu', en: 'Miss', sym: '✕', c: '#ff7769' },
     };
-    const winPos = { x: 0, y: 0 }; let game = null, st = null, ov = null, engine = null, engQ = Promise.resolve();
+    let game = null, st = null, ov = null, engine = null, engQ = Promise.resolve();
 
     const css = document.createElement('style');
     css.textContent = `
-        .chess-ov { position: fixed; inset: 0; z-index: 6500; display: flex; align-items: flex-start; justify-content: center; background: rgba(0,0,0,0.6); padding: 12px; overflow: auto; } .chess-ov > .chess-wrap { margin: auto; }
+        .chess-ov { position: fixed; inset: 36px 0 0 0; z-index: 6500; display: flex; align-items: flex-start; justify-content: center; background: rgba(0,0,0,0.6); padding: 12px; overflow: auto; } .chess-ov > .chess-wrap { margin: auto; }
         .chess-wrap { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; justify-content: center; max-width: 100%; background: var(--bg-main); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 20px; padding: 16px; box-shadow: 0 20px 60px rgba(0,0,0,.55); }
         .chess-bw { display: flex; gap: 8px; } .chess-eval { width: 14px; height: var(--cb, 520px); border-radius: 6px; overflow: hidden; background: #262522; position: relative; visibility: hidden; } .chess-eval.on { visibility: visible; } .chess-eval i { position: absolute; left: 0; right: 0; bottom: 0; background: #f2f2f2; transition: height .3s; } .chess-eval b { position: absolute; left: 0; right: 0; font: 600 9px system-ui; text-align: center; color: #888; top: 2px; }
         .chess-board { position: relative; width: var(--cb, 520px); height: var(--cb, 520px); display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); border-radius: 8px; overflow: hidden; user-select: none; -webkit-user-select: none; touch-action: none; }
@@ -393,10 +393,7 @@
         const bsz = Math.max(280, Math.min(560, innerWidth - 80, innerHeight - 120)); wrap.style.setProperty('--cb', bsz + 'px');
         const bw = mk('div', 'chess-bw'); wrap.appendChild(bw); const evb = mk('div', 'chess-eval'); evb.appendChild(mk('i')); evb.appendChild(mk('b')); bw.appendChild(evb);
         const board = mk('div', 'chess-board'); board.appendChild(document.createElementNS('http://www.w3.org/2000/svg', 'svg')); const svg = board.lastChild; svg.setAttribute('class', 'chess-arrows'); svg.setAttribute('viewBox', '0 0 8 8'); bw.appendChild(board);
-        const side = mk('div', 'chess-side'); wrap.appendChild(side); const h3 = mk('h3', '', T('Xadrez contra um modelo')); h3.title = T('Arraste para mover a janela'); h3.style.cssText = 'cursor:move;touch-action:none;user-select:none;-webkit-user-select:none'; side.appendChild(h3);
-        wrap.style.transform = 'translate(' + winPos.x + 'px,' + winPos.y + 'px)';
-        wrap.addEventListener('animationend', e => { if (e.target === wrap && e.animationName === 'chPop') wrap.style.animation = 'none'; });
-        h3.addEventListener('pointerdown', e => { if (e.button) return; const sx = e.clientX - winPos.x, sy = e.clientY - winPos.y; h3.setPointerCapture(e.pointerId); const mv = ev => { winPos.x = ev.clientX - sx; winPos.y = ev.clientY - sy; wrap.style.animation = 'none'; wrap.style.transform = 'translate(' + winPos.x + 'px,' + winPos.y + 'px)'; }, up = () => { h3.removeEventListener('pointermove', mv); h3.removeEventListener('pointerup', up); }; h3.addEventListener('pointermove', mv); h3.addEventListener('pointerup', up); });
+        const side = mk('div', 'chess-side'); wrap.appendChild(side); side.appendChild(mk('h3', '', T('Xadrez contra um modelo')));
         const provOf = m => { try { return providerName(m); } catch (e) { return ''; } }, logoOf = m => { const sp = mk('span', 'cm-logo'); try { fin(m); const br = brandOf(m); if (br) sp.appendChild(brandEl(br, m)); else sp.textContent = '☁'; } catch (e) { sp.textContent = '☁'; } return sp; };
         let pick = Math.max(0, list.findIndex(m => m.id === (typeof selectedModel !== 'undefined' ? selectedModel : '')));
         // seletor igual ao do chat: familias na lista, e embaixo Parametros e Provedor (reusa as funcoes do index.html)
