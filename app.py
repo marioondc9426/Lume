@@ -4118,6 +4118,7 @@ if __name__ == '__main__':
     api._window = webview.create_window(WINDOW_TITLE, f'http://127.0.0.1:{PORT}/index.html', width=1100, height=800, min_size=(800, 520), frameless=True, easy_drag=False, js_api=api, hidden=bool(tray_on and "--autostart" in sys.argv))
     # private_mode=False: sem isso o localStorage some toda vez que o app fecha
     window_api = api
+    os.environ.setdefault('WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS', '--autoplay-policy=no-user-gesture-required')   # o som da tela de carregamento do Mac toca sem precisar de clique
     webview.start(private_mode=False, storage_path=os.path.join(BASE_DIR, "webview_data"), icon=custom_icon_ico())
     log("SAIDA", "Janela fechada. Desligando as IAs...", COLOR_YELLOW)
     shutdown_all()

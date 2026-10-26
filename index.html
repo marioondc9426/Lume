@@ -947,11 +947,53 @@
         @keyframes bsPulse { 0%, 100% { opacity: .75; transform: scale(.96); } 50% { opacity: 1; transform: scale(1.04); } }
         @keyframes bsRun { 0% { margin-left: -40%; } 100% { margin-left: 100%; } }
         @media (prefers-reduced-motion: reduce) { #boot-splash img, #boot-splash .bs-bar i { animation: none; } }
+        #boot-splash[data-boot] { background: var(--bsb, #1b1b1f); color: var(--bsc, #8f8f98); }
+        #boot-splash .bs-logo { height: 72px; max-width: 70vw; object-fit: contain; animation: bsHop 1.5s cubic-bezier(.3,.7,.4,1) infinite; transform-style: preserve-3d; }
+        #boot-splash .bs-logo.wide { height: 52px; }
+        #boot-splash .bs-logo.spin { animation: bsSpin 2.6s linear infinite; height: 80px; }
+        @keyframes bsHop { 0% { transform: translateY(0) rotateY(0); } 35% { transform: translateY(-34px) rotateY(180deg); } 70% { transform: translateY(0) rotateY(360deg); } 78% { transform: translateY(5px) scaleY(.94) rotateY(360deg); } 100% { transform: translateY(0) rotateY(360deg); } }
+        @keyframes bsSpin { 0% { transform: rotate(0) scale(.92); } 50% { transform: rotate(180deg) scale(1.08); } 100% { transform: rotate(360deg) scale(.92); } }
+        #boot-splash[data-boot="mac"] { gap: 0; } #boot-splash[data-boot="mac"] #boot-text { display: none; }
+        #boot-splash .bs-apple { height: 92px; width: auto; display: block; } #boot-splash .bs-mbar { margin-top: 56px; width: 190px; height: 5px; border-radius: 5px; background: #3a3a3c; overflow: hidden; } #boot-splash .bs-mbar i { display: block; height: 100%; width: 0; background: #fff; border-radius: 5px; animation: bsMac 3.2s cubic-bezier(.2,.6,.3,1) forwards; } #boot-splash.out .bs-mbar i { width: 100%; animation: none; transition: width .2s; }
+        @keyframes bsMac { 0% { width: 0; } 100% { width: 92%; } }
+        #boot-splash.preview { cursor: pointer; }
+        @media (prefers-reduced-motion: reduce) { #boot-splash .bs-logo { animation: none; } #boot-splash .bs-mbar i { animation: none; width: 60%; } }
     </style>
     <script src="libs/emoji-shortcodes.js"></script>
 </head>
 <body data-ui="modern" data-theme="deepseek" data-bubbles="soft" data-input="card" data-logo="mark" data-hero="center" data-sidebar="left" style="--scale: 1;">
     <div id="boot-splash"><img src="icons/lume-mark.png" alt=""><div class="bs-bar"><i></i></div><span id="boot-text">Carregando…</span></div>
+    <script>
+// telas de carregamento: a escolhida fica em localStorage ('lume_boot') para valer antes de qualquer configuracao carregar
+(function () {
+    var L = { claude: ['icons/Claude.png', '#262624', '#c2c0b6', 'spin'], chatgpt: ['icons/chatgpt.png', '#212121'], gemini: ['icons/Gemini.svg', '#131314'], deepseek: ['icons/DeepSeek.png', '#1b1b1f', '', 'wide'], kimi: ['icons/Kimi.png', '#161617'], qwen: ['icons/Qwen.png', '#17171c'], meta: ['icons/Meta.png', '#18191a'], mistral: ['icons/Mistral.png', '#1a1a1a'], nvidia: ['icons/nvidia.png', '#ffffff', '#555'], ollama: ['icons/ollama.png', '#ffffff', '#555'], openrouter: ['icons/openrouter.png', '#0b0b0d', '', 'wide'], minimax: ['icons/MiniMax.png', '#17171a'], xiaomi: ['icons/Xiaomi.png', '#1a1a1a'], zai: ['icons/Zai.png', '#101010'], google: ['icons/Google.png', '#202124'] };
+    var APPLE = '<svg class="bs-apple" viewBox="0 0 100 120" aria-hidden="true"><defs><mask id="bsm"><rect width="100" height="120" fill="#fff"/><circle cx="101" cy="58" r="15" fill="#000"/></mask></defs><g mask="url(#bsm)" fill="#fff"><circle cx="37" cy="68" r="30"/><circle cx="63" cy="68" r="30"/><circle cx="41" cy="92" r="22"/><circle cx="59" cy="92" r="22"/><rect x="37" y="44" width="26" height="60"/></g><path fill="#fff" d="M51 38C47 18 58 6 76 4C79 24 68 38 51 38Z"/></svg>';
+    window.BOOT_STYLES = ['lume', 'claude', 'chatgpt', 'gemini', 'deepseek', 'kimi', 'qwen', 'meta', 'mistral', 'nvidia', 'ollama', 'openrouter', 'minimax', 'xiaomi', 'zai', 'google', 'mac'];
+    window.bootChime = function () {   // imitacao sintetizada do acorde de abertura do Mac (nao e o audio original)
+        try {
+            var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; var c = new AC(); if (c.resume) c.resume();
+            var out = c.createGain(), lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2600; out.gain.value = 0.32; out.connect(lp); lp.connect(c.destination);
+            [[92.5, .9], [185, .8], [277.2, .55], [370, .7], [466.2, .35], [554.4, .45], [740, .3], [932.3, .12]].forEach(function (n) {
+                [-3, 3].forEach(function (det) { var o = c.createOscillator(), g = c.createGain(); o.type = 'sine'; o.frequency.value = n[0]; o.detune.value = det; g.gain.setValueAtTime(0, c.currentTime); g.gain.linearRampToValueAtTime(n[1] * 0.22, c.currentTime + 0.04); g.gain.exponentialRampToValueAtTime(0.0008, c.currentTime + 3.4); o.connect(g); g.connect(out); o.start(); o.stop(c.currentTime + 3.5); });
+            });
+            setTimeout(function () { try { c.close(); } catch (e) { } }, 4200);
+        } catch (e) { /* sem audio */ }
+    };
+    window.bootApply = function (el, style, sound) {
+        if (style === 'random') style = window.BOOT_STYLES[Math.floor(Math.random() * window.BOOT_STYLES.length)];
+        var txt = '<span id="boot-text">Carregando…</span>';
+        if (style === 'mac') { el.dataset.boot = 'mac'; el.style.setProperty('--bsb', '#000'); el.innerHTML = APPLE + '<div class="bs-mbar"><i></i></div>' + txt; if (sound !== false) window.bootChime(); }
+        else if (L[style]) { var v = L[style]; el.dataset.boot = style; el.style.setProperty('--bsb', v[1]); el.style.setProperty('--bsc', v[2] || '#8f8f98'); el.innerHTML = '<img class="bs-logo ' + (v[3] || '') + '" src="' + v[0] + '" alt="">' + txt; }
+        else { el.removeAttribute('data-boot'); el.style.removeProperty('--bsb'); el.innerHTML = '<img src="icons/lume-mark.png" alt=""><div class="bs-bar"><i></i></div>' + txt; }
+    };
+    var el = document.getElementById('boot-splash'), k = 'lume'; try { k = localStorage.getItem('lume_boot') || 'lume'; } catch (e) { }
+    if (el) window.bootApply(el, k);
+    window.bootPreview = function (style) {   // mostra a tela escolhida por alguns segundos (toque/clique fecha)
+        var p = document.createElement('div'); p.id = 'boot-splash'; p.className = 'preview'; window.bootApply(p, style); document.body.appendChild(p);
+        var close = function () { p.classList.add('out'); setTimeout(function () { p.remove(); }, 400); }; p.onclick = close; setTimeout(close, 3800);
+    };
+})();
+</script>
     <div id="bg-image-layer"></div>
 
     <!-- Barra de titulo propria -->
@@ -2002,6 +2044,9 @@
             };
             select('Idioma', 'Começa com o idioma do Windows; se não tivermos o idioma, usa o inglês.', curLang(), [['pt', 'Português (Brasil)'], ['en', 'English']], v => { setLang(v); $('wl-lang').value = v; });
             select('Tema', 'O visual do app (cores, fonte, cantos e layout). Dá para criar temas próprios em Configurações.', themesNow().includes(config.theme) ? config.theme : defaultTheme(), themesNow().map(x => [x, THEME_LABELS[x] || x]), v => { config.theme = v; applyBaseTheme(v); saveState(); });
+            select('Tela de carregamento', 'A tela que aparece ao abrir o Lume. Ao escolher, ela toca uma prévia. A do Mac toca um som de abertura (imitação); em alguns sistemas o som só toca depois de um toque na tela.', (() => { try { return localStorage.getItem('lume_boot') || 'lume'; } catch (e) { return 'lume'; } })(), [['lume', 'Lume (padrão)'], ['claude', 'Claude'], ['chatgpt', 'ChatGPT'], ['gemini', 'Gemini'], ['deepseek', 'DeepSeek'], ['kimi', 'Kimi'], ['qwen', 'Qwen'], ['meta', 'Meta'], ['mistral', 'Mistral'], ['nvidia', 'NVIDIA'], ['ollama', 'Ollama'], ['openrouter', 'OpenRouter'], ['minimax', 'MiniMax'], ['xiaomi', 'Xiaomi'], ['zai', 'Z.ai'], ['google', 'Google'], ['mac', 'Mac (maçã + som)'], ['random', 'Aleatória']], v => { try { localStorage.setItem('lume_boot', v); } catch (e) { } if (window.bootPreview) window.bootPreview(v); });
+            { const l = document.createElement('div'); l.className = 'wl-opt'; const t = document.createElement('span'); t.className = 'wl-ot'; const bb = document.createElement('b'); bb.textContent = tr('Mascote'); const h = document.createElement('small'); h.textContent = tr('Uma bolinha com olhos que te acompanha: pisca, dorme e comemora quando a IA responde. Dá para mudar nome, cor, estilo (bolha ou LED), olhos e tamanho.'); t.append(bb, h);
+              const bt = document.createElement('button'); bt.type = 'button'; bt.className = 'btn btn-secondary'; bt.style.margin = '0'; bt.textContent = tr('Personalizar'); bt.onclick = () => window.lumePet && window.lumePet.openSettings(); l.append(t, bt); box.appendChild(l); }
             toggle('Iniciar com o terminal', 'Abre uma janela de terminal com o log do app, como o run.bat. Só no Lume.exe.', ao.start_with_terminal, async (on, el) => { const r = await post({ start_with_terminal: on }); if (r.ok === undefined) el.checked = !on; }, !!ao.frozen);
             toggle('Iniciar com o Windows', 'Abre o Lume sozinho quando você entra no Windows. Só no Lume.exe.', ao.start_with_windows, async (on, el) => { const r = await post({ start_with_windows: on }); if (r.ok === undefined) el.checked = !on; }, !!ao.frozen);
             toggle('Ícone na bandeja do sistema', 'Fechar a janela só esconde o app: ele continua rodando ao lado do relógio e abre com um clique no ícone.', ao.tray, async (on, el) => { const r = await post({ tray: on }); if (r.ok === undefined) el.checked = !on; }, !!(auth.local && ao.tray_available));
@@ -5287,5 +5332,6 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
     <script src="libs/chess.min.js"></script>
     <script src="libs/chess-pieces.js"></script>
     <script src="libs/lume-chess.js"></script>
+    <script src="libs/lume-pet.js"></script>
 </body>
 </html>

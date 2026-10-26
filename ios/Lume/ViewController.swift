@@ -35,6 +35,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, WKSc
 
     override func loadView() {
         let cfg = WKWebViewConfiguration()
+        cfg.mediaTypesRequiringUserActionForPlayback = []   // o som da tela de carregamento do Mac
         // a pagina e um arquivo local e precisa falar com as APIs dos provedores (e com o Ollama do PC): libera isso so para este app
         cfg.preferences.setValue(true, forKey: "allowFileAccessFromFileURLs")
         cfg.setValue(true, forKey: "allowUniversalAccessFromFileURLs")
