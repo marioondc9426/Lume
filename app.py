@@ -1577,7 +1577,7 @@ def extra_models(prov, cfg, force=False, raw=False):
     data = _openai_models(base, key); out = []
     for m in data:
         mid = str(m.get("id") or "")
-        if not mid or re.search(r"mythomax", mid, re.I): continue
+        if not mid or re.search(r"mythomax|celeris|isign|lfm", mid, re.I): continue
         if prov == "ac":
             caps = m.get("capabilities") or []
             if m.get("tier") != "free" or "chat" not in caps or AH_EXCLUDE.search(mid): continue
@@ -1586,7 +1586,7 @@ def extra_models(prov, cfg, force=False, raw=False):
             if not re.search(r"(^|[-:/])free$", mid) or AH_EXCLUDE.search(mid): continue
             out.append({"id": mid, "name": mid.split("/")[-1], "ctx": 128000, "vision": False})
         elif prov == "vd":   # VoidAI: todos os de chat (menos Gemma 4); os que o plano nao cobre caem no teste de saude e somem
-            if "/v1/chat/completions" not in (m.get("endpoints") or []) or re.search(r"gemma", mid, re.I) or X_NONCHAT.search(mid): continue
+            if "/v1/chat/completions" not in (m.get("endpoints") or []) or "free" not in (m.get("plan_requirements") or ["free"]) or re.search(r"gemma", mid, re.I) or X_NONCHAT.search(mid): continue
             if m.get("supports_streaming") is False: _NO_STREAM.add((base, mid))
             out.append({"id": mid, "name": mid, "ctx": m.get("max_context_tokens") or 128000, "vision": False, "cin": m.get("input_multiplier") or 0, "cout": m.get("output_multiplier") or 0, "cbase": m.get("base_cost") or 0})   # creditos = base + entrada x cin + saida x cout (docs.voidai.app/guides/credits)
         elif prov == "tk":   # TokenReply: so os gratis (ratio 0)

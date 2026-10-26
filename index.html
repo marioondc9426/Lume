@@ -2476,14 +2476,15 @@
         const brandOf = rec => { const s = `${rec.fam} ${rec.famName} ${rec.id}`; return BRANDS.find(b => b.re.test(s) && brandFile(b, rec)) || null; };   // a primeira marca que combina E tem imagem
         const brandFile = (b, rec) => b.pick ? b.pick(`${rec.famName} ${rec.id}`) : b.img;
         // logos dos provedores (icons/prov-*.png): o arquivo que faltar simplesmente nao aparece
-        const PROV_LOGOS = { 'ollama-cloud': { img: 'prov-ollama.png', mono: true, ratio: 50 / 64, name: 'Ollama (nuvem)' }, ollama: { img: 'prov-ollama.png', mono: true, ratio: 50 / 64, name: 'Ollama (no seu PC)' }, openrouter: { img: 'prov-openrouter.png', name: 'OpenRouter' }, pollinations: { img: 'prov-pollinations.png', mono: true, ratio: 1, name: 'Pollinations' }, cloudflare: { img: 'prov-cloudflare.png', name: 'Cloudflare' }, groq: { img: 'prov-groq.png', mono: true, ratio: 2.62, name: 'Groq' }, tomdacat: { img: 'prov-tomdacat.svg', mono: true, ratio: 2.02, name: 'tomdacat' }, vercel: { img: 'prov-vercel.svg', mono: true, ratio: 1.15, name: 'Vercel' }, llm7: { img: 'prov-llm7.png', name: 'LLM7' }, aichixia: { img: 'prov-aichixia.png', name: 'Aichixia' }, aihubmix: { img: 'prov-aihubmix.png', name: 'AIHubMix' }, literouter: { img: 'prov-literouter.png', name: 'LiteRouter' }, paxsenix: { img: 'prov-paxsenix.png', name: 'Paxsenix' }, voidai: { img: 'prov-voidai.png', name: 'VoidAI' }, tokenreply: { img: 'prov-tokenreply.png', name: 'TokenReply' } };
+        const PROV_LOGOS = { 'ollama-cloud': { img: 'prov-ollama.png', mono: true, ratio: 50 / 64, name: 'Ollama (nuvem)' }, ollama: { img: 'prov-ollama.png', mono: true, ratio: 50 / 64, name: 'Ollama (no seu PC)' }, openrouter: { img: 'prov-openrouter.png', name: 'OpenRouter' }, pollinations: { img: 'prov-pollinations.png', mono: true, ratio: 1, name: 'Pollinations' }, cloudflare: { img: 'prov-cloudflare.png', name: 'Cloudflare' }, groq: { img: 'prov-groq.png', mono: true, ratio: 2.62, name: 'Groq' }, tomdacat: { img: 'prov-tomdacat.svg', mono: true, ratio: 2.02, name: 'tomdacat' }, vercel: { img: 'prov-vercel.svg', mono: true, ratio: 1.15, name: 'Vercel' }, llm7: { img: 'prov-llm7.png', name: 'LLM7' }, aichixia: { img: 'prov-aichixia.png', name: 'Aichixia' }, aihubmix: { img: 'prov-aihubmix.png', name: 'AIHubMix' }, literouter: { img: 'prov-literouter.png', name: 'LiteRouter' }, paxsenix: { letter: 'P', name: 'Paxsenix' }, voidai: { img: 'prov-voidai.png', name: 'VoidAI' }, tokenreply: { img: 'prov-tokenreply.png', name: 'TokenReply' } };
         const provKey = m => m.x ? XP[m.xp][0] : m.vc ? 'vercel' : m.l7 ? 'llm7' : m.tdc ? 'tomdacat' : m.or ? 'openrouter' : m.cf ? 'cloudflare' : m.pol ? 'pollinations' : m.groq ? 'groq' : m.phone ? null : isLocalM(m) ? 'ollama' : 'ollama-cloud';
         function provLogos(sizes) {
             const keys = Object.keys(PROV_LOGOS).filter(k => sizes.some(m => provKey(m) === k)); if (!keys.length) return null;
             const box = document.createElement('span'); box.className = 'mo-provs';
             keys.forEach(k => {
                 const L = PROV_LOGOS[k]; let e;
-                if (L.mono) { e = document.createElement('span'); e.className = 'pv pv-mono'; e.style.aspectRatio = L.ratio || 1; e.style.setProperty('--m', `url("icons/${L.img}")`); }
+                if (L.letter) { e = document.createElement('span'); e.className = 'pv'; e.textContent = L.letter; e.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;background:#2f8bff;color:#fff;font:700 .7em Arial,sans-serif;border-radius:50%;aspect-ratio:1'; }
+                else if (L.mono) { e = document.createElement('span'); e.className = 'pv pv-mono'; e.style.aspectRatio = L.ratio || 1; e.style.setProperty('--m', `url("icons/${L.img}")`); }
                 else { e = document.createElement('img'); e.className = 'pv'; e.src = 'icons/' + L.img; e.alt = L.name; e.onerror = () => e.remove(); }
                 if (k === 'ollama') {   // tem versao para rodar no PC: alpaca + um "+" azul
                     const w = document.createElement('span'); w.className = 'pv-wrap'; w.title = tr('Ollama (também roda no seu PC)'); w.appendChild(e); const pl = document.createElement('i'); pl.className = 'pv-plus'; w.appendChild(pl); box.appendChild(w); return;
@@ -2754,7 +2755,7 @@
                 if (!XP[p] || !v) return;
                 if (v.error && !(v.models || []).length) showInfo(tr('Não consegui carregar os modelos do {n}: {e}', { n: XP[p][1], e: v.error }), 7000);
                 (v.models || []).forEach(x => {
-                    if (/mythomax/i.test(x.id)) return;
+                    if (/mythomax|celeris|isign|lfm/i.test(x.id)) return;
                     const nm = String(x.name || x.id).replace(/:free$/, '').replace(/-free$/, '').replace(/^coding-/, '');
                     const pd = parseDyn(x.id, nm); if (!pd.ver && (pd.base === nm || /\//.test(pd.psize || ''))) pd.psize = 'Cloud';   // sem regra propria: nome do modelo + "Cloud"
                     const ent = Object.assign({ id: p + ':' + x.id, fam: p + ':' + x.id, famName: nm, params: nm, label: nm + ' (' + XP[p][1] + ')', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, x: true, xp: p, vision: !!x.vision, ctx: x.ctx || 32768, credIn: x.cin || 0, credOut: x.cout || 0, credBase: x.cbase || 0 }, pd);
