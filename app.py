@@ -73,8 +73,24 @@ HTTPS_PORT = 8443
 APP_NAME = "Lume"
 import guests as guests_mod   # contas de amigos (/share) e painel (/dashboard)
 ACCOUNTS_DIR = os.path.join(BASE_DIR, "accounts")   # uma pasta por conta, com o nome dela (a do dono e a dos amigos)
-OWNER_NAME = "uhhh sla hmmm tung sim ok"
+def _find_owner_name():
+    """O nome da conta do dono e o da pasta de accounts/ cujo account.json tem "role": "owner". Se voce renomear a pasta (e o "name" dentro dela), o app segue o novo nome."""
+    default = "uhhh sla hmmm tung sim ok"
+    try:
+        cands = []
+        for n in sorted(os.listdir(ACCOUNTS_DIR)):
+            try:
+                with open(os.path.join(ACCOUNTS_DIR, n, "account.json"), encoding="utf-8") as f: meta = json.load(f)
+            except (OSError, ValueError): continue
+            if isinstance(meta, dict) and meta.get("role") == "owner": cands.append((n, meta.get("name")))
+        for n, nm in cands:
+            if nm == n: return n   # a pasta com o mesmo nome que esta dentro do account.json
+        if cands: return cands[0][0]
+    except OSError: pass
+    return default
+OWNER_NAME = _find_owner_name()
 guests = guests_mod.Guests(os.path.join(BASE_DIR, "guests.json"), ACCOUNTS_DIR, os.path.join(BASE_DIR, "guest_data"))
+guests.reserved = {OWNER_NAME.lower()}   # um amigo nao pode cadastrar o nome do dono
 stop_events = {}        # id do amigo -> Event (parar so a geracao dele)
 guest_active = {}       # id do amigo -> geracoes em andamento
 guest_recent = {}       # id do amigo -> horarios das ultimas respostas (limite por minuto)
@@ -1851,6 +1867,8 @@ POL_MODELS = [
     ("community/sonofstrange/gpt-6.1-sol-quest", {"tabs": "both", "keep": True}), ("community/JustScriptzz/gpt-5.6-sol", {"tabs": "both", "keep": True}),
     ("community/vendouple/qwen-3.8-max", {"tabs": "both"}), ("qwen/qwen3.8-2.4t-a95b", {"tabs": "both", "keep": True}),   # o oficial (mais caro) e o mesmo Qwen 3.8 Max: fica de reserva
     ("community/scriptsnsenses-sys/deepseek-v4-flash-0731", {"free": True, "tabs": "both"}),
+    ("mistralai/mistral-large-3", {"tabs": "both"}),
+    ("community/CloudCompile/poolside-laguna-s-2.1:free", {"free": True, "tabs": "code"}),   # o Laguna sem cartao (o da Vercel exige cartao)
     ("community/scriptsnsenses-sys/gemini-3.1-pro-free", {"free": True, "tabs": "both", "warn": "Provedor da comunidade, nao oficial: o Lume nao controla o que ele faz com as suas mensagens."}),
 ]
 _pol_cache = {"t": 0, "key": "", "cat": {}}
@@ -1939,6 +1957,23 @@ def _pol_price(m):
     except (TypeError, ValueError): return 0.0, 0.0
 
 POL_MAX_PRICE = 4.5   # pollen por milhao de tokens (entrada, saida ou imagem de entrada): modelos pagos acima disso nao aparecem
+
+def pollinations_menu(cfg, force=True):
+    """Catalogo inteiro do Pollinations com a saude de agora, para o "menu do Pollinations" filtrar (o site nao tem esses filtros)."""
+    key = cfg.get("pollinations_api_key") or ""
+    cat = pollinations_catalog(key, force=force)
+    if force: _pol_status["t"] = 0
+    lat = pol_latency(key); out = []
+    for mid, m in cat.items():
+        pr = m.get("pricing") or {}; hl = m.get("health") or {}
+        price = any(float(pr.get(k) or 0) > 0 for k in ("promptTextTokens", "completionTextTokens", "promptImageTokens", "completionImageTokens", "completionAudioTokens", "completionVideoTokens"))
+        quest = bool(re.search(r"quest", mid + " " + str(m.get("title") or ""), re.I))
+        out.append({"id": mid, "title": m.get("title") or mid.split("/")[-1], "category": m.get("category") or ",".join(m.get("output_modalities") or ["text"]), "owner": m.get("owned_by") or "",
+                    "community": bool(m.get("community")), "success": hl.get("success_rate"), "status": hl.get("status") or "?", "requests": hl.get("requests"), "p50": lat.get(mid),
+                    "free": not price and not m.get("paid_only"), "quest": quest, "paid": bool(price or m.get("paid_only")) and not quest,
+                    "pin": _pol_price(m)[0], "pout": _pol_price(m)[1], "outputs": m.get("output_modalities") or ["text"]})
+    out.sort(key=lambda x: (-(x["success"] or 0), x["title"].lower()))
+    return out
 
 def pollinations_models(cfg):
     """Cada provedor e um modelo a parte ([{id, name, provider, ctx, vision, pin, pout, free, health, success, speed}]); a interface junta os que sao o mesmo modelo."""
@@ -2531,6 +2566,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             if not cfg.get("groq_api_key"): return self.send_json({"saved": False, "models": []})
             try: return self.send_json({"saved": True, "models": groq_models(cfg)})
             except Exception as e: return self.send_json({"saved": True, "models": [], "error": str(e)[:200]})
+        if p == '/api/pol_menu':
+            if not local: return self.send_json({"error": "local_only"}, 403)
+            try: return self.send_json({"models": pollinations_menu(load_config())})
+            except Exception as e: return self.send_json({"error": str(e)[:200], "models": []})
         if p == '/api/pollinations_models':
             if not local: return self.send_json({"error": "local_only"}, 403)
             cfg = load_config()

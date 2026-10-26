@@ -84,7 +84,7 @@ class Guests:
             if s["invite_code"] and (invite or "").strip() != s["invite_code"]: raise ValueError("invite")
             name = (name or "").strip()
             if not NAME_RE.match(name): raise ValueError("name")
-            if self.find_by_name(name): raise ValueError("taken")
+            if self.find_by_name(name) or name.lower() in getattr(self, "reserved", ()): raise ValueError("taken")
             if len(self.data["users"]) >= int(s["max_users"]): raise ValueError("full")
             now = time.time(); hist = [t for t in self.reg_times.get(ip, []) if now - t < 3600]
             if len(hist) >= 5: raise ValueError("rate")

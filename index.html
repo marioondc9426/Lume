@@ -1271,6 +1271,13 @@
             <span class="hint">É onde a IA lista, lê e escreve arquivos e roda comandos. Escrever e executar sempre pedem sua permissão.</span>
         </div>
 
+        <div class="section-title">Pollinations</div>
+        <div class="form-group">
+            <label>Menu do Pollinations</label>
+            <button type="button" class="btn btn-secondary" onclick="openPolMenu()">Abrir o menu do Pollinations</button>
+            <span class="hint">Lista todos os modelos do Pollinations com a saúde de agora e filtros que o site não tem: tira os que estão com 0%, tira os pagos e deixa só os grátis e os "quest".</span>
+        </div>
+
         <div class="section-title">Aparência</div>
         <div class="form-group" id="bgspeed-row"><label>Velocidade do fundo animado (tema Lume) <span id="opt-bgspeed-val"></span></label><input type="range" id="opt-bgspeed" min="0" max="10" step="1" oninput="config.bgSpeed = +this.value; bgDriftStart(); saveState()"><span class="hint">0 deixa o fundo parado.</span></div>
         <label class="toggle-container"><input type="checkbox" id="opt-anim" onchange="config.animations = this.checked; applyAnim()"><div class="toggle-switch"></div> Animações (desligue se a interface pesar na GPU)</label>
@@ -2029,6 +2036,9 @@
             if ((m = s.match(/^minimax-m(\d+(?:\.\d+)?)(?:-(.*))?$/))) return { base: 'MiniMax', ver: 'M' + m[1], psize: (m[2] || '').split('-').filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(' ') || 'Base' };
             if ((m = s.match(/^gpt-oss[-:](\d+)b/))) return { base: 'GPT-OSS', ver: '', psize: m[1] + 'B' };
             if ((m = s.match(/^ministral-?(\d+)/))) return { base: 'Mistral', ver: 'Ministral ' + m[1], psize: SZ || 'Cloud' };
+            if ((m = s.match(/^mistral-(small|medium|large|nemo|saba)-?(\d+(?:\.\d+)?)?/))) return { base: 'Mistral', ver: m[1][0].toUpperCase() + m[1].slice(1) + (m[2] ? ' ' + m[2] : ''), psize: SZ || 'Cloud' };
+            if (/^codestral/.test(s)) return { base: 'Mistral', ver: 'Codestral', psize: SZ || 'Cloud' };
+            if ((m = s.match(/^celeris-?(\d+)/))) return { base: 'Celeris', ver: m[1], psize: 'Cloud' };
             if ((m = s.match(/^mimo-v?(\d+(?:\.\d+)?)(?:-(.*))?$/))) return { base: 'MiMo', ver: 'V' + m[1], psize: (m[2] || '').split('-').filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(' ') || 'Base' };
             if ((m = s.match(/^mercury-?(\d+)/))) return { base: 'Mercury', ver: m[1], psize: 'Cloud' };
             if ((m = s.match(/^gpt-(\d+(?:\.\d+)?)(?:-(.+))?$/))) return { base: 'GPT', ver: m[1], psize: (m[2] || '').split('-').filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(' ') || 'Base' };
@@ -2292,7 +2302,8 @@
             { re: /bonsai/i, img: 'bonsai.svg', mono: true },
             // as de baixo ainda nao tem imagem em icons/: sem o arquivo aparece so o nome (ponha o PNG com o nome exato e a logo aparece sozinha)
             { re: /qwen|qwq/i, img: 'Qwen.png' },
-            { re: /mistral|mixtral/i, img: 'Mistral.png' },
+            { re: /mistral|mixtral|codestral|ministral/i, img: 'Mistral.png' },
+            { re: /celeris|tomdacat/i, img: 'prov-tomdacat.svg', mono: true, ratio: 2.02 },
             { re: /glm|zai|z\.ai/i, img: 'Zai.png', mono: true },
             { re: /granite|ibm/i, img: 'IBM.png' },
             { re: /cohere/i, img: 'Cohere.png' },
@@ -3835,7 +3846,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
         }
         // ---- menu lateral das configuracoes (interface nova): divide o painel "Geral" pelos titulos de secao
         const SET_ICONS = { geral: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>', chaves: '<circle cx="8" cy="15" r="4"/><path d="M10.8 12.2L20 3M16 7l3 3"/>', chat: '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>', code: '<polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>', aparencia: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>', desempenho: '<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>', app: '<rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8M12 18v3"/>', ollama: '<path d="M12 3v12M7 10l5 5 5-5M4 20h16"/>', atualizacoes: '<path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/>', servidor: '<rect x="3" y="3" width="18" height="7" rx="2"/><rect x="3" y="14" width="18" height="7" rx="2"/><path d="M7 6.5h.01M7 17.5h.01"/>' };
-        const SET_NAMES = { 'Chaves de API': ['chaves', 'Chaves de API'], 'Chat': ['chat', 'Chat'], 'Code': ['code', 'Code'], 'Aparência': ['aparencia', 'Aparência'], 'Overlay de desempenho': ['desempenho', 'Desempenho'], 'Aplicativo': ['app', 'Aplicativo'], 'Modelos do Ollama': ['ollama', 'Modelos do Ollama'], 'Atualizações': ['atualizacoes', 'Atualizações'] };
+        const SET_NAMES = { 'Chaves de API': ['chaves', 'Chaves de API'], 'Pollinations': ['pollinations', 'Pollinations'], 'Chat': ['chat', 'Chat'], 'Code': ['code', 'Code'], 'Aparência': ['aparencia', 'Aparência'], 'Overlay de desempenho': ['desempenho', 'Desempenho'], 'Aplicativo': ['app', 'Aplicativo'], 'Modelos do Ollama': ['ollama', 'Modelos do Ollama'], 'Atualizações': ['atualizacoes', 'Atualizações'] };
         let setSecs = [], setActive = 'geral';
         function buildSettingsNav() {
             const gen = $('set-general'); if (!gen) return;
@@ -4653,6 +4664,41 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 const x = document.createElement('button'); x.className = 'btn btn-secondary'; x.textContent = tr('Remover'); x.onclick = async () => { await fetch(API + '/api/trusted_devices_set', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: v.id, remove: true }) }); renderTrusted(); };
                 r.appendChild(t); r.appendChild(b); r.appendChild(x); box.appendChild(r);
             });
+        }
+        // menu do Pollinations: catalogo inteiro com filtros (saude, pagos, grátis/quest)
+        async function openPolMenu() {
+            const ov = document.createElement('div'); ov.className = 'acct-ov'; const sh = document.createElement('div'); sh.className = 'acct-sheet'; sh.style.cssText = 'width:min(760px,100%);max-height:90%'; ov.appendChild(sh);
+            const mk = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+            sh.appendChild(mk('h3', '', tr('Menu do Pollinations')));
+            const info = mk('p', 'hint', tr('Consultando o Pollinations...')); sh.appendChild(info);
+            const row = mk('div', ''); row.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center'; sh.appendChild(row);
+            const chk = (label, on) => { const l = mk('label', ''); l.style.cssText = 'display:flex;gap:6px;align-items:center;font-size:.9em'; const c = document.createElement('input'); c.type = 'checkbox'; c.checked = on; c.style.width = 'auto'; l.append(c, document.createTextNode(label)); row.appendChild(l); return c; };
+            const c0 = chk(tr('Tirar os que estão com 0%'), true), cPaid = chk(tr('Tirar os pagos (fica só grátis e quest)'), true);
+            const cat = document.createElement('select'); cat.style.cssText = 'width:auto;padding:6px 10px'; [['text', 'Texto'], ['image', 'Imagem'], ['audio', 'Áudio'], ['video', 'Vídeo'], ['embedding', 'Embedding'], ['', 'Tudo']].forEach(([v, l]) => { const o = document.createElement('option'); o.value = v; o.textContent = tr(l); cat.appendChild(o); }); row.appendChild(cat);
+            const q = document.createElement('input'); q.type = 'text'; q.placeholder = tr('Buscar modelo...'); sh.appendChild(q);
+            const list = mk('div', ''); list.style.cssText = 'display:flex;flex-direction:column;gap:6px;overflow-y:auto;min-height:120px'; sh.appendChild(list);
+            const bar = mk('div', ''); bar.style.cssText = 'display:flex;gap:8px'; const re = mk('button', 'btn btn-secondary', tr('Atualizar (pingar de novo)')), cl = mk('button', 'btn btn-secondary', tr('Fechar')); cl.onclick = () => ov.remove(); bar.append(re, cl); sh.appendChild(bar);
+            let all = [];
+            const draw = () => {
+                const term = q.value.trim().toLowerCase();
+                const rows = all.filter(m => (!c0.checked || (m.success || 0) > 0) && (!cPaid.checked || m.free || m.quest) && (!cat.value || String(m.category).includes(cat.value) || (m.outputs || []).includes(cat.value)) && (!term || (m.id + ' ' + m.title).toLowerCase().includes(term)));
+                list.innerHTML = '';
+                info.textContent = tr('{n} de {t} modelos.', { n: rows.length, t: all.length });
+                rows.forEach(m => {
+                    const r = mk('div', 'acct-item'); r.style.cursor = 'default'; const t = mk('div', 'grow'); const b = mk('b', '', m.title); t.appendChild(b);
+                    const sub = mk('div', 'hint', m.id + (m.owner ? ' · ' + m.owner : '')); sub.style.wordBreak = 'break-all'; t.appendChild(sub);
+                    const tag = m.quest ? 'quest' : m.free ? tr('grátis') : tr('pago'), s = (m.success == null ? '?' : Math.round(m.success) + '%') + (m.p50 ? ' · ' + m.p50.toFixed(1) + ' s' : '') + ' · ' + tag;
+                    const st = mk('span', '', (m.success || 0) >= 80 ? '● ' + s : (m.success || 0) > 0 ? '▲ ' + s : '✕ ' + s); st.style.cssText = 'white-space:nowrap;font-size:.85em;color:' + ((m.success || 0) >= 80 ? '#3fb950' : (m.success || 0) > 0 ? '#d29922' : '#f85149');
+                    const cp = mk('button', 'btn btn-secondary', tr('Copiar id')); cp.onclick = () => { copyText(m.id); showInfo(tr('Copiado.')); };
+                    r.append(t, st, cp); list.appendChild(r);
+                });
+            };
+            const load = async () => {
+                info.textContent = tr('Consultando o Pollinations...'); list.innerHTML = '';
+                try { const d = await (await fetch(API + '/api/pol_menu')).json(); if (d.error) { info.textContent = tr('Não consegui consultar o Pollinations: {e}', { e: d.error }); return; } all = d.models || []; draw(); } catch (e) { info.textContent = tr('Não consegui consultar o Pollinations agora.'); }
+            };
+            [c0, cPaid, cat].forEach(e => e.onchange = draw); q.oninput = draw; re.onclick = load; ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); });
+            document.body.appendChild(ov); load();
         }
         // salvar um arquivo de texto: no PC baixa; no iPhone abre a folha de compartilhar (Salvar em Arquivos) se o app nativo for novo o bastante
         function saveTextFile(name, text) {

@@ -457,6 +457,19 @@ const ROUTES = {
     'GET /api/auth/status': () => json({ local: true, root: true, authed: true, role: 'owner', remote_enabled: false, allow_remote_code: false, password_required: false, version: VERSION, app_name: 'Lume', https_port: 0, secure: true, share_open: false, invite_required: false, ios: true }),
     'POST /api/auth/logout': () => json({ ok: true }),
     'GET /api/discover': () => json({ servers: [] }),
+    'GET /api/pol_menu': async () => {
+        const cfg = await loadConfig(), key = cfg.pollinations_api_key || '';
+        try {
+            cache.pol.cat = null; cache.lat.t = 0; const cat = await polCatalog(key), lat = await polLatency(key), out = [];
+            for (const [mid, m] of Object.entries(cat)) {
+                const pr = m.pricing || {}, hl = m.health || {}, price = ['promptTextTokens', 'completionTextTokens', 'promptImageTokens', 'completionImageTokens', 'completionAudioTokens', 'completionVideoTokens'].some(k => (+pr[k] || 0) > 0), quest = /quest/i.test(mid + ' ' + (m.title || ''));
+                const [pin, pout] = polPrice(m);
+                out.push({ id: mid, title: m.title || mid.split('/').pop(), category: m.category || (m.output_modalities || ['text']).join(','), owner: m.owned_by || '', community: !!m.community, success: hl.success_rate == null ? null : hl.success_rate, status: hl.status || '?', requests: hl.requests, p50: lat[mid] == null ? null : lat[mid],
+                    free: !price && !m.paid_only, quest, paid: !!(price || m.paid_only) && !quest, pin, pout, outputs: m.output_modalities || ['text'] });
+            }
+            out.sort((a, b) => (b.success || 0) - (a.success || 0) || a.title.toLowerCase().localeCompare(b.title.toLowerCase())); return json({ models: out });
+        } catch (e) { return json({ error: String(e.message || e).slice(0, 200), models: [] }); }
+    },
     'POST /api/pol_effort_probe': async (u, b) => {
         const cfg = await loadConfig(), key = (cfg.pollinations_api_key || '').trim(), slug = String((b && b.model) || '');
         if (!key) return json({ error: 'Chave do Pollinations nao configurada.' });

@@ -7,6 +7,9 @@ Como numerar:
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
 ## v3.1 (em desenvolvimento)
+- **Menu do Pollinations** (Configurações > Pollinations): lista o catálogo inteiro com a saúde de agora e os filtros que o site não tem: tira os que estão com 0%, tira os pagos (fica só grátis e "quest"), por tipo (texto, imagem, áudio...) e busca; botão para pingar de novo e copiar o id.
+- **Modelos**: Mistral Large 3 (nas duas abas) e Laguna S 2.1 grátis pela comunidade (sem cartão; na aba Code). Mistral/Ministral/Codestral juntos na família Mistral com logo e parâmetros; Celeris com o logo do tomdacat.
+- **Conta do dono renomeável**: o nome é o da pasta de `accounts/` cujo `account.json` tem `"role": "owner"` (a que tiver o mesmo nome dentro do arquivo); amigos não podem cadastrar esse nome.
 - **Descobrir os níveis de raciocínio**: no seletor de modelos, o botão ↻ ao lado do "Esforço de raciocínio" descobre de uma vez quais níveis o modelo aceita (1 pedido de 1 token; se o modelo não listar, testa um por um) e a lista passa a mostrar só esses.
 - **Gasto em pollen nas estatísticas**: cada resposta do Pollinations guarda o custo real (tokens de entrada e saída × preço do catálogo). Aparece o cartão "Pollen gasto", uma coluna por modelo e o total por dia no gráfico (PC e iPhone).
 - **Exportar e importar contas**: na folha "Conta" (Configurações > Logar/Trocar): exportar esta conta, exportar todas e importar de um arquivo `.json` (junta conversas por id e memórias sem repetir; não mexe em contas de amigos). No iPhone o arquivo sai pela folha de compartilhar do iOS (precisa do `.ipa` novo; antes disso baixa pelo navegador).
