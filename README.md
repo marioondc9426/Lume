@@ -9,13 +9,13 @@
   <a href="https://github.com/marioondc9426/Lume/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/marioondc9426/Lume?style=flat-square&color=e3b341"></a>
   <a href="https://github.com/marioondc9426/Lume/commits/main"><img alt="Last commit" src="https://img.shields.io/github/last-commit/marioondc9426/Lume?style=flat-square"></a>
   <a href="https://github.com/marioondc9426/Lume/issues"><img alt="Issues" src="https://img.shields.io/github/issues/marioondc9426/Lume?style=flat-square"></a>
-  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows-4da3ff?style=flat-square">
+  <img alt="Platform" src="https://img.shields.io/badge/platform-Windows%20%C2%B7%20iPhone%20(beta)-4da3ff?style=flat-square">
   <img alt="Python" src="https://img.shields.io/badge/python-3.10%2B-3776ab?style=flat-square&logo=python&logoColor=white">
   <img alt="Ollama" src="https://img.shields.io/badge/runs%20on-Ollama-000000?style=flat-square">
 </p>
 
 <p align="center">
-  A desktop chat for AI models that runs on your own PC.<br>
+  A chat for AI models that runs on your own PC (and, in beta, on your iPhone).<br>
   Local models first, cloud models when you want them. No account with Lume, no subscription.
 </p>
 
@@ -39,6 +39,14 @@ The code is fully open source: read it, change it, break it.
 - Live tokens/s, VRAM and GPU panel, context bar, English and Portuguese interface.
 - A modern interface with a collapsible sidebar and a start screen, plus themes (DeepSeek, Kimi, Claude, Ollama, Gemini, Perplexity styles) that change font, corners, layout and background, not just colors. You can build your own in the theme editor, or switch back to the classic interface in Settings.
 
+**Accounts and sync**
+- Accounts without passwords (`accounts/<name>/` folders): separate chats and memories per person or per device. Export or import them as a `.json` file.
+- Optional PC sync for the iPhone app. Devices you mark as trusted (`trusted_devices.json`) get your chats, memories and API keys back from the PC.
+
+**Costs**
+- Pollinations pricing is shown per 1,000 tokens; while you type, a small estimate shows the tokens of your message and its likely cost in pollen. The stats page tracks real spending per model and per day.
+- A **Pollinations menu** (Settings) lists the whole catalog with live health and filters the site does not have: hide 0% models, hide paid ones (keep free and quest only).
+
 **Code tab**
 - The AI can list/read/write files and run commands in a folder you choose. Writing and running **always ask your permission** in a popup.
 - Code blocks have a **Run** button (Python, JavaScript, PowerShell, BAT, Bash) that turns into **Stop** while the program runs.
@@ -58,6 +66,8 @@ The code is fully open source: read it, change it, break it.
 
 ## Providers
 
+<!-- Maintainers: this table only shows the main providers. New ones go in CHANGELOG.md and in the "many others" row, not here. -->
+
 | Provider | Needs | Notes |
 |---|---|---|
 | **Ollama (local)** | Ollama installed | Free, private, runs on your GPU/CPU |
@@ -66,6 +76,9 @@ The code is fully open source: read it, change it, break it.
 | **Cloudflare Workers AI** | API token + Account ID | 10,000 free neurons per day, with a usage monitor |
 | **Pollinations** | API key | Paid models use "pollen" (you earn some for free with quests). Shows your balance and the cost of each message |
 | **Groq** | API key | bad |
+| **...and many others** | API key | More free providers are added all the time (see [CHANGELOG.md](CHANGELOG.md)). Lume only lists free models, and models that stop answering disappear from the list until they work again |
+
+Add as many keys as you want, plus backup keys: if the main one runs out, Lume tries the next one.
 
 Keys are stored only on your PC, in `config.json`. They are never uploaded anywhere by Lume.
 
@@ -86,6 +99,12 @@ You also need [Ollama](https://ollama.com/download) for local models. Lume start
 
 Your data (chats, memory, settings) lives in `%LOCALAPPDATA%\Lume` when you use the `.exe`, and in the project folder when you run from source.
 
+## iPhone app (beta)
+
+The same interface inside an app, with a JavaScript port of the server: it runs **without a PC**, uses the cloud models, and can optionally talk to the Ollama on your PC. It updates itself when you open it (and warns you if it can't).
+
+The `.ipa` is **unsigned**: download `Lume-unsigned.ipa` from the [`latest-ios` release](https://github.com/marioondc9426/Lume/releases/tag/latest-ios) and sign it with your own certificate (Sideloadly, AltStore...). More details in [ios/README.md](ios/README.md). Not everything from the PC exists there (no Code tab, no running code, no Cloudflare).
+
 ## Build the .exe yourself
 
 ```bash
@@ -104,7 +123,7 @@ Run `setup-hooks.bat` once if you want the `.exe` to rebuild automatically after
 
 ## Status
 
-Windows only for now. Linux and macOS builds do not exist yet, and I will probably not make them unless people ask.
+The PC app is Windows only for now. Linux and macOS builds do not exist yet, and I will probably not make them unless people ask. The iPhone app is a beta: it is the least tested part.
 
 The full list of changes is in [CHANGELOG.md](CHANGELOG.md).
 

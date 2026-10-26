@@ -231,7 +231,7 @@
         #welcome { display: none; position: fixed; inset: 0; z-index: 4000; align-items: center; justify-content: center; padding: 18px; overflow-y: auto; background: var(--bg-main); }
         /* gradiente "liquido": manchas de cor que derivam e mudam de forma */
         .wl-bg { position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
-        .wl-bg i { position: absolute; width: 58vmax; height: 58vmax; filter: blur(70px); opacity: .5; border-radius: 42% 58% 61% 39% / 45% 38% 62% 55%; transition: transform 7s cubic-bezier(.45, .05, .55, .95), border-radius 7s ease-in-out; will-change: transform, border-radius; }
+        .wl-bg i { position: absolute; width: 58vmax; height: 58vmax; filter: blur(70px); opacity: .5; border-radius: 42% 58% 61% 39% / 45% 38% 62% 55%; will-change: transform, border-radius; }
         .wl-bg i:nth-child(1) { background: #7c4dff; left: -18vmax; top: -22vmax; }
         .wl-bg i:nth-child(2) { background: #3b82f6; right: -20vmax; bottom: -24vmax; animation-duration: 27s; animation-delay: -6s; }
         .wl-bg i:nth-child(3) { background: #ec4899; width: 44vmax; height: 44vmax; right: -8vmax; top: -16vmax; opacity: .34; animation-duration: 31s; animation-delay: -11s; }
@@ -883,7 +883,7 @@
         /* fundo do Lume que anda sozinho: os pontos do brilho vao para lugares novos; a velocidade e um controle em Aparencia */
         @property --lx { syntax: '<percentage>'; inherits: true; initial-value: 50%; } @property --ly { syntax: '<percentage>'; inherits: true; initial-value: 0%; }
         @property --mx { syntax: '<percentage>'; inherits: true; initial-value: 88%; } @property --my { syntax: '<percentage>'; inherits: true; initial-value: 100%; }
-        body[data-ui="modern"][data-theme="lume"] { --glow: radial-gradient(ellipse 60% 46% at var(--lx) var(--ly), rgba(139,92,246,0.26), rgba(21,19,28,0) 72%), radial-gradient(ellipse 48% 38% at var(--mx) var(--my), rgba(232,70,124,0.2), rgba(21,19,28,0) 72%); transition: --lx var(--bg-dur, 12s) ease-in-out, --ly var(--bg-dur, 12s) ease-in-out, --mx var(--bg-dur, 12s) ease-in-out, --my var(--bg-dur, 12s) ease-in-out; }
+        body[data-ui="modern"][data-theme="lume"] { --glow: radial-gradient(ellipse 60% 46% at var(--lx) var(--ly), rgba(139,92,246,0.26), rgba(21,19,28,0) 72%), radial-gradient(ellipse 48% 38% at var(--mx) var(--my), rgba(232,70,124,0.2), rgba(21,19,28,0) 72%); }
         .key-input.bkp { margin-top: 6px; } .key-input.bkp input { font-size: 0.85em; }
 
         /* ===== lote I: tela de boas-vindas no celular (folha inteira, respeita a barra do iPhone) e versao do iPhone ===== */
@@ -1933,13 +1933,21 @@
             if ($('settings-modal').style.display === 'flex') { $('system-prompt-input').value = sysPrompt(false); $('code-prompt-input').value = sysPrompt(true); }
             if ($('settings-modal').style.display === 'flex' && $('set-server').style.display !== 'none') refreshServerTab();
         }
-        let bgDriftTimer = null;
-        function bgDriftStart() {   // o brilho do tema Lume anda para lugares novos; 60/velocidade segundos por passo
-            clearInterval(bgDriftTimer); const b = document.body, sp = config.bgSpeed == null ? 4 : +config.bgSpeed;
+        let bgRaf = null, bgPhase = 0;
+        function bgDriftStart() {   // o brilho do tema Lume anda sem parar (sem "viajar e esperar"): a velocidade do controle multiplica o ritmo
+            cancelAnimationFrame(bgRaf); bgRaf = null; const b = document.body, sp = config.bgSpeed == null ? 4 : +config.bgSpeed;
             if ($('opt-bgspeed-val')) $('opt-bgspeed-val').textContent = sp ? sp + '/10' : 'parado';
             if (b.getAttribute('data-theme') !== 'lume' || config.animations === false || !sp) return;
-            const dur = 60 / sp, mv = () => ['--lx', '--ly', '--mx', '--my'].forEach(k => b.style.setProperty(k, Math.round(Math.random() * 100) + '%'));
-            b.style.setProperty('--bg-dur', dur + 's'); mv(); bgDriftTimer = setInterval(mv, dur * 1000);
+            let prev = null, last = 0; const T = 6.2832;
+            const frame = now => {
+                if (b.getAttribute('data-theme') !== 'lume') { bgRaf = null; return; }
+                bgRaf = requestAnimationFrame(frame); if (prev === null) prev = now; const cur = config.bgSpeed == null ? 4 : +config.bgSpeed;
+                bgPhase += (now - prev) / 1000 * (cur / 4); prev = now; if (now - last < 33 || document.visibilityState === 'hidden') return; last = now; const t = bgPhase;
+                const a1 = T * 0.018 * t, a2 = T * 0.029 * t + 1.7, c1 = T * 0.024 * t + 3.1, c2 = T * 0.038 * t + 0.6;   // duas orbitas (grande + pequena): nunca param
+                b.style.setProperty('--lx', (50 + 30 * Math.cos(a1) + 10 * Math.cos(a2)).toFixed(2) + '%'); b.style.setProperty('--ly', (26 + 26 * Math.sin(a1) - 8 * Math.sin(a2)).toFixed(2) + '%');
+                b.style.setProperty('--mx', (70 + 22 * Math.cos(c1) + 9 * Math.cos(c2)).toFixed(2) + '%'); b.style.setProperty('--my', (72 + 20 * Math.sin(c1) - 8 * Math.sin(c2)).toFixed(2) + '%');
+            };
+            bgRaf = requestAnimationFrame(frame);
         }
         function applyAnim() { bgDriftStart(); document.body.classList.toggle('no-anim', config.animations === false); saveState(); }
         // ---------- boas-vindas (aparece na primeira vez; Configuracoes > Geral tem um botao para rever) ----------
@@ -1983,15 +1991,28 @@
             $('wl-lang').value = curLang(); $('wl-ver').textContent = 'v' + (auth.version || '');
             $('welcome').classList.add('show'); wlTab('home'); translateStatic(); renderWelcomeCheck(); wlBgStart();
         }
-        let wlBgTimer = null;
-        function wlBgMove() {   // cada mancha vai para um lugar, tamanho e forma novos (a transicao do CSS faz o deslizar)
-            document.querySelectorAll('.wl-bg i').forEach(el => {
-                const x = (Math.random() * 80 - 40).toFixed(1), y = (Math.random() * 80 - 40).toFixed(1), s = (0.75 + Math.random() * 0.8).toFixed(2), r = Math.round(Math.random() * 360), p = () => 30 + Math.round(Math.random() * 40);
-                el.style.transform = `translate(${x}vmax, ${y}vmax) scale(${s}) rotate(${r}deg)`; el.style.borderRadius = `${p()}% ${100 - p()}% ${p()}% ${100 - p()}% / ${p()}% ${p()}% ${100 - p()}% ${100 - p()}%`;
-            });
+        // movimento continuo das manchas: cada uma segue a soma de duas ondas (senos) de frequencias diferentes, entao desliza sem parar, sem esperar nem encostar num canto
+        let wlRaf = null;
+        function wavyMotion(n) {   // um conjunto de parametros por mancha
+            return Array.from({ length: n }, (_, i) => ({ fx: [0.031 + 0.007 * i, 0.053 + 0.005 * i], fy: [0.037 + 0.006 * i, 0.047 + 0.009 * i], px: [i * 1.7, i * 2.9], py: [i * 0.8, i * 3.4], fs: 0.041 + 0.008 * i, fr: 0.017 + 0.004 * i, ps: i * 2.2, fb: 0.029 + 0.005 * i, pb: i * 1.3 }));
         }
-        function wlBgStart() { clearInterval(wlBgTimer); if (config.animations === false) return; setTimeout(wlBgMove, 80); wlBgTimer = setInterval(wlBgMove, 7000); }
-        function closeWelcome() { clearInterval(wlBgTimer); $('welcome').classList.remove('show'); config.welcomeDone = true; saveState(); }
+        function wlBgStart() {
+            cancelAnimationFrame(wlRaf); wlRaf = null; if (config.animations === false) return;
+            const blobs = [...document.querySelectorAll('.wl-bg i')]; if (!blobs.length) return; const P = wavyMotion(blobs.length), T = 6.2832; let t0 = null, last = 0;
+            const frame = now => {
+                if (!$('welcome').classList.contains('show')) { wlRaf = null; return; }
+                if (t0 === null) t0 = now; wlRaf = requestAnimationFrame(frame);
+                if (now - last < 33) return; last = now; const t = (now - t0) / 1000;   // ~30 quadros por segundo bastam e poupam a placa de video
+                blobs.forEach((el, i) => {
+                    const p = P[i], a = T * p.fx[0] * t + p.px[0], c = T * p.fx[0] * 1.6 * t + p.px[1], x = 24 * Math.cos(a) + 10 * Math.cos(c), y = 22 * Math.sin(a) - 9 * Math.sin(c);   // orbita grande + orbita pequena: a velocidade nunca chega a zero (sem "parar" nas pontas)
+                    const s = 1.08 + 0.34 * Math.sin(T * p.fs * t + p.ps), r = 360 * Math.sin(T * p.fr * t + p.ps) * 0.5, q = 50 + 12 * Math.sin(T * p.fb * t + p.pb), w = 50 + 12 * Math.cos(T * p.fb * t + p.pb);
+                    el.style.transform = `translate(${x.toFixed(2)}vmax, ${y.toFixed(2)}vmax) scale(${s.toFixed(3)}) rotate(${r.toFixed(1)}deg)`;
+                    el.style.borderRadius = `${q.toFixed(0)}% ${(100 - q).toFixed(0)}% ${w.toFixed(0)}% ${(100 - w).toFixed(0)}% / ${w.toFixed(0)}% ${q.toFixed(0)}% ${(100 - q).toFixed(0)}% ${(100 - w).toFixed(0)}%`;
+                });
+            };
+            wlRaf = requestAnimationFrame(frame);
+        }
+        function closeWelcome() { cancelAnimationFrame(wlRaf); wlRaf = null; $('welcome').classList.remove('show'); config.welcomeDone = true; saveState(); }
         async function renderWelcomeCheck() {   // o que ja esta pronto neste PC e o que falta
             const box = $('wl-check'); box.innerHTML = '';
             const row = (ok, text, btn) => { const r = document.createElement('div'); r.className = 'wl-row' + (ok ? '' : ' warn'); const d = document.createElement('span'); d.className = 'dot'; d.textContent = ok ? '✓' : '!'; const t = document.createElement('span'); t.className = 'grow'; t.textContent = text; r.append(d, t); if (btn) { const b = document.createElement('button'); b.className = 'btn btn-secondary'; b.textContent = btn[0]; b.onclick = btn[1]; r.appendChild(b); } box.appendChild(r); };
