@@ -1,6 +1,7 @@
 name: iOS (IPA sem assinatura)
 
 # Roda quando voce clica em "Run workflow" (aba Actions) ou ao criar uma tag que comeca com "ios-".
+# O .ipa sai em ~1 minuto na Release "latest-ios"; o teste de abrir no simulador (lento) roda depois e so atualiza o titulo da Release.
 on:
   workflow_dispatch:
   push:
@@ -25,13 +26,14 @@ jobs:
 
       - name: Gerar o projeto Xcode
         run: |
-          brew install xcodegen
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
           cd ios && xcodegen generate && ls -la Lume.xcodeproj && xcodebuild -version
 
       - name: Compilar para iPhone (sem assinatura)
         run: |
           set +e
-          xcodebuild -project ios/Lume.xcodeproj -scheme Lume -configuration Release -sdk iphoneos             -derivedDataPath build/device CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" > build.log 2>&1
+          xcodebuild -project ios/Lume.xcodeproj -scheme Lume -configuration Release -sdk iphoneos \
+            -derivedDataPath build/device CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" > build.log 2>&1
           rc=$?
           tail -n 40 build.log
           if [ $rc -ne 0 ]; then
@@ -43,7 +45,34 @@ jobs:
           (cd out && zip -qry Lume-unsigned.ipa Payload)
           ls -la out
 
-      # Unico teste: o app abre no simulador e continua aberto depois de 20 s (nao fecha sozinho).
+      # Arquivo .ipa solto (sem zip), link fixo:
+      # https://github.com/marioondc9426/Lume/releases/download/latest-ios/Lume-unsigned.ipa
+      - name: Publicar o .ipa na Release "latest-ios"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete latest-ios --yes --cleanup-tag || true
+          gh release create latest-ios out/Lume-unsigned.ipa --prerelease --target "$GITHUB_SHA" \
+            --title "Lume iOS (.ipa sem assinatura) - conferindo se abre..." \
+            --notes "Build de ${GITHUB_REF_NAME} (${GITHUB_SHA::7}). O teste de abrir no simulador ainda esta rodando (uns 10 minutos); o titulo muda quando terminar."
+
+  # Unico teste: o app abre no simulador e continua aberto depois de 20 s (nao fecha sozinho).
+  smoke:
+    needs: ipa
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+
+      - name: Montar a pagina do app e o projeto
+        run: |
+          pip install pillow
+          python ios/build_www.py
+          brew list xcodegen >/dev/null 2>&1 || brew install xcodegen
+          cd ios && xcodegen generate
+
       - name: Abrir no simulador e ver se nao fecha
         run: |
           xcodebuild -project ios/Lume.xcodeproj -scheme Lume -configuration Debug -sdk iphonesimulator \
@@ -57,15 +86,18 @@ jobs:
           xcrun simctl io "$UDID" screenshot smoke.png
           if xcrun simctl spawn "$UDID" launchctl list | grep -q "UIKitApplication:com.lume.app"; then echo "OK: o app continua aberto"; else echo "FALHOU: o app fechou"; exit 1; fi
 
-      # So publica se o app abriu e continuou aberto no teste acima. Link fixo, arquivo .ipa solto (sem zip):
-      # https://github.com/marioondc9426/Lume/releases/download/latest-ios/Lume-unsigned.ipa
-      - name: Publicar o .ipa na Release "latest-ios"
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release delete latest-ios --yes --cleanup-tag || true
-          gh release create latest-ios out/Lume-unsigned.ipa --prerelease --target "$GITHUB_SHA" --title "Lume iOS (.ipa sem assinatura)"             --notes "Build de ${GITHUB_REF_NAME} (${GITHUB_SHA::7}). O app abriu e continuou aberto no simulador por 20 s. Assine com o seu certificado e instale."
-
       - uses: actions/upload-artifact@v4
         if: always()
         with: { name: smoke-screenshot, path: smoke.png, if-no-files-found: ignore }
+
+      - name: Marcar a Release como conferida
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit latest-ios --title "Lume iOS (.ipa sem assinatura) - OK: abre e nao fecha" --notes "Build de ${GITHUB_REF_NAME} (${GITHUB_SHA::7}). O app abriu e continuou aberto no simulador por 20 s. Assine com o seu certificado e instale."
+
+      - name: Avisar na Release que o app fechou
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit latest-ios --title "Lume iOS (.ipa sem assinatura) - ATENCAO: o app FECHOU no teste" --notes "Build de ${GITHUB_REF_NAME} (${GITHUB_SHA::7}). No simulador o app fechou sozinho: nao use este .ipa; veja o log da aba Actions." || true
