@@ -158,6 +158,48 @@ function polCost(model, ptok, otok) {   // pollen gasto (precos por milhao de to
     if (ex.free) return 0; const m = cache.pol.cat && cache.pol.cat[slug], [pin, pout] = (m && m.pricing) ? polPrice(m) : [ex.pin || 0, ex.pout || 0];
     return (ptok * pin + otok * pout) / 1e6;
 }
+// ---------------------------------------------------------------- Aichixia / AIHubMix / LiteRouter: lista crua + teste de saude a cada 10 min
+const XFIELD = { ac: 'aichixia_api_key', ah: 'aihubmix_api_key', lr: 'literouter_api_key' }, XBASE = { ac: AC_URL, ah: AH_URL, lr: LR_URL };
+async function extraRaw(p, cfg) {
+    const c = cache[p] || (cache[p] = { t: 0, v: null }); if (c.v && now() - c.t < 3600) return c.v;
+    const list = [];
+    for (const m of await oaiModels(XBASE[p], cfg[XFIELD[p]])) {
+        const id = String(m.id || ''); if (!id) continue;
+        if (p === 'ac') { const caps = m.capabilities || []; if (m.tier !== 'free' || !caps.includes('chat') || /llama|grok/i.test(id)) continue; list.push({ id, name: id.split('/').pop(), ctx: m.context_window || 128000, vision: caps.includes('multimodal') }); }
+        else if (p === 'ah') { if (!/(^|[-:/])free$/.test(id) || /llama|grok|safety|guard|embed|whisper|tts|image/i.test(id)) continue; list.push({ id, name: id.split('/').pop(), ctx: 128000, vision: false }); }
+        else { if (!id.endsWith(':free') || m.type !== 'chat' || (D.LR_BLOCKED || []).includes(id)) continue; list.push({ id, name: m.display_name || id, ctx: m.context_window || 128000, vision: !!(m.capabilities || {}).vision }); }
+    }
+    list.sort((a, b) => a.id < b.id ? -1 : 1); c.v = list; c.t = now(); return list;
+}
+async function healthTest(p, id, cfg) {   // 1 pedido de verdade: ok se vier texto (modelos que pensam precisam de espaco: 512 tokens)
+    const t0 = now();
+    try {
+        const r = await fetchT(XBASE[p] + '/chat/completions', { method: 'POST', headers: bearer(cfg[XFIELD[p]]), body: JSON.stringify({ model: id, messages: [{ role: 'user', content: 'Responda so a palavra: ok' }], max_tokens: 512 }) }, 90000, 'O provedor');
+        if (!r.ok) { const body = await r.text().catch(() => ''); if (r.status === 403 && /ate limit|oncurrent/.test(body)) return { ok: null }; return { ok: false, ms: Math.round((now() - t0) * 1000), err: 'HTTP ' + r.status }; }
+        const j = await r.json().catch(() => ({})), m = ((j.choices || [{}])[0] || {}).message || {};
+        return String(m.content || m.reasoning_content || m.reasoning || '').trim() ? { ok: true, ms: Math.round((now() - t0) * 1000) } : { ok: false, ms: Math.round((now() - t0) * 1000), err: 'resposta vazia' };
+    } catch (e) { return { ok: false, ms: 0, err: String(e.message || e).slice(0, 80) }; }
+}
+let healthRunning = false;
+async function healthCycle() {   // reconfere os que falharam + 12 dos outros; falhou duas vezes seguidas = some da lista
+    if (healthRunning || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) return; healthRunning = true;
+    try {
+        const cfg = await loadConfig(), health = await kv.rawGet('health', {}), gap = { lr: 8000, ac: 1500, ah: 1500 };
+        for (const p of ['lr', 'ac', 'ah']) {
+            if (!cfg[XFIELD[p]]) continue; let ids; try { ids = (await extraRaw(p, cfg)).map(m => m.id); } catch (e) { continue; }
+            const bad = ids.filter(i => (health[p + ':' + i] || {}).ok === false), rest = ids.filter(i => !bad.includes(i)).sort((a, b) => ((health[p + ':' + a] || {}).ts || 0) - ((health[p + ':' + b] || {}).ts || 0)).slice(0, 12);
+            for (const id of bad.concat(rest)) {
+                if (Object.keys(stops).length) { healthRunning = false; return; }   // conversando: nao disputa o limite de pedidos
+                let r = await healthTest(p, id, cfg); if (r.ok === false) { await sleep(gap[p]); r = await healthTest(p, id, cfg); }
+                if (r.ok === null) { await sleep(gap[p] + 4000); continue; }
+                health[p + ':' + id] = { ok: !!r.ok, ts: now(), ms: r.ms || 0, err: r.err || '' }; await kv.rawSet('health', health); await sleep(gap[p]);
+            }
+        }
+    } finally { healthRunning = false; }
+}
+if (typeof setInterval !== 'undefined') { setTimeout(() => { healthCycle(); setInterval(healthCycle, 600000); }, 30000); }
+window.__lumeHealthCycle = healthCycle;
+
 // ---------------------------------------------------------------- estatisticas
 async function recordEvent(ev) { const s = await kv.get('stats', { events: [] }); s.events.push(Object.assign({ ts: now() }, ev)); if (s.events.length > 5000) s.events = s.events.slice(-5000); await kv.set('stats', s); }
 async function buildStats(days) {
@@ -581,22 +623,11 @@ const ROUTES = {
     'GET /api/llm7_models': listModels('llm7_api_key', llm7Models),
     'GET /api/tomdacat_models': listModels('tomdacat_api_key', tomdacatModels),
         'GET /api/extra_models': async () => {
-        const cfg = await loadConfig(), out = {};
-        for (const [p, f, base] of [['ac', 'aichixia_api_key', AC_URL], ['ah', 'aihubmix_api_key', AH_URL], ['lr', 'literouter_api_key', LR_URL]]) {
-            if (!cfg[f]) { out[p] = { saved: false, models: [] }; continue; }
-            try {
-                const c = cache[p] || (cache[p] = { t: 0, v: null });
-                if (!c.v || now() - c.t > 3600) {
-                    const list = []; for (const m of await oaiModels(base, cfg[f])) {
-                        const id = String(m.id || ''); if (!id) continue;
-                        if (p === 'ac') { const caps = m.capabilities || []; if (m.tier !== 'free' || !caps.includes('chat') || /llama|grok/i.test(id)) continue; list.push({ id, name: id.split('/').pop(), ctx: m.context_window || 128000, vision: caps.includes('multimodal') }); }
-                        else if (p === 'ah') { if (!/(^|[-:/])free$/.test(id) || /llama|grok|safety|guard|embed|whisper|tts|image/i.test(id)) continue; list.push({ id, name: id.split('/').pop(), ctx: 128000, vision: false }); }
-                        else { if (!id.endsWith(':free') || m.type !== 'chat' || (D.LR_BLOCKED || []).includes(id)) continue; list.push({ id, name: m.display_name || id, ctx: m.context_window || 128000, vision: !!(m.capabilities || {}).vision }); }
-                    }
-                    list.sort((a, b) => a.id < b.id ? -1 : 1); c.v = list; c.t = now();
-                }
-                out[p] = { saved: true, models: c.v };
-            } catch (e) { out[p] = { saved: true, models: [], error: String(e.message || e).slice(0, 200) }; }
+        const cfg = await loadConfig(), out = {}, health = await kv.rawGet('health', {});
+        for (const p of ['ac', 'ah', 'lr']) {
+            if (!cfg[XFIELD[p]]) { out[p] = { saved: false, models: [] }; continue; }
+            try { const list = await extraRaw(p, cfg); out[p] = { saved: true, models: list.filter(m => !health[p + ':' + m.id] || health[p + ':' + m.id].ok !== false) }; }
+            catch (e) { out[p] = { saved: true, models: [], error: String(e.message || e).slice(0, 200) }; }
         }
         return json(out);
     },

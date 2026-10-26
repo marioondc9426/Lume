@@ -2620,6 +2620,7 @@
             });
             renderModelOptions();
         }
+        setInterval(() => { if (document.visibilityState === 'visible' && (auth.local || auth.authed)) loadExtraModels(); }, 5 * 60 * 1000);   // o servidor reconfere os modelos a cada 10 min; aqui a lista se atualiza (quem falhou some, quem voltou reaparece)
         async function loadLlm7Models() {   // modelos do plano "turbo" do LLM7 (funcionam sem saldo)
             if (!(auth.local || auth.authed) || isGuest()) return;
             let d; try { d = await (await fetch(API + '/api/llm7_models')).json(); } catch (e) { return; }

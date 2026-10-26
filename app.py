@@ -1474,13 +1474,76 @@ def vercel_models(cfg, force=False):
     out = [{"id": mid, "name": name, "ctx": (have[mid].get("context_window") or 128000)} for mid, name in VERCEL_MODELS if mid in have]
     _vc_cache.update(t=time.time(), models=out); return out
 
-def extra_models(prov, cfg, force=False):
-    """Modelos gratis de Aichixia (ac), AIHubMix (ah) e LiteRouter (lr): [{id, name, ctx, vision}]; em cache por 1 h."""
+HEALTH_FILE = os.path.join(BASE_DIR, "provider_health.json")   # resultado do ultimo teste de cada modelo: {"lr:id": {ok, ts, ms, err}}
+HEALTH_EVERY = 600     # a cada 10 minutos
+HEALTH_BATCH = 12      # alem dos que falharam, quantos modelos "bons" conferir por rodada (assim todos passam pelo teste de tempos em tempos sem encher o limite gratis)
+HEALTH_SPACING = {"lr": 8.0, "ac": 1.5, "ah": 1.5}   # segundos entre testes (o LiteRouter so aceita 1 pedido a cada 7 s)
+_health = {}; _health_started = False
+
+def _health_load():
+    global _health
+    d = _read_json(HEALTH_FILE, {}); _health = d if isinstance(d, dict) else {}
+
+def model_is_healthy(prov, mid):
+    """Modelo que falhou no ultimo teste (duas tentativas seguidas) some da lista; sem teste ainda = aparece."""
+    h = _health.get(prov + ":" + mid); return h is None or bool(h.get("ok", True))
+
+def health_test(prov, mid, cfg):
+    """1 pedido de verdade: responde se vier texto (modelos que pensam precisam de bastante espaco: 512 tokens). Devolve (ok, ms, erro)."""
+    field, base = {"ac": ("aichixia_api_key", AC_URL), "ah": ("aihubmix_api_key", AH_URL), "lr": ("literouter_api_key", LR_URL)}[prov]
+    key = (cfg.get(field) or "").strip()
+    body = json.dumps({"model": mid, "messages": [{"role": "user", "content": "Responda so a palavra: ok"}], "max_tokens": 512}).encode()
+    req = urllib.request.Request(base + "/chat/completions", data=body, headers={"Authorization": "Bearer " + key, "Content-Type": "application/json", "User-Agent": "lume-app"})
+    t0 = time.time()
+    try:
+        with urllib.request.urlopen(req, timeout=90) as r: j = json.load(r)
+        m = ((j.get("choices") or [{}])[0].get("message") or {})
+        if (m.get("content") or m.get("reasoning_content") or m.get("reasoning") or "").strip(): return True, int((time.time() - t0) * 1000), ""
+        return False, int((time.time() - t0) * 1000), "resposta vazia"
+    except urllib.error.HTTPError as e:
+        body = e.read()[:160].decode("utf-8", "replace")
+        if e.code == 403 and re.search(r"ate limit|oncurrent", body): return None, 0, "limite de pedidos"   # nao e culpa do modelo: nao conta
+        return False, int((time.time() - t0) * 1000), f"HTTP {e.code}: {body}"
+    except Exception as e:
+        return False, int((time.time() - t0) * 1000), str(e)[:100]
+
+def health_cycle():
+    """Reconfere os modelos que falharam (para voltarem quando melhorarem) e um grupo dos outros; quem falha duas vezes seguidas some da lista."""
+    cfg = load_config(); changed = False
+    for prov in ("lr", "ac", "ah"):
+        if not cfg.get({"ac": "aichixia_api_key", "ah": "aihubmix_api_key", "lr": "literouter_api_key"}[prov]): continue
+        try: ids = [m["id"] for m in extra_models(prov, cfg, force=True, raw=True)]
+        except Exception: continue
+        failed = [i for i in ids if not model_is_healthy(prov, i)]
+        rest = sorted([i for i in ids if i not in failed], key=lambda i: (_health.get(prov + ":" + i) or {}).get("ts", 0))[:HEALTH_BATCH]
+        for mid in failed + rest:
+            if gens_active: return   # o dono esta conversando: nao disputa o limite de pedidos, tenta na proxima rodada
+            ok, ms, err = health_test(prov, mid, cfg)
+            if ok is False:
+                time.sleep(HEALTH_SPACING[prov]); ok, ms, err = health_test(prov, mid, cfg)   # confirma antes de esconder
+            if ok is None: time.sleep(HEALTH_SPACING[prov] + 4); continue
+            was = model_is_healthy(prov, mid); _health[prov + ":" + mid] = {"ok": bool(ok), "ts": time.time(), "ms": ms, "err": err}
+            if was != bool(ok): changed = True; log("SAUDE", f"{prov}:{mid} " + ("voltou a funcionar" if ok else f"saiu da lista ({err[:60]})"), COLOR_GREEN if ok else COLOR_YELLOW)
+            time.sleep(HEALTH_SPACING[prov])
+        _x_cache[prov] = [0, []]
+    try: _write_json(HEALTH_FILE, _health)
+    except OSError: pass
+    return changed
+
+def health_loop():
+    time.sleep(25)
+    while True:
+        try: health_cycle()
+        except Exception as e: log("SAUDE", f"Erro no teste dos modelos: {e}", COLOR_RED)
+        time.sleep(HEALTH_EVERY)
+
+def extra_models(prov, cfg, force=False, raw=False):
+    """Modelos gratis de Aichixia (ac), AIHubMix (ah) e LiteRouter (lr): [{id, name, ctx, vision}]; em cache por 1 h. Os que falharam no teste de saude ficam de fora (raw=True traz todos)."""
     field = {"ac": "aichixia_api_key", "ah": "aihubmix_api_key", "lr": "literouter_api_key"}[prov]
     key = (cfg.get(field) or "").strip()
     if not key: return []
     t, cached = _x_cache[prov]
-    if not force and cached and time.time() - t < 3600: return cached
+    if not force and cached and time.time() - t < 3600: return cached if raw else [m for m in cached if model_is_healthy(prov, m["id"])]
     base = {"ac": AC_URL, "ah": AH_URL, "lr": LR_URL}[prov]
     data = _openai_models(base, key); out = []
     for m in data:
@@ -1497,7 +1560,8 @@ def extra_models(prov, cfg, force=False):
             if not mid.endswith(":free") or m.get("type") != "chat" or mid in LR_BLOCKED: continue
             caps = m.get("capabilities") or {}
             out.append({"id": mid, "name": m.get("display_name") or mid, "ctx": m.get("context_window") or 128000, "vision": bool(caps.get("vision"))})
-    out.sort(key=lambda x: x["id"]); _x_cache[prov] = [time.time(), out]; return out
+    out.sort(key=lambda x: x["id"]); _x_cache[prov] = [time.time(), out]
+    return out if raw else [m for m in out if model_is_healthy(prov, m["id"])]
 
 def llm7_models(cfg, force=False):
     """So os do plano "turbo" (usage_based_only falso): funcionam com saldo zero. Os outros cobram por uso."""
@@ -3531,8 +3595,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             else: gens_active.pop(rid, None); req_stops.pop(rid, None)
 
 def start_server():
-    global httpd
+    global httpd, _health_started
     use_account(load_config().get("active_account") or "")
+    if not _health_started:   # teste de saude dos modelos novos (Aichixia, AIHubMix, LiteRouter) a cada 10 minutos
+        _health_started = True; _health_load(); threading.Thread(target=health_loop, daemon=True).start()
     handler = functools.partial(AppHandler, directory=RES_DIR)
     host = "0.0.0.0" if load_config().get("remote_enabled") else "127.0.0.1"
     srv = None
