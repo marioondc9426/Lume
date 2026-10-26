@@ -177,6 +177,7 @@ async function extraRaw(p, cfg) {
     const c = cache[p] || (cache[p] = { t: 0, v: null }); if (c.v && now() - c.t < 3600) return c.v;
     const list = [];
     for (const m of await oaiModels(XBASE[p], cfg[XFIELD[p]])) {
+        if (/mythomax/i.test(String(m.id || ''))) continue;
         const id = String(m.id || ''); if (!id) continue;
         if (p === 'ac') { const caps = m.capabilities || []; if (m.tier !== 'free' || !caps.includes('chat') || XEX().test(id)) continue; list.push({ id, name: id.split('/').pop(), ctx: m.context_window || 128000, vision: caps.includes('multimodal') }); }
         else if (p === 'ah') { if (!/(^|[-:/])free$/.test(id) || XEX().test(id)) continue; list.push({ id, name: id.split('/').pop(), ctx: 128000, vision: false }); }

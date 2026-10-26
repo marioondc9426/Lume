@@ -1565,7 +1565,7 @@ def extra_models(prov, cfg, force=False, raw=False):
     data = _openai_models(base, key); out = []
     for m in data:
         mid = str(m.get("id") or "")
-        if not mid: continue
+        if not mid or re.search(r"mythomax", mid, re.I): continue
         if prov == "ac":
             caps = m.get("capabilities") or []
             if m.get("tier") != "free" or "chat" not in caps or AH_EXCLUDE.search(mid): continue
@@ -3489,7 +3489,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 if model not in [m["name"] for m in ollama_ps()]:
                     status("Carregando modelo")
             else:
-                status("Esperando a Vercel responder" if model.startswith("vc:") else "Esperando o LLM7 responder" if model.startswith("l7:") else "Esperando o tomdacat responder" if model.startswith("tdc:") else "Conectando ao OpenRouter" if model.startswith("or:") else "Conectando ao Cloudflare" if model.startswith("cf:") else "Esperando o Pollinations responder" if model.startswith("pol:") else "Conectando ao Groq")
+                status("Esperando a Vercel responder" if model.startswith("vc:") else "Esperando o LLM7 responder" if model.startswith("l7:") else "Esperando o tomdacat responder" if model.startswith("tdc:") else "Conectando ao OpenRouter" if model.startswith("or:") else "Conectando ao Cloudflare" if model.startswith("cf:") else "Esperando o Pollinations responder" if model.startswith("pol:") else ("Conectando ao " + X_PROVIDERS[model.split(":")[0]][2]) if model.split(":")[0] in X_PROVIDERS else "Conectando ao Groq")
 
             if not messages or messages[0].get("role") != "system":
                 messages.insert(0, {"role": "system", "content": ""})
