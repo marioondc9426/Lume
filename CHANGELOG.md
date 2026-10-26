@@ -7,6 +7,7 @@ Como numerar:
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
 ## v3.1 (em desenvolvimento)
+- **Monitor de créditos do VoidAI**: saldo no topo (💳 124.909 / 125.000, vindo de `GET /v1/credits`), estimativa ao digitar ("≈97 créditos") e, em cada resposta, os créditos que ela gastou de verdade (base + tokens de entrada × taxa de entrada + tokens de saída × taxa de saída, a fórmula da documentação deles).
 - **Xadrez contra qualquer modelo** (botão "Xadrez" na lateral, PC e iPhone): o tabuleiro vem do chess.js (regras, lances legais, xeque-mate, empates); o modelo recebe a posição e a lista de lances legais e responde com um deles (se errar, o Lume pede de novo até 3 vezes). Escolha o modelo e a cor, desfaça, vire o tabuleiro, desista. **Botão direito**: segure e arraste para desenhar setas (Shift vermelha, Ctrl azul, Alt amarela), clique direito marca a casa, clique esquerdo limpa; no celular, segure o dedo numa casa e arraste.
 - **VoidAI** como provedor (74 modelos de chat; todos menos o Gemma 4; os que o seu plano não cobre somem pelo teste de saúde; os que não aceitam streaming vêm inteiros). **Logo própria do Gemini** (o Gemma continua com o logo do Google).
 - **Modelos sem streaming** (como o Claude Haiku 4.5 da Aichixia, que responde "Streaming is not supported"): o Lume agora pede a resposta inteira, mostra o texto de uma vez e lembra disso para as próximas conversas (PC e iPhone).

@@ -2650,6 +2650,14 @@
             const per = m && m.priceIn != null ? (500 * m.priceIn + 500 * m.priceOut) / 1e6 : 0;
             b.title = tr('Saldo de pollen do Pollinations.') + (per ? ' ' + tr('Uma mensagem média neste modelo custa ≈{c} pollen (uns {n} mensagens com o saldo).', { c: per.toFixed(5), n: Math.floor(u.balance / per).toLocaleString(curLang() === 'en' ? 'en-US' : 'pt-BR') }) : '') + ' ' + tr('Clique para abrir o Pollinations.');
         }
+        let vdCredits = null, vdAt = 0;   // saldo de creditos do VoidAI (so aparece com um modelo dele escolhido)
+        async function refreshVdCredits(force) {
+            const m = modelById(selectedModel); let b = $('vd-badge'); if (!b) { b = document.createElement('span'); b.id = 'vd-badge'; b.style.cssText = 'display:none;font-size:.78em;padding:3px 10px;border-radius:12px;background:rgba(128,128,128,0.15);white-space:nowrap;color:var(--text-muted)'; $('pol-badge').after(b); b.title = tr('Créditos do VoidAI (o plano renova todo dia)'); }
+            const show = !!(m && m.xp === 'vd' && (auth.local || auth.authed)); b.style.display = show ? 'inline-block' : 'none'; if (!show) return;
+            if (!force && Date.now() - vdAt < 30000) { if (vdCredits != null) b.textContent = '💳 ' + vdCredits.toLocaleString('pt-BR'); return; }
+            vdAt = Date.now(); try { const d = await (await fetch(API + '/api/voidai_credits')).json(); if (d.credits != null) { vdCredits = d.credits; b.textContent = '💳 ' + d.credits.toLocaleString('pt-BR') + (d.limit ? ' / ' + d.limit.toLocaleString('pt-BR') : ''); b.title = tr('Créditos do VoidAI') + (d.plan ? ' · ' + tr('plano') + ' ' + d.plan : ''); } } catch (e) { /* sem saldo agora */ }
+        }
+        { const _rpu = refreshPolUsage; refreshPolUsage = async f => { await _rpu(f); refreshVdCredits(f); }; }
         function polBadgeClick() { refreshPolUsage(true); openExternal('https://pollinations.ai'); }
         setInterval(() => { const m = modelById(selectedModel); if (m && m.pol) refreshPolUsage(true); }, 60000);
         async function loadVercelModels() {   // modelos gratis da Vercel AI Gateway (exigem cartao cadastrado na conta Vercel)
@@ -2674,7 +2682,7 @@
                 (v.models || []).forEach(x => {
                     const nm = String(x.name || x.id).replace(/:free$/, '').replace(/-free$/, '').replace(/^coding-/, '');
                     const pd = parseDyn(x.id, nm); if (!pd.ver && (pd.base === nm || /\//.test(pd.psize || ''))) pd.psize = 'Cloud';   // sem regra propria: nome do modelo + "Cloud"
-                    const ent = Object.assign({ id: p + ':' + x.id, fam: p + ':' + x.id, famName: nm, params: nm, label: nm + ' (' + XP[p][1] + ')', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, x: true, xp: p, vision: !!x.vision, ctx: x.ctx || 32768 }, pd);
+                    const ent = Object.assign({ id: p + ':' + x.id, fam: p + ':' + x.id, famName: nm, params: nm, label: nm + ' (' + XP[p][1] + ')', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, x: true, xp: p, vision: !!x.vision, ctx: x.ctx || 32768, credIn: x.cin || 0, credOut: x.cout || 0, credBase: x.cbase || 0 }, pd);
                     const k = [p, pd.base, pd.ver, pd.psize].join('|'), old = best.get(k);
                     if (!old || bscore(x.id) < bscore(old.id.slice(3)) || (bscore(x.id) === bscore(old.id.slice(3)) && x.id.length < old.id.length - 3)) best.set(k, ent);
                 });
@@ -2973,7 +2981,7 @@
             addMessageToUI('ai', WELCOMES[curLang()][chats[id].welcome], { welcome: true, animate: false });
             stickBottom = true;
             const g = gens[id];   // se este chat esta gerando em segundo plano, volta a mostrar a resposta que chega
-            (g && g.view ? g.view : chats[id].messages).forEach((m, i) => addMessageToUI(m.role, m.content, { animate: false, index: i, vars: m.vars, vi: m.vi, images: m.images, files: m.files, sources: m.sources, memSuggest: m.memSuggest, count: m.count, model: m.role === 'ai' ? m.model : undefined, tps: m.tps, pollen: m.pollen }));
+            (g && g.view ? g.view : chats[id].messages).forEach((m, i) => addMessageToUI(m.role, m.content, { animate: false, index: i, vars: m.vars, vi: m.vi, images: m.images, files: m.files, sources: m.sources, memSuggest: m.memSuggest, count: m.count, model: m.role === 'ai' ? m.model : undefined, tps: m.tps, pollen: m.pollen, credits: m.credits }));
             if (g) { g.aiDiv.classList.add('noanim'); chatBox.appendChild(g.aiDiv); }
             renderQueued(id);
             chatBox.scrollTop = chatBox.scrollHeight;
@@ -2989,17 +2997,17 @@
 
         // ---------- mensagens ----------
         // etiqueta pequena no canto de cada resposta: logo + nome do modelo (+ velocidade quando se sabe)
-        function modelTag(modelId, tps, pollen) {
+        function modelTag(modelId, tps, pollen, credits) {
             const m = modelById(modelId), tag = document.createElement('div'); tag.className = 'msg-tag';
             fin(m); famLabelNodes(m, m.base + (m.ver ? ' ' + m.ver : '')).forEach(n => tag.appendChild(n));
             const br = brandOf(m);
             if (!br) tag.lastChild.textContent = m.short;
             else tag.appendChild(document.createTextNode(' ' + (br.wordmark ? [m.ver, m.psize].filter(Boolean).join(' ') : m.psize)));
             const sp = document.createElement('span'); sp.className = 'tag-tps'; tag.appendChild(sp); setTagTps(tag, tps);
-            const cs = document.createElement('span'); cs.className = 'tag-cost'; tag.appendChild(cs); setTagCost(tag, pollen);
+            const cs = document.createElement('span'); cs.className = 'tag-cost'; tag.appendChild(cs); setTagCost(tag, pollen, credits);
             return tag;
         }
-        function setTagCost(tag, c) { const sp = tag.querySelector('.tag-cost'); sp.textContent = c ? ' · 🌸 ' + (c < 0.00001 ? '<0.00001' : c.toFixed(c < 0.001 ? 6 : 5)) : ''; sp.title = tr('Pollen gasto nesta mensagem (estimado pelos tokens)'); }
+        function setTagCost(tag, c, credits) { const sp = tag.querySelector('.tag-cost'); sp.textContent = credits ? ' · 💳 ' + credits.toLocaleString('pt-BR') + ' ' + tr('créditos') : c ? ' · 🌸 ' + (c < 0.00001 ? '<0.00001' : c.toFixed(c < 0.001 ? 6 : 5)) : ''; sp.title = credits ? tr('Créditos do VoidAI gastos nesta mensagem (entrada × taxa de entrada + saída × taxa de saída)') : tr('Pollen gasto nesta mensagem (estimado pelos tokens)'); }
         function setTagTps(tag, tps) { const sp = tag.querySelector('.tag-tps'); sp.textContent = tps ? ' · ' + tps.toFixed(1) + ' t/s' : ''; tag._tps = tps || 0; }
         function copyPayload(div, span) {   // texto original (markdown) + rodape com o modelo e a velocidade
             let raw = div._raw;
@@ -3032,7 +3040,7 @@
                 div.appendChild(box);
             }
             if (role === 'summary') { const h = document.createElement('div'); h.className = 'sum-head'; h.textContent = tr('Conversa compactada ({n} mensagens resumidas)', { n: opts.count || '?' }); div.appendChild(h); }
-            if (role === 'ai' && !opts.welcome && opts.model) div.appendChild(modelTag(opts.model, opts.tps, opts.pollen));
+            if (role === 'ai' && !opts.welcome && opts.model) div.appendChild(modelTag(opts.model, opts.tps, opts.pollen, opts.credits));
             if (role === 'ai') div.appendChild(think);
             div.appendChild(span);
             div._raw = opts.html ? null : text;
@@ -3443,6 +3451,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             const own = Math.ceil(txt.length / 4) + pendingFiles.reduce((s, f) => s + Math.ceil((f.text || '').length / 4), 0) + pendingImages.length * 400;
             const chat = chats[currentChatId], ctx = chat ? ctxInfo(chat).used : Math.ceil(((currentTab === 'code' ? config.codePrompt : config.systemPrompt) || '').length / 4), total = ctx + own, m = modelById(selectedModel);
             let s = tr('{n} tokens nesta mensagem · {t} no envio', { n: fmtTok(own), t: fmtTok(total) });
+            if (m && m.xp === 'vd' && (m.credIn || m.credOut || m.credBase)) s += ' · ≈' + Math.round((m.credBase || 0) + total * (m.credIn || 0) + COST_OUT_GUESS * (m.credOut || 0)).toLocaleString('pt-BR') + ' ' + tr('créditos') + (vdCredits != null ? ' (' + tr('saldo') + ' ' + vdCredits.toLocaleString('pt-BR') + ')' : '');
             if (m && m.pol) s += m.free ? ' · ' + tr('grátis') : ' · ≈' + (((total * (m.priceIn || 0) + COST_OUT_GUESS * (m.priceOut || 0)) / 1e6).toFixed(5)) + ' pollen';
             el.textContent = s; el.title = tr('Estimativa: o envio leva o contexto da conversa junto; a resposta é chutada em {o} tokens.', { o: COST_OUT_GUESS }); el.style.display = '';
         }
@@ -3835,10 +3844,11 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 if (!gotText) textSpan.textContent = tr(thinkN ? '(o modelo só mostrou o raciocínio e parou antes de responder: talvez tenha acabado o limite de tokens)' : '(sem resposta)');
                 const tps = lastStats && lastStats.seconds ? lastStats.tokens / lastStats.seconds : 0;
                 const pollen = active.pol && !active.free && lastStats ? ((lastStats.prompt_tokens || 0) * (active.priceIn || 0) + (lastStats.tokens || 0) * (active.priceOut || 0)) / 1e6 : 0;   // quanto esta mensagem gastou (estimado pelos tokens)
-                const tg = aiDiv.querySelector('.msg-tag'); if (tg) { setTagTps(tg, tps); setTagCost(tg, pollen); }
+                const credits = active.xp === 'vd' && lastStats ? Math.round((active.credBase || 0) + (lastStats.prompt_tokens || 0) * (active.credIn || 0) + (lastStats.tokens || 0) * (active.credOut || 0)) : 0;
+                const tg = aiDiv.querySelector('.msg-tag'); if (tg) { setTagTps(tg, tps); setTagCost(tg, pollen, credits); } if (active.xp === 'vd') refreshVdCredits(true);
                 if (chats[chatId]) {   // o chat pode ter sido apagado enquanto a IA respondia
                     const facts = !isCode && config.memorySuggest !== false ? memFacts(fullResponse) : [];
-                    const aiMsg = { role: 'ai', content: stripMem(fullResponse), ...(facts.length ? { memSuggest: facts } : {}), model: active.id, ...(tps ? { tps: +tps.toFixed(1) } : {}), ...(pollen ? { pollen: +pollen.toFixed(6) } : {}), ...(msgSources.length ? { sources: msgSources } : {}) };
+                    const aiMsg = { role: 'ai', content: stripMem(fullResponse), ...(facts.length ? { memSuggest: facts } : {}), model: active.id, ...(tps ? { tps: +tps.toFixed(1) } : {}), ...(pollen ? { pollen: +pollen.toFixed(6) } : {}), ...(credits ? { credits } : {}), ...(msgSources.length ? { sources: msgSources } : {}) };
                     if (!fork) { chat.messages.push(aiMsg); aiDiv.dataset.idx = chat.messages.length - 1; applied = true; if (facts.length) memBar(aiDiv, facts); }
                     else if (fullResponse.trim()) {   // editar/regenerar: a versao nova entra ao lado da antiga
                         if (fork.kind === 'edit') { forkAt(chat, fork.i, fork.userMsg); chat.messages.push(aiMsg); } else forkAt(chat, fork.i, aiMsg);

@@ -1564,7 +1564,7 @@ def extra_models(prov, cfg, force=False, raw=False):
         elif prov == "vd":   # VoidAI: todos os de chat (menos Gemma 4); os que o plano nao cobre caem no teste de saude e somem
             if "/v1/chat/completions" not in (m.get("endpoints") or []) or re.search(r"gemma", mid, re.I): continue
             if m.get("supports_streaming") is False: _NO_STREAM.add((base, mid))
-            out.append({"id": mid, "name": mid, "ctx": m.get("max_context_tokens") or 128000, "vision": False})
+            out.append({"id": mid, "name": mid, "ctx": m.get("max_context_tokens") or 128000, "vision": False, "cin": m.get("input_multiplier") or 0, "cout": m.get("output_multiplier") or 0, "cbase": m.get("base_cost") or 0})   # creditos = base + entrada x cin + saida x cout (docs.voidai.app/guides/credits)
         elif prov == "px":   # Paxsenix: so o plano free (os "High Engine" nao entram) e sem os "(Provider N)" repetidos
             if m.get("type") != "chat.completions" or m.get("min_plan") or mid.startswith("provider-") or AH_EXCLUDE.search(mid): continue
             out.append({"id": mid, "name": m.get("name") or mid, "ctx": m.get("max_context_tokens") or 128000, "vision": bool(m.get("supports_vision"))})
@@ -2682,6 +2682,14 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             if not cfg.get("vercel_api_key"): return self.send_json({"saved": False, "models": []})
             try: return self.send_json({"saved": True, "models": vercel_models(cfg)})
             except Exception as e: return self.send_json({"saved": True, "models": [], "error": str(e)[:200]})
+        if p == '/api/voidai_credits':
+            if not local: return self.send_json({"error": "local_only"}, 403)
+            key = (load_config().get("voidai_api_key") or "").strip()
+            if not key: return self.send_json({"error": "sem chave"}, 400)
+            try:
+                with urllib.request.urlopen(urllib.request.Request(VD_URL + "/credits", headers={"Authorization": "Bearer " + key, "User-Agent": "lume-app"}), timeout=15) as r: j = json.load(r)
+                return self.send_json({"credits": j.get("current_credits"), "limit": j.get("daily_limit"), "plan": j.get("plan"), "used": j.get("credits_used")})
+            except Exception as e: return self.send_json({"error": str(e)[:160]}, 502)
         if p == '/api/extra_models':
             if not local: return self.send_json({"error": "local_only"}, 403)
             cfg = load_config(); out = {}

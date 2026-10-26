@@ -179,7 +179,7 @@ async function extraRaw(p, cfg) {
         const id = String(m.id || ''); if (!id) continue;
         if (p === 'ac') { const caps = m.capabilities || []; if (m.tier !== 'free' || !caps.includes('chat') || XEX().test(id)) continue; list.push({ id, name: id.split('/').pop(), ctx: m.context_window || 128000, vision: caps.includes('multimodal') }); }
         else if (p === 'ah') { if (!/(^|[-:/])free$/.test(id) || XEX().test(id)) continue; list.push({ id, name: id.split('/').pop(), ctx: 128000, vision: false }); }
-        else if (p === 'vd') { if (!(m.endpoints || []).includes('/v1/chat/completions') || /gemma/i.test(id)) continue; if (m.supports_streaming === false) noStream.add(XBASE[p] + '|' + id); list.push({ id, name: id, ctx: m.max_context_tokens || 128000, vision: false }); }
+        else if (p === 'vd') { if (!(m.endpoints || []).includes('/v1/chat/completions') || /gemma/i.test(id)) continue; if (m.supports_streaming === false) noStream.add(XBASE[p] + '|' + id); list.push({ id, name: id, ctx: m.max_context_tokens || 128000, vision: false, cin: m.input_multiplier || 0, cout: m.output_multiplier || 0, cbase: m.base_cost || 0 }); }
         else if (p === 'px') { if (m.type !== 'chat.completions' || m.min_plan || id.startsWith('provider-') || XEX().test(id)) continue; list.push({ id, name: m.name || id, ctx: m.max_context_tokens || 128000, vision: !!m.supports_vision }); }
         else { if (!id.endsWith(':free') || m.type !== 'chat' || (D.LR_BLOCKED || []).includes(id) || XEX().test(id)) continue; list.push({ id, name: m.display_name || id, ctx: m.context_window || 128000, vision: !!(m.capabilities || {}).vision }); }
     }
@@ -646,7 +646,12 @@ const ROUTES = {
     'GET /api/vercel_models': listModels('vercel_api_key', vercelModels),
     'GET /api/llm7_models': listModels('llm7_api_key', llm7Models),
     'GET /api/tomdacat_models': listModels('tomdacat_api_key', tomdacatModels),
-        'GET /api/extra_models': async () => {
+        'GET /api/voidai_credits': async () => {
+        const key = ((await loadConfig()).voidai_api_key || '').trim(); if (!key) return json({ error: 'sem chave' }, 400);
+        try { const j = await getJson(VD_URL + '/credits', { Authorization: 'Bearer ' + key }, 15000, 'O VoidAI'); return json({ credits: j.current_credits, limit: j.daily_limit, plan: j.plan, used: j.credits_used }); }
+        catch (e) { return json({ error: String(e.message || e).slice(0, 160) }, 502); }
+    },
+    'GET /api/extra_models': async () => {
         const cfg = await loadConfig(), out = {}, health = await kv.rawGet('health', {});
         for (const p of Object.keys(XPROV)) {
             if (!cfg[XFIELD[p]]) { out[p] = { saved: false, models: [] }; continue; }
