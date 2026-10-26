@@ -25,3 +25,7 @@ owner.mobileconfig
 accounts/
 trusted_devices.json
 provider_health.json
+
+# sons de abertura (copyright de terceiros: ficam so no seu PC)
+sounds/*
+!sounds/LEIA-ME.txt

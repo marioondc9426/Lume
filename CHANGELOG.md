@@ -7,6 +7,7 @@ Como numerar:
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
 ## v3.1 (em desenvolvimento)
+- **Tela de carregamento do Mac com o som original:** coloque `mac-startup.mp3` (ou .wav/.m4a/.ogg) na pasta `sounds/` e o Lume toca na abertura; **1 vez em 25** toca `secret-boot.*` no lugar (o som secreto). Os arquivos ficam só no seu PC (o som é da Apple, por isso não vão para o GitHub); sem eles a tela abre em silêncio. A imitação sintetizada saiu de uso.
 - **Mascote ao lado das respostas** (como no Kimi): a bolinha azul com olhos aparece à esquerda de cada resposta da IA, pisca, olha para o cursor, fica pensando enquanto a IA responde e **olha para baixo, para a mensagem, quando você está digitando**. Continua customizável (cor, estilo bolha/LED, olhos, tamanho); o mascote flutuante virou opção.
 - **TokenReply** como provedor (chave em Configurações; só os 31 modelos do nível gratuito, porque os "Plus" pedem assinatura e respondem 403). "Ratio" é o multiplicador de preço deles em créditos próprios (entrada x ratio, saída x ratio x completion ratio); ratio 0 = grátis.
 - Corrigido: o Lume não abria (erro 0x8007139F do WebView2) por causa de uma opção de áudio que eu tinha adicionado; foi retirada. Feche qualquer Lume aberto (inclusive na bandeja) antes de abrir o novo.
