@@ -2142,7 +2142,8 @@
         const guestBlocks = m => isGuest() && !!auth.guest && (m.groq || m.or || m.cf || m.pol || m.tdc || m.vc || m.l7 || m.x || auth.guest.blocked_models.includes(m.id) || (m.cloud && auth.guest.blocked_features.includes('cloud')) || (!m.cloud && !m.phone && auth.guest.blocked_features.includes('local')));
         let _pxKeys = null; const modelKey = m => { fin(m); return [m.base, m.ver, m.psize].join('|'); };
         const pxDup = m => false;   // Paxsenix mostra todos os seus modelos, mesmo os que outro provedor ja tem
-        const isAvail = m => guestBlocks(m) ? false : pxDup(m) ? false : m.phone ? phoneMode() : (phoneMode() && !m.cloud ? false : (m.groq || m.or || m.cf || m.pol || m.tdc || m.vc || m.l7 || m.x || installed === null || installed.has(m.id)));   // no modo celular os locais do PC saem da lista
+        const noIcon = m => { if (!m.x) return false; if (m._ni === undefined) { try { m._ni = !brandOf(fin(m)); } catch (e) { return false; } } return m._ni; };   // modelos dos provedores extras sem logo da marca nao entram na lista
+        const isAvail = m => guestBlocks(m) ? false : pxDup(m) ? false : noIcon(m) ? false : m.phone ? phoneMode() : (phoneMode() && !m.cloud ? false : (m.groq || m.or || m.cf || m.pol || m.tdc || m.vc || m.l7 || m.x || installed === null || installed.has(m.id)));   // no modo celular os locais do PC saem da lista
         const availIn = tab => MODELS.filter(m => m.tabs.includes(tab) && isAvail(m));
         const pickDefault = list => list.find(m => m.rec && !m.cloud) || list.find(m => !m.cloud && !m.heavy) || list.find(m => !m.cloud) || list[0];
         // ---------- familias: todas as versoes e provedores de uma marca ficam num lugar so ("Qwen 2.5, 3 e 3.5"); a lista de parametros traz "versao, tamanho"
@@ -2451,7 +2452,7 @@
             { re: /beam/i, img: 'beam.png', wordmark: true, mono: true, ratio: 5.06 },
             { re: /gemini/i, img: 'Gemini.svg' },
             { re: /gemma/i, img: 'Google.png' },
-            { re: /gpt|openai|chatgpt/i, img: 'chatgpt.png', mono: true },
+            { re: /gpt|openai|chatgpt|(^|[\s:/])o[1-9](-|\s|$)/i, img: 'chatgpt.png', mono: true },
             { re: /nemotron|nvidia/i, img: 'nvidia.png' },
             { re: /bonsai/i, img: 'bonsai.svg', mono: true },
             // as de baixo ainda nao tem imagem em icons/: sem o arquivo aparece so o nome (ponha o PNG com o nome exato e a logo aparece sozinha)
