@@ -97,7 +97,7 @@ async function polCatalog(key) {
     c.t = now(); c.key = key; c.cat = Object.fromEntries(data.filter(m => m.id).map(m => [m.id, m])); return c.cat;
 }
 async function polLatency(key) {
-    const c = cache.lat; if (now() - c.t < 600) return c.v; const lat = {};
+    const c = cache.lat; if (c.v && now() - c.t < 600) return c.v; const lat = {};
     try { const rows = (await getJson(POL_API + '/models/status', bearer(key), 15000)).data || []; rows.forEach(r => { if (String(r.event_type || '').endsWith('text') && r.model && r.latency_p50_ms) lat[r.model] = Math.round(r.latency_p50_ms / 100) / 10; }); } catch (e) { /* sem latencia */ }
     c.t = now(); c.v = lat; return lat;
 }
