@@ -14,9 +14,9 @@
 
     const css = document.createElement('style');
     css.textContent = `
-        .chess-ov { position: fixed; inset: 0; z-index: 6500; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.6); padding: 12px; overflow: auto; }
+        .chess-ov { position: fixed; inset: 0; z-index: 6500; display: flex; align-items: flex-start; justify-content: center; background: rgba(0,0,0,0.6); padding: 12px; overflow: auto; } .chess-ov > .chess-wrap { margin: auto; }
         .chess-wrap { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; justify-content: center; max-width: 100%; background: var(--bg-main); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 20px; padding: 16px; box-shadow: 0 20px 60px rgba(0,0,0,.55); }
-        .chess-bw { display: flex; gap: 8px; } .chess-eval { width: 14px; height: var(--cb, 520px); border-radius: 6px; overflow: hidden; background: #262522; position: relative; display: none; } .chess-eval.on { display: block; } .chess-eval i { position: absolute; left: 0; right: 0; bottom: 0; background: #f2f2f2; transition: height .3s; } .chess-eval b { position: absolute; left: 0; right: 0; font: 600 9px system-ui; text-align: center; color: #888; top: 2px; }
+        .chess-bw { display: flex; gap: 8px; } .chess-eval { width: 14px; height: var(--cb, 520px); border-radius: 6px; overflow: hidden; background: #262522; position: relative; visibility: hidden; } .chess-eval.on { visibility: visible; } .chess-eval i { position: absolute; left: 0; right: 0; bottom: 0; background: #f2f2f2; transition: height .3s; } .chess-eval b { position: absolute; left: 0; right: 0; font: 600 9px system-ui; text-align: center; color: #888; top: 2px; }
         .chess-board { position: relative; width: var(--cb, 520px); height: var(--cb, 520px); display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); border-radius: 8px; overflow: hidden; user-select: none; -webkit-user-select: none; touch-action: none; }
         .chess-sq { position: relative; display: flex; align-items: center; justify-content: center; font-size: calc(var(--cb, 520px) / 8 * 0.78); line-height: 1; cursor: pointer; }
         .chess-sq.l { background: #ecd9b4; } .chess-sq.d { background: #ae8a68; }
@@ -26,18 +26,18 @@
         .chess-sq.mark { box-shadow: inset 0 0 0 100px rgba(235, 64, 52, .5); }
         .chess-sq.tgt::after { content: ''; position: absolute; width: 28%; height: 28%; border-radius: 50%; background: rgba(20, 20, 20, .28); }
         .chess-sq.tgt.cap::after { width: 86%; height: 86%; background: none; border: 5px solid rgba(20, 20, 20, .28); }
-        .chess-pc { z-index: 1; pointer-events: none; } .chess-pc.w { color: #fff; text-shadow: 0 0 2px #000, 0 0 2px #000, 0 0 3px #000, 0 1px 3px rgba(0,0,0,.6); } .chess-pc.b { color: #151515; text-shadow: 0 0 1px #fff, 0 0 2px rgba(255,255,255,.5); }
+        .chess-pc { z-index: 1; pointer-events: none; } img.chess-pc { width: 92%; height: 92%; object-fit: contain; filter: drop-shadow(0 1px 1px rgba(0,0,0,.25)); } .chess-promo button img.chess-pc { width: 100%; height: 100%; } .chess-pc.w { color: #fff; text-shadow: 0 0 2px #000, 0 0 2px #000, 0 0 3px #000, 0 1px 3px rgba(0,0,0,.6); } .chess-pc.b { color: #151515; text-shadow: 0 0 1px #fff, 0 0 2px rgba(255,255,255,.5); }
         .chess-co { position: absolute; font: 600 10px system-ui, sans-serif; opacity: .65; pointer-events: none; color: #333; } .chess-co.r { top: 2px; left: 3px; } .chess-co.f { bottom: 1px; right: 3px; }
         .chess-badge { position: absolute; top: 2px; right: 2px; min-width: 1.5em; padding: 0 3px; height: 1.5em; border-radius: 999px; z-index: 2; display: flex; align-items: center; justify-content: center; font: 700 12px system-ui, sans-serif; color: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.5); pointer-events: none; }
         .chess-arrows { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
         .chess-side { display: flex; flex-direction: column; gap: 10px; width: min(300px, 100%); }
         .chess-side h3 { margin: 0; } .chess-side select { width: 100%; } .chess-row { display: flex; flex-wrap: wrap; gap: 6px; } .chess-row .btn { margin: 0; padding: 8px 12px; flex: 1 1 auto; }
         .chess-opt { display: flex; gap: 8px; align-items: center; font-size: .88em; cursor: pointer; } .chess-opt input { width: auto; }
-        .chess-status { padding: 10px 12px; border-radius: 12px; background: rgba(128,128,128,.14); font-size: .92em; min-height: 2.6em; }
-        .chess-moves { max-height: 170px; overflow-y: auto; font-size: .88em; line-height: 1.9; padding: 8px 10px; border-radius: 12px; background: rgba(128,128,128,.08); }
+        .chess-status { padding: 10px 12px; border-radius: 12px; background: rgba(128,128,128,.14); font-size: .92em; min-height: 3.4em; }
+        .chess-moves { height: 170px; flex: none; overflow-y: auto; font-size: .88em; line-height: 1.9; padding: 8px 10px; border-radius: 12px; background: rgba(128,128,128,.08); }
         .chess-moves span.mv { cursor: pointer; padding: 1px 4px; border-radius: 6px; } .chess-moves span.mv:hover { background: rgba(128,128,128,.25); } .chess-moves span.mv.cur { background: var(--accent); color: #fff; }
         .chess-moves i.cl { font-style: normal; font-weight: 700; font-size: .85em; margin-left: 1px; }
-        .chess-sum { font-size: .82em; line-height: 1.5; padding: 8px 10px; border-radius: 12px; background: rgba(128,128,128,.08); }
+        .chess-sum { min-height: 3.6em; font-size: .82em; line-height: 1.5; padding: 8px 10px; border-radius: 12px; background: rgba(128,128,128,.08); }
         .chess-hint { font-size: .76em; color: var(--text-muted); line-height: 1.4; }
         .chess-ov { animation: chFade .22s ease both; } .chess-ov.out { animation: chFadeOut .18s ease both; } .chess-wrap { animation: chPop .32s cubic-bezier(.2,.85,.25,1.05) both; } .chess-ov.out .chess-wrap { animation: chPopOut .18s ease both; }
         @keyframes chFade { from { opacity: 0; } to { opacity: 1; } } @keyframes chFadeOut { from { opacity: 1; } to { opacity: 0; } }
@@ -75,7 +75,7 @@
         if (engine) return engine;
         const { w, kind } = await makeWorker(), E = { w, kind, on: null };
         w.onmessage = e => { if (E.on) E.on(typeof e.data === 'string' ? e.data : String(e.data)); };
-        const cmd = (c, until) => new Promise((res, rej) => { const t = setTimeout(() => { E.on = null; rej(new Error('o motor nao respondeu')); }, 30000); E.on = l => { if (until.test(l)) { clearTimeout(t); E.on = null; res(); } }; w.postMessage(c); });
+        const cmd = E.cmd = (c, until, ms) => new Promise((res, rej) => { const t = setTimeout(() => { E.on = null; rej(new Error('o motor nao respondeu')); }, ms || 30000); E.on = l => { if (until.test(l)) { clearTimeout(t); E.on = null; res(); } }; w.postMessage(c); });
         await cmd('uci', /uciok/); w.postMessage('setoption name MultiPV value 2'); await cmd('isready', /readyok/);
         engine = E; return E;
     }
@@ -83,12 +83,13 @@
     function analyze(fen, ms) {   // {best, lines:[{mv, cp}]} com cp do ponto de vista das BRANCAS (mate vira +-10000)
         if (st.an[fen]) return Promise.resolve(st.an[fen]);
         const job = engQ.then(async () => {
-            if (st.an[fen]) return st.an[fen]; const E = await getEngine(), white = fen.split(' ')[1] === 'w';
+            if (st.an[fen]) return st.an[fen]; const E = await getEngine(), white = fen.split(' ')[1] === 'w', S = st;
+            E.w.postMessage('stop'); await E.cmd('isready', /readyok/, 8000);   // descarta qualquer busca antiga que ainda estivesse rodando
             return new Promise((res, rej) => {
-                const lines = {}, t = setTimeout(() => { E.on = null; rej(new Error('tempo esgotado')); }, 40000);
+                const lines = {}, t = setTimeout(() => { E.on = null; try { E.w.terminate(); } catch (x) { /* ok */ } if (engine === E) engine = null; rej(new Error('tempo esgotado')); }, 15000);   // travou: joga o motor fora, o proximo recria
                 E.on = l => {
                     if (l.startsWith('info') && / score (cp|mate) /.test(l) && / pv /.test(l)) { const pv = +((/ multipv (\d+)/.exec(l) || [0, 1])[1]), sc = / score (cp|mate) (-?\d+)/.exec(l), mv = (/ pv (\S+)/.exec(l) || [])[1]; let cp = sc[1] === 'cp' ? +sc[2] : (+sc[2] > 0 ? 10000 - +sc[2] : -10000 - +sc[2]); if (!white) cp = -cp; lines[pv] = { mv, cp, mate: sc[1] === 'mate' }; }
-                    else if (l.startsWith('bestmove')) { clearTimeout(t); E.on = null; const arr = Object.keys(lines).sort().map(k => lines[k]); const r = { best: l.split(' ')[1], lines: arr }; st.an[fen] = r; res(r); }
+                    else if (l.startsWith('bestmove')) { clearTimeout(t); E.on = null; const arr = Object.keys(lines).sort().map(k => lines[k]); const r = { best: l.split(' ')[1], lines: arr }; S.an[fen] = r; res(r); }
                 };
                 E.w.postMessage('position fen ' + fen); E.w.postMessage('go movetime ' + (ms || 600));
             });
@@ -114,8 +115,8 @@
 
     // ---------------------------------------------------------------- jogo
     function newGame(o) {
-        const human = o.color === 'random' ? (Math.random() < 0.5 ? 'w' : 'b') : o.color, opts = st ? st.opts : { illegal: false, rank: false };
-        game = new Chess(); st = { human, model: o.model, flip: human === 'b', sel: null, targets: [], last: null, illegal: [], arrows: [], marks: [], thinking: false, over: '', note: '', rid: null, token: Math.random(), log: [], an: {}, cls: {}, opts, review: null, busy: '' };
+        const human = o.color === 'random' ? (Math.random() < 0.5 ? 'w' : 'b') : o.color, opts = st ? st.opts : { illegal: false, rank: false, noSpawn: true };
+        game = new Chess(); st = { human, model: o.model, flip: human === 'b', sel: null, targets: [], last: null, illegal: [], arrows: [], marks: [], thinking: false, over: '', note: '', rid: null, token: Math.random(), log: [], an: {}, cls: {}, opts, review: null, busy: '', rk: 0 };
         render(); if (human === 'b') aiMove();
     }
     function result() {
@@ -127,13 +128,17 @@
         return '';
     }
     function pushLegal(fen0, mv) { st.log.push({ san: mv.san, uci: uciOf(mv), fen: fen0, color: mv.color, from: mv.from, to: mv.to }); st.last = { from: mv.from, to: mv.to }; st.illegal = []; }
+    function rightsAfter(rights, grid) {   // so mantem o roque se o rei e a torre ainda estao nas casas de origem
+        const ok = { K: grid[7][4] === 'K' && grid[7][7] === 'R', Q: grid[7][4] === 'K' && grid[7][0] === 'R', k: grid[0][4] === 'k' && grid[0][7] === 'r', q: grid[0][4] === 'k' && grid[0][0] === 'r' };
+        return [...(rights === '-' ? '' : rights)].filter(c => ok[c]).join('') || '-';
+    }
     function forceMove(from, to, promo) {   // lance ILEGAL do modelo: edita o tabuleiro direto (a peca vai para la, sem checar regra)
         const piece = game.get(from); if (!piece || piece.color !== game.turn()) return null;
         const fen0 = game.fen(), parts = fen0.split(' '), grid = parts[0].split('/').map(r => { const row = []; for (const ch of r) { if (/\d/.test(ch)) for (let k = 0; k < +ch; k++) row.push(''); else row.push(ch); } return row; });
         const fx = FILES.indexOf(from[0]), fr = 8 - +from[1], tx = FILES.indexOf(to[0]), tr_ = 8 - +to[1]; const captured = grid[tr_][tx]; let ch = grid[fr][fx]; grid[fr][fx] = '';
         if (piece.type === 'p' && (to[1] === '8' || to[1] === '1')) ch = piece.color === 'w' ? (promo || 'q').toUpperCase() : (promo || 'q').toLowerCase();
         grid[tr_][tx] = ch; const placement = grid.map(r => { let o = '', n = 0; r.forEach(c => { if (!c) n++; else { if (n) { o += n; n = 0; } o += c; } }); return o + (n || ''); }).join('/');
-        const next = piece.color === 'w' ? 'b' : 'w', full = +parts[5] + (piece.color === 'b' ? 1 : 0), newFen = `${placement} ${next} - - 0 ${full}`;
+        const next = piece.color === 'w' ? 'b' : 'w', full = +parts[5] + (piece.color === 'b' ? 1 : 0), newFen = `${placement} ${next} ${rightsAfter(parts[2], grid)} - 0 ${full}`;
         st.log.push({ san: from + to + (promo || '') + '⚠', uci: from + to + (promo || ''), fen: fen0, color: piece.color, from, to, illegal: true });
         st.last = { from, to }; st.illegal = [from, to];
         if (/k/i.test(captured) && captured.toLowerCase() === 'k') { st.over = piece.color === st.human ? T('Você capturou o rei do modelo.') : T('O modelo capturou o seu rei (lance ilegal): o modelo ganhou.'); return { kingCaptured: true }; }
@@ -150,7 +155,7 @@
             const f = st.flip ? 7 - col : col, r = st.flip ? row : 7 - row, name = sqName(f, r), p = b[7 - r][f], d = mk('div', 'chess-sq ' + ((f + r) % 2 === 0 ? 'd' : 'l')); d.dataset.sq = name;
             if (st.sel === name) d.classList.add('sel'); if (last && (last.from === name || last.to === name)) d.classList.add('last'); if (st.illegal.includes(name) && !rv && rv !== 0) d.classList.add('ill'); if (kingSq === name) d.classList.add('chk'); if (st.marks.includes(name)) d.classList.add('mark');
             if (st.targets.includes(name)) { d.classList.add('tgt'); if (p) d.classList.add('cap'); }
-            if (p) d.appendChild(mk('span', 'chess-pc ' + p.color, GLYPH[p.type]));
+            if (p) d.appendChild(pieceEl(p));
             if (col === 0) d.appendChild(mk('span', 'chess-co r', String(r + 1))); if (row === 7) d.appendChild(mk('span', 'chess-co f', FILES[f]));
             if (lastCls && last && last.to === name && (st.opts.rank || rv !== null)) { const bd = mk('span', 'chess-badge', CLS[lastCls.key].sym); bd.style.background = CLS[lastCls.key].c; bd.title = T(CLS[lastCls.key].n) + ' (' + CLS[lastCls.key].en + ')'; d.appendChild(bd); }
             board.insertBefore(d, board.querySelector('.chess-arrows'));
@@ -158,9 +163,9 @@
         drawArrows();
         const over = game.game_over() ? result() : st.over; st.over = over || st.over;
         const turnTxt = game.turn() === st.human ? T('Sua vez.') + (game.in_check() ? ' ' + T('Você está em xeque!') : '') : (st.thinking ? T('O modelo está pensando…') : T('Vez do modelo.'));
-        let line = st.busy || (rv !== null && rv !== undefined ? '' : (st.over || turnTxt)) + (st.note ? ' ' + st.note : '');
+        let line = st.busy || (st.rk > 0 && rv === null ? T('Analisando o lance…') : '') || (rv !== null && rv !== undefined ? '' : (st.over || turnTxt)) + (st.note ? ' ' + st.note : '');
         if (rv !== null && rv !== undefined) { const A = st.an[rv < st.log.length ? st.log[rv].fen : game.fen()]; line = (rv === 0 ? T('Posição inicial.') : T('Depois do lance') + ' ' + rv + ' (' + st.log[rv - 1].san + ')') + (lastCls ? ' · ' + T(CLS[lastCls.key].n) : '') + (A && A.lines[0] ? ' · ' + T('Melhor') + ': ' + sanOf(g, A.best) + ' (' + evalTxt(A.lines[0]) + ')' : ''); }
-        else if (st.opts.rank && lastCls && !st.busy) line += ' · ' + T('Último lance') + ': ' + T(CLS[lastCls.key].n);
+        else if (st.opts.rank && lastCls && !st.busy && !st.rk) line += ' · ' + T('Último lance') + ': ' + T(CLS[lastCls.key].n);
         ov.querySelector('.chess-status').textContent = line;
         const mv = ov.querySelector('.chess-moves'); mv.textContent = '';
         st.log.forEach((e, i) => {
@@ -171,9 +176,10 @@
         mv.scrollTop = mv.scrollHeight;
         const ev = ov.querySelector('.chess-eval'), curFen = rv !== null && rv !== undefined ? (rv < st.log.length ? st.log[rv].fen : game.fen()) : game.fen(), an = st.an[curFen];
         ev.classList.toggle('on', !!(st.opts.rank || (rv !== null && rv !== undefined)) && !!an); if (an && an.lines[0]) { ev.firstChild.style.height = wpct(an.lines[0].cp) + '%'; ev.lastChild.textContent = evalTxt(an.lines[0]); }
-        ov.querySelector('.chess-sum').style.display = st.summary ? '' : 'none'; ov.querySelector('.chess-sum').textContent = st.summary || '';
-        ov.querySelector('.chess-nav').style.display = rv !== null && rv !== undefined ? '' : 'none';
+        ov.querySelector('.chess-sum').style.visibility = st.summary ? 'visible' : 'hidden'; ov.querySelector('.chess-sum').textContent = st.summary || ' ';
+        ov.querySelector('.chess-nav').style.visibility = rv !== null && rv !== undefined ? 'visible' : 'hidden';
     }
+    function pieceEl(p) { const src = window.CHESS_PIECES && window.CHESS_PIECES[p.color + p.type.toUpperCase()]; if (!src) return mk('span', 'chess-pc ' + p.color, GLYPH[p.type]); const im = document.createElement('img'); im.className = 'chess-pc'; im.src = src; im.alt = ''; im.draggable = false; return im; }
     const evalTxt = l => (l.mate ? (l.cp > 0 ? '#' : '-#') : (l.cp >= 0 ? '+' : '') + (l.cp / 100).toFixed(1));
     function sanOf(g, uci) { try { const m = g.moves({ verbose: true }).find(x => uciOf(x) === uci); return m ? m.san : uci; } catch (e) { return uci; } }
 
@@ -198,6 +204,18 @@
         for (const x of toks) { const m = legal.find(l => strip(l) === strip(x)); if (m) return m; }
         return null;
     }
+    function parseSpawn(text) { const m = /\+\s*([qrbnp])\s*@\s*([a-h][1-8])/i.exec(String(text || '')); return m ? { type: m[1].toLowerCase(), sq: m[2] } : null; }
+    function spawnPiece(type, sq) {   // lance ILEGAL: cria uma peca do modelo numa casa (nao vale rei nem peao na ultima fileira)
+        const color = game.turn(), cur = game.get(sq); if ((cur && cur.color === color) || (type === 'p' && (sq[1] === '1' || sq[1] === '8'))) return null;
+        const fen0 = game.fen(), parts = fen0.split(' '), grid = parts[0].split('/').map(r => { const row = []; for (const ch of r) { if (/\d/.test(ch)) for (let k = 0; k < +ch; k++) row.push(''); else row.push(ch); } return row; });
+        const x = FILES.indexOf(sq[0]), y = 8 - +sq[1], captured = grid[y][x]; grid[y][x] = color === 'w' ? type.toUpperCase() : type;
+        const placement = grid.map(r => { let o = '', n = 0; r.forEach(c => { if (!c) n++; else { if (n) { o += n; n = 0; } o += c; } }); return o + (n || ''); }).join('/');
+        const next = color === 'w' ? 'b' : 'w', full = +parts[5] + (color === 'b' ? 1 : 0), newFen = `${placement} ${next} ${rightsAfter(parts[2], grid)} - 0 ${full}`;
+        st.log.push({ san: '+' + type.toUpperCase() + '@' + sq + '⚠', uci: '+' + type + '@' + sq, fen: fen0, color, from: sq, to: sq, illegal: true });
+        st.last = { from: sq, to: sq }; st.illegal = [sq];
+        if (captured && captured.toLowerCase() === 'k') { st.over = T('O modelo capturou o seu rei (lance ilegal): o modelo ganhou.'); return { kingCaptured: true }; }
+        if (!game.load(newFen)) { st.log.pop(); return null; } return { ok: true };
+    }
     function parseCoord(text) { const m = /([a-h][1-8])\s*[-x:]?\s*([a-h][1-8])\s*=?\s*([qrbn])?/i.exec(String(text || '').toLowerCase()); return m ? { from: m[1], to: m[2], promo: m[3] || '' } : null; }
     async function askModel(messages, signal) {
         const m = st.model, rid = 'chess' + Date.now().toString(36); st.rid = rid;
@@ -214,32 +232,35 @@
         if (!game || game.game_over() || st.over || game.turn() === st.human) return;
         const my = st.token; st.thinking = true; st.note = ''; render();
         const color = game.turn() === 'w' ? 'brancas' : 'pretas', legal = game.moves(), free = st.opts.illegal, fen0 = game.fen();
-        const sys = free ? 'Você joga xadrez de verdade e quer ganhar. Em cada vez, responda SOMENTE com o seu lance em coordenadas (exemplos: e2e4, g1f3, e7e8q). Nada de explicação, nada de outro texto.'
+        const sys = free ? 'Você joga xadrez de verdade e quer ganhar. Em cada vez, responda SOMENTE com o seu lance em coordenadas (exemplos: e2e4, g1f3, e7e8q). Nada de explicação, nada de outro texto.' + (st.opts.noSpawn ? '' : ' Em vez de mover, você também pode CRIAR uma peça sua do nada numa casa, escrevendo +peça@casa (exemplo: +Q@d5 cria uma dama sua em d5).')
             : 'Você joga xadrez de verdade e quer ganhar. Em cada vez, responda SOMENTE com um lance da lista de lances legais, exatamente como está escrito (notação SAN, por exemplo: Nf3, exd5, O-O, e8=Q). Nada de explicação, nada de outro texto.';
         const ask = extra => ([{ role: 'system', content: sys }, { role: 'user', content: `Posição (FEN): ${fen0}\nLances até agora: ${movesText() || '(nenhum, é o primeiro lance)'}\nVocê joga de ${color}.${free ? '' : '\nLances legais: ' + legal.join(', ')}\nResponda só com o seu lance.${extra || ''}` }]);
-        let chosen = null, forced = null, extra = '', ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 180000);
+        let chosen = null, forced = null, spawn = null, extra = '', ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 180000);
         try {
-            for (let i = 0; i < 3 && !chosen && !forced; i++) {
+            for (let i = 0; i < 3 && !chosen && !forced && !spawn; i++) {
                 const text = await askModel(ask(extra), ctl.signal); if (my !== st.token) return;
                 if (/^\s*\[Erro/.test(text)) { st.note = text.trim().slice(0, 220); break; }
                 chosen = parseMove(text, legal);
+                if (!chosen && free) { const sp = parseSpawn(text); if (sp) { if (st.opts.noSpawn) { extra = '\nCriar peças do nada está BLOQUEADO. Mova uma peça que já está no tabuleiro.'; continue; } const cur = game.get(sp.sq); if ((cur && cur.color === game.turn()) || (sp.type === 'p' && (sp.sq[1] === '1' || sp.sq[1] === '8'))) { extra = '\nEssa casa não serve para criar a peça. Escolha outra.'; continue; } spawn = sp; break; } }
                 if (!chosen && free) { const c = parseCoord(text), p = c && game.get(c.from); if (c && p && p.color === game.turn()) { const lg = game.moves({ verbose: true }).find(m => m.from === c.from && m.to === c.to && (!m.promotion || m.promotion === (c.promo || 'q'))); if (lg) chosen = lg.san; else forced = c; } }
-                if (!chosen && !forced) extra = free ? `\nA sua resposta anterior ("${String(text).trim().slice(0, 40)}") não tinha um lance em coordenadas (ex.: e2e4) com uma peça sua na casa de origem. Tente de novo.` : `\nA sua resposta anterior ("${String(text).trim().slice(0, 40)}") não era um lance legal. Escolha exatamente um da lista: ${legal.join(', ')}`;
+                if (!chosen && !forced && !spawn) extra = free ? `\nA sua resposta anterior ("${String(text).trim().slice(0, 40)}") não tinha um lance em coordenadas (ex.: e2e4) com uma peça sua na casa de origem. Tente de novo.` : `\nA sua resposta anterior ("${String(text).trim().slice(0, 40)}") não era um lance legal. Escolha exatamente um da lista: ${legal.join(', ')}`;
             }
         } catch (e) { if (my !== st.token) return; st.note = T('Não consegui falar com o modelo.'); }
         clearTimeout(to); if (my !== st.token) return;
         st.thinking = false;
-        if (!chosen && !forced && !st.note) { chosen = legal[Math.floor(Math.random() * legal.length)]; st.note = T('(o modelo não respondeu um lance válido; joguei um lance qualquer por ele)'); }
-        if (forced) { const r = forceMove(forced.from, forced.to, forced.promo); st.note = T('⚠ O modelo jogou um lance ILEGAL.'); if (!r) st.note = T('Lance ilegal sem efeito.'); }
+        if (!chosen && !forced && !spawn && !st.note) { chosen = legal[Math.floor(Math.random() * legal.length)]; st.note = T('(o modelo não respondeu um lance válido; joguei um lance qualquer por ele)'); }
+        if (spawn) { const r = spawnPiece(spawn.type, spawn.sq); st.note = r ? T('⚠ O modelo CRIOU uma peça do nada.') : T('Lance ilegal sem efeito.'); }
+        else if (forced) { const r = forceMove(forced.from, forced.to, forced.promo); st.note = T('⚠ O modelo jogou um lance ILEGAL.'); if (!r) st.note = T('Lance ilegal sem efeito.'); }
         else if (chosen) { const mv = game.move(chosen); pushLegal(fen0, mv); }
         st.arrows = []; st.marks = []; render(); afterMove();
     }
     function afterMove() { if (st.opts.rank && !st.over) rankNow(); }
     async function rankNow() {   // ranking ao vivo: analisa a posicao nova e classifica o ultimo lance
-        const my = st.token, n = st.log.length, fenAfter = game.fen(); if (!n) return;
-        try { st.busy = T('Analisando o lance…'); render(); await analyze(st.log[n - 1].fen); await analyze(fenAfter); if (my !== st.token) return; const c = classify(n - 1); if (c) st.cls[n - 1] = c; st.busy = ''; }
-        catch (e) { if (my !== st.token) return; st.busy = ''; st.note = T('Motor de análise indisponível: ') + String(e.message || e).slice(0, 80); st.opts.rank = false; const cb = ov && ov.querySelector('#chess-rank'); if (cb) cb.checked = false; }
-        render();
+        const S = st, my = S.token, n = S.log.length, fenAfter = game.fen(); if (!n) return;
+        const fenBefore = S.log[n - 1].fen; S.rk = (S.rk || 0) + 1; render();
+        try { await analyze(fenBefore); await analyze(fenAfter); if (my === S.token) { const c = classify(n - 1); if (c) S.cls[n - 1] = c; } }
+        catch (e) { if (my === S.token) { S.note = T('Motor de análise indisponível: ') + String(e.message || e).slice(0, 80); S.opts.rank = false; const cb = ov && ov.querySelector('#chess-rank'); if (cb) cb.checked = false; } }
+        finally { S.rk = Math.max(0, S.rk - 1); if (st === S) render(); }
     }
     function tryMove(from, to, promo) {
         const mv = game.moves({ verbose: true }).find(m => m.from === from && m.to === to && (!m.promotion || m.promotion === (promo || 'q')));
@@ -249,7 +270,7 @@
         if (!game.game_over()) { aiMove(); } afterMove(); return true;
     }
     function askPromo(from, to) {
-        const box = mk('div', 'chess-promo'); ['q', 'r', 'b', 'n'].forEach(p => { const b = mk('button', '', GLYPH[p]); b.style.color = st.human === 'w' ? '#fff' : '#151515'; b.style.textShadow = st.human === 'w' ? '0 0 2px #000, 0 0 3px #000' : 'none'; b.onclick = e => { e.stopPropagation(); box.remove(); tryMove(from, to, p); }; box.appendChild(b); });
+        const box = mk('div', 'chess-promo'); ['q', 'r', 'b', 'n'].forEach(p => { const b = mk('button', ''); b.appendChild(pieceEl({ color: st.human, type: p })); b.style.color = st.human === 'w' ? '#fff' : '#151515'; b.style.textShadow = st.human === 'w' ? '0 0 2px #000, 0 0 3px #000' : 'none'; b.onclick = e => { e.stopPropagation(); box.remove(); tryMove(from, to, p); }; box.appendChild(b); });
         ov.querySelector('.chess-board').appendChild(box);
     }
     function undo() {
@@ -263,7 +284,7 @@
         if (!game || st.thinking || !st.log.length) return; const my = st.token, fens = st.log.map(e => e.fen).concat(game.fen());
         try {
             for (let i = 0; i < fens.length; i++) { st.busy = T('Analisando a partida…') + ' ' + (i + 1) + '/' + fens.length; render(); await analyze(fens[i], 500); if (my !== st.token) return; }
-        } catch (e) { st.busy = ''; st.note = T('Motor de análise indisponível: ') + String(e.message || e).slice(0, 80); render(); return; }
+        } catch (e) { if (my !== st.token) return; st.busy = ''; st.note = T('Motor de análise indisponível: ') + String(e.message || e).slice(0, 80); render(); return; }
         st.cls = {}; for (let i = 0; i < st.log.length; i++) { const c = classify(i); if (c) st.cls[i] = c; }
         const cnt = { w: {}, b: {} }, acc = { w: [], b: [] }; st.log.forEach((e, i) => { const c = st.cls[i]; if (!c) return; cnt[e.color][c.key] = (cnt[e.color][c.key] || 0) + 1; acc[e.color].push(Math.max(0, 100 - c.loss * 1.2)); });
         const fmt = col => Object.keys(CLS).filter(k => cnt[col][k]).map(k => T(CLS[k].n) + ' ' + cnt[col][k]).join(' · ') || '—', avg = a => a.length ? Math.round(a.reduce((s, x) => s + x, 0) / a.length) + '%' : '—';
@@ -292,6 +313,8 @@
             if (st.review !== null && st.review !== undefined) { render(); return; }
             if (game.game_over() || st.over || game.turn() !== st.human) { render(); return; }
             if (st.sel && st.targets.includes(s)) { tryMove(st.sel, s); return; }
+            const selP = st.sel && game.get(st.sel), clk = game.get(s);
+            if (selP && selP.type === 'k' && clk && clk.type === 'r' && clk.color === selP.color) { const dest = (s[0] > st.sel[0] ? 'g' : 'c') + st.sel[1]; if (st.targets.includes(dest)) { tryMove(st.sel, dest); return; } }   // clicar na propria torre = roque
             const p = game.get(s); if (p && p.color === st.human) { st.sel = s; st.targets = game.moves({ square: s, verbose: true }).map(m => m.to); } else { st.sel = null; st.targets = []; }
             render();
         });
@@ -319,8 +342,8 @@
         cb.onclick = () => { const on = !pop.classList.contains('on'); if (on) { srch.value = ''; fillList(); } pop.classList.toggle('on', on); cb.classList.toggle('on', on); if (on) { srch.focus(); const cur = lst.querySelector('.cm-row.on'); if (cur) cur.scrollIntoView({ block: 'center' }); } };
         srch.oninput = fillList; ov.addEventListener('mousedown', e => { if (!cw.contains(e.target)) closePop(); }); paintBtn(); side.appendChild(cw);
         let colorVal = 'w'; const seg = mk('div', 'chess-seg'); [['w', 'Brancas'], ['b', 'Pretas'], ['random', 'Aleatório']].forEach(([v, l]) => { const b = mk('button', v === colorVal ? 'on' : '', T(l)); b.type = 'button'; b.onclick = () => { colorVal = v; seg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); if (st && !st.log.length) { st.token = Math.random(); newGame({ model: list[pick], color: colorVal }); } }; seg.appendChild(b); }); side.appendChild(seg);
-        const opt = (id, label, key) => { const l = mk('label', 'chess-tog'), c = document.createElement('input'); c.type = 'checkbox'; c.id = id; c.onchange = () => { st.opts[key] = c.checked; if (key === 'rank') { if (c.checked) rankBackfill(); render(); } }; l.append(mk('span', '', T(label)), c, mk('span', 'sw')); side.appendChild(l); return c; };
-        opt('chess-ill', 'Permitir lances ilegais do modelo', 'illegal'); opt('chess-rank', 'Ranking dos lances (Brilhante, Melhor, Erro…)', 'rank');
+        const opt = (id, label, key) => { const l = mk('label', 'chess-tog'), c = document.createElement('input'); c.type = 'checkbox'; c.id = id; c.onchange = () => { st.opts[key] = c.checked; if (key === 'rank') { if (c.checked) rankBackfill(); render(); } }; c.checked = st ? !!st.opts[key] : key === 'noSpawn'; l.append(mk('span', '', T(label)), c, mk('span', 'sw')); side.appendChild(l); return c; };
+        opt('chess-ill', 'Permitir lances ilegais do modelo', 'illegal'); opt('chess-nospawn', 'Bloquear peças criadas do nada pelo modelo (só vale com lances ilegais)', 'noSpawn'); opt('chess-rank', 'Ranking dos lances (Brilhante, Melhor, Erro…)', 'rank');
         const row = mk('div', 'chess-row'); side.appendChild(row);
         const btn = (txt, fn) => { const b = mk('button', 'btn btn-secondary', T(txt)); b.type = 'button'; b.onclick = fn; row.appendChild(b); return b; };
         const start = btn('Novo jogo', () => { if (st) st.token = Math.random(); newGame({ model: list[pick], color: colorVal }); }); start.classList.replace('btn-secondary', 'btn-primary');
