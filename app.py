@@ -72,6 +72,10 @@ CERTS_DIR = os.path.join(BASE_DIR, "certs")
 HTTPS_PORT = 8443
 APP_NAME = "Lume"
 import guests as guests_mod   # contas de amigos (/share) e painel (/dashboard)
+# Provedores compativeis com a API da OpenAI que o Lume usa so com os modelos gratis: prefixo -> (campo da chave, endereco, nome, segundos entre testes de saude)
+AC_URL = "https://www.aichixia.xyz/api/v1"; AH_URL = "https://aihubmix.com/v1"; LR_URL = "https://api.literouter.com/v1"; PX_URL = "https://api.paxsenix.org/v1"
+X_PROVIDERS = {"lr": ("literouter_api_key", LR_URL, "LiteRouter", 8.0), "ac": ("aichixia_api_key", AC_URL, "Aichixia", 1.5), "ah": ("aihubmix_api_key", AH_URL, "AIHubMix", 1.5), "px": ("paxsenix_api_key", PX_URL, "Paxsenix", 1.5)}
+CLOUD_PREFIXES = ("groq", "or:", "cf:", "pol:", "tdc:", "vc:", "l7:") + tuple(p + ":" for p in X_PROVIDERS)
 ACCOUNTS_DIR = os.path.join(BASE_DIR, "accounts")   # uma pasta por conta, com o nome dela (a do dono e a dos amigos)
 def _find_owner_name():
     """O nome da conta do dono e o da pasta de accounts/ cujo account.json tem "role": "owner". Se voce renomear a pasta (e o "name" dentro dela), o app segue o novo nome."""
@@ -240,6 +244,7 @@ def load_config():
     cfg.setdefault("cloudflare_account_id", "")
     cfg.setdefault("pollinations_api_key", "")   # Pollinations: modelos que gastam pollen
     cfg.setdefault("vercel_api_key", "")         # Vercel AI Gateway (modelos "-free")
+    for _f, _u, _n, _s in X_PROVIDERS.values(): cfg.setdefault(_f, "")
     cfg.setdefault("aichixia_api_key", ""); cfg.setdefault("aihubmix_api_key", ""); cfg.setdefault("literouter_api_key", "")   # Aichixia, AIHubMix e LiteRouter (so os modelos gratis)
     cfg.setdefault("llm7_api_key", "")           # LLM7 (modelos do plano "turbo", sem saldo)
     cfg.setdefault("tomdacat_api_key", "")       # tomdacat (ai.tomdacat.com): gateway de modelos cobrado em creditos
@@ -287,6 +292,7 @@ def save_state(data): _write_json(STATE_FILE, data)
 # ---------------------------------------------------------------- contas no PC + aparelhos confiaveis
 TRUSTED_FILE = os.path.join(BASE_DIR, "trusted_devices.json")   # aparelhos (iPhone) que ja mandaram copia; so os marcados como confiaveis recebem chaves, conversas e memorias
 SYNC_KEYS = ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "tomdacat_api_key", "vercel_api_key", "llm7_api_key", "aichixia_api_key", "aihubmix_api_key", "literouter_api_key", "exa_api_key") + tuple(k + "_backup" for k in ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "tomdacat_api_key", "vercel_api_key", "llm7_api_key", "aichixia_api_key", "aihubmix_api_key", "literouter_api_key"))
+SYNC_KEYS = SYNC_KEYS + tuple(f for f, _u, _n, _s in X_PROVIDERS.values() if f not in SYNC_KEYS) + tuple(f + "_backup" for f, _u, _n, _s in X_PROVIDERS.values() if f + "_backup" not in SYNC_KEYS)
 ACTIVE_ACCOUNT = ""   # "" = a conta do dono
 
 def load_trusted():
@@ -448,7 +454,7 @@ def build_stats(days=30):
     # Ollama: a conta so mede o uso da nuvem por tempo de GPU em janelas de 5 h e 7 dias; aqui e a soma do que passou por este app
     oll = {"h5": {"requests": 0, "seconds": 0.0, "tokens": 0}, "d7": {"requests": 0, "seconds": 0.0, "tokens": 0}, "month": {}, "local": {"requests": 0, "seconds": 0.0, "tokens": 0}}
     for e in allev:
-        if e.get("type") != "chat" or str(e.get("model", "")).startswith(("groq", "or:", "cf:", "pol:", "tdc:", "vc:", "l7:", "ac:", "ah:", "lr:")) or e.get("ts", 0) < now - 30 * 86400: continue
+        if e.get("type") != "chat" or str(e.get("model", "")).startswith(CLOUD_PREFIXES) or e.get("ts", 0) < now - 30 * 86400: continue
         sec, tk, age = e.get("seconds", 0.0), e.get("tokens", 0), now - e["ts"]
         if is_ollama_cloud(e.get("model")):
             if age <= 5 * 3600: oll["h5"]["requests"] += 1; oll["h5"]["seconds"] += sec; oll["h5"]["tokens"] += tk
@@ -1456,8 +1462,8 @@ AC_URL = "https://www.aichixia.xyz/api/v1"   # Aichixia: so os modelos do plano 
 AH_URL = "https://aihubmix.com/v1"           # AIHubMix: so os que terminam em "free"
 LR_URL = "https://api.literouter.com/v1"     # LiteRouter: so os ":free" (1 pedido a cada 7 s no plano gratis)
 LR_BLOCKED = {"kimi-k3-cheap:free", "muse-spark-1.2-contributor:free"}   # a API responde "model is not available" (o resto dos ":free" respondeu num teste com 1024 tokens; com 16 os modelos que pensam davam 502 por resposta vazia)
-AH_EXCLUDE = re.compile(r"phi-|north-|mythomax|intern-|dots-|lfm|xing|flint|agents-a|step-|command-|compound|magistral|mistral-7b|llama|grok|safety|guard|embed|whisper|tts|image", re.I)   # sem Llama nem Grok, e sem modelos "aleatorios" que ninguem pediu
-_x_cache = {"ac": [0, []], "ah": [0, []], "lr": [0, []]}
+AH_EXCLUDE = re.compile(r"phi-|north-|mythomax|intern-|dots-|lfm|xing|flint|agents-a|step-|command-|compound|sarvam|nova-|seed-|hy4|gpt-3\.5|grok|safety|guard|embed|whisper|tts|image", re.I)   # sem Llama nem Grok, e sem modelos "aleatorios" que ninguem pediu
+_x_cache = {p: [0, []] for p in X_PROVIDERS}
 # Vercel: so os gratis que pediu. Eles so funcionam com um cartao cadastrado na conta Vercel (a Vercel exige, mesmo para os "-free").
 VERCEL_MODELS = [("poolside/laguna-s-2.1-free", "Laguna S 2.1"), ("nvidia/nemotron-3.5-lightning-free", "Nemotron 3.5 Lightning"), ("reflection/beam-free", "Beam")]
 _vc_cache = {"t": 0, "models": []}; _l7_cache = {"t": 0, "models": []}
@@ -1477,7 +1483,7 @@ def vercel_models(cfg, force=False):
 HEALTH_FILE = os.path.join(BASE_DIR, "provider_health.json")   # resultado do ultimo teste de cada modelo: {"lr:id": {ok, ts, ms, err}}
 HEALTH_EVERY = 600     # a cada 10 minutos
 HEALTH_BATCH = 12      # alem dos que falharam, quantos modelos "bons" conferir por rodada (assim todos passam pelo teste de tempos em tempos sem encher o limite gratis)
-HEALTH_SPACING = {"lr": 8.0, "ac": 1.5, "ah": 1.5}   # segundos entre testes (o LiteRouter so aceita 1 pedido a cada 7 s)
+HEALTH_SPACING = {p: v[3] for p, v in X_PROVIDERS.items()}   # segundos entre testes (o LiteRouter so aceita 1 pedido a cada 7 s)
 _health = {}; _health_started = False
 
 def _health_load():
@@ -1490,7 +1496,7 @@ def model_is_healthy(prov, mid):
 
 def health_test(prov, mid, cfg):
     """1 pedido de verdade: responde se vier texto (modelos que pensam precisam de bastante espaco: 512 tokens). Devolve (ok, ms, erro)."""
-    field, base = {"ac": ("aichixia_api_key", AC_URL), "ah": ("aihubmix_api_key", AH_URL), "lr": ("literouter_api_key", LR_URL)}[prov]
+    field, base = X_PROVIDERS[prov][:2]
     key = (cfg.get(field) or "").strip()
     body = json.dumps({"model": mid, "messages": [{"role": "user", "content": "Responda so a palavra: ok"}], "max_tokens": 512}).encode()
     req = urllib.request.Request(base + "/chat/completions", data=body, headers={"Authorization": "Bearer " + key, "Content-Type": "application/json", "User-Agent": "lume-app"})
@@ -1510,8 +1516,8 @@ def health_test(prov, mid, cfg):
 def health_cycle():
     """Reconfere os modelos que falharam (para voltarem quando melhorarem) e um grupo dos outros; quem falha duas vezes seguidas some da lista."""
     cfg = load_config(); changed = False
-    for prov in ("lr", "ac", "ah"):
-        if not cfg.get({"ac": "aichixia_api_key", "ah": "aihubmix_api_key", "lr": "literouter_api_key"}[prov]): continue
+    for prov in X_PROVIDERS:
+        if not cfg.get(X_PROVIDERS[prov][0]): continue
         try: ids = [m["id"] for m in extra_models(prov, cfg, force=True, raw=True)]
         except Exception: continue
         failed = [i for i in ids if not model_is_healthy(prov, i)]
@@ -1539,12 +1545,11 @@ def health_loop():
 
 def extra_models(prov, cfg, force=False, raw=False):
     """Modelos gratis de Aichixia (ac), AIHubMix (ah) e LiteRouter (lr): [{id, name, ctx, vision}]; em cache por 1 h. Os que falharam no teste de saude ficam de fora (raw=True traz todos)."""
-    field = {"ac": "aichixia_api_key", "ah": "aihubmix_api_key", "lr": "literouter_api_key"}[prov]
+    field, base = X_PROVIDERS[prov][:2]
     key = (cfg.get(field) or "").strip()
     if not key: return []
     t, cached = _x_cache[prov]
     if not force and cached and time.time() - t < 3600: return cached if raw else [m for m in cached if model_is_healthy(prov, m["id"])]
-    base = {"ac": AC_URL, "ah": AH_URL, "lr": LR_URL}[prov]
     data = _openai_models(base, key); out = []
     for m in data:
         mid = str(m.get("id") or "")
@@ -1556,6 +1561,9 @@ def extra_models(prov, cfg, force=False, raw=False):
         elif prov == "ah":
             if not re.search(r"(^|[-:/])free$", mid) or AH_EXCLUDE.search(mid): continue
             out.append({"id": mid, "name": mid.split("/")[-1], "ctx": 128000, "vision": False})
+        elif prov == "px":   # Paxsenix: so o plano free (os "High Engine" nao entram) e sem os "(Provider N)" repetidos
+            if m.get("type") != "chat.completions" or m.get("min_plan") or mid.startswith("provider-") or AH_EXCLUDE.search(mid): continue
+            out.append({"id": mid, "name": m.get("name") or mid, "ctx": m.get("max_context_tokens") or 128000, "vision": bool(m.get("supports_vision"))})
         else:
             if not mid.endswith(":free") or m.get("type") != "chat" or mid in LR_BLOCKED or AH_EXCLUDE.search(mid): continue
             caps = m.get("capabilities") or {}
@@ -2165,7 +2173,7 @@ def stream_pollinations(model, messages, think, cfg, max_tokens=None, agent=Fals
             if n + 1 < len(chain): yield "status", "Provedor fora do ar; tentando o proximo"
     raise last or Exception("O Pollinations nao respondeu.")
 
-KEY_FIELDS = (("ac:", "aichixia_api_key"), ("ah:", "aihubmix_api_key"), ("lr:", "literouter_api_key"), ("pol:", "pollinations_api_key"), ("tdc:", "tomdacat_api_key"), ("vc:", "vercel_api_key"), ("l7:", "llm7_api_key"), ("or:", "openrouter_api_key"), ("groq", "groq_api_key"))
+KEY_FIELDS = tuple((p + ":", v[0]) for p, v in X_PROVIDERS.items()) + (("pol:", "pollinations_api_key"), ("tdc:", "tomdacat_api_key"), ("vc:", "vercel_api_key"), ("l7:", "llm7_api_key"), ("or:", "openrouter_api_key"), ("groq", "groq_api_key"))
 _bad_keys = {}   # chave -> ate quando evitar (ela falhou por saldo/limite/invalida)
 KEY_FAIL_RE = re.compile(r"\b(401|402|403|429)\b|chave|saldo|pollen|credit|quota|limite|api key|unauthorized", re.I)
 
@@ -2196,13 +2204,12 @@ def stream_model(model, messages, think, cfg, num_ctx=None, max_tokens=None, age
     return _stream_model_once(model, messages, think, cfg, num_ctx, max_tokens, agent, effort)
 
 def _stream_model_once(model, messages, think, cfg, num_ctx=None, max_tokens=None, agent=False, effort=None):
+    for _p, (_f, _u, _n, _s) in X_PROVIDERS.items():
+        if model.startswith(_p + ":"): return stream_openai_compat(model[len(_p) + 1:], messages, _u, cfg.get(_f), "O " + _n, max_tokens)
     if model.startswith("pol:"): return stream_pollinations(model, messages, think, cfg, max_tokens, agent, effort)
     if model.startswith("tdc:"): return stream_tomdacat(model, messages, cfg, max_tokens)
     if model.startswith("vc:"): return stream_openai_compat(model[3:], messages, VERCEL_URL, cfg.get("vercel_api_key"), "A Vercel", max_tokens)
     if model.startswith("l7:"): return stream_openai_compat(model[3:], messages, LLM7_URL, cfg.get("llm7_api_key"), "O LLM7", max_tokens)
-    if model.startswith("ac:"): return stream_openai_compat(model[3:], messages, AC_URL, cfg.get("aichixia_api_key"), "O Aichixia", max_tokens)
-    if model.startswith("ah:"): return stream_openai_compat(model[3:], messages, AH_URL, cfg.get("aihubmix_api_key"), "O AIHubMix", max_tokens)
-    if model.startswith("lr:"): return stream_openai_compat(model[3:], messages, LR_URL, cfg.get("literouter_api_key"), "O LiteRouter", max_tokens)
     if model.startswith("or:"): return stream_openrouter(model, messages, think, cfg, max_tokens)
     if model.startswith("cf:"): return stream_cloudflare(model, messages, think, cfg, max_tokens)
     return stream_groq(model, messages, cfg, max_tokens) if model.startswith("groq") else stream_ollama(model, messages, think, num_ctx, max_tokens)
@@ -2651,7 +2658,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         if p == '/api/extra_models':
             if not local: return self.send_json({"error": "local_only"}, 403)
             cfg = load_config(); out = {}
-            for prov, field in (("ac", "aichixia_api_key"), ("ah", "aihubmix_api_key"), ("lr", "literouter_api_key")):
+            for prov, (field, _u, _n, _s) in X_PROVIDERS.items():
                 if not cfg.get(field): out[prov] = {"saved": False, "models": []}; continue
                 try: out[prov] = {"saved": True, "models": extra_models(prov, cfg)}
                 except Exception as e: out[prov] = {"saved": True, "models": [], "error": str(e)[:200]}
@@ -2707,7 +2714,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             except Exception as e: return self.send_json({"saved": True, "models": [], "error": str(e)[:200]})
         if p == '/api/config_status':
             cfg = load_config()
-            return self.send_json({"groq_key_saved": bool(cfg.get("groq_api_key")), "openrouter_key_saved": bool(cfg.get("openrouter_api_key")), "cloudflare_saved": all(cf_creds(cfg)), "pollinations_saved": bool(cfg.get("pollinations_api_key")), "tomdacat_saved": bool(cfg.get("tomdacat_api_key")), "vercel_saved": bool(cfg.get("vercel_api_key")), "llm7_saved": bool(cfg.get("llm7_api_key")), "aichixia_saved": bool(cfg.get("aichixia_api_key")), "aihubmix_saved": bool(cfg.get("aihubmix_api_key")), "literouter_saved": bool(cfg.get("literouter_api_key")),  "exa_key_saved": bool(exa_api_key(cfg)), "search_provider": cfg.get("search_provider", "auto"), "exa_type": cfg.get("exa_type", "lite"), "search_results": max_results(), "search_daily_limit": cfg.get("search_daily_limit", 100), "exa_today": exa_searches_today(), "auto_allow": bool(cfg.get("auto_allow")), "workdir": get_workdir(cfg) if local else "", "default_workdir": BASE_DIR if local else ""})
+            return self.send_json({"groq_key_saved": bool(cfg.get("groq_api_key")), "openrouter_key_saved": bool(cfg.get("openrouter_api_key")), "cloudflare_saved": all(cf_creds(cfg)), "pollinations_saved": bool(cfg.get("pollinations_api_key")), "tomdacat_saved": bool(cfg.get("tomdacat_api_key")), "vercel_saved": bool(cfg.get("vercel_api_key")), "llm7_saved": bool(cfg.get("llm7_api_key")), "x_saved": {p: bool(cfg.get(v[0])) for p, v in X_PROVIDERS.items()}, "aichixia_saved": bool(cfg.get("aichixia_api_key")), "aihubmix_saved": bool(cfg.get("aihubmix_api_key")), "literouter_saved": bool(cfg.get("literouter_api_key")),  "exa_key_saved": bool(exa_api_key(cfg)), "search_provider": cfg.get("search_provider", "auto"), "exa_type": cfg.get("exa_type", "lite"), "search_results": max_results(), "search_daily_limit": cfg.get("search_daily_limit", 100), "exa_today": exa_searches_today(), "auto_allow": bool(cfg.get("auto_allow")), "workdir": get_workdir(cfg) if local else "", "default_workdir": BASE_DIR if local else ""})
         if p == '/api/models_status':
             tags = ollama_tags(); running = tags is not None
             used, total, _ = get_gpu_metrics()
@@ -2966,10 +2973,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 if k in data:
                     try: data[k] = max(lo, min(hi, int(data[k])))
                     except (TypeError, ValueError): return self.send_json({"error": "Opcao de pesquisa invalida."}, 400)
-            for k in ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "cloudflare_api_token", "cloudflare_account_id", "exa_api_key", "tomdacat_api_key", "vercel_api_key", "llm7_api_key", "aichixia_api_key", "aihubmix_api_key", "literouter_api_key", "aichixia_api_key_backup", "aihubmix_api_key_backup", "literouter_api_key_backup", "groq_api_key_backup", "openrouter_api_key_backup", "pollinations_api_key_backup", "tomdacat_api_key_backup", "vercel_api_key_backup", "llm7_api_key_backup", "workdir", "search_provider", "exa_type", "search_results", "search_daily_limit", "auto_allow"):
+            for k in ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "cloudflare_api_token", "cloudflare_account_id", "exa_api_key", "tomdacat_api_key", "vercel_api_key", "llm7_api_key", "aichixia_api_key", "aihubmix_api_key", "literouter_api_key", "aichixia_api_key_backup", "aihubmix_api_key_backup", "literouter_api_key_backup", "paxsenix_api_key", "paxsenix_api_key_backup", "groq_api_key_backup", "openrouter_api_key_backup", "pollinations_api_key_backup", "tomdacat_api_key_backup", "vercel_api_key_backup", "llm7_api_key_backup", "workdir", "search_provider", "exa_type", "search_results", "search_daily_limit", "auto_allow"):
                 if k in data: cfg[k] = bool(data[k]) if k == "auto_allow" else data[k].strip() if k.endswith(("_key", "_token", "_id", "_backup")) else data[k]
             save_config(cfg)
-            secrets_sent = [k for k in ("aichixia_api_key", "aihubmix_api_key", "literouter_api_key", "aichixia_api_key_backup", "aihubmix_api_key_backup", "literouter_api_key_backup", "groq_api_key_backup", "openrouter_api_key_backup", "pollinations_api_key_backup", "tomdacat_api_key_backup", "vercel_api_key_backup", "llm7_api_key_backup", "groq_api_key", "openrouter_api_key", "pollinations_api_key", "tomdacat_api_key", "vercel_api_key", "llm7_api_key", "cloudflare_api_token", "exa_api_key") if k in data]
+            secrets_sent = [k for k in ("aichixia_api_key", "aihubmix_api_key", "literouter_api_key", "aichixia_api_key_backup", "aihubmix_api_key_backup", "literouter_api_key_backup", "paxsenix_api_key", "paxsenix_api_key_backup", "groq_api_key_backup", "openrouter_api_key_backup", "pollinations_api_key_backup", "tomdacat_api_key_backup", "vercel_api_key_backup", "llm7_api_key_backup", "groq_api_key", "openrouter_api_key", "pollinations_api_key", "tomdacat_api_key", "vercel_api_key", "llm7_api_key", "cloudflare_api_token", "exa_api_key") if k in data]
             log("CONFIG", "Configuracoes salvas (" + ", ".join([k for k in data if k not in secrets_sent] + [f"chave {k.split('_')[0]}" for k in secrets_sent]) + ")", COLOR_GREEN)
             return self.send_json({"ok": True})
 
@@ -3428,7 +3435,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         use_tools = agent or web_tool; max_steps = MAX_AGENT_STEPS if agent else 4
         kw_model = {k: v for k, v in (("agent", ("web" if web_tool else True) if use_tools else None), ("effort", str(req_json.get("effort") or "") or None)) if v}   # so manda o que foi pedido
         try:
-            if not model.startswith(("groq", "or:", "cf:", "pol:", "tdc:", "vc:", "l7:", "ac:", "ah:", "lr:")):
+            if not model.startswith(CLOUD_PREFIXES):
                 if not ollama_is_running():
                     status("Iniciando Ollama")
                     if not start_ollama(): raise Exception("Nao consegui iniciar o Ollama. Ele esta instalado?")
@@ -3582,7 +3589,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 cfg = load_config()
                 cfg["usage"]["groq"] += total_chars
                 save_config(cfg)
-            record_event({"type": "chat", **({"user": gid} if gid else {}), "model": model, "cloud": model.startswith(("groq", "or:", "cf:", "pol:", "tdc:", "vc:", "l7:", "ac:", "ah:", "lr:")), "tab": "code" if agent else "chat",
+            record_event({"type": "chat", **({"user": gid} if gid else {}), "model": model, "cloud": model.startswith(CLOUD_PREFIXES), "tab": "code" if agent else "chat",
                           "tokens": req_tokens or total_chars // 4, "seconds": req_seconds or (time.time() - started), "prompt_tokens": req_prompt, "chars": total_chars,
                           **({"pollen": round(pol_cost(model, req_prompt, req_tokens or total_chars // 4), 8)} if model.startswith("pol:") else {})})
             if model.startswith("cf:") and not gid:

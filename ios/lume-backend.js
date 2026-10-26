@@ -15,8 +15,9 @@ const realFetch = window.fetch.bind(window);
 const enc = new TextEncoder();
 const POL_API = 'https://gen.pollinations.ai', OR_URL = 'https://openrouter.ai/api/v1', GROQ_URL = 'https://api.groq.com/openai/v1';
 const VERCEL_URL = 'https://ai-gateway.vercel.sh/v1', LLM7_URL = 'https://api.llm7.io/v1', TDC_URL = 'https://ai.tomdacat.com';
-const AC_URL = 'https://www.aichixia.xyz/api/v1', AH_URL = 'https://aihubmix.com/v1', LR_URL = 'https://api.literouter.com/v1';
-const CLOUD_PREFIX = /^(groq|or:|cf:|pol:|tdc:|vc:|l7:|ac:|ah:|lr:)/;
+const AC_URL = 'https://www.aichixia.xyz/api/v1', AH_URL = 'https://aihubmix.com/v1', LR_URL = 'https://api.literouter.com/v1', PX_URL = 'https://api.paxsenix.org/v1';
+const XPROV = { lr: ['literouter_api_key', LR_URL, 'LiteRouter', 8000], ac: ['aichixia_api_key', AC_URL, 'Aichixia', 1500], ah: ['aihubmix_api_key', AH_URL, 'AIHubMix', 1500], px: ['paxsenix_api_key', PX_URL, 'Paxsenix', 1500] };   // um lugar so para colocar outro provedor
+const CLOUD_PREFIX = /^(groq|or:|cf:|pol:|tdc:|vc:|l7:|ac:|ah:|lr:|px:)/;
 const now = () => Date.now() / 1000;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const re = (src, flags) => { try { return new RegExp(src.replace(/\(\?i\)/g, ''), flags || 'i'); } catch (e) { return /^$/; } };
@@ -170,7 +171,7 @@ function polCost(model, ptok, otok) {   // pollen gasto (precos por milhao de to
 }
 // ---------------------------------------------------------------- Aichixia / AIHubMix / LiteRouter: lista crua + teste de saude a cada 10 min
 const XEX = () => re(D.X_EXCLUDE || '^$');   // modelos que nao entram (aleatorios, Llama, Grok...)
-const XFIELD = { ac: 'aichixia_api_key', ah: 'aihubmix_api_key', lr: 'literouter_api_key' }, XBASE = { ac: AC_URL, ah: AH_URL, lr: LR_URL };
+const XFIELD = Object.fromEntries(Object.entries(XPROV).map(([p, v]) => [p, v[0]])), XBASE = Object.fromEntries(Object.entries(XPROV).map(([p, v]) => [p, v[1]]));
 async function extraRaw(p, cfg) {
     const c = cache[p] || (cache[p] = { t: 0, v: null }); if (c.v && now() - c.t < 3600) return c.v;
     const list = [];
@@ -178,6 +179,7 @@ async function extraRaw(p, cfg) {
         const id = String(m.id || ''); if (!id) continue;
         if (p === 'ac') { const caps = m.capabilities || []; if (m.tier !== 'free' || !caps.includes('chat') || XEX().test(id)) continue; list.push({ id, name: id.split('/').pop(), ctx: m.context_window || 128000, vision: caps.includes('multimodal') }); }
         else if (p === 'ah') { if (!/(^|[-:/])free$/.test(id) || XEX().test(id)) continue; list.push({ id, name: id.split('/').pop(), ctx: 128000, vision: false }); }
+        else if (p === 'px') { if (m.type !== 'chat.completions' || m.min_plan || id.startsWith('provider-') || XEX().test(id)) continue; list.push({ id, name: m.name || id, ctx: m.max_context_tokens || 128000, vision: !!m.supports_vision }); }
         else { if (!id.endsWith(':free') || m.type !== 'chat' || (D.LR_BLOCKED || []).includes(id) || XEX().test(id)) continue; list.push({ id, name: m.display_name || id, ctx: m.context_window || 128000, vision: !!(m.capabilities || {}).vision }); }
     }
     list.sort((a, b) => a.id < b.id ? -1 : 1); c.v = list; c.t = now(); return list;
@@ -195,8 +197,8 @@ let healthRunning = false;
 async function healthCycle() {   // reconfere os que falharam + 12 dos outros; falhou duas vezes seguidas = some da lista
     if (healthRunning || (typeof document !== 'undefined' && document.visibilityState === 'hidden')) return; healthRunning = true;
     try {
-        const cfg = await loadConfig(), health = await kv.rawGet('health', {}), gap = { lr: 8000, ac: 1500, ah: 1500 };
-        for (const p of ['lr', 'ac', 'ah']) {
+        const cfg = await loadConfig(), health = await kv.rawGet('health', {}), gap = Object.fromEntries(Object.entries(XPROV).map(([p, v]) => [p, v[3]]));
+        for (const p of Object.keys(XPROV)) {
             if (!cfg[XFIELD[p]]) continue; let ids; try { ids = (await extraRaw(p, cfg)).map(m => m.id); } catch (e) { continue; }
             const bad = ids.filter(i => (health[p + ':' + i] || {}).ok === false), rest = ids.filter(i => !bad.includes(i)).sort((a, b) => ((health[p + ':' + a] || {}).ts || 0) - ((health[p + ':' + b] || {}).ts || 0)).slice(0, 12);
             for (const id of bad.concat(rest)) {
@@ -394,7 +396,7 @@ async function* streamOllama(model, messages, think, numCtx, maxTokens, cfg, sig
 }
 
 // chaves de reserva: se a principal morrer antes de qualquer resposta, tenta a proxima (evita a que falhou por 10 min)
-const KEY_FIELDS = [['ac:', 'aichixia_api_key'], ['ah:', 'aihubmix_api_key'], ['lr:', 'literouter_api_key'], ['pol:', 'pollinations_api_key'], ['tdc:', 'tomdacat_api_key'], ['vc:', 'vercel_api_key'], ['l7:', 'llm7_api_key'], ['or:', 'openrouter_api_key'], ['groq', 'groq_api_key']];
+const KEY_FIELDS = [...Object.entries(XPROV).map(([p, v]) => [p + ':', v[0]]), ['pol:', 'pollinations_api_key'], ['tdc:', 'tomdacat_api_key'], ['vc:', 'vercel_api_key'], ['l7:', 'llm7_api_key'], ['or:', 'openrouter_api_key'], ['groq', 'groq_api_key']];
 const KEY_FAIL = /\b(401|402|403|429)\b|chave|saldo|pollen|credit|quota|limite|api key|unauthorized/i, badKeys = {};
 function streamOnce(model, messages, o) {
     const { think, cfg, numCtx, maxTokens, effort, signal } = o;
@@ -402,9 +404,7 @@ function streamOnce(model, messages, o) {
     if (model.startsWith('tdc:')) return streamTomdacat(model, messages, cfg, maxTokens, signal);
     if (model.startsWith('vc:')) return streamOaiCompat(model.slice(3), messages, VERCEL_URL, cfg.vercel_api_key, 'A Vercel', maxTokens, signal);
     if (model.startsWith('l7:')) return streamOaiCompat(model.slice(3), messages, LLM7_URL, cfg.llm7_api_key, 'O LLM7', maxTokens, signal);
-    if (model.startsWith('ac:')) return streamOaiCompat(model.slice(3), messages, AC_URL, cfg.aichixia_api_key, 'O Aichixia', maxTokens, signal);
-    if (model.startsWith('ah:')) return streamOaiCompat(model.slice(3), messages, AH_URL, cfg.aihubmix_api_key, 'O AIHubMix', maxTokens, signal);
-    if (model.startsWith('lr:')) return streamOaiCompat(model.slice(3), messages, LR_URL, cfg.literouter_api_key, 'O LiteRouter', maxTokens, signal);
+    for (const [p, v] of Object.entries(XPROV)) if (model.startsWith(p + ':')) return streamOaiCompat(model.slice(p.length + 1), messages, v[1], cfg[v[0]], 'O ' + v[2], maxTokens, signal);
     if (model.startsWith('or:')) return streamOpenrouter(model, messages, think, cfg, maxTokens, signal);
     if (model.startsWith('cf:')) return (async function* () { throw new Error('O Cloudflare Workers AI ainda nao esta disponivel no iPhone. Use os outros provedores.'); })();
     if (model.startsWith('groq')) return streamGroq(model, messages, cfg, maxTokens, signal);
@@ -505,7 +505,7 @@ function handleChat(req) {
 // ---------------------------------------------------------------- rotas
 const SECRET_KEYS = ['groq_api_key', 'openrouter_api_key', 'pollinations_api_key', 'cloudflare_api_token', 'cloudflare_account_id', 'exa_api_key', 'tomdacat_api_key', 'vercel_api_key', 'llm7_api_key',
     'groq_api_key_backup', 'openrouter_api_key_backup', 'pollinations_api_key_backup', 'tomdacat_api_key_backup', 'vercel_api_key_backup', 'llm7_api_key_backup',
-    'aichixia_api_key', 'aihubmix_api_key', 'literouter_api_key', 'aichixia_api_key_backup', 'aihubmix_api_key_backup', 'literouter_api_key_backup'];
+    'aichixia_api_key', 'aihubmix_api_key', 'literouter_api_key', 'paxsenix_api_key', 'aichixia_api_key_backup', 'aihubmix_api_key_backup', 'literouter_api_key_backup', 'paxsenix_api_key_backup'];
 const NOPE = () => json({ ok: false, error: 'Isto precisa do PC e nao existe no iPhone.' }, 400);
 const listModels = (keyName, fn) => async () => {
     const cfg = await loadConfig(); if (!cfg[keyName]) return json({ saved: false, models: [] });
@@ -591,7 +591,7 @@ const ROUTES = {
     'POST /api/stats_clear': async () => { await kv.set('stats', { events: [] }); return json({ ok: true }); },
     'GET /api/config_status': async () => {
         const c = await loadConfig();
-        return json({ groq_key_saved: !!c.groq_api_key, openrouter_key_saved: !!c.openrouter_api_key, cloudflare_saved: false, pollinations_saved: !!c.pollinations_api_key, tomdacat_saved: !!c.tomdacat_api_key, vercel_saved: !!c.vercel_api_key, llm7_saved: !!c.llm7_api_key, aichixia_saved: !!c.aichixia_api_key, aihubmix_saved: !!c.aihubmix_api_key, literouter_saved: !!c.literouter_api_key,
+        return json({ groq_key_saved: !!c.groq_api_key, openrouter_key_saved: !!c.openrouter_api_key, cloudflare_saved: false, pollinations_saved: !!c.pollinations_api_key, tomdacat_saved: !!c.tomdacat_api_key, vercel_saved: !!c.vercel_api_key, llm7_saved: !!c.llm7_api_key, x_saved: Object.fromEntries(Object.entries(XPROV).map(([p, v]) => [p, !!c[v[0]]])), aichixia_saved: !!c.aichixia_api_key, aihubmix_saved: !!c.aihubmix_api_key, literouter_saved: !!c.literouter_api_key,
             exa_key_saved: !!c.exa_api_key, search_provider: c.search_provider, exa_type: c.exa_type, search_results: c.search_results, search_daily_limit: c.search_daily_limit, exa_today: 0, auto_allow: false, workdir: '', default_workdir: '', ollama_url: c.ollama_url || '' });
     },
     'POST /api/save_config': async (u, b) => {
@@ -635,7 +635,7 @@ const ROUTES = {
     'GET /api/tomdacat_models': listModels('tomdacat_api_key', tomdacatModels),
         'GET /api/extra_models': async () => {
         const cfg = await loadConfig(), out = {}, health = await kv.rawGet('health', {});
-        for (const p of ['ac', 'ah', 'lr']) {
+        for (const p of Object.keys(XPROV)) {
             if (!cfg[XFIELD[p]]) { out[p] = { saved: false, models: [] }; continue; }
             try { const list = await extraRaw(p, cfg); out[p] = { saved: true, models: list.filter(m => !health[p + ':' + m.id] || health[p + ':' + m.id].ok !== false) }; }
             catch (e) { out[p] = { saved: true, models: [], error: String(e.message || e).slice(0, 200) }; }
