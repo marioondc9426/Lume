@@ -23,6 +23,7 @@
         .chess-sq.sel { box-shadow: inset 0 0 0 4px rgba(255, 214, 10, .85); } .chess-sq.last { background-image: linear-gradient(rgba(255, 238, 90, .45), rgba(255, 238, 90, .45)); }
         .chess-sq.ill { background-image: linear-gradient(rgba(220, 60, 60, .45), rgba(220, 60, 60, .45)); }
         .chess-sq.chk { background-image: radial-gradient(circle, rgba(255, 40, 40, .9) 0%, rgba(255, 40, 40, 0) 70%); }
+        .chess-sq.pre { background-image: linear-gradient(rgba(40, 120, 255, .5), rgba(40, 120, 255, .5)); }
         .chess-sq.mark { box-shadow: inset 0 0 0 100px rgba(235, 64, 52, .5); }
         .chess-sq.tgt::after { content: ''; position: absolute; width: 28%; height: 28%; border-radius: 50%; background: rgba(20, 20, 20, .28); }
         .chess-sq.tgt.cap::after { width: 86%; height: 86%; background: none; border: 5px solid rgba(20, 20, 20, .28); }
@@ -116,7 +117,7 @@
     // ---------------------------------------------------------------- jogo
     function newGame(o) {
         const human = o.color === 'random' ? (Math.random() < 0.5 ? 'w' : 'b') : o.color, opts = st ? st.opts : { illegal: false, rank: false, noSpawn: true };
-        game = new Chess(); st = { human, model: o.model, flip: human === 'b', sel: null, targets: [], last: null, illegal: [], arrows: [], marks: [], thinking: false, over: '', note: '', rid: null, token: Math.random(), log: [], an: {}, cls: {}, opts, review: null, busy: '', rk: 0 };
+        game = new Chess(); st = { human, model: o.model, flip: human === 'b', sel: null, targets: [], last: null, illegal: [], arrows: [], marks: [], thinking: false, over: '', note: '', rid: null, token: Math.random(), log: [], an: {}, cls: {}, opts, review: null, busy: '', rk: 0, pre: null, psel: null };
         render(); if (human === 'b') aiMove();
     }
     function result() {
@@ -153,7 +154,7 @@
         board.querySelectorAll('.chess-sq').forEach(e => e.remove());
         for (let row = 0; row < 8; row++) for (let col = 0; col < 8; col++) {
             const f = st.flip ? 7 - col : col, r = st.flip ? row : 7 - row, name = sqName(f, r), p = b[7 - r][f], d = mk('div', 'chess-sq ' + ((f + r) % 2 === 0 ? 'd' : 'l')); d.dataset.sq = name;
-            if (st.sel === name) d.classList.add('sel'); if (last && (last.from === name || last.to === name)) d.classList.add('last'); if (st.illegal.includes(name) && !rv && rv !== 0) d.classList.add('ill'); if (kingSq === name) d.classList.add('chk'); if (st.marks.includes(name)) d.classList.add('mark');
+            if (st.sel === name || st.psel === name) d.classList.add('sel'); if (st.pre && (st.pre.from === name || st.pre.to === name)) d.classList.add('pre'); if (last && (last.from === name || last.to === name)) d.classList.add('last'); if (st.illegal.includes(name) && !rv && rv !== 0) d.classList.add('ill'); if (kingSq === name) d.classList.add('chk'); if (st.marks.includes(name)) d.classList.add('mark');
             if (st.targets.includes(name)) { d.classList.add('tgt'); if (p) d.classList.add('cap'); }
             if (p) d.appendChild(pieceEl(p));
             if (col === 0) d.appendChild(mk('span', 'chess-co r', String(r + 1))); if (row === 7) d.appendChild(mk('span', 'chess-co f', FILES[f]));
@@ -235,24 +236,29 @@
         const sys = free ? 'Você joga xadrez de verdade e quer ganhar. Em cada vez, responda SOMENTE com o seu lance em coordenadas (exemplos: e2e4, g1f3, e7e8q). Nada de explicação, nada de outro texto.' + (st.opts.noSpawn ? '' : ' Em vez de mover, você também pode CRIAR uma peça sua do nada numa casa, escrevendo +peça@casa (exemplo: +Q@d5 cria uma dama sua em d5).')
             : 'Você joga xadrez de verdade e quer ganhar. Em cada vez, responda SOMENTE com um lance da lista de lances legais, exatamente como está escrito (notação SAN, por exemplo: Nf3, exd5, O-O, e8=Q). Nada de explicação, nada de outro texto.';
         const ask = extra => ([{ role: 'system', content: sys }, { role: 'user', content: `Posição (FEN): ${fen0}\nLances até agora: ${movesText() || '(nenhum, é o primeiro lance)'}\nVocê joga de ${color}.${free ? '' : '\nLances legais: ' + legal.join(', ')}\nResponda só com o seu lance.${extra || ''}` }]);
-        let chosen = null, forced = null, spawn = null, extra = '', ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 180000);
+        let chosen = null, forced = null, spawn = null, err = false, extra = '', ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 180000);
         try {
             for (let i = 0; i < 3 && !chosen && !forced && !spawn; i++) {
                 const text = await askModel(ask(extra), ctl.signal); if (my !== st.token) return;
-                if (/^\s*\[Erro/.test(text)) { st.note = text.trim().slice(0, 220); break; }
+                if (/^\s*\[Erro/.test(text)) { st.note = text.trim().slice(0, 220); err = true; break; }
                 chosen = parseMove(text, legal);
                 if (!chosen && free) { const sp = parseSpawn(text); if (sp) { if (st.opts.noSpawn) { extra = '\nCriar peças do nada está BLOQUEADO. Mova uma peça que já está no tabuleiro.'; continue; } const cur = game.get(sp.sq); if ((cur && cur.color === game.turn()) || (sp.type === 'p' && (sp.sq[1] === '1' || sp.sq[1] === '8'))) { extra = '\nEssa casa não serve para criar a peça. Escolha outra.'; continue; } spawn = sp; break; } }
                 if (!chosen && free) { const c = parseCoord(text), p = c && game.get(c.from); if (c && p && p.color === game.turn()) { const lg = game.moves({ verbose: true }).find(m => m.from === c.from && m.to === c.to && (!m.promotion || m.promotion === (c.promo || 'q'))); if (lg) chosen = lg.san; else forced = c; } }
                 if (!chosen && !forced && !spawn) extra = free ? `\nA sua resposta anterior ("${String(text).trim().slice(0, 40)}") não tinha um lance em coordenadas (ex.: e2e4) com uma peça sua na casa de origem. Tente de novo.` : `\nA sua resposta anterior ("${String(text).trim().slice(0, 40)}") não era um lance legal. Escolha exatamente um da lista: ${legal.join(', ')}`;
             }
-        } catch (e) { if (my !== st.token) return; st.note = T('Não consegui falar com o modelo.'); }
+        } catch (e) { if (my !== st.token) return; st.note = T('Não consegui falar com o modelo.'); err = true; }
         clearTimeout(to); if (my !== st.token) return;
         st.thinking = false;
-        if (!chosen && !forced && !spawn && !st.note) { chosen = legal[Math.floor(Math.random() * legal.length)]; st.note = T('(o modelo não respondeu um lance válido; joguei um lance qualquer por ele)'); }
-        if (spawn) { const r = spawnPiece(spawn.type, spawn.sq); st.note = r ? T('⚠ O modelo CRIOU uma peça do nada.') : T('Lance ilegal sem efeito.'); }
-        else if (forced) { const r = forceMove(forced.from, forced.to, forced.promo); st.note = T('⚠ O modelo jogou um lance ILEGAL.'); if (!r) st.note = T('Lance ilegal sem efeito.'); }
+        if (!chosen && !forced && !spawn && !err) { chosen = legal[Math.floor(Math.random() * legal.length)]; st.note = T('(o modelo não respondeu um lance válido; joguei um lance qualquer por ele)'); }
+        if (spawn) { const r = spawnPiece(spawn.type, spawn.sq); st.note = r ? T('⚠ O modelo CRIOU uma peça do nada.') : T('Lance ilegal sem efeito.'); if (!r) { const rnd = legal[Math.floor(Math.random() * legal.length)]; const mv = game.move(rnd); pushLegal(fen0, mv); } }
+        else if (forced) { const r = forceMove(forced.from, forced.to, forced.promo); st.note = T('⚠ O modelo jogou um lance ILEGAL.'); if (!r) { st.note = T('Lance ilegal sem efeito.'); const rnd = legal[Math.floor(Math.random() * legal.length)]; const mv = game.move(rnd); pushLegal(fen0, mv); } }
         else if (chosen) { const mv = game.move(chosen); pushLegal(fen0, mv); }
-        st.arrows = []; st.marks = []; render(); afterMove();
+        st.arrows = []; st.marks = []; render(); afterMove(); runPremove();
+    }
+    function runPremove() {   // jogada adiantada: executa assim que o modelo responde, se ainda for legal
+        const p = st.pre; st.pre = null; st.psel = null; if (!p || game.game_over() || st.over || game.turn() !== st.human) { render(); return; }
+        const mv = game.moves({ verbose: true }).find(m => m.from === p.from && m.to === p.to); if (!mv) { render(); return; }
+        tryMove(p.from, p.to, mv.promotion ? 'q' : undefined);
     }
     function afterMove() { if (st.opts.rank && !st.over) rankNow(); }
     async function rankNow() {   // ranking ao vivo: analisa a posicao nova e classifica o ultimo lance
@@ -308,7 +314,18 @@
         board.addEventListener('pointerdown', e => { if (e.pointerType !== 'touch') return; const s = sqAt(e); press = setTimeout(() => { press = null; lpress = s; }, 380); });
         board.addEventListener('pointerup', e => { if (e.pointerType !== 'touch') return; if (press) { clearTimeout(press); press = null; } if (lpress) { const to = sqAt(e), from = lpress; lpress = null; if (to && to !== from) { st.arrows.push({ from, to, color: '#15781B' }); render(); } e.preventDefault(); } });
         board.addEventListener('click', e => {
-            if (lpress) return; const s = sqAt(e); if (!s || st.thinking) return;
+            if (lpress) return; const s = sqAt(e); if (!s) return;
+            if (st.review === null || st.review === undefined) {
+                if (st.thinking && !game.game_over() && !st.over) {   // vez do modelo: clique monta uma jogada adiantada
+                    const p = game.get(s);
+                    if (st.psel && s !== st.psel) { st.pre = { from: st.psel, to: s }; st.psel = null; }
+                    else if (p && p.color === st.human && s !== st.psel) { st.psel = s; st.pre = null; }
+                    else { st.psel = null; st.pre = null; }
+                    render(); return;
+                }
+                if (!st.thinking && !game.game_over() && !st.over && game.turn() !== st.human) { aiMove(); return; }   // o modelo nao jogou (erro): clicar tenta de novo
+            }
+            if (st.thinking) return;
             if (st.arrows.length || st.marks.length) { st.arrows = []; st.marks = []; }
             if (st.review !== null && st.review !== undefined) { render(); return; }
             if (game.game_over() || st.over || game.turn() !== st.human) { render(); return; }
@@ -348,7 +365,7 @@
         const btn = (txt, fn) => { const b = mk('button', 'btn btn-secondary', T(txt)); b.type = 'button'; b.onclick = fn; row.appendChild(b); return b; };
         const start = btn('Novo jogo', () => { if (st) st.token = Math.random(); newGame({ model: list[pick], color: colorVal }); }); start.classList.replace('btn-secondary', 'btn-primary');
         btn('Desfazer', undo); btn('Virar', () => { st.flip = !st.flip; render(); });
-        btn('Desistir', () => { if (game && !game.game_over() && !st.over) { st.token = Math.random(); st.thinking = false; st.over = T('Você desistiu.'); render(); } });
+        btn('Desistir', () => { if (game && !game.game_over() && !st.over) { st.token = Math.random(); st.thinking = false; st.over = T('Você desistiu.'); st.pre = null; st.psel = null; render(); } });
         btn('Analisar partida', analyzeGame);
         btn('Fechar', () => { if (st) st.token = Math.random(); if (st && st.rid) { try { fetch(API + '/api/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rid: st.rid }) }); } catch (e) { /* ok */ } } const o = ov; ov = null; o.classList.add('out'); setTimeout(() => o.remove(), 190); });
         const navRow = mk('div', 'chess-row chess-nav'); [['⏮', 'start'], ['◀', -1], ['▶', 1], ['⏭', 'end']].forEach(([t, d]) => { const b = mk('button', 'btn btn-secondary', t); b.type = 'button'; b.onclick = () => nav(d); navRow.appendChild(b); }); const ex = mk('button', 'btn btn-secondary', T('Sair da análise')); ex.type = 'button'; ex.onclick = () => { st.review = null; render(); }; navRow.appendChild(ex); side.appendChild(navRow);
