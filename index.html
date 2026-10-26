@@ -1172,6 +1172,33 @@
             <span class="hint">Deixe vazio para manter a chave já salva. Aparecem só os modelos do plano "turbo", que funcionam com saldo zero (GPT-OSS 20B, MiniMax M2.7, Codestral, Mistral Nemo, Nemotron 3 Nano). Os outros cobram por uso e ficam de fora.</span>
         </div>
         <div class="form-group host-only">
+            <label>Aichixia API Key <span class="badge" id="ac-status">não salva</span></label>
+            <div class="key-input">
+                <input type="password" id="ac-key-input" placeholder="acv-..." autocomplete="off" spellcheck="false">
+                <button type="button" class="eye" onclick="toggleKey('ac-key-input', this)">Mostrar</button>
+            </div>
+            <div class="key-input bkp"><input type="password" id="ac-bkp-input" placeholder="Chave de reserva (opcional; mais de uma: separe por vírgula)" autocomplete="off" spellcheck="false"></div>
+            <span class="hint">Só os modelos do plano grátis (os premium não funcionam). Chave em aichixia.xyz/console, aba Keys.</span>
+        </div>
+        <div class="form-group host-only">
+            <label>AIHubMix API Key <span class="badge" id="ah-status">não salva</span></label>
+            <div class="key-input">
+                <input type="password" id="ah-key-input" placeholder="sk-..." autocomplete="off" spellcheck="false">
+                <button type="button" class="eye" onclick="toggleKey('ah-key-input', this)">Mostrar</button>
+            </div>
+            <div class="key-input bkp"><input type="password" id="ah-bkp-input" placeholder="Chave de reserva (opcional; mais de uma: separe por vírgula)" autocomplete="off" spellcheck="false"></div>
+            <span class="hint">Só os modelos que terminam em "free". Chave em console.aihubmix.com.</span>
+        </div>
+        <div class="form-group host-only">
+            <label>LiteRouter API Key <span class="badge" id="lr-status">não salva</span></label>
+            <div class="key-input">
+                <input type="password" id="lr-key-input" placeholder="cole a chave" autocomplete="off" spellcheck="false">
+                <button type="button" class="eye" onclick="toggleKey('lr-key-input', this)">Mostrar</button>
+            </div>
+            <div class="key-input bkp"><input type="password" id="lr-bkp-input" placeholder="Chave de reserva (opcional; mais de uma: separe por vírgula)" autocomplete="off" spellcheck="false"></div>
+            <span class="hint">Só os modelos ":free". O plano grátis aceita 1 pedido a cada 7 segundos (o Lume espera sozinho). Chave em literouter.com, painel de chaves.</span>
+        </div>
+        <div class="form-group host-only">
             <label>tomdacat API Key <span class="badge" id="tdc-status">não salva</span></label>
             <div class="key-input">
                 <input type="password" id="tdc-key-input" placeholder="tdc_..." autocomplete="off" spellcheck="false">
@@ -2004,12 +2031,13 @@
         const modelById = id => MODELS.find(m => m.id === id);
         // so aparece o que esta instalado no Ollama (nuvem sempre aparece); installed = null enquanto nao sabemos
         let installed = null, installedSize = {}, vramTotalMB = 0, modelInfo = {};
-        const guestBlocks = m => isGuest() && !!auth.guest && (m.groq || m.or || m.cf || m.pol || m.tdc || m.vc || m.l7 || auth.guest.blocked_models.includes(m.id) || (m.cloud && auth.guest.blocked_features.includes('cloud')) || (!m.cloud && !m.phone && auth.guest.blocked_features.includes('local')));
-        const isAvail = m => guestBlocks(m) ? false : m.phone ? phoneMode() : (phoneMode() && !m.cloud ? false : (m.groq || m.or || m.cf || m.pol || m.tdc || m.vc || m.l7 || installed === null || installed.has(m.id)));   // no modo celular os locais do PC saem da lista
+        const guestBlocks = m => isGuest() && !!auth.guest && (m.groq || m.or || m.cf || m.pol || m.tdc || m.vc || m.l7 || m.x || auth.guest.blocked_models.includes(m.id) || (m.cloud && auth.guest.blocked_features.includes('cloud')) || (!m.cloud && !m.phone && auth.guest.blocked_features.includes('local')));
+        const isAvail = m => guestBlocks(m) ? false : m.phone ? phoneMode() : (phoneMode() && !m.cloud ? false : (m.groq || m.or || m.cf || m.pol || m.tdc || m.vc || m.l7 || m.x || installed === null || installed.has(m.id)));   // no modo celular os locais do PC saem da lista
         const availIn = tab => MODELS.filter(m => m.tabs.includes(tab) && isAvail(m));
         const pickDefault = list => list.find(m => m.rec && !m.cloud) || list.find(m => !m.cloud && !m.heavy) || list.find(m => !m.cloud) || list[0];
         // ---------- familias: todas as versoes e provedores de uma marca ficam num lugar so ("Qwen 2.5, 3 e 3.5"); a lista de parametros traz "versao, tamanho"
-        const PROV_TAG = m => m.vc ? ' · Vercel' : m.l7 ? ' · LLM7' : m.tdc ? ' · tomdacat' : m.groq ? ' · Groq' : m.or ? ' · OpenRouter' : m.cf ? ' · Cloudflare' : m.pol ? ' · Pollinations' : '';
+        const XP = { ac: ['aichixia', 'Aichixia'], ah: ['aihubmix', 'AIHubMix'], lr: ['literouter', 'LiteRouter'] };
+        const PROV_TAG = m => m.x ? ' · ' + XP[m.xp][1] : m.vc ? ' · Vercel' : m.l7 ? ' · LLM7' : m.tdc ? ' · tomdacat' : m.groq ? ' · Groq' : m.or ? ' · OpenRouter' : m.cf ? ' · Cloudflare' : m.pol ? ' · Pollinations' : '';
         function parseDyn(slug, fallbackBase) {   // 'google/gemma-4-31b-it:free', '@cf/qwen/qwen3.8-27b', 'gemma2:9b'... -> { base, ver, psize }
             const raw = String(slug).replace(/^@(cf|hf)\//, '').replace(/:free$/, ''), prov = raw.includes('/') ? raw.split('/')[0] : '';
             const s = raw.split('/').pop().toLowerCase().replace(/-free$/, '').replace(/-quest$/, '').replace(/^(nvidia|vercel|reflection)-/, '').replace(/^(nvidia|vercel)-/, ''), sz = (s.match(/(?:^|[-_:])(\d+(?:\.\d+)?)b(?![a-z])/) || [])[1], SZ = sz ? sz + 'B' : '';
@@ -2039,6 +2067,11 @@
             if ((m = s.match(/^mistral-(small|medium|large|nemo|saba)-?(\d+(?:\.\d+)?)?/))) return { base: 'Mistral', ver: m[1][0].toUpperCase() + m[1].slice(1) + (m[2] ? ' ' + m[2] : ''), psize: SZ || 'Cloud' };
             if (/^codestral/.test(s)) return { base: 'Mistral', ver: 'Codestral', psize: SZ || 'Cloud' };
             if ((m = s.match(/^celeris-?(\d+)/))) return { base: 'Celeris', ver: m[1], psize: 'Cloud' };
+            if ((m = s.match(/^claude-(opus|sonnet|haiku)-(\d+)(?:-(\d+))?/))) return { base: 'Claude', ver: m[2] + (m[3] ? '.' + m[3] : ''), psize: m[1][0].toUpperCase() + m[1].slice(1) };
+            if ((m = s.match(/^command-([a-z0-9]+)/))) return { base: 'Command', ver: m[1].toUpperCase(), psize: 'Cloud' };
+            if ((m = s.match(/^phi-?(\d+)/))) return { base: 'Phi', ver: m[1], psize: 'Cloud' };
+            if (/^compound/.test(s)) return { base: 'Compound', ver: '', psize: 'Cloud' };
+            if ((m = s.match(/^step-(\d+(?:\.\d+)?)/))) return { base: 'Step', ver: m[1], psize: 'Preview' };
             if ((m = s.match(/^mimo-v?(\d+(?:\.\d+)?)(?:-(.*))?$/))) return { base: 'MiMo', ver: 'V' + m[1], psize: (m[2] || '').split('-').filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(' ') || 'Base' };
             if ((m = s.match(/^mercury-?(\d+)/))) return { base: 'Mercury', ver: m[1], psize: 'Cloud' };
             if ((m = s.match(/^gpt-(\d+(?:\.\d+)?)(?:-(.+))?$/))) return { base: 'GPT', ver: m[1], psize: (m[2] || '').split('-').filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(' ') || 'Base' };
@@ -2178,7 +2211,7 @@
             initStep = 'applyPerf'; applyPerf();
             if (auth.local) fetch(API + '/api/perf_interval', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ms: config.perfInterval }) }).catch(() => {});
             if (auth.local || auth.authed) fetch(API + '/api/usage').then(r => r.json()).then(updateUsageBadge).catch(() => {});
-            initStep = 'refreshLoaded'; if (auth.local || auth.authed) { await refreshLoaded(); loadOpenRouterModels(); loadGroqModels(); loadTomdacatModels(); loadVercelModels(); loadLlm7Models(); loadCloudflareModels(); loadPollinationsModels(); }   // descobre o que esta instalado
+            initStep = 'refreshLoaded'; if (auth.local || auth.authed) { await refreshLoaded(); loadOpenRouterModels(); loadGroqModels(); loadTomdacatModels(); loadVercelModels(); loadLlm7Models(); loadExtraModels(); loadCloudflareModels(); loadPollinationsModels(); }   // descobre o que esta instalado
             initStep = 'switchTab'; switchTab('chat', true);
             initDone = true; startPolling();
             if (!metricsStarted) metricsLoop();
@@ -2320,8 +2353,8 @@
         const brandOf = rec => { const s = `${rec.fam} ${rec.famName} ${rec.id}`; return BRANDS.find(b => b.re.test(s) && brandFile(b, rec)) || null; };   // a primeira marca que combina E tem imagem
         const brandFile = (b, rec) => b.pick ? b.pick(`${rec.famName} ${rec.id}`) : b.img;
         // logos dos provedores (icons/prov-*.png): o arquivo que faltar simplesmente nao aparece
-        const PROV_LOGOS = { 'ollama-cloud': { img: 'prov-ollama.png', mono: true, ratio: 50 / 64, name: 'Ollama (nuvem)' }, ollama: { img: 'prov-ollama.png', mono: true, ratio: 50 / 64, name: 'Ollama (no seu PC)' }, openrouter: { img: 'prov-openrouter.png', name: 'OpenRouter' }, pollinations: { img: 'prov-pollinations.png', mono: true, ratio: 1, name: 'Pollinations' }, cloudflare: { img: 'prov-cloudflare.png', name: 'Cloudflare' }, groq: { img: 'prov-groq.png', mono: true, ratio: 2.62, name: 'Groq' }, tomdacat: { img: 'prov-tomdacat.svg', mono: true, ratio: 2.02, name: 'tomdacat' }, vercel: { img: 'prov-vercel.svg', mono: true, ratio: 1.15, name: 'Vercel' }, llm7: { img: 'prov-llm7.png', name: 'LLM7' } };
-        const provKey = m => m.vc ? 'vercel' : m.l7 ? 'llm7' : m.tdc ? 'tomdacat' : m.or ? 'openrouter' : m.cf ? 'cloudflare' : m.pol ? 'pollinations' : m.groq ? 'groq' : m.phone ? null : isLocalM(m) ? 'ollama' : 'ollama-cloud';
+        const PROV_LOGOS = { 'ollama-cloud': { img: 'prov-ollama.png', mono: true, ratio: 50 / 64, name: 'Ollama (nuvem)' }, ollama: { img: 'prov-ollama.png', mono: true, ratio: 50 / 64, name: 'Ollama (no seu PC)' }, openrouter: { img: 'prov-openrouter.png', name: 'OpenRouter' }, pollinations: { img: 'prov-pollinations.png', mono: true, ratio: 1, name: 'Pollinations' }, cloudflare: { img: 'prov-cloudflare.png', name: 'Cloudflare' }, groq: { img: 'prov-groq.png', mono: true, ratio: 2.62, name: 'Groq' }, tomdacat: { img: 'prov-tomdacat.svg', mono: true, ratio: 2.02, name: 'tomdacat' }, vercel: { img: 'prov-vercel.svg', mono: true, ratio: 1.15, name: 'Vercel' }, llm7: { img: 'prov-llm7.png', name: 'LLM7' }, aichixia: { img: 'prov-aichixia.png', name: 'Aichixia' }, aihubmix: { img: 'prov-aihubmix.png', name: 'AIHubMix' }, literouter: { img: 'prov-literouter.png', name: 'LiteRouter' } };
+        const provKey = m => m.x ? XP[m.xp][0] : m.vc ? 'vercel' : m.l7 ? 'llm7' : m.tdc ? 'tomdacat' : m.or ? 'openrouter' : m.cf ? 'cloudflare' : m.pol ? 'pollinations' : m.groq ? 'groq' : m.phone ? null : isLocalM(m) ? 'ollama' : 'ollama-cloud';
         function provLogos(sizes) {
             const keys = Object.keys(PROV_LOGOS).filter(k => sizes.some(m => provKey(m) === k)); if (!keys.length) return null;
             const box = document.createElement('span'); box.className = 'mo-provs';
@@ -2452,10 +2485,10 @@
         const famKind = ms => ms.every(m => m.paid) ? 'paid' : ms.some(isLocalM) ? 'local' : 'cloud';
         const pollenPerMsg = m => (500 * (m.priceIn || 0) + 500 * (m.priceOut || 0)) / 1e6;   // so para ordenar do mais barato ao mais caro
         const polK = p => { const x = (p || 0) / 1000; return x ? x.toFixed(8).replace(/\.?0+$/, '') : '0'; };   // pollen por 1.000 tokens (o catalogo traz por milhao)
-        const providerName = m => m.vc ? 'Vercel' : m.l7 ? 'LLM7' : m.tdc ? 'tomdacat' : m.pol ? 'Pollinations · ' + (m.provider || '') : m.groq ? 'Groq' : m.cf ? 'Cloudflare' : m.or ? 'OpenRouter' : m.phone ? tr('Celular') : isLocalM(m) ? tr('Ollama (local)') : tr('Ollama (nuvem)');
+        const providerName = m => m.x ? XP[m.xp][1] : m.vc ? 'Vercel' : m.l7 ? 'LLM7' : m.tdc ? 'tomdacat' : m.pol ? 'Pollinations · ' + (m.provider || '') : m.groq ? 'Groq' : m.cf ? 'Cloudflare' : m.or ? 'OpenRouter' : m.phone ? tr('Celular') : isLocalM(m) ? tr('Ollama (local)') : tr('Ollama (nuvem)');
         const provInfo = m => !m.pol ? '' : (m.free ? ' · ' + tr('grátis') : ' · ' + tr('entrada') + ' ' + polK(m.priceIn) + ' / ' + tr('saída') + ' ' + polK(m.priceOut) + ' ' + tr('pollen/1k')) + (m.lat ? ' · ' + m.lat.toFixed(1) + ' s' : '') + (m.success != null ? ' · ' + Math.round(m.success) + '%' : '') + ((m.success != null ? m.success < 80 : m.health === 'down') || m.warn ? ' ⚠' : '');
         // qual provedor usar por padrao: o que voce escolheu antes; senao local > nuvem do Ollama > Cloudflare > OpenRouter > Pollinations gratis (se estiver bem) > Pollinations pago mais barato > gratis instavel
-        const variantRank = m => m.prio ? -100 : isLocalM(m) ? 0 : m.vc ? 3.2 : m.l7 ? 3.4 : m.tdc ? 12 : (!m.or && !m.cf && !m.pol) ? 1 : m.cf ? 2 : m.or ? 3 : !m.pol ? 4 : m.free ? 5 : 10 + pollenPerMsg(m) * 1000;   // o padrao e sempre o mais barato, sem olhar a estabilidade: se falhar, o Lume troca para o proximo
+        const variantRank = m => m.prio ? -100 : isLocalM(m) ? 0 : m.x ? 3.5 : m.vc ? 3.2 : m.l7 ? 3.4 : m.tdc ? 12 : (!m.or && !m.cf && !m.pol) ? 1 : m.cf ? 2 : m.or ? 3 : !m.pol ? 4 : m.free ? 5 : 10 + pollenPerMsg(m) * 1000;   // o padrao e sempre o mais barato, sem olhar a estabilidade: se falhar, o Lume troca para o proximo
         const bestVariant = items => items.find(m => (config.provPref || {})[m.grp + '|' + m.pk] === m.id) || [...items].sort((a, b) => variantRank(a) - variantRank(b))[0];
         const costRank = m => (m.prio ? -100 : 0) + (m.pol && !m.free ? pollenPerMsg(m) : 0) + (m.tdc ? 0.001 : 0);   // ordem de reserva: gratis primeiro, depois do mais barato ao mais caro
         function fallbackChain(m, tab) {   // se o provedor escolhido falhar: os outros provedores do MESMO modelo (menos o local), do mais barato ao mais caro
@@ -2572,6 +2605,21 @@
             });
             renderModelOptions();
         }
+        async function loadExtraModels() {   // Aichixia, AIHubMix e LiteRouter (so os gratis); aparecem com a chave salva
+            if (!(auth.local || auth.authed) || isGuest()) return;
+            let d; try { d = await (await fetch(API + '/api/extra_models')).json(); } catch (e) { return; }
+            for (let i = MODELS.length - 1; i >= 0; i--) if (MODELS[i].x) MODELS.splice(i, 1);
+            Object.entries(d || {}).forEach(([p, v]) => {
+                if (!XP[p] || !v) return;
+                if (v.error && !(v.models || []).length) showInfo(tr('Não consegui carregar os modelos do {n}: {e}', { n: XP[p][1], e: v.error }), 7000);
+                (v.models || []).forEach(x => {
+                    const nm = String(x.name || x.id).replace(/:free$/, '').replace(/-free$/, '').replace(/^coding-/, '');
+                    const pd = parseDyn(x.id, nm); if (!pd.ver && (pd.base === nm || /\//.test(pd.psize || ''))) pd.psize = 'Cloud';   // sem regra propria: nome do modelo + "Cloud"
+                    MODELS.push(Object.assign({ id: p + ':' + x.id, fam: p + ':' + x.id, famName: nm, params: nm, label: nm + ' (' + XP[p][1] + ')', icon: 'cloud', tabs: ['chat', 'code'], cloud: true, x: true, xp: p, vision: !!x.vision, ctx: x.ctx || 32768 }, pd));
+                });
+            });
+            renderModelOptions();
+        }
         async function loadLlm7Models() {   // modelos do plano "turbo" do LLM7 (funcionam sem saldo)
             if (!(auth.local || auth.authed) || isGuest()) return;
             let d; try { d = await (await fetch(API + '/api/llm7_models')).json(); } catch (e) { return; }
@@ -2622,7 +2670,7 @@
         const HIDDEN_MODELS = /^(clef|deepseek-v4\.1-flash)\b|llama/i;   // clef e DeepSeek V4.1 Flash: nao sao gratis; Llama: fora por escolha   // instalados no Ollama, mas fora do seletor
         async function detectVision() {   // o Ollama informa as capacidades de cada modelo instalado; a etiqueta "visao" segue isso (corrige modelos que aceitam imagem e estavam sem a etiqueta)
             if (!installed) return; let changed = false;
-            await Promise.all(MODELS.filter(m => !m.phone && !m.groq && !m.or && !m.cf && !m.pol && !m.tdc && !m.vc && !m.l7 && installed.has(m.id) && !m._capsDone).map(async m => {
+            await Promise.all(MODELS.filter(m => !m.phone && !m.groq && !m.or && !m.cf && !m.pol && !m.tdc && !m.vc && !m.l7 && !m.x && installed.has(m.id) && !m._capsDone).map(async m => {
                 m._capsDone = true;
                 try {
                     const inf = await (await fetch(API + '/api/model_info?name=' + encodeURIComponent(m.id))).json();
@@ -3802,7 +3850,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             if (auth.local) checkUpdates(false);
             $('perf-style').value = config.perfStyle;
             $('perf-interval').value = config.perfInterval; $('perf-int-val').innerText = config.perfInterval;
-            $('groq-key-input').value = ''; $('or-key-input').value = ''; $('cf-token-input').value = ''; $('cf-acc-input').value = ''; $('pol-key-input').value = ''; $('tdc-key-input').value = ''; $('vc-key-input').value = ''; $('l7-key-input').value = ''; $('exa-key-input').value = '';
+            $('groq-key-input').value = ''; $('or-key-input').value = ''; $('cf-token-input').value = ''; $('cf-acc-input').value = ''; $('pol-key-input').value = ''; $('tdc-key-input').value = ''; $('vc-key-input').value = ''; $('l7-key-input').value = ''; $('ac-key-input').value = ''; $('ah-key-input').value = ''; $('lr-key-input').value = ''; $('exa-key-input').value = '';
             showModal('settings-modal');
             showSettingsTab('general'); initAccountRow();
             if (!config.uiLegacy && innerWidth > 760 && !window.__LUME_IOS) buildSettingsNav(); else document.querySelectorAll('#set-general .sec-hidden').forEach(e => e.classList.remove('sec-hidden'));   // classica e celular: tudo numa rolagem so
@@ -3820,6 +3868,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 $('tdc-status').textContent = tr(st.tomdacat_saved ? 'chave salva ✓' : 'não salva'); $('tdc-status').classList.toggle('ok', st.tomdacat_saved);
                 $('vc-status').textContent = tr(st.vercel_saved ? 'chave salva ✓' : 'não salva'); $('vc-status').classList.toggle('ok', st.vercel_saved);
                 $('l7-status').textContent = tr(st.llm7_saved ? 'chave salva ✓' : 'não salva'); $('l7-status').classList.toggle('ok', st.llm7_saved);
+                [['ac', st.aichixia_saved], ['ah', st.aihubmix_saved], ['lr', st.literouter_saved]].forEach(([i, ok]) => { $(i + '-status').textContent = tr(ok ? 'chave salva ✓' : 'não salva'); $(i + '-status').classList.toggle('ok', !!ok); });
                 $('exa-status').textContent = tr(st.exa_key_saved ? 'chave salva ✓' : 'não salva');
                 $('exa-status').classList.toggle('ok', st.exa_key_saved);
                 $('opt-provider').value = st.search_provider || 'auto'; $('opt-exatype').value = st.exa_type || 'lite';
@@ -4011,7 +4060,8 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 if (tdcKey) body.tomdacat_api_key = tdcKey;
                 const vcKey = $('vc-key-input').value.trim(); if (vcKey) body.vercel_api_key = vcKey;
                 const l7Key = $('l7-key-input').value.trim(); if (l7Key) body.llm7_api_key = l7Key;
-                [['groq', 'groq_api_key'], ['or', 'openrouter_api_key'], ['pol', 'pollinations_api_key'], ['vc', 'vercel_api_key'], ['l7', 'llm7_api_key'], ['tdc', 'tomdacat_api_key']].forEach(([i, f]) => { const v = $(i + '-bkp-input').value.trim(); if (v) body[f + '_backup'] = v; });
+                [['ac', 'aichixia_api_key'], ['ah', 'aihubmix_api_key'], ['lr', 'literouter_api_key']].forEach(([i, f]) => { const v = $(i + '-key-input').value.trim(); if (v) body[f] = v; });
+                [['groq', 'groq_api_key'], ['or', 'openrouter_api_key'], ['pol', 'pollinations_api_key'], ['vc', 'vercel_api_key'], ['l7', 'llm7_api_key'], ['tdc', 'tomdacat_api_key'], ['ac', 'aichixia_api_key'], ['ah', 'aihubmix_api_key'], ['lr', 'literouter_api_key']].forEach(([i, f]) => { const v = $(i + '-bkp-input').value.trim(); if (v) body[f + '_backup'] = v; });
                 const exaKey = $('exa-key-input').value.trim();
                 if (exaKey) body.exa_api_key = exaKey;
                 try {
@@ -4020,7 +4070,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 } catch (e) { alert(tr('Servidor não respondeu.')); return; }
             }
             closeSettings();
-            if (auth.local) { loadOpenRouterModels(); loadGroqModels(); loadTomdacatModels(); loadVercelModels(); loadLlm7Models(); loadCloudflareModels(); loadPollinationsModels(); }
+            if (auth.local) { loadOpenRouterModels(); loadGroqModels(); loadTomdacatModels(); loadVercelModels(); loadLlm7Models(); loadExtraModels(); loadCloudflareModels(); loadPollinationsModels(); }
             updateCtxBar();
             if (currentChatId) loadChat(currentChatId);   // re-renderiza com as opcoes de formatacao novas
         }
@@ -4122,7 +4172,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 row.append(up, del); list.appendChild(row);
                 if (mmPulls[n] && mmPulls[n].box) row.appendChild(mmPulls[n].box);
             });
-            $('mm-suggest').innerHTML = ''; MODELS.filter(m => !m.cloud && !m.phone && !m.groq && !m.tdc && !m.vc && !m.l7 && !names.includes(m.id) && !m.custom).forEach(m => $('mm-suggest').appendChild(new Option(m.label, m.id)));
+            $('mm-suggest').innerHTML = ''; MODELS.filter(m => !m.cloud && !m.phone && !m.groq && !m.tdc && !m.vc && !m.l7 && !m.x && !names.includes(m.id) && !m.custom).forEach(m => $('mm-suggest').appendChild(new Option(m.label, m.id)));
             $('mm-auto').checked = !!ao.auto_update_models;
             const mu = ao.model_update || {};
             $('mm-upd-state').textContent = mu.running ? tr('Atualizando {n} ({d}/{t})...', { n: mu.current, d: mu.done, t: mu.total }) : ao.models_updated_at ? tr('Última conferência: {d}', { d: new Date(ao.models_updated_at * 1000).toLocaleString(curLang() === 'en' ? 'en-US' : 'pt-BR') }) + (mu.updated && mu.updated.length ? ' · ' + tr('atualizados: {l}', { l: mu.updated.join(', ') }) : '') : '';

@@ -15,7 +15,8 @@ const realFetch = window.fetch.bind(window);
 const enc = new TextEncoder();
 const POL_API = 'https://gen.pollinations.ai', OR_URL = 'https://openrouter.ai/api/v1', GROQ_URL = 'https://api.groq.com/openai/v1';
 const VERCEL_URL = 'https://ai-gateway.vercel.sh/v1', LLM7_URL = 'https://api.llm7.io/v1', TDC_URL = 'https://ai.tomdacat.com';
-const CLOUD_PREFIX = /^(groq|or:|cf:|pol:|tdc:|vc:|l7:)/;
+const AC_URL = 'https://www.aichixia.xyz/api/v1', AH_URL = 'https://aihubmix.com/v1', LR_URL = 'https://api.literouter.com/v1';
+const CLOUD_PREFIX = /^(groq|or:|cf:|pol:|tdc:|vc:|l7:|ac:|ah:|lr:)/;
 const now = () => Date.now() / 1000;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const re = (src, flags) => { try { return new RegExp(src.replace(/\(\?i\)/g, ''), flags || 'i'); } catch (e) { return /^$/; } };
@@ -223,6 +224,7 @@ const HTTP_ERR = {
 };
 function oaiFail(label, code, body, msg) {
     if (/credit card|customer_verification_required/.test(body)) throw new Error('A Vercel exige um cartao cadastrado na conta para usar o AI Gateway (mesmo nos modelos gratis). Adicione em vercel.com > AI Gateway.');
+    if (code === 403 && /ate limit|oncurrent/.test(body)) throw new Error(`${label}: limite de pedidos. ${msg}`);
     if (code === 401 || code === 403) throw new Error(`${label}: chave invalida ou sem permissao (${code}). ${msg}`);
     if (code === 402) throw new Error(`${label}: sem saldo (402).`);
     if (code === 429) throw new Error(`${label}: limite de pedidos (429). ${msg}`);
@@ -236,7 +238,7 @@ async function* streamOaiCompat(model, messages, base, key, label, maxTokens, si
         const r = await fetchT(base + '/chat/completions', { method: 'POST', headers: bearer(key), body: JSON.stringify(payload), signal }, 45000, label);
         if (r.ok) { yield* sseChat(r, t0, {}); return; }
         const { body, msg } = await errMsg(r);
-        if (r.status === 429 && attempt < 2) { let wait = parseFloat(r.headers.get('Retry-After') || (/[Rr]etry after (\d+(?:\.\d+)?)/.exec(msg) || [0, 1])[1]) || 1; yield ['status', `Limite de pedidos; esperando ${Math.min(wait, 8).toFixed(0)} s`]; await sleep(Math.min(wait, 8) * 1000 + 300); continue; }
+        if ((r.status === 429 || (r.status === 403 && /ate limit|oncurrent/.test(body))) && attempt < 2) { let wait = parseFloat(r.headers.get('Retry-After') || (/[Rr]etry after (\d+(?:\.\d+)?)/.exec(msg) || /\((\d+(?:\.\d+)?) seconds/.exec(msg) || [0, 1])[1]) || 1; yield ['status', `Limite de pedidos; esperando ${Math.min(wait, 8).toFixed(0)} s`]; await sleep(Math.min(wait, 8) * 1000 + 300); continue; }
         oaiFail(label, r.status, body, msg);
     }
 }
@@ -339,7 +341,7 @@ async function* streamOllama(model, messages, think, numCtx, maxTokens, cfg, sig
 }
 
 // chaves de reserva: se a principal morrer antes de qualquer resposta, tenta a proxima (evita a que falhou por 10 min)
-const KEY_FIELDS = [['pol:', 'pollinations_api_key'], ['tdc:', 'tomdacat_api_key'], ['vc:', 'vercel_api_key'], ['l7:', 'llm7_api_key'], ['or:', 'openrouter_api_key'], ['groq', 'groq_api_key']];
+const KEY_FIELDS = [['ac:', 'aichixia_api_key'], ['ah:', 'aihubmix_api_key'], ['lr:', 'literouter_api_key'], ['pol:', 'pollinations_api_key'], ['tdc:', 'tomdacat_api_key'], ['vc:', 'vercel_api_key'], ['l7:', 'llm7_api_key'], ['or:', 'openrouter_api_key'], ['groq', 'groq_api_key']];
 const KEY_FAIL = /\b(401|402|403|429)\b|chave|saldo|pollen|credit|quota|limite|api key|unauthorized/i, badKeys = {};
 function streamOnce(model, messages, o) {
     const { think, cfg, numCtx, maxTokens, effort, signal } = o;
@@ -347,6 +349,9 @@ function streamOnce(model, messages, o) {
     if (model.startsWith('tdc:')) return streamTomdacat(model, messages, cfg, maxTokens, signal);
     if (model.startsWith('vc:')) return streamOaiCompat(model.slice(3), messages, VERCEL_URL, cfg.vercel_api_key, 'A Vercel', maxTokens, signal);
     if (model.startsWith('l7:')) return streamOaiCompat(model.slice(3), messages, LLM7_URL, cfg.llm7_api_key, 'O LLM7', maxTokens, signal);
+    if (model.startsWith('ac:')) return streamOaiCompat(model.slice(3), messages, AC_URL, cfg.aichixia_api_key, 'O Aichixia', maxTokens, signal);
+    if (model.startsWith('ah:')) return streamOaiCompat(model.slice(3), messages, AH_URL, cfg.aihubmix_api_key, 'O AIHubMix', maxTokens, signal);
+    if (model.startsWith('lr:')) return streamOaiCompat(model.slice(3), messages, LR_URL, cfg.literouter_api_key, 'O LiteRouter', maxTokens, signal);
     if (model.startsWith('or:')) return streamOpenrouter(model, messages, think, cfg, maxTokens, signal);
     if (model.startsWith('cf:')) return (async function* () { throw new Error('O Cloudflare Workers AI ainda nao esta disponivel no iPhone. Use os outros provedores.'); })();
     if (model.startsWith('groq')) return streamGroq(model, messages, cfg, maxTokens, signal);
@@ -446,7 +451,8 @@ function handleChat(req) {
 
 // ---------------------------------------------------------------- rotas
 const SECRET_KEYS = ['groq_api_key', 'openrouter_api_key', 'pollinations_api_key', 'cloudflare_api_token', 'cloudflare_account_id', 'exa_api_key', 'tomdacat_api_key', 'vercel_api_key', 'llm7_api_key',
-    'groq_api_key_backup', 'openrouter_api_key_backup', 'pollinations_api_key_backup', 'tomdacat_api_key_backup', 'vercel_api_key_backup', 'llm7_api_key_backup'];
+    'groq_api_key_backup', 'openrouter_api_key_backup', 'pollinations_api_key_backup', 'tomdacat_api_key_backup', 'vercel_api_key_backup', 'llm7_api_key_backup',
+    'aichixia_api_key', 'aihubmix_api_key', 'literouter_api_key', 'aichixia_api_key_backup', 'aihubmix_api_key_backup', 'literouter_api_key_backup'];
 const NOPE = () => json({ ok: false, error: 'Isto precisa do PC e nao existe no iPhone.' }, 400);
 const listModels = (keyName, fn) => async () => {
     const cfg = await loadConfig(); if (!cfg[keyName]) return json({ saved: false, models: [] });
@@ -532,7 +538,7 @@ const ROUTES = {
     'POST /api/stats_clear': async () => { await kv.set('stats', { events: [] }); return json({ ok: true }); },
     'GET /api/config_status': async () => {
         const c = await loadConfig();
-        return json({ groq_key_saved: !!c.groq_api_key, openrouter_key_saved: !!c.openrouter_api_key, cloudflare_saved: false, pollinations_saved: !!c.pollinations_api_key, tomdacat_saved: !!c.tomdacat_api_key, vercel_saved: !!c.vercel_api_key, llm7_saved: !!c.llm7_api_key,
+        return json({ groq_key_saved: !!c.groq_api_key, openrouter_key_saved: !!c.openrouter_api_key, cloudflare_saved: false, pollinations_saved: !!c.pollinations_api_key, tomdacat_saved: !!c.tomdacat_api_key, vercel_saved: !!c.vercel_api_key, llm7_saved: !!c.llm7_api_key, aichixia_saved: !!c.aichixia_api_key, aihubmix_saved: !!c.aihubmix_api_key, literouter_saved: !!c.literouter_api_key,
             exa_key_saved: !!c.exa_api_key, search_provider: c.search_provider, exa_type: c.exa_type, search_results: c.search_results, search_daily_limit: c.search_daily_limit, exa_today: 0, auto_allow: false, workdir: '', default_workdir: '', ollama_url: c.ollama_url || '' });
     },
     'POST /api/save_config': async (u, b) => {
@@ -574,6 +580,26 @@ const ROUTES = {
     'GET /api/vercel_models': listModels('vercel_api_key', vercelModels),
     'GET /api/llm7_models': listModels('llm7_api_key', llm7Models),
     'GET /api/tomdacat_models': listModels('tomdacat_api_key', tomdacatModels),
+        'GET /api/extra_models': async () => {
+        const cfg = await loadConfig(), out = {};
+        for (const [p, f, base] of [['ac', 'aichixia_api_key', AC_URL], ['ah', 'aihubmix_api_key', AH_URL], ['lr', 'literouter_api_key', LR_URL]]) {
+            if (!cfg[f]) { out[p] = { saved: false, models: [] }; continue; }
+            try {
+                const c = cache[p] || (cache[p] = { t: 0, v: null });
+                if (!c.v || now() - c.t > 3600) {
+                    const list = []; for (const m of await oaiModels(base, cfg[f])) {
+                        const id = String(m.id || ''); if (!id) continue;
+                        if (p === 'ac') { const caps = m.capabilities || []; if (m.tier !== 'free' || !caps.includes('chat') || /llama|grok/i.test(id)) continue; list.push({ id, name: id.split('/').pop(), ctx: m.context_window || 128000, vision: caps.includes('multimodal') }); }
+                        else if (p === 'ah') { if (!/(^|[-:/])free$/.test(id) || /llama|grok|safety|guard|embed|whisper|tts|image/i.test(id)) continue; list.push({ id, name: id.split('/').pop(), ctx: 128000, vision: false }); }
+                        else { if (!id.endsWith(':free') || m.type !== 'chat' || (D.LR_BLOCKED || []).includes(id)) continue; list.push({ id, name: m.display_name || id, ctx: m.context_window || 128000, vision: !!(m.capabilities || {}).vision }); }
+                    }
+                    list.sort((a, b) => a.id < b.id ? -1 : 1); c.v = list; c.t = now();
+                }
+                out[p] = { saved: true, models: c.v };
+            } catch (e) { out[p] = { saved: true, models: [], error: String(e.message || e).slice(0, 200) }; }
+        }
+        return json(out);
+    },
     'GET /api/cloudflare_models': () => json({ saved: false, models: [] }),
     'GET /api/cloudflare_usage': () => json({}),
     'GET /api/pollinations_usage': async () => {
