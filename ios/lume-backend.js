@@ -585,7 +585,7 @@ const ROUTES = {
     'GET /api/account': () => json({ name: ACCT, accounts: LS.get('accounts', []) }),
     'POST /api/account/login': (u, b) => {
         const n = String((b && b.name) || '').trim().replace(/\s+/g, ' ').slice(0, 40); if (!n) { LS.set('account', ''); ACCT = ''; return json({ ok: true, name: '' }); }
-        const list = LS.get('accounts', []); if (!list.includes(n)) list.push(n); LS.set('accounts', list); LS.set('account', n); ACCT = n; return json({ ok: true, name: n });
+        const list = LS.get('accounts', []); if (!list.includes(n)) list.push(n); LS.set('accounts', list); LS.set('account', n); ACCT = n; setTimeout(pcSync, 300); return json({ ok: true, name: n });   // ao logar ja puxa do PC
     },
     'POST /api/account/logout': () => { LS.set('account', ''); ACCT = ''; return json({ ok: true }); },
     'POST /api/account/delete': async (u, b) => {
@@ -794,5 +794,6 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
     const inp = document.getElementById('pc-url-input'), st = document.getElementById('pc-sync-status'); st.textContent = LS.get('pc_status', 'desligado'); loadConfig().then(c => { inp.value = c.pc_url || ''; });
     inp.addEventListener('change', async () => { const c = Object.assign({}, await loadConfig()); c.pc_url = inp.value.trim(); await saveConfig(c); pcSync(); });
     setTimeout(pcSync, 3000);   // ao abrir o app (e depois a cada conversa salva)
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pcSync(); });   // voltou para o app: puxa de novo
 });
 })();
