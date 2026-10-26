@@ -73,8 +73,8 @@ HTTPS_PORT = 8443
 APP_NAME = "Lume"
 import guests as guests_mod   # contas de amigos (/share) e painel (/dashboard)
 # Provedores compativeis com a API da OpenAI que o Lume usa so com os modelos gratis: prefixo -> (campo da chave, endereco, nome, segundos entre testes de saude)
-AC_URL = "https://www.aichixia.xyz/api/v1"; AH_URL = "https://aihubmix.com/v1"; LR_URL = "https://api.literouter.com/v1"; PX_URL = "https://api.paxsenix.org/v1"; VD_URL = "https://api.voidai.app/v1"
-X_PROVIDERS = {"lr": ("literouter_api_key", LR_URL, "LiteRouter", 8.0), "ac": ("aichixia_api_key", AC_URL, "Aichixia", 1.5), "ah": ("aihubmix_api_key", AH_URL, "AIHubMix", 1.5), "px": ("paxsenix_api_key", PX_URL, "Paxsenix", 1.5), "vd": ("voidai_api_key", VD_URL, "VoidAI", 1.5)}
+AC_URL = "https://www.aichixia.xyz/api/v1"; AH_URL = "https://aihubmix.com/v1"; LR_URL = "https://api.literouter.com/v1"; PX_URL = "https://api.paxsenix.org/v1"; VD_URL = "https://api.voidai.app/v1"; TK_URL = "https://api.tokenreply.com/v1"
+X_PROVIDERS = {"lr": ("literouter_api_key", LR_URL, "LiteRouter", 8.0), "ac": ("aichixia_api_key", AC_URL, "Aichixia", 1.5), "ah": ("aihubmix_api_key", AH_URL, "AIHubMix", 1.5), "px": ("paxsenix_api_key", PX_URL, "Paxsenix", 1.5), "vd": ("voidai_api_key", VD_URL, "VoidAI", 1.5), "tk": ("tokenreply_api_key", TK_URL, "TokenReply", 1.5)}
 CLOUD_PREFIXES = ("groq", "or:", "cf:", "pol:", "tdc:", "vc:", "l7:") + tuple(p + ":" for p in X_PROVIDERS)
 ACCOUNTS_DIR = os.path.join(BASE_DIR, "accounts")   # uma pasta por conta, com o nome dela (a do dono e a dos amigos)
 def _find_owner_name():
@@ -1463,7 +1463,7 @@ AH_URL = "https://aihubmix.com/v1"           # AIHubMix: so os que terminam em "
 LR_URL = "https://api.literouter.com/v1"     # LiteRouter: so os ":free" (1 pedido a cada 7 s no plano gratis)
 LR_BLOCKED = {"kimi-k3-cheap:free", "muse-spark-1.2-contributor:free"}   # a API responde "model is not available" (o resto dos ":free" respondeu num teste com 1024 tokens; com 16 os modelos que pensam davam 502 por resposta vazia)
 X_NONCHAT = re.compile(r"safety|guard|embed|whisper|tts|image", re.I)   # VoidAI, Paxsenix e LiteRouter trazem TODOS os modelos de chat; so sai o que nao e conversa
-X_SHOW_ALL = {"vd", "px", "lr"}   # sem teste de saude e sem filtro de plano: aparecem todos (os que o plano nao cobrir respondem com erro na hora de usar)
+X_SHOW_ALL = {"vd", "px", "lr", "tk"}   # sem teste de saude e sem filtro de plano: aparecem todos (os que o plano nao cobrir respondem com erro na hora de usar)
 AH_EXCLUDE = re.compile(r"phi-|north-|mythomax|intern-|dots-|lfm|xing|flint|agents-a|step-|command-|compound|sarvam|nova-|seed-|hy4|gpt-3\.5|grok|safety|guard|embed|whisper|tts|image", re.I)   # sem Llama nem Grok, e sem modelos "aleatorios" que ninguem pediu
 _x_cache = {p: [0, []] for p in X_PROVIDERS}
 # Vercel: so os gratis que pediu. Eles so funcionam com um cartao cadastrado na conta Vercel (a Vercel exige, mesmo para os "-free").
@@ -1555,6 +1555,16 @@ def voidai_plan(key):
     except Exception: p = _vd_plan["plan"]
     _vd_plan.update(t=time.time(), plan=p); return p
 
+_tk_cache = {"t": 0, "free": set()}
+def tokenreply_free():
+    """TokenReply: so os modelos do nivel gratis (model_ratio 0); os "Plus" respondem 403 plus_required. A tabela de precos e publica (nao leva a chave)."""
+    if time.time() - _tk_cache["t"] < 3600 and _tk_cache["free"]: return _tk_cache["free"]
+    try:
+        with urllib.request.urlopen(urllib.request.Request(TK_URL[:-3] + "/api/pricing", headers={"User-Agent": "lume-app"}), timeout=20) as r: d = json.load(r)
+        _tk_cache.update(t=time.time(), free={x["model_name"] for x in d.get("data", []) if x.get("model_ratio") == 0 and not x.get("model_price") and x.get("access_tier") == "free"})
+    except Exception: pass
+    return _tk_cache["free"]
+
 def extra_models(prov, cfg, force=False, raw=False):
     """Modelos gratis de Aichixia (ac), AIHubMix (ah) e LiteRouter (lr): [{id, name, ctx, vision}]; em cache por 1 h. Os que falharam no teste de saude ficam de fora (raw=True traz todos)."""
     field, base = X_PROVIDERS[prov][:2]
@@ -1577,6 +1587,9 @@ def extra_models(prov, cfg, force=False, raw=False):
             if "/v1/chat/completions" not in (m.get("endpoints") or []) or re.search(r"gemma", mid, re.I) or X_NONCHAT.search(mid): continue
             if m.get("supports_streaming") is False: _NO_STREAM.add((base, mid))
             out.append({"id": mid, "name": mid, "ctx": m.get("max_context_tokens") or 128000, "vision": False, "cin": m.get("input_multiplier") or 0, "cout": m.get("output_multiplier") or 0, "cbase": m.get("base_cost") or 0})   # creditos = base + entrada x cin + saida x cout (docs.voidai.app/guides/credits)
+        elif prov == "tk":   # TokenReply: so os gratis (ratio 0)
+            if mid not in tokenreply_free() or X_NONCHAT.search(mid) or re.search(r"grok", mid, re.I): continue
+            out.append({"id": mid, "name": mid.split("/")[-1], "ctx": 128000, "vision": False})
         elif prov == "px":   # Paxsenix: so o plano free (os "High Engine" nao entram) e sem os "(Provider N)" repetidos
             if m.get("type") != "chat.completions" or X_NONCHAT.search(mid): continue
             out.append({"id": mid, "name": m.get("name") or mid, "ctx": m.get("max_context_tokens") or 128000, "vision": bool(m.get("supports_vision"))})
@@ -3020,10 +3033,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 if k in data:
                     try: data[k] = max(lo, min(hi, int(data[k])))
                     except (TypeError, ValueError): return self.send_json({"error": "Opcao de pesquisa invalida."}, 400)
-            for k in ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "cloudflare_api_token", "cloudflare_account_id", "exa_api_key", "tomdacat_api_key", "vercel_api_key", "llm7_api_key", "aichixia_api_key", "aihubmix_api_key", "literouter_api_key", "aichixia_api_key_backup", "aihubmix_api_key_backup", "literouter_api_key_backup", "paxsenix_api_key", "paxsenix_api_key_backup", "voidai_api_key", "voidai_api_key_backup", "groq_api_key_backup", "openrouter_api_key_backup", "pollinations_api_key_backup", "tomdacat_api_key_backup", "vercel_api_key_backup", "llm7_api_key_backup", "workdir", "search_provider", "exa_type", "search_results", "search_daily_limit", "auto_allow"):
+            for k in ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "cloudflare_api_token", "cloudflare_account_id", "exa_api_key", "tomdacat_api_key", "vercel_api_key", "llm7_api_key", "aichixia_api_key", "aihubmix_api_key", "literouter_api_key", "aichixia_api_key_backup", "aihubmix_api_key_backup", "literouter_api_key_backup", "paxsenix_api_key", "paxsenix_api_key_backup", "voidai_api_key", "voidai_api_key_backup", "tokenreply_api_key", "tokenreply_api_key_backup", "groq_api_key_backup", "openrouter_api_key_backup", "pollinations_api_key_backup", "tomdacat_api_key_backup", "vercel_api_key_backup", "llm7_api_key_backup", "workdir", "search_provider", "exa_type", "search_results", "search_daily_limit", "auto_allow"):
                 if k in data: cfg[k] = bool(data[k]) if k == "auto_allow" else data[k].strip() if k.endswith(("_key", "_token", "_id", "_backup")) else data[k]
             save_config(cfg)
-            secrets_sent = [k for k in ("aichixia_api_key", "aihubmix_api_key", "literouter_api_key", "aichixia_api_key_backup", "aihubmix_api_key_backup", "literouter_api_key_backup", "paxsenix_api_key", "paxsenix_api_key_backup", "voidai_api_key", "voidai_api_key_backup", "groq_api_key_backup", "openrouter_api_key_backup", "pollinations_api_key_backup", "tomdacat_api_key_backup", "vercel_api_key_backup", "llm7_api_key_backup", "groq_api_key", "openrouter_api_key", "pollinations_api_key", "tomdacat_api_key", "vercel_api_key", "llm7_api_key", "cloudflare_api_token", "exa_api_key") if k in data]
+            secrets_sent = [k for k in ("aichixia_api_key", "aihubmix_api_key", "literouter_api_key", "aichixia_api_key_backup", "aihubmix_api_key_backup", "literouter_api_key_backup", "paxsenix_api_key", "paxsenix_api_key_backup", "voidai_api_key", "voidai_api_key_backup", "tokenreply_api_key", "tokenreply_api_key_backup", "groq_api_key_backup", "openrouter_api_key_backup", "pollinations_api_key_backup", "tomdacat_api_key_backup", "vercel_api_key_backup", "llm7_api_key_backup", "groq_api_key", "openrouter_api_key", "pollinations_api_key", "tomdacat_api_key", "vercel_api_key", "llm7_api_key", "cloudflare_api_token", "exa_api_key") if k in data]
             log("CONFIG", "Configuracoes salvas (" + ", ".join([k for k in data if k not in secrets_sent] + [f"chave {k.split('_')[0]}" for k in secrets_sent]) + ")", COLOR_GREEN)
             return self.send_json({"ok": True})
 

@@ -3,7 +3,7 @@
 (() => {
     'use strict';
     const KEY = 'lume_pet', T = s => (typeof tr === 'function' ? tr(s) : s);
-    const DEF = { on: true, name: 'Lume', color: '#ee5a8a', style: 'orb', eyes: 'oval', size: 64, bubble: true, x: null, y: null };
+    const DEF = { on: false, avatar: true, name: 'Lume', color: '#2f8bff', style: 'orb', eyes: 'oval', size: 64, bubble: true, x: null, y: null };
     const load = () => { try { return Object.assign({}, DEF, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { return Object.assign({}, DEF); } };
     const save = () => { try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) { /* sem armazenamento */ } };
     let cfg = load(), root = null, body = null, cv = null, bub = null, mood = 'idle', look = { x: 0, y: 0 }, blink = false, lastMove = Date.now(), bubTimer = 0, moodTimer = 0, wasBusy = false;
@@ -31,6 +31,12 @@
         @keyframes lpBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } } @keyframes lpThink { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } } @keyframes lpSleep { 0%, 100% { transform: scale(1); } 50% { transform: scale(.96); } }
         @keyframes lpJump { 0% { transform: translateY(0) scale(1); } 30% { transform: translateY(-18px) scale(.95, 1.06); } 60% { transform: translateY(0) scale(1.08, .92); } 100% { transform: translateY(0) scale(1); } }
         @media (prefers-reduced-motion: reduce) { #lume-pet .lp-body, #lume-pet canvas { animation: none !important; } }
+        body.pet-av .msg.ai { padding-left: 52px; } body.pet-av .msg.ai > .lp-av { position: absolute; left: 10px; top: 14px; }
+        .lp-av { width: 30px; height: 30px; border-radius: 50%; flex: none; position: relative; --lp-lx: 0; --lp-ly: 0; box-shadow: 0 0 0 2px rgba(255,255,255,.22), 0 0 12px var(--lp-glow, rgba(238,90,138,.5)); }
+        .lp-av.led { background-image: radial-gradient(circle, var(--lp-c) 0 38%, transparent 42%); background-size: 3.4px 3.4px; box-shadow: none; -webkit-mask-image: radial-gradient(circle, #000 55%, transparent 74%); mask-image: radial-gradient(circle, #000 55%, transparent 74%); }
+        .lp-av i { position: absolute; top: 36%; width: 15%; height: 26%; background: #fff; border-radius: 50%; box-shadow: 0 0 5px rgba(255,255,255,.7); transform: translate(calc(var(--lp-lx) * 2.2px), calc(var(--lp-ly) * 2px)); transition: transform .14s ease-out, height .08s; } .lp-av i.l { left: 30%; } .lp-av i.r { right: 30%; }
+        .lp-av.eyes-round i { width: 20%; height: 20%; top: 40%; } .lp-av.eyes-dot i { width: 9%; height: 9%; top: 46%; } .lp-av.eyes-wide i { width: 19%; height: 32%; top: 32%; border-radius: 45%; }
+        .lp-av.blink i { height: 4% !important; top: 48% !important; border-radius: 3px; } .lp-av.thinking { animation: lpThink 1.1s ease-in-out infinite; }
         #lp-modal { position: fixed; inset: 0; z-index: 6600; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.5); padding: 12px; }
         #lp-modal .lp-card { width: min(380px, 100%); max-height: 100%; overflow: auto; background: var(--bg-main); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 20px 60px rgba(0,0,0,.55); }
         #lp-modal h3 { margin: 0; } #lp-modal .lp-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: .9em; } #lp-modal .lp-row > :last-child { flex: 0 1 190px; min-width: 0; }
@@ -100,13 +106,41 @@
     }, 300);
     (function blinker() { setTimeout(() => { if (root && cfg.on && mood === 'idle') { blink = true; paint(); setTimeout(() => { blink = false; paint(); }, 140); } blinker(); }, 2500 + Math.random() * 3500); })();
 
+    // ---- avatar ao lado de cada resposta da IA (a bolinha dos chats do Kimi): mesma cor/estilo/olhos do mascote
+    const avs = new Set(); let typing = false, avObs = null;
+    function styleAv(a) {
+        a.className = 'lp-av ' + cfg.style + ' eyes-' + cfg.eyes + (a.dataset.th === '1' ? ' thinking' : '');
+        a.style.setProperty('--lp-c', cfg.color); a.style.setProperty('--lp-glow', rgba(cfg.color, .55));
+        if (cfg.style !== 'led') a.style.background = 'radial-gradient(circle at 34% 26%, ' + mix(cfg.color, [255, 255, 255], .55) + ' 0%, ' + cfg.color + ' 48%, ' + mix(cfg.color, [0, 0, 0], .42) + ' 100%)'; else a.style.background = '';
+    }
+    function addAv(msg) {
+        if (msg.querySelector(':scope > .lp-av')) return; const a = document.createElement('span'); a.title = cfg.name; ['l', 'r'].forEach(c => { const e = document.createElement('i'); e.className = c; a.appendChild(e); }); styleAv(a); msg.insertBefore(a, msg.firstChild); avs.add(a);
+    }
+    function scanAv() { const chat = document.getElementById('chat'); if (!chat) return; document.body.classList.toggle('pet-av', !!cfg.avatar); if (!cfg.avatar) return; chat.querySelectorAll('.msg.ai').forEach(addAv); }
+    function refreshAv() { avs.forEach(a => { if (!a.isConnected) avs.delete(a); else if (cfg.avatar) styleAv(a); else a.remove(); }); document.body.classList.toggle('pet-av', !!cfg.avatar); scanAv(); }
+    function lookAv(x, y) { document.body.style.setProperty('--lp-lx', x); document.body.style.setProperty('--lp-ly', y); avs.forEach(a => { a.style.setProperty('--lp-lx', x); a.style.setProperty('--lp-ly', y); }); }
+    function initAv() {
+        const chat = document.getElementById('chat'), inp = document.getElementById('prompt'); if (!chat) return;
+        avObs = new MutationObserver(() => scanAv()); avObs.observe(chat, { childList: true }); scanAv();
+        if (inp) { const upd = () => { typing = document.activeElement === inp && inp.value.length > 0; if (typing) lookAv(0, 1.1); }; inp.addEventListener('input', upd); inp.addEventListener('focus', upd); inp.addEventListener('blur', () => { typing = false; }); }
+        addEventListener('pointermove', e => {   // olha para o cursor (a menos que a pessoa esteja digitando: ai olha para baixo, para a mensagem)
+            if (typing) return; const last = [...avs].filter(a => a.isConnected).pop(); if (!last) return; const r = last.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2), d = Math.hypot(dx, dy) || 1, k = Math.min(1, d / 200);
+            lookAv(+(dx / d * k).toFixed(2), +(dy / d * k).toFixed(2));
+        }, { passive: true });
+        setInterval(() => {   // piscar e "pensando" no ultimo avatar enquanto a IA responde
+            const list = [...avs].filter(a => a.isConnected), last = list[list.length - 1]; let b = false; try { b = typeof busy !== 'undefined' && !!busy; } catch (e) { b = false; }
+            list.forEach(a => { const th = a === last && b ? '1' : '0'; if (a.dataset.th !== th) { a.dataset.th = th; a.classList.toggle('thinking', th === '1'); } });
+            if (list.length && Math.random() < 0.12) { const a = list[Math.floor(Math.random() * list.length)]; a.classList.add('blink'); setTimeout(() => a.classList.remove('blink'), 140); }
+        }, 700);
+    }
     function openSettings() {
         if (document.getElementById('lp-modal')) return;
         const m = document.createElement('div'); m.id = 'lp-modal'; const card = document.createElement('div'); card.className = 'lp-card'; m.appendChild(card);
         const row = (label, el) => { const r = document.createElement('div'); r.className = 'lp-row'; const l = document.createElement('span'); l.textContent = T(label); r.append(l, el); card.appendChild(r); return r; };
-        const apply = rebuild => { save(); if (rebuild) build(); else { place(); paint(); } };
+        const apply = rebuild => { save(); if (rebuild) build(); else { place(); paint(); } refreshAv(); };
         card.appendChild(Object.assign(document.createElement('h3'), { textContent: T('Mascote') }));
-        const on = document.createElement('input'); on.type = 'checkbox'; on.checked = cfg.on; on.onchange = () => { cfg.on = on.checked; apply(); }; row('Mostrar o mascote', on);
+        const av = document.createElement('input'); av.type = 'checkbox'; av.checked = cfg.avatar; av.onchange = () => { cfg.avatar = av.checked; apply(); }; row('Ao lado das respostas da IA', av);
+        const on = document.createElement('input'); on.type = 'checkbox'; on.checked = cfg.on; on.onchange = () => { cfg.on = on.checked; apply(); }; row('Flutuando na tela', on);
         const nm = document.createElement('input'); nm.type = 'text'; nm.maxLength = 20; nm.value = cfg.name; nm.onchange = () => { cfg.name = nm.value.trim() || 'Lume'; if (root) root.title = cfg.name; save(); say(T('Oi, eu sou {n}!').replace('{n}', cfg.name)); }; row('Nome', nm);
         const sw = document.createElement('div'); sw.className = 'lp-sw'; ['#ee5a8a', '#2f8bff', '#8b5cf6', '#22c55e', '#f59e0b', '#ef4444', '#14b8a6', '#9ca3af'].forEach(c => { const b = document.createElement('button'); b.type = 'button'; b.style.background = c; b.onclick = () => { cfg.color = c; col.value = c; apply(); }; sw.appendChild(b); });
         const col = document.createElement('input'); col.type = 'color'; col.value = cfg.color; col.oninput = () => { cfg.color = col.value; apply(); }; const cw = document.createElement('div'); cw.style.cssText = 'display:flex;flex-direction:column;gap:8px;align-items:flex-end'; cw.append(sw, col); row('Cor', cw);
@@ -122,6 +156,6 @@
         btns.append(reset, pos, ok); card.appendChild(btns); m.addEventListener('mousedown', e => { if (e.target === m) m.remove(); }); document.body.appendChild(m);
     }
     window.lumePet = { openSettings, get config() { return cfg; }, say, setMood };
-    const start = () => { build(); if (cfg.on) setTimeout(() => say(T('Oi, eu sou {n}!').replace('{n}', cfg.name), 2600), 1800); };
+    const start = () => { build(); initAv(); if (cfg.on) setTimeout(() => say(T('Oi, eu sou {n}!').replace('{n}', cfg.name), 2600), 1800); };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();

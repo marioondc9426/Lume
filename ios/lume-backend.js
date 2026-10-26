@@ -15,8 +15,8 @@ const realFetch = window.fetch.bind(window);
 const enc = new TextEncoder();
 const POL_API = 'https://gen.pollinations.ai', OR_URL = 'https://openrouter.ai/api/v1', GROQ_URL = 'https://api.groq.com/openai/v1';
 const VERCEL_URL = 'https://ai-gateway.vercel.sh/v1', LLM7_URL = 'https://api.llm7.io/v1', TDC_URL = 'https://ai.tomdacat.com';
-const AC_URL = 'https://www.aichixia.xyz/api/v1', AH_URL = 'https://aihubmix.com/v1', LR_URL = 'https://api.literouter.com/v1', PX_URL = 'https://api.paxsenix.org/v1', VD_URL = 'https://api.voidai.app/v1';
-const XPROV = { lr: ['literouter_api_key', LR_URL, 'LiteRouter', 8000], ac: ['aichixia_api_key', AC_URL, 'Aichixia', 1500], ah: ['aihubmix_api_key', AH_URL, 'AIHubMix', 1500], px: ['paxsenix_api_key', PX_URL, 'Paxsenix', 1500], vd: ['voidai_api_key', VD_URL, 'VoidAI', 1500] };   // um lugar so para colocar outro provedor
+const AC_URL = 'https://www.aichixia.xyz/api/v1', AH_URL = 'https://aihubmix.com/v1', LR_URL = 'https://api.literouter.com/v1', PX_URL = 'https://api.paxsenix.org/v1', TK_URL = 'https://api.tokenreply.com/v1', VD_URL = 'https://api.voidai.app/v1';
+const XPROV = { lr: ['literouter_api_key', LR_URL, 'LiteRouter', 8000], ac: ['aichixia_api_key', AC_URL, 'Aichixia', 1500], ah: ['aihubmix_api_key', AH_URL, 'AIHubMix', 1500], px: ['paxsenix_api_key', PX_URL, 'Paxsenix', 1500], vd: ['voidai_api_key', VD_URL, 'VoidAI', 1500], tk: ['tokenreply_api_key', TK_URL, 'TokenReply', 1500] };   // um lugar so para colocar outro provedor
 const CLOUD_PREFIX = /^(groq|or:|cf:|pol:|tdc:|vc:|l7:|ac:|ah:|lr:|px:|vd:)/;
 const now = () => Date.now() / 1000;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -170,9 +170,15 @@ function polCost(model, ptok, otok) {   // pollen gasto (precos por milhao de to
     return (ptok * pin + otok * pout) / 1e6;
 }
 // ---------------------------------------------------------------- Aichixia / AIHubMix / LiteRouter: lista crua + teste de saude a cada 10 min
-const XEX = () => re(D.X_EXCLUDE || '^$'), XNONCHAT = /safety|guard|embed|whisper|tts|image/i, SHOW_ALL = new Set(['vd', 'px', 'lr']);   // vd/px/lr: todos os modelos de chat, sem teste de saude nem filtro de plano
+const XEX = () => re(D.X_EXCLUDE || '^$'), XNONCHAT = /safety|guard|embed|whisper|tts|image/i, SHOW_ALL = new Set(['vd', 'px', 'lr', 'tk']);   // vd/px/lr: todos os modelos de chat, sem teste de saude nem filtro de plano
    // modelos que nao entram (aleatorios, Llama, Grok...)
 const XFIELD = Object.fromEntries(Object.entries(XPROV).map(([p, v]) => [p, v[0]])), XBASE = Object.fromEntries(Object.entries(XPROV).map(([p, v]) => [p, v[1]]));
+let tkFreeSet = null;
+async function tkFree() {   // TokenReply: so os gratis (model_ratio 0); a tabela de precos e publica
+    if (tkFreeSet) return tkFreeSet;
+    try { const d = await getJson(TK_URL.replace(/\/v1$/, '') + '/api/pricing', {}, 20000, 'O TokenReply'); tkFreeSet = new Set((d.data || []).filter(x => x.model_ratio === 0 && !x.model_price && x.access_tier === 'free').map(x => x.model_name)); } catch (e) { return new Set(); }
+    return tkFreeSet;
+}
 async function extraRaw(p, cfg) {
     const c = cache[p] || (cache[p] = { t: 0, v: null }); if (c.v && now() - c.t < 3600) return c.v;
     const list = [];
@@ -182,6 +188,7 @@ async function extraRaw(p, cfg) {
         if (p === 'ac') { const caps = m.capabilities || []; if (m.tier !== 'free' || !caps.includes('chat') || XEX().test(id)) continue; list.push({ id, name: id.split('/').pop(), ctx: m.context_window || 128000, vision: caps.includes('multimodal') }); }
         else if (p === 'ah') { if (!/(^|[-:/])free$/.test(id) || XEX().test(id)) continue; list.push({ id, name: id.split('/').pop(), ctx: 128000, vision: false }); }
         else if (p === 'vd') { if (!(m.endpoints || []).includes('/v1/chat/completions') || /gemma/i.test(id) || XNONCHAT.test(id)) continue; if (m.supports_streaming === false) noStream.add(XBASE[p] + '|' + id); list.push({ id, name: id, ctx: m.max_context_tokens || 128000, vision: false, cin: m.input_multiplier || 0, cout: m.output_multiplier || 0, cbase: m.base_cost || 0 }); }
+        else if (p === 'tk') { if (!(await tkFree()).has(id) || XNONCHAT.test(id) || /grok/i.test(id)) continue; list.push({ id, name: id.split('/').pop(), ctx: 128000, vision: false }); }
         else if (p === 'px') { if (m.type !== 'chat.completions' || XNONCHAT.test(id)) continue; list.push({ id, name: m.name || id, ctx: m.max_context_tokens || 128000, vision: !!m.supports_vision }); }
         else { if (!id.endsWith(':free') || m.type !== 'chat' || XNONCHAT.test(id)) continue; list.push({ id, name: m.display_name || id, ctx: m.context_window || 128000, vision: !!(m.capabilities || {}).vision }); }
     }
@@ -520,7 +527,7 @@ function handleChat(req) {
 // ---------------------------------------------------------------- rotas
 const SECRET_KEYS = ['groq_api_key', 'openrouter_api_key', 'pollinations_api_key', 'cloudflare_api_token', 'cloudflare_account_id', 'exa_api_key', 'tomdacat_api_key', 'vercel_api_key', 'llm7_api_key',
     'groq_api_key_backup', 'openrouter_api_key_backup', 'pollinations_api_key_backup', 'tomdacat_api_key_backup', 'vercel_api_key_backup', 'llm7_api_key_backup',
-    'aichixia_api_key', 'aihubmix_api_key', 'literouter_api_key', 'paxsenix_api_key', 'voidai_api_key', 'aichixia_api_key_backup', 'aihubmix_api_key_backup', 'literouter_api_key_backup', 'paxsenix_api_key_backup', 'voidai_api_key_backup'];
+    'aichixia_api_key', 'aihubmix_api_key', 'literouter_api_key', 'paxsenix_api_key', 'voidai_api_key', 'tokenreply_api_key', 'tokenreply_api_key_backup', 'aichixia_api_key_backup', 'aihubmix_api_key_backup', 'literouter_api_key_backup', 'paxsenix_api_key_backup', 'voidai_api_key_backup'];
 const NOPE = () => json({ ok: false, error: 'Isto precisa do PC e nao existe no iPhone.' }, 400);
 const listModels = (keyName, fn) => async () => {
     const cfg = await loadConfig(); if (!cfg[keyName]) return json({ saved: false, models: [] });
