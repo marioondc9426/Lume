@@ -15,9 +15,9 @@ const realFetch = window.fetch.bind(window);
 const enc = new TextEncoder();
 const POL_API = 'https://gen.pollinations.ai', OR_URL = 'https://openrouter.ai/api/v1', GROQ_URL = 'https://api.groq.com/openai/v1';
 const VERCEL_URL = 'https://ai-gateway.vercel.sh/v1', LLM7_URL = 'https://api.llm7.io/v1', TDC_URL = 'https://ai.tomdacat.com';
-const AC_URL = 'https://www.aichixia.xyz/api/v1', AH_URL = 'https://aihubmix.com/v1', LR_URL = 'https://api.literouter.com/v1', PX_URL = 'https://api.paxsenix.org/v1';
-const XPROV = { lr: ['literouter_api_key', LR_URL, 'LiteRouter', 8000], ac: ['aichixia_api_key', AC_URL, 'Aichixia', 1500], ah: ['aihubmix_api_key', AH_URL, 'AIHubMix', 1500], px: ['paxsenix_api_key', PX_URL, 'Paxsenix', 1500] };   // um lugar so para colocar outro provedor
-const CLOUD_PREFIX = /^(groq|or:|cf:|pol:|tdc:|vc:|l7:|ac:|ah:|lr:|px:)/;
+const AC_URL = 'https://www.aichixia.xyz/api/v1', AH_URL = 'https://aihubmix.com/v1', LR_URL = 'https://api.literouter.com/v1', PX_URL = 'https://api.paxsenix.org/v1', VD_URL = 'https://api.voidai.app/v1';
+const XPROV = { lr: ['literouter_api_key', LR_URL, 'LiteRouter', 8000], ac: ['aichixia_api_key', AC_URL, 'Aichixia', 1500], ah: ['aihubmix_api_key', AH_URL, 'AIHubMix', 1500], px: ['paxsenix_api_key', PX_URL, 'Paxsenix', 1500], vd: ['voidai_api_key', VD_URL, 'VoidAI', 1500] };   // um lugar so para colocar outro provedor
+const CLOUD_PREFIX = /^(groq|or:|cf:|pol:|tdc:|vc:|l7:|ac:|ah:|lr:|px:|vd:)/;
 const now = () => Date.now() / 1000;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const re = (src, flags) => { try { return new RegExp(src.replace(/\(\?i\)/g, ''), flags || 'i'); } catch (e) { return /^$/; } };
@@ -179,6 +179,7 @@ async function extraRaw(p, cfg) {
         const id = String(m.id || ''); if (!id) continue;
         if (p === 'ac') { const caps = m.capabilities || []; if (m.tier !== 'free' || !caps.includes('chat') || XEX().test(id)) continue; list.push({ id, name: id.split('/').pop(), ctx: m.context_window || 128000, vision: caps.includes('multimodal') }); }
         else if (p === 'ah') { if (!/(^|[-:/])free$/.test(id) || XEX().test(id)) continue; list.push({ id, name: id.split('/').pop(), ctx: 128000, vision: false }); }
+        else if (p === 'vd') { if (!(m.endpoints || []).includes('/v1/chat/completions') || /gemma/i.test(id)) continue; if (m.supports_streaming === false) noStream.add(XBASE[p] + '|' + id); list.push({ id, name: id, ctx: m.max_context_tokens || 128000, vision: false }); }
         else if (p === 'px') { if (m.type !== 'chat.completions' || m.min_plan || id.startsWith('provider-') || XEX().test(id)) continue; list.push({ id, name: m.name || id, ctx: m.max_context_tokens || 128000, vision: !!m.supports_vision }); }
         else { if (!id.endsWith(':free') || m.type !== 'chat' || (D.LR_BLOCKED || []).includes(id) || XEX().test(id)) continue; list.push({ id, name: m.display_name || id, ctx: m.context_window || 128000, vision: !!(m.capabilities || {}).vision }); }
     }
@@ -517,7 +518,7 @@ function handleChat(req) {
 // ---------------------------------------------------------------- rotas
 const SECRET_KEYS = ['groq_api_key', 'openrouter_api_key', 'pollinations_api_key', 'cloudflare_api_token', 'cloudflare_account_id', 'exa_api_key', 'tomdacat_api_key', 'vercel_api_key', 'llm7_api_key',
     'groq_api_key_backup', 'openrouter_api_key_backup', 'pollinations_api_key_backup', 'tomdacat_api_key_backup', 'vercel_api_key_backup', 'llm7_api_key_backup',
-    'aichixia_api_key', 'aihubmix_api_key', 'literouter_api_key', 'paxsenix_api_key', 'aichixia_api_key_backup', 'aihubmix_api_key_backup', 'literouter_api_key_backup', 'paxsenix_api_key_backup'];
+    'aichixia_api_key', 'aihubmix_api_key', 'literouter_api_key', 'paxsenix_api_key', 'voidai_api_key', 'aichixia_api_key_backup', 'aihubmix_api_key_backup', 'literouter_api_key_backup', 'paxsenix_api_key_backup', 'voidai_api_key_backup'];
 const NOPE = () => json({ ok: false, error: 'Isto precisa do PC e nao existe no iPhone.' }, 400);
 const listModels = (keyName, fn) => async () => {
     const cfg = await loadConfig(); if (!cfg[keyName]) return json({ saved: false, models: [] });

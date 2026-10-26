@@ -47,6 +47,9 @@ The code is fully open source: read it, change it, break it.
 - Pollinations pricing is shown per 1,000 tokens; while you type, a small estimate shows the tokens of your message and its likely cost in pollen. The stats page tracks real spending per model and per day.
 - A **Pollinations menu** (Settings) lists the whole catalog with live health and filters the site does not have: hide 0% models, hide paid ones (keep free and quest only).
 
+**Fun**
+- Play chess against any model (right-click and drag to draw arrows, like on Lichess).
+
 **Code tab**
 - The AI can list/read/write files and run commands in a folder you choose. Writing and running **always ask your permission** in a popup.
 - Code blocks have a **Run** button (Python, JavaScript, PowerShell, BAT, Bash) that turns into **Stop** while the program runs.

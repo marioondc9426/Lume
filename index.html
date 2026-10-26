@@ -1017,6 +1017,7 @@
             <button class="btn btn-primary" onclick="createNewChat()"><svg class="si" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span class="emo">+ </span>Novo Chat</button>
             <button class="btn btn-secondary" onclick="openSettingsEntry()"><svg class="si" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span class="emo">⚙️ </span>Configurações <span id="upd-dot" title="Atualização disponível" style="display:none; color:#4ade80;">●</span></button>
             <button class="btn btn-secondary" onclick="openMemory()"><svg class="si" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span class="emo">🧠 </span>Memória</button>
+            <button class="btn btn-secondary" id="btn-chess" onclick="openChess()"><svg class="si" viewBox="0 0 24 24"><path d="M8 20h8M9 20c0-3 1-4 1-6-2-1-3-3-3-5a5 5 0 0 1 10 0c0 3-2 4-3 5 0 2 1 3 1 6"/><circle cx="12" cy="5" r="0.01"/></svg> Xadrez</button>
             <button class="btn btn-secondary" id="btn-stats" onclick="openStats()"><svg class="si" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><span class="emo">📊 </span>Estatísticas</button>
             <input type="text" id="chat-search" placeholder="Pesquisar nos chats..." autocomplete="off" spellcheck="false">
             <div id="chat-list"></div>
@@ -1215,6 +1216,15 @@
             </div>
             <div class="key-input bkp"><input type="password" id="px-bkp-input" placeholder="Chave de reserva (opcional; mais de uma: separe por vírgula)" autocomplete="off" spellcheck="false"></div>
             <span class="hint">Só o plano grátis (os "High Engine" não entram) e só o que o Lume ainda não tem por outro provedor. Chave em api.paxsenix.org.</span>
+        </div>
+        <div class="form-group host-only">
+            <label>VoidAI API Key <span class="badge" id="vd-status">não salva</span></label>
+            <div class="key-input">
+                <input type="password" id="vd-key-input" placeholder="sk-voidai-..." autocomplete="off" spellcheck="false">
+                <button type="button" class="eye" onclick="toggleKey('vd-key-input', this)">Mostrar</button>
+            </div>
+            <div class="key-input bkp"><input type="password" id="vd-bkp-input" placeholder="Chave de reserva (opcional; mais de uma: separe por vírgula)" autocomplete="off" spellcheck="false"></div>
+            <span class="hint">Todos os modelos de chat (menos o Gemma 4). Os créditos diários do seu plano valem para todos; os que o plano não cobre somem sozinhos no teste de saúde. Chave em voidai.app/dashboard.</span>
         </div>
         <div class="form-group host-only">
             <label>tomdacat API Key <span class="badge" id="tdc-status">não salva</span></label>
@@ -2077,7 +2087,7 @@
         const availIn = tab => MODELS.filter(m => m.tabs.includes(tab) && isAvail(m));
         const pickDefault = list => list.find(m => m.rec && !m.cloud) || list.find(m => !m.cloud && !m.heavy) || list.find(m => !m.cloud) || list[0];
         // ---------- familias: todas as versoes e provedores de uma marca ficam num lugar so ("Qwen 2.5, 3 e 3.5"); a lista de parametros traz "versao, tamanho"
-        const XP = { ac: ['aichixia', 'Aichixia'], ah: ['aihubmix', 'AIHubMix'], lr: ['literouter', 'LiteRouter'], px: ['paxsenix', 'Paxsenix'] };   // um lugar so para colocar outro provedor extra (e a chave, no HTML das configuracoes)
+        const XP = { ac: ['aichixia', 'Aichixia'], ah: ['aihubmix', 'AIHubMix'], lr: ['literouter', 'LiteRouter'], px: ['paxsenix', 'Paxsenix'], vd: ['voidai', 'VoidAI'] };   // um lugar so para colocar outro provedor extra (e a chave, no HTML das configuracoes)
         const PROV_TAG = m => m.x ? ' · ' + XP[m.xp][1] : m.vc ? ' · Vercel' : m.l7 ? ' · LLM7' : m.tdc ? ' · tomdacat' : m.groq ? ' · Groq' : m.or ? ' · OpenRouter' : m.cf ? ' · Cloudflare' : m.pol ? ' · Pollinations' : '';
         function parseDyn(slug, fallbackBase) {   // 'google/gemma-4-31b-it:free', '@cf/qwen/qwen3.8-27b', 'gemma2:9b'... -> { base, ver, psize }
             const raw = String(slug).replace(/^@(cf|hf)\//, '').replace(/:free$/, ''), prov = raw.includes('/') ? raw.split('/')[0] : '';
@@ -2374,7 +2384,8 @@
         const BRANDS = [
             { re: /deepseek/i, img: 'DeepSeek.png', wordmark: true },
             { re: /beam/i, img: 'beam.png', wordmark: true, mono: true, ratio: 5.06 },
-            { re: /gemma|gemini/i, img: 'Google.png' },
+            { re: /gemini/i, img: 'Gemini.svg' },
+            { re: /gemma/i, img: 'Google.png' },
             { re: /gpt|openai|chatgpt/i, img: 'chatgpt.png', mono: true },
             { re: /nemotron|nvidia/i, img: 'nvidia.png' },
             { re: /bonsai/i, img: 'bonsai.svg', mono: true },
@@ -2399,7 +2410,7 @@
         const brandOf = rec => { const s = `${rec.fam} ${rec.famName} ${rec.id}`; return BRANDS.find(b => b.re.test(s) && brandFile(b, rec)) || null; };   // a primeira marca que combina E tem imagem
         const brandFile = (b, rec) => b.pick ? b.pick(`${rec.famName} ${rec.id}`) : b.img;
         // logos dos provedores (icons/prov-*.png): o arquivo que faltar simplesmente nao aparece
-        const PROV_LOGOS = { 'ollama-cloud': { img: 'prov-ollama.png', mono: true, ratio: 50 / 64, name: 'Ollama (nuvem)' }, ollama: { img: 'prov-ollama.png', mono: true, ratio: 50 / 64, name: 'Ollama (no seu PC)' }, openrouter: { img: 'prov-openrouter.png', name: 'OpenRouter' }, pollinations: { img: 'prov-pollinations.png', mono: true, ratio: 1, name: 'Pollinations' }, cloudflare: { img: 'prov-cloudflare.png', name: 'Cloudflare' }, groq: { img: 'prov-groq.png', mono: true, ratio: 2.62, name: 'Groq' }, tomdacat: { img: 'prov-tomdacat.svg', mono: true, ratio: 2.02, name: 'tomdacat' }, vercel: { img: 'prov-vercel.svg', mono: true, ratio: 1.15, name: 'Vercel' }, llm7: { img: 'prov-llm7.png', name: 'LLM7' }, aichixia: { img: 'prov-aichixia.png', name: 'Aichixia' }, aihubmix: { img: 'prov-aihubmix.png', name: 'AIHubMix' }, literouter: { img: 'prov-literouter.png', name: 'LiteRouter' }, paxsenix: { img: 'prov-paxsenix.png', name: 'Paxsenix' } };
+        const PROV_LOGOS = { 'ollama-cloud': { img: 'prov-ollama.png', mono: true, ratio: 50 / 64, name: 'Ollama (nuvem)' }, ollama: { img: 'prov-ollama.png', mono: true, ratio: 50 / 64, name: 'Ollama (no seu PC)' }, openrouter: { img: 'prov-openrouter.png', name: 'OpenRouter' }, pollinations: { img: 'prov-pollinations.png', mono: true, ratio: 1, name: 'Pollinations' }, cloudflare: { img: 'prov-cloudflare.png', name: 'Cloudflare' }, groq: { img: 'prov-groq.png', mono: true, ratio: 2.62, name: 'Groq' }, tomdacat: { img: 'prov-tomdacat.svg', mono: true, ratio: 2.02, name: 'tomdacat' }, vercel: { img: 'prov-vercel.svg', mono: true, ratio: 1.15, name: 'Vercel' }, llm7: { img: 'prov-llm7.png', name: 'LLM7' }, aichixia: { img: 'prov-aichixia.png', name: 'Aichixia' }, aihubmix: { img: 'prov-aihubmix.png', name: 'AIHubMix' }, literouter: { img: 'prov-literouter.png', name: 'LiteRouter' }, paxsenix: { img: 'prov-paxsenix.png', name: 'Paxsenix' }, voidai: { img: 'prov-voidai.png', name: 'VoidAI' } };
         const provKey = m => m.x ? XP[m.xp][0] : m.vc ? 'vercel' : m.l7 ? 'llm7' : m.tdc ? 'tomdacat' : m.or ? 'openrouter' : m.cf ? 'cloudflare' : m.pol ? 'pollinations' : m.groq ? 'groq' : m.phone ? null : isLocalM(m) ? 'ollama' : 'ollama-cloud';
         function provLogos(sizes) {
             const keys = Object.keys(PROV_LOGOS).filter(k => sizes.some(m => provKey(m) === k)); if (!keys.length) return null;
@@ -3931,7 +3942,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             if (auth.local) checkUpdates(false);
             $('perf-style').value = config.perfStyle;
             $('perf-interval').value = config.perfInterval; $('perf-int-val').innerText = config.perfInterval;
-            $('groq-key-input').value = ''; $('or-key-input').value = ''; $('cf-token-input').value = ''; $('cf-acc-input').value = ''; $('pol-key-input').value = ''; $('tdc-key-input').value = ''; $('vc-key-input').value = ''; $('l7-key-input').value = ''; $('ac-key-input').value = ''; $('ah-key-input').value = ''; $('lr-key-input').value = ''; $('px-key-input').value = ''; $('exa-key-input').value = '';
+            $('groq-key-input').value = ''; $('or-key-input').value = ''; $('cf-token-input').value = ''; $('cf-acc-input').value = ''; $('pol-key-input').value = ''; $('tdc-key-input').value = ''; $('vc-key-input').value = ''; $('l7-key-input').value = ''; $('ac-key-input').value = ''; $('ah-key-input').value = ''; $('lr-key-input').value = ''; $('px-key-input').value = ''; $('vd-key-input').value = ''; $('exa-key-input').value = '';
             showModal('settings-modal');
             showSettingsTab('general'); initAccountRow();
             if (!config.uiLegacy && innerWidth > 760 && !window.__LUME_IOS) buildSettingsNav(); else document.querySelectorAll('#set-general .sec-hidden').forEach(e => e.classList.remove('sec-hidden'));   // classica e celular: tudo numa rolagem so
@@ -4141,8 +4152,8 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 if (tdcKey) body.tomdacat_api_key = tdcKey;
                 const vcKey = $('vc-key-input').value.trim(); if (vcKey) body.vercel_api_key = vcKey;
                 const l7Key = $('l7-key-input').value.trim(); if (l7Key) body.llm7_api_key = l7Key;
-                [['ac', 'aichixia_api_key'], ['ah', 'aihubmix_api_key'], ['lr', 'literouter_api_key'], ['px', 'paxsenix_api_key']].forEach(([i, f]) => { const v = $(i + '-key-input').value.trim(); if (v) body[f] = v; });
-                [['groq', 'groq_api_key'], ['or', 'openrouter_api_key'], ['pol', 'pollinations_api_key'], ['vc', 'vercel_api_key'], ['l7', 'llm7_api_key'], ['tdc', 'tomdacat_api_key'], ['ac', 'aichixia_api_key'], ['ah', 'aihubmix_api_key'], ['lr', 'literouter_api_key'], ['px', 'paxsenix_api_key']].forEach(([i, f]) => { const v = $(i + '-bkp-input').value.trim(); if (v) body[f + '_backup'] = v; });
+                [['ac', 'aichixia_api_key'], ['ah', 'aihubmix_api_key'], ['lr', 'literouter_api_key'], ['px', 'paxsenix_api_key'], ['vd', 'voidai_api_key']].forEach(([i, f]) => { const v = $(i + '-key-input').value.trim(); if (v) body[f] = v; });
+                [['groq', 'groq_api_key'], ['or', 'openrouter_api_key'], ['pol', 'pollinations_api_key'], ['vc', 'vercel_api_key'], ['l7', 'llm7_api_key'], ['tdc', 'tomdacat_api_key'], ['ac', 'aichixia_api_key'], ['ah', 'aihubmix_api_key'], ['lr', 'literouter_api_key'], ['px', 'paxsenix_api_key'], ['vd', 'voidai_api_key']].forEach(([i, f]) => { const v = $(i + '-bkp-input').value.trim(); if (v) body[f + '_backup'] = v; });
                 const exaKey = $('exa-key-input').value.trim();
                 if (exaKey) body.exa_api_key = exaKey;
                 try {
@@ -5255,5 +5266,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
         init().catch(initFailed);
         setTimeout(() => { if (!initDone) { startPolling(); if (!metricsStarted) metricsLoop(); } }, 5000);   // inicializacao lenta: os avisos de permissao e o painel nao ficam esperando
     </script>
+    <script src="libs/chess.min.js"></script>
+    <script src="libs/lume-chess.js"></script>
 </body>
 </html>

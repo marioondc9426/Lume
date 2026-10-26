@@ -19,7 +19,7 @@ assert html.count("<head>") == 1, "esperava uma tag <head>"
 html = html.replace("<head>", "<head>" + inject, 1)                  # antes de qualquer script da pagina: o fetch ja nasce trocado
 open(os.path.join(WWW, "index.html"), "w", encoding="utf-8").write(html)
 for f in ("backend-data.js", "lume-backend.js"): shutil.copy2(os.path.join(HERE, f), WWW)
-for d in ("icons", "fonts"):
+for d in ("icons", "fonts", "libs"):
     src = os.path.join(ROOT, d); dst = os.path.join(WWW, d)
     shutil.copytree(src, dst, ignore=shutil.ignore_patterns("originals", "*.ico"))
 
