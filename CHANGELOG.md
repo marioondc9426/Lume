@@ -7,6 +7,7 @@ Como numerar:
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
 ## v3.1 (em desenvolvimento)
+- **Mascote** sem boca; na expressão feliz ficam só os olhos em "^". **Xadrez**: tabuleiro verde nas cores do chess.com e o botão Fechar virou um ✕ sobre a tela. **iPhone**: não dá mais zoom ao tocar num campo de texto. **Sincronizar com o PC**: a Cloudflare (token e ID da conta) agora também vai junto com as chaves.
 - **iPhone**: salvar a configuração não quebra mais o carregamento dos modelos do Pollinations ("null is not an object (evaluating 'lat[mid]')").
 - **Lista de modelos**: VoidAI só mostra os que o plano grátis cobre (sem mais "Your plan does not have access"); Celeris, iSign e LFM saíram; o Paxsenix usa um P azul no lugar do logo.
 - **Mascote bem customizável** (Configurações > Geral > Mascote > Personalizar, ou **clique no mascote de qualquer resposta**), com prévia ao vivo: 10 expressões (feliz, piscando, apaixonado, surpreso, sonolento, bravo, triste, convencido, fora de combate...), formato dos olhos e cor dos olhos, cor do corpo (paleta + qualquer cor), estilo (bolha ou LED), formato (redondo, achatado, quadrado, gota, fantasminha), bochechas, acessórios (óculos, óculos escuros, chapéu de festa, coroa, fones, laço, auréola, orelhas de gato, antena), brilho, tamanhos, e liga/desliga de seguir o cursor, piscar, balançar e reagir.

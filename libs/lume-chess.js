@@ -14,6 +14,7 @@
 
     const css = document.createElement('style');
     css.textContent = `
+        .chess-x { position: fixed; top: 44px; right: 14px; z-index: 2; width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(0,0,0,.55); color: #fff; font-size: 16px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; } .chess-x:hover { background: rgba(220,50,50,.85); }
         .chess-ov { position: fixed; inset: 36px 0 0 0; z-index: 6500; display: flex; align-items: flex-start; justify-content: center; background: rgba(0,0,0,0.6); padding: 12px; overflow: auto; } .chess-ov > .chess-wrap { margin: auto; }
         .chess-wrap { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; justify-content: center; max-width: 100%; background: var(--bg-main); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 20px; padding: 16px; box-shadow: 0 20px 60px rgba(0,0,0,.55); }
         .chess-bw { display: flex; gap: 8px; } .chess-eval { width: 14px; height: var(--cb, 520px); border-radius: 6px; overflow: hidden; background: #262522; position: relative; visibility: hidden; } .chess-eval.on { visibility: visible; } .chess-eval i { position: absolute; left: 0; right: 0; bottom: 0; background: #f2f2f2; transition: height .3s; } .chess-eval b { position: absolute; left: 0; right: 0; font: 600 9px system-ui; text-align: center; color: #888; top: 2px; }
@@ -201,7 +202,7 @@
         ov.querySelector('.chess-sum').style.visibility = st.summary ? 'visible' : 'hidden'; ov.querySelector('.chess-sum').textContent = st.summary || ' ';
         ov.querySelector('.chess-nav').style.visibility = rv !== null && rv !== undefined ? 'visible' : 'hidden';
     }
-    const BOARDS = { green: ['Verde', '#eeeed2', '#769656'], brown: ['Marrom', '#f0d9b5', '#b58863'], blue: ['Azul', '#dee3e6', '#8ca2ad'], gray: ['Cinza', '#e8e8e8', '#9aa0a6'], purple: ['Roxo', '#e6dff0', '#8877b3'], wood: ['Madeira', '#ecd9b4', '#ae8a68'], night: ['Noite', '#8d99ae', '#2b2d42'] };
+    const BOARDS = { green: ['Verde', '#ebecd0', '#779556'], brown: ['Marrom', '#f0d9b5', '#b58863'], blue: ['Azul', '#dee3e6', '#8ca2ad'], gray: ['Cinza', '#e8e8e8', '#9aa0a6'], purple: ['Roxo', '#e6dff0', '#8877b3'], wood: ['Madeira', '#ecd9b4', '#ae8a68'], night: ['Noite', '#8d99ae', '#2b2d42'] };
     const SET_NAMES = { cardinal: 'Cardinal', caliente: 'Caliente', california: 'California', chessnut: 'Chessnut', fresca: 'Fresca', gioco: 'Gioco', icpieces: 'IC Pieces', kosal: 'Kosal', maestro: 'Maestro', merida: 'Mérida', rhosgfx: 'RhosGFX', staunty: 'Staunty', tatiana: 'Tatiana', cburnett: 'Clássico (Lichess)' };
     const LOOK_KEY = 'lume_chess_look'; let look = (() => { try { return Object.assign({ set: 'cardinal', board: 'green' }, JSON.parse(localStorage.getItem(LOOK_KEY) || '{}')); } catch (e) { return { set: 'cardinal', board: 'green' }; } })();
     const saveLook = () => { try { localStorage.setItem(LOOK_KEY, JSON.stringify(look)); } catch (e) { /* sem armazenamento */ } };
@@ -451,7 +452,8 @@
         btn('Desfazer', undo); btn('Virar', () => { st.flip = !st.flip; render(); });
         btn('Desistir', () => { if (game && !game.game_over() && !st.over) { st.token = Math.random(); st.thinking = false; st.over = T('Você desistiu.'); st.pre = null; st.psel = null; render(); } });
         btn('Analisar partida', analyzeGame); btn('Exportar PGN', exportPgn);
-        btn('Fechar', () => { if (st) st.token = Math.random(); if (st && st.rid) { try { fetch(API + '/api/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rid: st.rid }) }); } catch (e) { /* ok */ } } const o = ov; ov = null; o.classList.add('out'); setTimeout(() => o.remove(), 190); });
+        const xb = mk('button', 'chess-x', '✕'); xb.type = 'button'; xb.title = T('Fechar'); xb.setAttribute('aria-label', T('Fechar')); ov.appendChild(xb);
+        xb.onclick = () => { if (st) st.token = Math.random(); if (st && st.rid) { try { fetch(API + '/api/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rid: st.rid }) }); } catch (e) { /* ok */ } } const o = ov; ov = null; o.classList.add('out'); setTimeout(() => o.remove(), 190); };
         const navRow = mk('div', 'chess-row chess-nav'); [['⏮', 'start'], ['◀', -1], ['▶', 1], ['⏭', 'end']].forEach(([t, d]) => { const b = mk('button', 'btn btn-secondary', t); b.type = 'button'; b.onclick = () => nav(d); navRow.appendChild(b); }); const ex = mk('button', 'btn btn-secondary', T('Sair da análise')); ex.type = 'button'; ex.onclick = () => { st.review = null; render(); }; navRow.appendChild(ex); side.appendChild(navRow);
         side.appendChild(mk('div', 'chess-status', '')); side.appendChild(mk('div', 'chess-moves', '')); const sum = mk('div', 'chess-sum', ''); sum.style.whiteSpace = 'pre-line'; side.appendChild(sum);
         side.appendChild(mk('div', 'chess-hint', T('Botão direito: segure e arraste para desenhar uma seta (Shift vermelha, Ctrl azul, Alt amarela); clique direito numa casa marca a casa; clique esquerdo limpa. No celular: segure o dedo numa casa e arraste.')));

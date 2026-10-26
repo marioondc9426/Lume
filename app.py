@@ -292,7 +292,7 @@ def save_state(data): _write_json(STATE_FILE, data)
 # ---------------------------------------------------------------- contas no PC + aparelhos confiaveis
 TRUSTED_FILE = os.path.join(BASE_DIR, "trusted_devices.json")   # aparelhos (iPhone) que ja mandaram copia; so os marcados como confiaveis recebem chaves, conversas e memorias
 SYNC_KEYS = ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "tomdacat_api_key", "vercel_api_key", "llm7_api_key", "aichixia_api_key", "aihubmix_api_key", "literouter_api_key", "exa_api_key") + tuple(k + "_backup" for k in ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "tomdacat_api_key", "vercel_api_key", "llm7_api_key", "aichixia_api_key", "aihubmix_api_key", "literouter_api_key"))
-SYNC_KEYS = SYNC_KEYS + tuple(f for f, _u, _n, _s in X_PROVIDERS.values() if f not in SYNC_KEYS) + tuple(f + "_backup" for f, _u, _n, _s in X_PROVIDERS.values() if f + "_backup" not in SYNC_KEYS)
+SYNC_KEYS = SYNC_KEYS + ("cloudflare_api_token", "cloudflare_account_id") + tuple(f for f, _u, _n, _s in X_PROVIDERS.values() if f not in SYNC_KEYS) + tuple(f + "_backup" for f, _u, _n, _s in X_PROVIDERS.values() if f + "_backup" not in SYNC_KEYS)
 ACTIVE_ACCOUNT = ""   # "" = a conta do dono
 
 def load_trusted():

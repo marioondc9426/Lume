@@ -45,7 +45,7 @@
         .lp-pet .bl { position: absolute; top: 58%; width: 16%; height: 10%; border-radius: 50%; background: rgba(255,110,150,.55); display: none; } .lp-pet .bl.l { left: 12%; } .lp-pet .bl.r { right: 12%; } .lp-pet.blush .bl { display: block; }
         .lp-pet .acc { position: absolute; inset: 0; overflow: visible; pointer-events: none; } .lp-pet .acc svg { width: 100%; height: 100%; overflow: visible; display: block; }
         .lp-pet.acc-sunglasses .e { opacity: 0; }
-        .lp-pet.ex-happy .e, .lp-pet.mood-happy .e { height: 9%; top: 44%; background: transparent !important; box-shadow: none; border-top: 3px solid var(--lp-e); border-radius: 50% 50% 0 0; width: 17%; }
+        .lp-pet.ex-happy .e, .lp-pet.mood-happy .e { height: 9%; top: 44%; background: transparent !important; box-shadow: none; border-top: 4px solid var(--lp-e); border-radius: 50% 50% 0 0; width: 19%; }
         .lp-pet.ex-happy .m, .lp-pet.mood-happy .m { display: block; border-bottom-width: 3px; border-radius: 0 0 50% 50%; height: 12%; }
         .lp-pet.ex-wink .e.r { height: 8%; top: 46%; background: transparent !important; box-shadow: none; border-top: 3px solid var(--lp-e); border-radius: 50% 50% 0 0; }
         .lp-pet.ex-wink .m { display: block; border-bottom-width: 3px; border-radius: 0 0 50% 50%; height: 12%; }
@@ -62,6 +62,7 @@
         .lp-pet.ex-dead .m { display: block; border-top-width: 3px; width: 16%; height: 0; top: 70%; }
         @keyframes lpBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } } @keyframes lpThink { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } } @keyframes lpSleep { 0%, 100% { transform: scale(1); } 50% { transform: scale(.96); } }
         @keyframes lpJump { 0% { transform: translateY(0) scale(1); } 30% { transform: translateY(-18px) scale(.95, 1.06); } 60% { transform: translateY(0) scale(1.08, .92); } 100% { transform: translateY(0) scale(1); } }
+        .lp-pet .m { display: none !important; }   /* sem boca */
         @media (prefers-reduced-motion: reduce) { .lp-pet { animation: none !important; } }
         #lume-pet { position: fixed; z-index: 4400; touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab; } #lume-pet.drag { cursor: grabbing; } #lume-pet.hide { display: none; }
         #lume-pet .lp-bub { position: absolute; bottom: calc(100% + 8px); right: 0; max-width: 220px; white-space: nowrap; padding: 6px 12px; border-radius: 14px; background: var(--bg-input, #2a2a2e); color: var(--text-main, #eee); border: 1px solid var(--border-color, #444); font-size: 12.5px; box-shadow: 0 6px 18px rgba(0,0,0,.4); opacity: 0; transform: translateY(6px) scale(.96); transition: opacity .2s, transform .2s; pointer-events: none; } #lume-pet .lp-bub.on { opacity: 1; transform: none; }

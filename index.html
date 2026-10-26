@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Lume">
@@ -330,6 +330,7 @@
         .badge { font-size: 0.7em; font-weight: normal; padding: 2px 8px; border-radius: 10px; background: rgba(128,128,128,0.2); color: var(--text-muted); }
         .badge.ok { background: rgba(46,160,67,0.2); color: #3fb950; }
 
+        @supports (-webkit-touch-callout: none) { input, textarea, select, #prompt, [contenteditable] { font-size: 16px !important; } }   /* iPhone: campo com fonte menor que 16px da zoom ao digitar e quebra a tela */
         select, input[type="text"], input[type="password"], textarea { padding: 10px 12px; background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 10px; outline: none; font-size: 0.9em; transition: border-color .2s, box-shadow .2s; width: 100%; }
         select:hover, input:hover, textarea:hover { border-color: var(--text-muted); }
         select:focus, input[type="text"]:focus, input[type="password"]:focus, textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
