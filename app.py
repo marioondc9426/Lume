@@ -1455,7 +1455,7 @@ LLM7_URL = "https://api.llm7.io/v1"
 AC_URL = "https://www.aichixia.xyz/api/v1"   # Aichixia: so os modelos do plano "free" (os premium nao funcionam)
 AH_URL = "https://aihubmix.com/v1"           # AIHubMix: so os que terminam em "free"
 LR_URL = "https://api.literouter.com/v1"     # LiteRouter: so os ":free" (1 pedido a cada 7 s no plano gratis)
-LR_BLOCKED = {"deepseek-v4-pro-cheap:free", "glm-5.3-flash-cheap:free", "gpt-oss-120b:free", "kimi-k2.6-cheap:free", "kimi-k2.7-code-cheap:free", "kimi-k2.8:free", "kimi-k3-cheap:free", "kimi-k3.1-pro-cheap:free", "minimax-m2.1:free", "minimax-m2:free", "muse-spark-1.2-contributor:free", "muse-spark-1.3-contributor:free", "qwen3.8-flash:free"}   # ":free" que deram erro 502 ("All providers failed") em dois testes seguidos
+LR_BLOCKED = {"kimi-k3-cheap:free", "muse-spark-1.2-contributor:free"}   # a API responde "model is not available" (o resto dos ":free" respondeu num teste com 1024 tokens; com 16 os modelos que pensam davam 502 por resposta vazia)
 AH_EXCLUDE = re.compile(r"llama|grok|safety|guard|embed|whisper|tts|image", re.I)   # sem Llama nem Grok (voce nao quer)
 _x_cache = {"ac": [0, []], "ah": [0, []], "lr": [0, []]}
 # Vercel: so os gratis que pediu. Eles so funcionam com um cartao cadastrado na conta Vercel (a Vercel exige, mesmo para os "-free").
