@@ -7,6 +7,7 @@ Como numerar:
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
 ## v3.1 (em desenvolvimento)
+- **Xadrez: seletor de modelo igual ao do chat** (famílias na lista, com logos dos provedores, e embaixo "Parâmetros" e "Provedor"), com busca. A lista é relida toda vez que o seletor abre, então provedores que carregaram depois de abrir o xadrez aparecem. Tabuleiro no verde clássico.
 - **Xadrez: exportar a partida em PGN** (o formato padrão, aceito por Lichess, chess.com, Stockfish e qualquer programa de xadrez). O botão "Exportar PGN" copia o texto e baixa o arquivo `lume-partida.pgn`, com os nomes, a data e o resultado. Lances ilegais do modelo não existem no PGN: viram comentário `{lance ILEGAL ...}` e a posição final vai no cabeçalho (FEN).
 - **Xadrez: arrastar.** Dá para arrastar a janela pelo título e arrastar as peças com o mouse (soltar na casa de destino; vale também para a jogada adiantada). No celular, o toque continua sendo clicar na peça e depois na casa.
 - **Xadrez: jogada adiantada (premove)** e conserto do "Vez do modelo" parado: durante a vez do modelo, clique numa peça sua e na casa de destino (casas azuis); o lance sai sozinho quando o modelo responder, se ainda for legal. Antes, o aviso do motor de análise podia fazer o Lume desistir de jogar pelo modelo; agora ele sempre joga (um lance qualquer, se a resposta for inválida) e, se a conexão falhar, clicar no tabuleiro tenta de novo.

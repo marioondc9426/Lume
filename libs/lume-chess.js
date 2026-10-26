@@ -19,7 +19,7 @@
         .chess-bw { display: flex; gap: 8px; } .chess-eval { width: 14px; height: var(--cb, 520px); border-radius: 6px; overflow: hidden; background: #262522; position: relative; visibility: hidden; } .chess-eval.on { visibility: visible; } .chess-eval i { position: absolute; left: 0; right: 0; bottom: 0; background: #f2f2f2; transition: height .3s; } .chess-eval b { position: absolute; left: 0; right: 0; font: 600 9px system-ui; text-align: center; color: #888; top: 2px; }
         .chess-board { position: relative; width: var(--cb, 520px); height: var(--cb, 520px); display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); border-radius: 8px; overflow: hidden; user-select: none; -webkit-user-select: none; touch-action: none; }
         .chess-sq { position: relative; display: flex; align-items: center; justify-content: center; font-size: calc(var(--cb, 520px) / 8 * 0.78); line-height: 1; cursor: pointer; }
-        .chess-sq.l { background: #ecd9b4; } .chess-sq.d { background: #ae8a68; }
+        .chess-sq.l { background: #eeeed2; } .chess-sq.d { background: #769656; }
         .chess-sq.sel { box-shadow: inset 0 0 0 4px rgba(255, 214, 10, .85); } .chess-sq.last { background-image: linear-gradient(rgba(255, 238, 90, .45), rgba(255, 238, 90, .45)); }
         .chess-sq.ill { background-image: linear-gradient(rgba(220, 60, 60, .45), rgba(220, 60, 60, .45)); }
         .chess-sq.chk { background-image: radial-gradient(circle, rgba(255, 40, 40, .9) 0%, rgba(255, 40, 40, 0) 70%); }
@@ -48,6 +48,7 @@
         .chess-tog input { position: absolute; opacity: 0; pointer-events: none; } .chess-tog .sw { position: relative; flex: none; width: 38px; height: 22px; border-radius: 999px; background: rgba(128,128,128,.45); transition: background .2s; } .chess-tog .sw::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .2s cubic-bezier(.3,.9,.3,1.2); box-shadow: 0 1px 3px rgba(0,0,0,.4); }
         .chess-tog input:checked + .sw { background: var(--accent); } .chess-tog input:checked + .sw::after { transform: translateX(16px); } .chess-tog input:focus-visible + .sw { outline: 2px solid var(--accent); outline-offset: 2px; }
         .chess-seg { display: flex; padding: 3px; border-radius: 12px; background: rgba(128,128,128,.14); gap: 2px; } .chess-seg button { flex: 1; border: 0; background: transparent; color: var(--text-muted); padding: 8px 6px; border-radius: 9px; cursor: pointer; font-size: .86em; transition: background .2s, color .2s; } .chess-seg button.on { background: var(--bg-main); color: var(--text-main); box-shadow: 0 1px 4px rgba(0,0,0,.3); }
+        .chess-side .custom-select { position: relative; height: auto; display: block; } .chess-side .select-trigger { height: 42px; box-sizing: border-box; } .chess-side .select-options { position: absolute; top: calc(100% + 6px); bottom: auto; left: 0; right: 0; width: auto; min-width: 0; margin: 0; max-height: min(460px, 62vh); z-index: 30; box-shadow: 0 14px 40px rgba(0,0,0,.5); } .chess-side .select-options .mo-list { max-height: 240px; }
         .cm-wrap { position: relative; } .cm-btn { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border-color); background: rgba(128,128,128,.10); color: var(--text-main); cursor: pointer; text-align: left; font-size: .92em; transition: border-color .2s, background .2s; } .cm-btn:hover, .cm-btn.on { border-color: var(--accent); background: rgba(128,128,128,.16); }
         .cm-logo { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; flex: none; } .cm-logo > * { max-height: 20px; max-width: 22px; height: 20px; display: inline-block; object-fit: contain; }
         .cm-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; } .cm-prov { font-size: .8em; color: var(--text-muted); white-space: nowrap; } .cm-car { color: var(--text-muted); transition: transform .2s; } .cm-btn.on .cm-car { transform: rotate(180deg); }
@@ -374,7 +375,7 @@
 
     function open() {
         if (ov) return; if (typeof Chess === 'undefined') { alert('O xadrez não carregou.'); return; }
-        const list = models(); if (!list.length) { alert(T('Nenhum modelo disponível agora. Configure uma chave ou ligue o Ollama.')); return; }
+        let list = models(); if (!list.length) { alert(T('Nenhum modelo disponível agora. Configure uma chave ou ligue o Ollama.')); return; }
         ov = mk('div', 'chess-ov'); const wrap = mk('div', 'chess-wrap'); ov.appendChild(wrap);
         const bsz = Math.max(280, Math.min(560, innerWidth - 80, innerHeight - 120)); wrap.style.setProperty('--cb', bsz + 'px');
         const bw = mk('div', 'chess-bw'); wrap.appendChild(bw); const evb = mk('div', 'chess-eval'); evb.appendChild(mk('i')); evb.appendChild(mk('b')); bw.appendChild(evb);
@@ -385,17 +386,37 @@
         h3.addEventListener('pointerdown', e => { if (e.button) return; const sx = e.clientX - winPos.x, sy = e.clientY - winPos.y; h3.setPointerCapture(e.pointerId); const mv = ev => { winPos.x = ev.clientX - sx; winPos.y = ev.clientY - sy; wrap.style.animation = 'none'; wrap.style.transform = 'translate(' + winPos.x + 'px,' + winPos.y + 'px)'; }, up = () => { h3.removeEventListener('pointermove', mv); h3.removeEventListener('pointerup', up); }; h3.addEventListener('pointermove', mv); h3.addEventListener('pointerup', up); });
         const provOf = m => { try { return providerName(m); } catch (e) { return ''; } }, logoOf = m => { const sp = mk('span', 'cm-logo'); try { fin(m); const br = brandOf(m); if (br) sp.appendChild(brandEl(br, m)); else sp.textContent = '☁'; } catch (e) { sp.textContent = '☁'; } return sp; };
         let pick = Math.max(0, list.findIndex(m => m.id === (typeof selectedModel !== 'undefined' ? selectedModel : '')));
-        const cw = mk('div', 'cm-wrap'), cb = mk('button', 'cm-btn'); cb.type = 'button'; const pop = mk('div', 'cm-pop'), srch = document.createElement('input'); srch.type = 'text'; srch.placeholder = T('Buscar modelo…'); srch.autocomplete = 'off'; const lst = mk('div', 'cm-list'); pop.append(srch, lst); cw.append(cb, pop);
-        const paintBtn = () => { cb.textContent = ''; const m = list[pick]; cb.append(logoOf(m), mk('span', 'cm-name', m.label || m.id), mk('span', 'cm-prov', provOf(m)), mk('span', 'cm-car', '▾')); };
+        // seletor igual ao do chat: familias na lista, e embaixo Parametros e Provedor (reusa as funcoes do index.html)
+        const cw = mk('div', 'custom-select'), cb = mk('div', 'select-trigger'), box = mk('div', 'select-options'); cw.append(cb, box);
+        const paintBtn = () => { cb.textContent = ''; const m = list[pick]; cb.append(logoOf(m), mk('span', 'model-text shrinkable', m.label || m.id), mk('div', 'select-arrow')); };
+        const families = () => { const map = new Map(); list.forEach(m => { fin(m); if (!map.has(m.grp)) map.set(m.grp, []); map.get(m.grp).push(m); }); map.forEach(ms => ms.sort((x, y) => verKey(x.ver) - verKey(y.ver) || sizeNum(x) - sizeNum(y) || provOrd(x) - provOrd(y) || (x.plabel || '').localeCompare(y.plabel || ''))); return new Map([...map.entries()].sort((x, y) => x[1][0].base.toLowerCase().localeCompare(y[1][0].base.toLowerCase(), 'pt', { numeric: true }))); };
+        let term = '';
+        const choose = m => { pick = list.indexOf(m); paintBtn(); fillList(); if (st && !st.log.length) { st.token = Math.random(); newGame({ model: list[pick], color: colorVal }); } };
         const fillList = () => {
-            const term = srch.value.trim().toLowerCase(), groups = new Map(); lst.textContent = '';
-            list.forEach((m, i) => { const label = (m.label || m.id) + ' ' + provOf(m); if (term && !label.toLowerCase().includes(term)) return; const g = provOf(m) || '—'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push([m, i]); });
-            [...groups.keys()].sort().forEach(g => { lst.appendChild(mk('div', 'cm-grp', g)); groups.get(g).sort((x, y) => (x[0].label || '').localeCompare(y[0].label || '')).forEach(([m, i]) => { const r = mk('div', 'cm-row' + (i === pick ? ' on' : '')); r.append(logoOf(m), mk('span', 'cm-name', m.label || m.id)); r.onclick = () => { pick = i; paintBtn(); closePop(); if (st && !st.log.length) { st.token = Math.random(); newGame({ model: list[pick], color: colorVal }); } }; lst.appendChild(r); }); });
-            if (!lst.firstChild) lst.appendChild(mk('div', 'cm-grp', T('Nenhum modelo encontrado')));
+            box.textContent = ''; const cur = list[pick], fams = families();
+            const srch = document.createElement('input'); srch.type = 'text'; srch.placeholder = T('Buscar modelo…'); srch.autocomplete = 'off'; srch.value = term; srch.style.cssText = 'margin:8px;width:calc(100% - 16px);box-sizing:border-box'; srch.oninput = () => { term = srch.value; const pos = srch.selectionStart; fillList(); const n = box.querySelector('input'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }; box.appendChild(srch);
+            const lst = mk('div', 'mo-list'); box.appendChild(lst); let i = 0;
+            fams.forEach((sizes, fam) => {
+                if (term && !(famTitle(sizes) + ' ' + sizes.map(providerOf).join(' ')).toLowerCase().includes(term.trim().toLowerCase())) return;
+                const rec = sizes.find(m => m.rec) || sizes[0], el = mk('div', 'select-option k-' + famKind(sizes) + (fam === fin(cur).grp ? ' selected' : '')); el.style.setProperty('--i', i++);
+                const label = mk('span', 'mo-label'); famLabelNodes(rec, famTitle(sizes)).forEach(n => label.appendChild(n)); el.appendChild(label);
+                const pv = provLogos(sizes); if (pv) el.appendChild(pv);
+                el.onclick = () => { if (fam === fin(cur).grp) return; const p0 = sizes.find(m => m.rec) || sizes.find(m => !m.heavy) || sizes[0]; choose(bestVariant(sizes.filter(x => x.pk === p0.pk))); };
+                lst.appendChild(el);
+            });
+            if (!lst.firstChild) lst.appendChild(mk('div', 'select-option', T('Nenhum modelo encontrado')));
+            const sizes = fams.get(fin(cur).grp) || [];
+            if (sizes.length) {
+                const row = mk('div', 'size-row'), keys = []; sizes.forEach(m => { let k = keys.find(x => x.pk === m.pk); if (!k) keys.push(k = { pk: m.pk, items: [] }); k.items.push(m); });
+                const variants = (keys.find(k => k.pk === cur.pk) || { items: [cur] }).items;
+                row.append(mk('span', 'size-label', T('Parâmetros')), miniSelect(keys.map(k => { const rep = k.pk === cur.pk ? cur : bestVariant(k.items), kinds = new Set(k.items.map(kindOf)); return { value: rep.id, label: rep.klabel + (rep.heavy ? ' ⚠' : ''), color: kinds.has('local') ? 'var(--k-local)' : kinds.has('cloud') ? 'var(--k-cloud)' : 'var(--k-paid)' }; }), cur.id, v => choose(list.find(m => m.id === v) || cur), T('Parâmetros')));
+                row.appendChild(miniSelect(variants.map(m => ({ value: m.id, label: providerName(m) + provInfo(m), title: m.warn || '', color: m.pol ? 'var(--k-paid)' : isLocalM(m) ? 'var(--k-local)' : 'var(--k-cloud)' })), cur.id, v => choose(list.find(m => m.id === v) || cur), T('Provedor')));
+                box.appendChild(row);
+            }
         };
-        const closePop = () => { pop.classList.remove('on'); cb.classList.remove('on'); };
-        cb.onclick = () => { const on = !pop.classList.contains('on'); if (on) { srch.value = ''; fillList(); } pop.classList.toggle('on', on); cb.classList.toggle('on', on); if (on) { srch.focus(); const cur = lst.querySelector('.cm-row.on'); if (cur) cur.scrollIntoView({ block: 'center' }); } };
-        srch.oninput = fillList; ov.addEventListener('mousedown', e => { if (!cw.contains(e.target)) closePop(); }); paintBtn(); side.appendChild(cw);
+        const providerOf = m => { try { return providerName(m); } catch (e) { return ''; } };
+        cb.onclick = () => { const on = !cw.classList.contains('open'); if (on) { const id = list[pick].id; list = models(); pick = Math.max(0, list.findIndex(m => m.id === id)); term = ''; fillList(); } cw.classList.toggle('open', on); if (on) { const cur = box.querySelector('.select-option.selected'); if (cur) cur.scrollIntoView({ block: 'center' }); } };
+        ov.addEventListener('mousedown', e => { if (!cw.contains(e.target)) cw.classList.remove('open'); }); paintBtn(); side.appendChild(cw);
         let colorVal = 'w'; const seg = mk('div', 'chess-seg'); [['w', 'Brancas'], ['b', 'Pretas'], ['random', 'Aleatório']].forEach(([v, l]) => { const b = mk('button', v === colorVal ? 'on' : '', T(l)); b.type = 'button'; b.onclick = () => { colorVal = v; seg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); if (st && !st.log.length) { st.token = Math.random(); newGame({ model: list[pick], color: colorVal }); } }; seg.appendChild(b); }); side.appendChild(seg);
         const opt = (id, label, key) => { const l = mk('label', 'chess-tog'), c = document.createElement('input'); c.type = 'checkbox'; c.id = id; c.onchange = () => { st.opts[key] = c.checked; if (key === 'rank') { if (c.checked) rankBackfill(); render(); } }; c.checked = st ? !!st.opts[key] : key === 'noSpawn'; l.append(mk('span', '', T(label)), c, mk('span', 'sw')); side.appendChild(l); return c; };
         opt('chess-ill', 'Permitir lances ilegais do modelo', 'illegal'); opt('chess-nospawn', 'Bloquear peças criadas do nada pelo modelo (só vale com lances ilegais)', 'noSpawn'); opt('chess-rank', 'Ranking dos lances (Brilhante, Melhor, Erro…)', 'rank');
