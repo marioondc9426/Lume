@@ -188,7 +188,7 @@ async function healthTest(p, id, cfg) {   // 1 pedido de verdade: ok se vier tex
     const t0 = now();
     try {
         const r = await fetchT(XBASE[p] + '/chat/completions', { method: 'POST', headers: bearer(cfg[XFIELD[p]]), body: JSON.stringify({ model: id, messages: [{ role: 'user', content: 'Responda so a palavra: ok' }], max_tokens: 512 }) }, 90000, 'O provedor');
-        if (!r.ok) { const body = await r.text().catch(() => ''); if (r.status === 403 && /ate limit|oncurrent/.test(body)) return { ok: null }; return { ok: false, ms: Math.round((now() - t0) * 1000), err: 'HTTP ' + r.status }; }
+        if (!r.ok) { const body = await r.text().catch(() => ''); if (r.status === 429 || (r.status === 403 && /ate limit|oncurrent/.test(body))) return { ok: null }; return { ok: false, ms: Math.round((now() - t0) * 1000), err: 'HTTP ' + r.status }; }
         const j = await r.json().catch(() => ({})), m = ((j.choices || [{}])[0] || {}).message || {};
         return String(m.content || m.reasoning_content || m.reasoning || '').trim() ? { ok: true, ms: Math.round((now() - t0) * 1000) } : { ok: false, ms: Math.round((now() - t0) * 1000), err: 'resposta vazia' };
     } catch (e) { return { ok: false, ms: 0, err: String(e.message || e).slice(0, 80) }; }

@@ -2916,6 +2916,35 @@
             if (ids.length) loadChat(ids[ids.length - 1]); else createNewChat();
         }
         function toggleDrawer() { document.body.classList.toggle('drawer-open'); }
+        // gestos no celular: arrastar da borda esquerda para a direita abre a lista de conversas (ela acompanha o dedo); arrastar para a esquerda fecha
+        (() => {
+            const side = document.getElementById('sidebar'), back = document.getElementById('drawer-backdrop'); let sx = 0, sy = 0, sw = 280, mode = '', on = false, moved = false;
+            const phone = () => innerWidth <= 760 && !document.body.classList.contains('editing');
+            const reset = () => { side.style.transition = ''; side.style.transform = ''; back.style.cssText = ''; };
+            document.addEventListener('touchstart', e => {
+                if (!phone() || e.touches.length !== 1 || e.target.closest('textarea, input, select, .codeblock, .md-table-wrap, .modal-content, .select-options, #html-panel')) return;
+                const t = e.touches[0], open = document.body.classList.contains('drawer-open');
+                if (!open && t.clientX > 28) return;   // para abrir, o dedo tem de comecar na borda esquerda
+                if (open && !e.target.closest('#sidebar, #drawer-backdrop')) return;
+                sx = t.clientX; sy = t.clientY; sw = side.offsetWidth || 280; mode = open ? 'close' : 'open'; on = true; moved = false;
+            }, { passive: true });
+            document.addEventListener('touchmove', e => {
+                if (!on) return; const t = e.touches[0], dx = t.clientX - sx, dy = t.clientY - sy;
+                if (!moved) {
+                    if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { on = false; return; }   // era rolagem
+                    if (Math.abs(dx) < 8) return; if ((mode === 'open' && dx < 0) || (mode === 'close' && dx > 0)) { on = false; return; }
+                    moved = true; side.style.transition = 'none'; back.style.transition = 'none'; back.style.display = 'block';
+                }
+                e.preventDefault(); const x = Math.max(-sw, Math.min(0, (mode === 'open' ? -sw : 0) + dx));
+                side.style.transform = `translateX(${x}px)`; back.style.opacity = String(1 + x / sw);
+            }, { passive: false });
+            const end = e => {
+                if (!on) return; on = false; if (!moved) return;
+                const t = (e.changedTouches && e.changedTouches[0]) || { clientX: sx }, dx = t.clientX - sx, openIt = mode === 'open' ? dx > sw * 0.28 : dx > -sw * 0.28;
+                reset(); document.body.classList.toggle('drawer-open', openIt);
+            };
+            document.addEventListener('touchend', end); document.addEventListener('touchcancel', end);
+        })();
         function closeDrawer() { document.body.classList.remove('drawer-open'); }
         function createNewChat() {
             closeDrawer();

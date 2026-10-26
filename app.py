@@ -1508,7 +1508,7 @@ def health_test(prov, mid, cfg):
         return False, int((time.time() - t0) * 1000), "resposta vazia"
     except urllib.error.HTTPError as e:
         body = e.read()[:160].decode("utf-8", "replace")
-        if e.code == 403 and re.search(r"ate limit|oncurrent", body): return None, 0, "limite de pedidos"   # nao e culpa do modelo: nao conta
+        if e.code == 429 or (e.code == 403 and re.search(r"ate limit|oncurrent", body)): return None, 0, "limite de pedidos"   # limite do plano, nao defeito do modelo: nao conta
         return False, int((time.time() - t0) * 1000), f"HTTP {e.code}: {body}"
     except Exception as e:
         return False, int((time.time() - t0) * 1000), str(e)[:100]
