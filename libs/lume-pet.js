@@ -1,161 +1,189 @@
-/* Mascote do Lume: uma bolinha com olhos que segue o cursor, pisca, dorme, fica pensando enquanto a IA responde e comemora quando ela termina.
-   Customizavel (nome, cor, estilo Bolha ou LED de pontinhos, olhos, tamanho, balao); a escolha fica em localStorage ('lume_pet'). Arraste para mudar de lugar; clique para ele reagir. */
+/* Mascote do Lume: a bolinha com olhos que aparece ao lado de cada resposta da IA (e, se quiser, flutuando na tela).
+   Os olhos seguem o cursor, piscam, olham para baixo (para a mensagem) quando voce digita, ficam pensando enquanto a IA responde, comemoram quando ela termina e dormem quando fica parado.
+   Muito customizavel (Configuracoes > Geral > Mascote, ou clique no mascote de uma resposta): expressao, cor, cor dos olhos, formato, acessorios, brilho, tamanho...
+   A escolha fica em localStorage ('lume_pet'). Arraste o flutuante para mudar de lugar; clique para ele falar. */
 (() => {
     'use strict';
     const KEY = 'lume_pet', T = s => (typeof tr === 'function' ? tr(s) : s);
-    const DEF = { on: false, avatar: true, name: 'Lume', color: '#2f8bff', style: 'orb', eyes: 'oval', size: 64, bubble: true, x: null, y: null };
+    const DEF = { on: false, avatar: true, name: 'Lume', color: '#2f8bff', eyeColor: '#ffffff', style: 'orb', eyes: 'oval', expr: 'neutral', shape: 'circle', acc: 'none', blush: false, glow: 60, size: 64, avSize: 30, bubble: true, follow: true, blinking: true, bob: true, react: true, x: null, y: null };
     const load = () => { try { return Object.assign({}, DEF, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { return Object.assign({}, DEF); } };
     const save = () => { try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) { /* sem armazenamento */ } };
-    let cfg = load(), root = null, body = null, cv = null, bub = null, mood = 'idle', look = { x: 0, y: 0 }, blink = false, lastMove = Date.now(), bubTimer = 0, moodTimer = 0, wasBusy = false;
+    let cfg = load(), root = null, pet = null, bub = null, mood = 'idle', look = { x: 0, y: 0 }, lastMove = Date.now(), bubTimer = 0, moodTimer = 0, wasBusy = false, typing = false;
+    const pets = new Set();   // todos os bonecos vivos (flutuante, avatares, previa)
 
-    const hex = c => { const m = /^#?([0-9a-f]{6})$/i.exec(c || ''); const n = parseInt(m ? m[1] : 'ee5a8a', 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
+    const hex = c => { const m = /^#?([0-9a-f]{6})$/i.exec(c || ''); const n = parseInt(m ? m[1] : '2f8bff', 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
     const mix = (c, t, k) => { const a = hex(c); return 'rgb(' + a.map((v, i) => Math.round(v + (t[i] - v) * k)).join(',') + ')'; };
     const rgba = (c, a) => 'rgba(' + hex(c).join(',') + ',' + a + ')';
 
+    const EXPR = [['neutral', 'Normal'], ['happy', 'Feliz'], ['wink', 'Piscando'], ['love', 'Apaixonado'], ['surprised', 'Surpreso'], ['sleepy', 'Sonolento'], ['angry', 'Bravo'], ['sad', 'Triste'], ['smug', 'Convencido'], ['dead', 'Fora de combate']];
+    const ACC = {
+        glasses: '<g fill="rgba(255,255,255,.14)" stroke="#15151a" stroke-width="5"><circle cx="31" cy="47" r="14"/><circle cx="69" cy="47" r="14"/></g><path d="M45 46Q50 41 55 46" fill="none" stroke="#15151a" stroke-width="5"/>',
+        sunglasses: '<g fill="#101014"><rect x="12" y="35" width="35" height="22" rx="9"/><rect x="53" y="35" width="35" height="22" rx="9"/><rect x="45" y="40" width="10" height="5"/></g><path d="M20 40l10 0" stroke="rgba(255,255,255,.35)" stroke-width="3" stroke-linecap="round"/>',
+        party: '<path d="M50 -26L28 13H72Z" fill="#ff5c8a"/><path d="M38 -4L62 -4" stroke="#ffd166" stroke-width="6"/><circle cx="50" cy="-28" r="6" fill="#ffd166"/>',
+        crown: '<path d="M22 14L27 -14L41 2L50 -20L59 2L73 -14L78 14Z" fill="#ffd166" stroke="#c99700" stroke-width="3" stroke-linejoin="round"/>',
+        headphones: '<path d="M9 56A41 44 0 0 1 91 56" fill="none" stroke="#202026" stroke-width="7"/><rect x="0" y="48" width="15" height="28" rx="7" fill="#33333b"/><rect x="85" y="48" width="15" height="28" rx="7" fill="#33333b"/>',
+        bow: '<path d="M64 8L84 -6V22Z" fill="#ff5c8a"/><path d="M84 8L104 -6V22Z" fill="#ff5c8a"/><circle cx="84" cy="8" r="5" fill="#ff2e6e"/>',
+        halo: '<ellipse cx="50" cy="-12" rx="22" ry="6" fill="none" stroke="#ffd166" stroke-width="5"/>',
+        cat: '<path d="M14 24L18 -10L40 8Z" fill="currentColor"/><path d="M86 24L82 -10L60 8Z" fill="currentColor"/>',
+        antenna: '<path d="M50 2V-18" stroke="#9aa0a6" stroke-width="4"/><circle cx="50" cy="-22" r="6" fill="#ff5c8a"/>'
+    };
+    const ACC_NAMES = [['none', 'Nenhum'], ['glasses', 'Óculos'], ['sunglasses', 'Óculos escuros'], ['party', 'Chapéu de festa'], ['crown', 'Coroa'], ['headphones', 'Fones'], ['bow', 'Laço'], ['halo', 'Auréola'], ['cat', 'Orelhas de gato'], ['antenna', 'Antena']];
+
     const css = document.createElement('style');
     css.textContent = `
-        #lume-pet { position: fixed; z-index: 4400; touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab; transition: opacity .3s; }
-        #lume-pet.drag { cursor: grabbing; } #lume-pet.hide { display: none; }
-        #lume-pet .lp-body { position: relative; width: 100%; height: 100%; border-radius: 50%; animation: lpBob 3.4s ease-in-out infinite; }
-        #lume-pet.thinking .lp-body { animation: lpThink 1.1s ease-in-out infinite; } #lume-pet.happy .lp-body { animation: lpJump .55s ease; } #lume-pet.sleep .lp-body { animation: lpSleep 4s ease-in-out infinite; }
-        #lume-pet.orb .lp-body { box-shadow: 0 0 0 3px rgba(255,255,255,.22), 0 6px 18px rgba(0,0,0,.45), 0 0 22px var(--lp-glow); }
-        #lume-pet .lp-eye { position: absolute; top: 36%; width: 15%; height: 26%; background: #fff; border-radius: 50%; transition: transform .12s ease-out, height .08s, border-radius .2s; box-shadow: 0 0 6px rgba(255,255,255,.7); }
-        #lume-pet .lp-eye.l { left: 30%; } #lume-pet .lp-eye.r { right: 30%; }
-        #lume-pet.eyes-round .lp-eye { width: 20%; height: 20%; top: 40%; } #lume-pet.eyes-dot .lp-eye { width: 9%; height: 9%; top: 46%; } #lume-pet.eyes-wide .lp-eye { width: 19%; height: 32%; top: 32%; border-radius: 45%; }
-        #lume-pet .lp-eye.blink { height: 4% !important; top: 48% !important; border-radius: 4px; }
-        #lume-pet.happy .lp-eye, #lume-pet.sleep .lp-eye { height: 8%; top: 46%; background: transparent; border-top: 3px solid #fff; border-radius: 50% 50% 0 0; box-shadow: none; }
-        #lume-pet.sleep .lp-eye { border-top: 0; border-bottom: 3px solid #fff; border-radius: 0 0 50% 50%; top: 44%; }
-        #lume-pet canvas { width: 100%; height: 100%; display: block; animation: lpBob 3.4s ease-in-out infinite; } #lume-pet.thinking canvas { animation: lpThink 1.1s ease-in-out infinite; } #lume-pet.happy canvas { animation: lpJump .55s ease; }
-        #lume-pet .lp-bub { position: absolute; bottom: calc(100% + 8px); right: 0; max-width: 220px; white-space: nowrap; padding: 6px 12px; border-radius: 14px; background: var(--bg-input, #2a2a2e); color: var(--text-main, #eee); border: 1px solid var(--border-color, #444); font-size: 12.5px; box-shadow: 0 6px 18px rgba(0,0,0,.4); opacity: 0; transform: translateY(6px) scale(.96); transition: opacity .2s, transform .2s; pointer-events: none; }
-        #lume-pet .lp-bub.on { opacity: 1; transform: none; }
+        .lp-pet { position: relative; width: 100%; height: 100%; --lp-lx: 0; --lp-ly: 0; --lp-c: #2f8bff; --lp-e: #fff; --lp-s: 1; color: var(--lp-c); }
+        .lp-pet.bob { animation: lpBob 3.4s ease-in-out infinite; } .lp-pet.mood-thinking { animation: lpThink 1.1s ease-in-out infinite; } .lp-pet.mood-happy { animation: lpJump .55s ease; } .lp-pet.mood-sleep { animation: lpSleep 4s ease-in-out infinite; }
+        .lp-pet .lp-body { position: absolute; inset: 0; border-radius: 50%; }
+        .lp-pet.shape-square .lp-body { border-radius: 30%; } .lp-pet.shape-drop .lp-body { border-radius: 50% 50% 50% 50% / 58% 58% 42% 42%; } .lp-pet.shape-ghost .lp-body { border-radius: 50% 50% 14% 14% / 62% 62% 38% 38%; } .lp-pet.shape-wide .lp-body { border-radius: 50%; transform: scaleX(1.18); }
+        .lp-pet.orb .lp-body { box-shadow: 0 0 0 2px rgba(255,255,255,.22), 0 5px 14px rgba(0,0,0,.4), 0 0 calc(var(--lp-glow, 60) * .4px) var(--lp-glowc); }
+        .lp-pet.led .lp-body { background-image: radial-gradient(circle, var(--lp-c) 0 38%, transparent 42%) !important; background-size: calc(100% / 13) calc(100% / 13); background-color: transparent !important; -webkit-mask-image: radial-gradient(circle, #000 55%, transparent 74%); mask-image: radial-gradient(circle, #000 55%, transparent 74%); border-radius: 50%; }
+        .lp-pet .e { position: absolute; top: 36%; width: 15%; height: 26%; background: var(--lp-e); border-radius: 50%; box-shadow: 0 0 6px var(--lp-e); transform: translate(calc(var(--lp-lx) * 2.4px * var(--lp-s)), calc(var(--lp-ly) * 2.1px * var(--lp-s))); transition: transform .14s ease-out, height .1s, border-radius .2s, top .1s; }
+        .lp-pet .e.l { left: 30%; } .lp-pet .e.r { right: 30%; }
+        .lp-pet.eyes-round .e { width: 20%; height: 20%; top: 40%; } .lp-pet.eyes-dot .e { width: 9%; height: 9%; top: 46%; } .lp-pet.eyes-wide .e { width: 19%; height: 32%; top: 32%; border-radius: 45%; }
+        .lp-pet.blink .e { height: 4% !important; top: 48% !important; border-radius: 3px !important; }
+        .lp-pet .m { position: absolute; left: 50%; top: 66%; width: 22%; height: 11%; transform: translateX(-50%); border: 0 solid var(--lp-e); display: none; }
+        .lp-pet .bl { position: absolute; top: 58%; width: 16%; height: 10%; border-radius: 50%; background: rgba(255,110,150,.55); display: none; } .lp-pet .bl.l { left: 12%; } .lp-pet .bl.r { right: 12%; } .lp-pet.blush .bl { display: block; }
+        .lp-pet .acc { position: absolute; inset: 0; overflow: visible; pointer-events: none; } .lp-pet .acc svg { width: 100%; height: 100%; overflow: visible; display: block; }
+        .lp-pet.acc-sunglasses .e { opacity: 0; }
+        .lp-pet.ex-happy .e, .lp-pet.mood-happy .e { height: 9%; top: 44%; background: transparent !important; box-shadow: none; border-top: 3px solid var(--lp-e); border-radius: 50% 50% 0 0; width: 17%; }
+        .lp-pet.ex-happy .m, .lp-pet.mood-happy .m { display: block; border-bottom-width: 3px; border-radius: 0 0 50% 50%; height: 12%; }
+        .lp-pet.ex-wink .e.r { height: 8%; top: 46%; background: transparent !important; box-shadow: none; border-top: 3px solid var(--lp-e); border-radius: 50% 50% 0 0; }
+        .lp-pet.ex-wink .m { display: block; border-bottom-width: 3px; border-radius: 0 0 50% 50%; height: 12%; }
+        .lp-pet.ex-love .e { background: #ff4d79 !important; box-shadow: 0 0 6px #ff4d79; width: 19%; height: 18%; top: 38%; clip-path: polygon(50% 100%, 0 38%, 0 14%, 18% 0, 50% 18%, 82% 0, 100% 14%, 100% 38%); border-radius: 0; }
+        .lp-pet.ex-love .m { display: block; border-bottom-width: 3px; border-radius: 0 0 50% 50%; height: 12%; }
+        .lp-pet.ex-surprised .e { width: 19%; height: 30%; top: 32%; } .lp-pet.ex-surprised .m { display: block; width: 11%; height: 13%; border-width: 3px; border-radius: 50%; top: 66%; }
+        .lp-pet.ex-sleepy .e, .lp-pet.mood-sleep .e { height: 8%; top: 46%; border-radius: 0 0 50% 50%; } .lp-pet.mood-sleep .e { background: transparent !important; box-shadow: none; border-bottom: 3px solid var(--lp-e); }
+        .lp-pet.ex-angry .e { height: 20%; border-radius: 30%; } .lp-pet.ex-angry .e.l { transform: translate(calc(var(--lp-lx) * 2.4px), calc(var(--lp-ly) * 2.1px)) rotate(18deg); } .lp-pet.ex-angry .e.r { transform: translate(calc(var(--lp-lx) * 2.4px), calc(var(--lp-ly) * 2.1px)) rotate(-18deg); }
+        .lp-pet.ex-angry .m { display: block; border-top-width: 3px; width: 18%; height: 0; top: 70%; }
+        .lp-pet.ex-sad .e { height: 24%; } .lp-pet.ex-sad .e.l { transform: translate(calc(var(--lp-lx) * 2.4px), calc(var(--lp-ly) * 2.1px)) rotate(-12deg); } .lp-pet.ex-sad .e.r { transform: translate(calc(var(--lp-lx) * 2.4px), calc(var(--lp-ly) * 2.1px)) rotate(12deg); }
+        .lp-pet.ex-sad .m { display: block; border-top-width: 3px; border-radius: 50% 50% 0 0; height: 10%; top: 68%; }
+        .lp-pet.ex-smug .e { height: 14%; top: 42%; border-radius: 0 0 50% 50%; } .lp-pet.ex-smug .m { display: block; border-bottom-width: 3px; border-radius: 0 0 0 50%; width: 18%; height: 8%; transform: translateX(-30%) rotate(-8deg); }
+        .lp-pet.ex-dead .e { box-shadow: none; width: 15%; height: 15%; top: 40%; border-radius: 0; background: linear-gradient(45deg, transparent 43%, var(--lp-e) 43% 57%, transparent 57%), linear-gradient(-45deg, transparent 43%, var(--lp-e) 43% 57%, transparent 57%) !important; }
+        .lp-pet.ex-dead .m { display: block; border-top-width: 3px; width: 16%; height: 0; top: 70%; }
         @keyframes lpBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } } @keyframes lpThink { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.07); } } @keyframes lpSleep { 0%, 100% { transform: scale(1); } 50% { transform: scale(.96); } }
         @keyframes lpJump { 0% { transform: translateY(0) scale(1); } 30% { transform: translateY(-18px) scale(.95, 1.06); } 60% { transform: translateY(0) scale(1.08, .92); } 100% { transform: translateY(0) scale(1); } }
-        @media (prefers-reduced-motion: reduce) { #lume-pet .lp-body, #lume-pet canvas { animation: none !important; } }
-        body.pet-av .msg.ai { padding-left: 52px; } body.pet-av .msg.ai > .lp-av { position: absolute; left: 10px; top: 14px; }
-        .lp-av { width: 30px; height: 30px; border-radius: 50%; flex: none; position: relative; --lp-lx: 0; --lp-ly: 0; box-shadow: 0 0 0 2px rgba(255,255,255,.22), 0 0 12px var(--lp-glow, rgba(238,90,138,.5)); }
-        .lp-av.led { background-image: radial-gradient(circle, var(--lp-c) 0 38%, transparent 42%); background-size: 3.4px 3.4px; box-shadow: none; -webkit-mask-image: radial-gradient(circle, #000 55%, transparent 74%); mask-image: radial-gradient(circle, #000 55%, transparent 74%); }
-        .lp-av i { position: absolute; top: 36%; width: 15%; height: 26%; background: #fff; border-radius: 50%; box-shadow: 0 0 5px rgba(255,255,255,.7); transform: translate(calc(var(--lp-lx) * 2.2px), calc(var(--lp-ly) * 2px)); transition: transform .14s ease-out, height .08s; } .lp-av i.l { left: 30%; } .lp-av i.r { right: 30%; }
-        .lp-av.eyes-round i { width: 20%; height: 20%; top: 40%; } .lp-av.eyes-dot i { width: 9%; height: 9%; top: 46%; } .lp-av.eyes-wide i { width: 19%; height: 32%; top: 32%; border-radius: 45%; }
-        .lp-av.blink i { height: 4% !important; top: 48% !important; border-radius: 3px; } .lp-av.thinking { animation: lpThink 1.1s ease-in-out infinite; }
+        @media (prefers-reduced-motion: reduce) { .lp-pet { animation: none !important; } }
+        #lume-pet { position: fixed; z-index: 4400; touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab; } #lume-pet.drag { cursor: grabbing; } #lume-pet.hide { display: none; }
+        #lume-pet .lp-bub { position: absolute; bottom: calc(100% + 8px); right: 0; max-width: 220px; white-space: nowrap; padding: 6px 12px; border-radius: 14px; background: var(--bg-input, #2a2a2e); color: var(--text-main, #eee); border: 1px solid var(--border-color, #444); font-size: 12.5px; box-shadow: 0 6px 18px rgba(0,0,0,.4); opacity: 0; transform: translateY(6px) scale(.96); transition: opacity .2s, transform .2s; pointer-events: none; } #lume-pet .lp-bub.on { opacity: 1; transform: none; }
+        body.pet-av .msg.ai { padding-left: calc(var(--lp-avs, 30px) + 22px); } body.pet-av .msg.ai > .lp-av { position: absolute; left: 10px; top: 14px; width: var(--lp-avs, 30px); height: var(--lp-avs, 30px); cursor: pointer; }
         #lp-modal { position: fixed; inset: 0; z-index: 6600; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.5); padding: 12px; }
-        #lp-modal .lp-card { width: min(380px, 100%); max-height: 100%; overflow: auto; background: var(--bg-main); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 20px 60px rgba(0,0,0,.55); }
-        #lp-modal h3 { margin: 0; } #lp-modal .lp-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: .9em; } #lp-modal .lp-row > :last-child { flex: 0 1 190px; min-width: 0; }
+        #lp-modal .lp-card { width: min(420px, 100%); max-height: 100%; overflow: auto; background: var(--bg-main); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 20px 60px rgba(0,0,0,.55); }
+        #lp-modal h3 { margin: 0; } #lp-modal h4 { margin: 6px 0 0; font-size: .72em; letter-spacing: .1em; text-transform: uppercase; color: var(--text-muted); }
+        #lp-modal .lp-prev { flex: none; align-self: center; width: 110px; height: 110px; margin: 22px 0 10px; } #lp-modal .lp-row { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: .9em; } #lp-modal .lp-row > :last-child { flex: 0 1 200px; min-width: 0; }
         #lp-modal input[type=text], #lp-modal select { width: 100%; } #lp-modal input[type=color] { width: 44px; height: 30px; padding: 0; border: 1px solid var(--border-color); border-radius: 8px; background: none; }
         #lp-modal .lp-sw { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; } #lp-modal .lp-sw button { width: 22px; height: 22px; border-radius: 50%; border: 2px solid rgba(255,255,255,.25); cursor: pointer; padding: 0; }
-        #lp-modal .lp-btns { display: flex; gap: 8px; justify-content: flex-end; } #lp-modal .lp-btns .btn { margin: 0; }
+        #lp-modal .lp-btns { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; } #lp-modal .lp-btns .btn { margin: 0; }
     `;
     document.head.appendChild(css);
 
-    const phrases = () => [T('Oi!'), T('Bora conversar?'), T('Estou de olho 👀'), T('Pode perguntar!'), T('Hmm, e se a gente jogasse xadrez?'), T('Eu sou só um mascote, mas torço por você.')];
-    function say(text, ms) { if (!cfg.bubble || !bub) return; bub.textContent = text; bub.classList.add('on'); clearTimeout(bubTimer); bubTimer = setTimeout(() => bub && bub.classList.remove('on'), ms || 2200); }
-    function setMood(m, ms) { clearTimeout(moodTimer); mood = m; paint(); if (ms) moodTimer = setTimeout(() => { mood = 'idle'; paint(); }, ms); }
+    // ---- um boneco: <div.lp-pet> com corpo, olhos, boca, rubor e acessorio
+    function fill(el) {
+        el.textContent = '';
+        const body = document.createElement('div'); body.className = 'lp-body'; el.appendChild(body);
+        ['l', 'r'].forEach(c => { const e = document.createElement('i'); e.className = 'e ' + c; el.appendChild(e); });
+        el.appendChild(Object.assign(document.createElement('b'), { className: 'm' }));
+        ['l', 'r'].forEach(c => el.appendChild(Object.assign(document.createElement('s'), { className: 'bl ' + c })));
+        const a = document.createElement('div'); a.className = 'acc'; el.appendChild(a);
+    }
+    function paint(el, m) {
+        const mm = m || el.dataset.mood || 'idle', blink = el.classList.contains('blink');
+        el.className = 'lp-pet ' + cfg.style + ' shape-' + cfg.shape + ' ex-' + cfg.expr + ' eyes-' + cfg.eyes + ' acc-' + cfg.acc + (cfg.blush ? ' blush' : '') + (cfg.bob ? ' bob' : '') + (mm !== 'idle' && cfg.react ? ' mood-' + mm : '') + (blink ? ' blink' : '');
+        el.style.setProperty('--lp-c', cfg.color); el.style.setProperty('--lp-e', cfg.eyeColor); el.style.setProperty('--lp-glow', cfg.glow); el.style.setProperty('--lp-glowc', rgba(cfg.color, Math.min(1, cfg.glow / 100)));
+        const body = el.querySelector('.lp-body');
+        if (body) body.style.background = cfg.style === 'led' ? '' : 'radial-gradient(circle at 34% 26%, ' + mix(cfg.color, [255, 255, 255], .55) + ' 0%, ' + cfg.color + ' 48%, ' + mix(cfg.color, [0, 0, 0], .42) + ' 100%)';
+        const acc = el.querySelector('.acc'); if (acc) acc.innerHTML = ACC[cfg.acc] ? '<svg viewBox="0 0 100 100">' + ACC[cfg.acc] + '</svg>' : '';
+        el.style.setProperty('--lp-s', Math.max(.5, Math.min(2.4, (el.clientWidth || 30) / 30)));
+    }
+    const point = (el, x, y) => { el.style.setProperty('--lp-lx', x); el.style.setProperty('--lp-ly', y); };
+    function make(host) { const el = document.createElement('div'); el.dataset.mood = 'idle'; fill(el); host.appendChild(el); paint(el); pets.add(el); return el; }
+    function repaintAll() { pets.forEach(el => { if (!el.isConnected) { pets.delete(el); return; } paint(el); }); document.body.style.setProperty('--lp-avs', cfg.avSize + 'px'); }
+    function setMoodAll(m) { mood = m; pets.forEach(el => { if (el.isConnected && !el.closest('#lp-modal')) { el.dataset.mood = m; paint(el); } }); }
 
+    // ---- flutuante
+    const phrases = () => [T('Oi!'), T('Bora conversar?'), T('Estou de olho 👀'), T('Pode perguntar!'), T('Hmm, e se a gente jogasse xadrez?'), T('Eu sou só um mascote, mas torço por você.')];
+    function say(text, ms) { if (!cfg.bubble || !bub || !cfg.on) return; bub.textContent = text; bub.classList.add('on'); clearTimeout(bubTimer); bubTimer = setTimeout(() => bub && bub.classList.remove('on'), ms || 2200); }
+    function flash(m, ms) { clearTimeout(moodTimer); setMoodAll(m); if (ms) moodTimer = setTimeout(() => setMoodAll('idle'), ms); }
     function build() {
-        if (root) root.remove();
+        if (root) { pets.delete(pet); root.remove(); }
         root = document.createElement('div'); root.id = 'lume-pet'; root.title = cfg.name;
         bub = document.createElement('div'); bub.className = 'lp-bub'; root.appendChild(bub);
-        if (cfg.style === 'led') { cv = document.createElement('canvas'); root.appendChild(cv); body = null; }
-        else { body = document.createElement('div'); body.className = 'lp-body'; ['l', 'r'].forEach(s => { const e = document.createElement('i'); e.className = 'lp-eye ' + s; body.appendChild(e); }); root.appendChild(body); cv = null; }
-        document.body.appendChild(root); place(); paint(); wire();
+        const holder = document.createElement('div'); holder.style.cssText = 'width:100%;height:100%'; root.appendChild(holder); pet = make(holder);
+        document.body.appendChild(root); place(); wire();
     }
     function place() {
-        const s = cfg.size; root.style.width = root.style.height = s + 'px';
-        if (cfg.x == null) { root.style.right = '18px'; root.style.bottom = '96px'; root.style.left = root.style.top = 'auto'; }
-        else { const x = Math.min(Math.max(0, cfg.x), innerWidth - s), y = Math.min(Math.max(0, cfg.y), innerHeight - s); root.style.left = x + 'px'; root.style.top = y + 'px'; root.style.right = root.style.bottom = 'auto'; }
-        if (root.style.left !== 'auto' && cfg.x != null) bub.style.right = 'auto', bub.style.left = '0'; else bub.style.right = '0', bub.style.left = 'auto';
-    }
-    function paint() {
-        if (!root) return;
-        root.className = [cfg.style, mood, 'eyes-' + cfg.eyes].join(' ') + (cfg.on ? '' : ' hide');
-        root.style.setProperty('--lp-glow', rgba(cfg.color, .55));
-        if (body) {
-            body.style.background = 'radial-gradient(circle at 34% 26%, ' + mix(cfg.color, [255, 255, 255], .55) + ' 0%, ' + cfg.color + ' 48%, ' + mix(cfg.color, [0, 0, 0], .42) + ' 100%)';
-            const eyes = body.querySelectorAll('.lp-eye'), t = mood === 'thinking' ? { x: -.7, y: -1 } : look;
-            eyes.forEach(e => { e.style.transform = 'translate(' + (t.x * root.clientWidth * .07).toFixed(1) + 'px,' + (t.y * root.clientHeight * .06).toFixed(1) + 'px)'; e.classList.toggle('blink', blink && mood === 'idle'); });
-        } else drawLed();
-    }
-    function drawLed() {   // LED de pontinhos: 13x13, bordas esmaecidas e olhos brancos
-        const N = 13, px = Math.max(60, cfg.size) * (window.devicePixelRatio || 1); cv.width = cv.height = px; const g = cv.getContext('2d'); g.clearRect(0, 0, px, px);
-        const cell = px / N, c = (N - 1) / 2, R = 6.2, t = mood === 'thinking' ? { x: -1, y: -1 } : { x: Math.round(look.x), y: Math.round(look.y) };
-        const eyeCols = [[4, 5], [8, 9]], rows = mood === 'happy' ? [5] : (blink && mood === 'idle') || mood === 'sleep' ? [6] : [4, 5, 6];
-        const isEye = (i, j) => eyeCols.some(cs => cs.some(cx => cx + t.x === i)) && rows.some(r => r + t.y === j);
-        for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
-            const d = Math.hypot(i - c, j - c); if (d > R + .6) continue; const a = Math.max(.12, Math.min(1, (R + .7 - d) / 2.4));
-            const eye = isEye(i, j), inner = eyeCols.some(cs => cs[0] + t.x === i) && eye;
-            g.fillStyle = eye ? (inner ? '#fff' : 'rgba(225,235,255,.9)') : rgba(cfg.color, a); g.beginPath(); g.arc((i + .5) * cell, (j + .5) * cell, cell * (eye ? .42 : .36), 0, 6.2832); g.fill();
-        }
+        const s = cfg.size; root.style.width = root.style.height = s + 'px'; root.classList.toggle('hide', !cfg.on);
+        if (cfg.x == null) { root.style.right = '18px'; root.style.bottom = '96px'; root.style.left = root.style.top = 'auto'; bub.style.right = '0'; bub.style.left = 'auto'; }
+        else { const x = Math.min(Math.max(0, cfg.x), innerWidth - s), y = Math.min(Math.max(0, cfg.y), innerHeight - s); root.style.left = x + 'px'; root.style.top = y + 'px'; root.style.right = root.style.bottom = 'auto'; bub.style.right = 'auto'; bub.style.left = '0'; }
+        paint(pet);
     }
     function wire() {
         let drag = null;
-        root.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, ox: root.getBoundingClientRect().left, oy: root.getBoundingClientRect().top, moved: false }; try { root.setPointerCapture(e.pointerId); } catch (x) { /* ok */ } });
+        root.addEventListener('pointerdown', e => { const r = root.getBoundingClientRect(); drag = { x: e.clientX, y: e.clientY, ox: r.left, oy: r.top, moved: false }; try { root.setPointerCapture(e.pointerId); } catch (x) { /* ok */ } });
         root.addEventListener('pointermove', e => { if (!drag) return; const dx = e.clientX - drag.x, dy = e.clientY - drag.y; if (!drag.moved && Math.hypot(dx, dy) < 5) return; drag.moved = true; root.classList.add('drag'); cfg.x = drag.ox + dx; cfg.y = drag.oy + dy; place(); });
-        root.addEventListener('pointerup', () => { if (!drag) return; const d = drag; drag = null; root.classList.remove('drag'); if (d.moved) { save(); return; } const p = phrases(); say(p[Math.floor(Math.random() * p.length)]); setMood('happy', 600); });
+        root.addEventListener('pointerup', () => { if (!drag) return; const d = drag; drag = null; root.classList.remove('drag'); if (d.moved) { save(); return; } const p = phrases(); say(p[Math.floor(Math.random() * p.length)]); flash('happy', 600); });
     }
-    addEventListener('pointermove', e => {
-        lastMove = Date.now(); if (!root || !cfg.on) return; if (mood === 'sleep') setMood('idle');
-        const r = root.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2), d = Math.hypot(dx, dy) || 1, k = Math.min(1, d / 160);
-        const nx = +(dx / d * k).toFixed(2), ny = +(dy / d * k).toFixed(2); if (nx !== look.x || ny !== look.y) { look = { x: nx, y: ny }; if (mood === 'idle') paint(); }
-    }, { passive: true });
-    addEventListener('resize', () => { if (root) place(); });
-    setInterval(() => {   // piscar, dormir e reagir ao que a IA esta fazendo
-        if (!root || !cfg.on) return;
-        let b = false; try { b = typeof busy !== 'undefined' && !!busy; } catch (e) { b = false; }
-        if (b && !wasBusy) { wasBusy = true; setMood('thinking'); say(T('Pensando…'), 1800); }
-        else if (!b && wasBusy) { wasBusy = false; setMood('happy', 1600); say(T('Pronto!'), 1800); }
-        else if (!b && mood === 'idle' && Date.now() - lastMove > 90000) { setMood('sleep'); }
-    }, 300);
-    (function blinker() { setTimeout(() => { if (root && cfg.on && mood === 'idle') { blink = true; paint(); setTimeout(() => { blink = false; paint(); }, 140); } blinker(); }, 2500 + Math.random() * 3500); })();
 
-    // ---- avatar ao lado de cada resposta da IA (a bolinha dos chats do Kimi): mesma cor/estilo/olhos do mascote
-    const avs = new Set(); let typing = false, avObs = null;
-    function styleAv(a) {
-        a.className = 'lp-av ' + cfg.style + ' eyes-' + cfg.eyes + (a.dataset.th === '1' ? ' thinking' : '');
-        a.style.setProperty('--lp-c', cfg.color); a.style.setProperty('--lp-glow', rgba(cfg.color, .55));
-        if (cfg.style !== 'led') a.style.background = 'radial-gradient(circle at 34% 26%, ' + mix(cfg.color, [255, 255, 255], .55) + ' 0%, ' + cfg.color + ' 48%, ' + mix(cfg.color, [0, 0, 0], .42) + ' 100%)'; else a.style.background = '';
-    }
-    function addAv(msg) {
-        if (msg.querySelector(':scope > .lp-av')) return; const a = document.createElement('span'); a.title = cfg.name; ['l', 'r'].forEach(c => { const e = document.createElement('i'); e.className = c; a.appendChild(e); }); styleAv(a); msg.insertBefore(a, msg.firstChild); avs.add(a);
-    }
-    function scanAv() { const chat = document.getElementById('chat'); if (!chat) return; document.body.classList.toggle('pet-av', !!cfg.avatar); if (!cfg.avatar) return; chat.querySelectorAll('.msg.ai').forEach(addAv); }
-    function refreshAv() { avs.forEach(a => { if (!a.isConnected) avs.delete(a); else if (cfg.avatar) styleAv(a); else a.remove(); }); document.body.classList.toggle('pet-av', !!cfg.avatar); scanAv(); }
-    function lookAv(x, y) { document.body.style.setProperty('--lp-lx', x); document.body.style.setProperty('--lp-ly', y); avs.forEach(a => { a.style.setProperty('--lp-lx', x); a.style.setProperty('--lp-ly', y); }); }
+    // ---- avatar ao lado de cada resposta da IA
+    function addAv(msg) { if (msg.querySelector(':scope > .lp-av')) return; const a = document.createElement('div'); a.className = 'lp-av'; a.title = cfg.name + ' · ' + T('clique para personalizar'); a.onclick = () => openSettings(); msg.insertBefore(a, msg.firstChild); make(a); }
+    function scanAv() { const chat = document.getElementById('chat'); if (!chat) return; document.body.classList.toggle('pet-av', !!cfg.avatar); document.body.style.setProperty('--lp-avs', cfg.avSize + 'px'); if (!cfg.avatar) { chat.querySelectorAll('.msg.ai > .lp-av').forEach(a => a.remove()); return; } chat.querySelectorAll('.msg.ai').forEach(addAv); }
     function initAv() {
         const chat = document.getElementById('chat'), inp = document.getElementById('prompt'); if (!chat) return;
-        avObs = new MutationObserver(() => scanAv()); avObs.observe(chat, { childList: true }); scanAv();
-        if (inp) { const upd = () => { typing = document.activeElement === inp && inp.value.length > 0; if (typing) lookAv(0, 1.1); }; inp.addEventListener('input', upd); inp.addEventListener('focus', upd); inp.addEventListener('blur', () => { typing = false; }); }
-        addEventListener('pointermove', e => {   // olha para o cursor (a menos que a pessoa esteja digitando: ai olha para baixo, para a mensagem)
-            if (typing) return; const last = [...avs].filter(a => a.isConnected).pop(); if (!last) return; const r = last.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2), d = Math.hypot(dx, dy) || 1, k = Math.min(1, d / 200);
-            lookAv(+(dx / d * k).toFixed(2), +(dy / d * k).toFixed(2));
+        new MutationObserver(scanAv).observe(chat, { childList: true }); scanAv();
+        if (inp) { const upd = () => { typing = document.activeElement === inp && inp.value.length > 0; if (typing && cfg.follow) pets.forEach(el => point(el, 0, 1.1)); }; inp.addEventListener('input', upd); inp.addEventListener('focus', upd); inp.addEventListener('blur', () => { typing = false; }); }
+        addEventListener('pointermove', e => {   // olha para o cursor; digitando, olha para baixo (para a mensagem)
+            lastMove = Date.now(); if (mood === 'sleep') flash('idle'); if (!cfg.follow || typing) return;
+            const list = [...pets].filter(el => el.isConnected && !el.closest('#lp-modal')), ref = list.filter(el => el.closest('.lp-av')).pop() || pet; if (!ref) return;
+            const r = ref.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2), d = Math.hypot(dx, dy) || 1, k = Math.min(1, d / 200), x = +(dx / d * k).toFixed(2), y = +(dy / d * k).toFixed(2);
+            if (x !== look.x || y !== look.y) { look = { x, y }; list.forEach(el => point(el, x, y)); }
         }, { passive: true });
-        setInterval(() => {   // piscar e "pensando" no ultimo avatar enquanto a IA responde
-            const list = [...avs].filter(a => a.isConnected), last = list[list.length - 1]; let b = false; try { b = typeof busy !== 'undefined' && !!busy; } catch (e) { b = false; }
-            list.forEach(a => { const th = a === last && b ? '1' : '0'; if (a.dataset.th !== th) { a.dataset.th = th; a.classList.toggle('thinking', th === '1'); } });
-            if (list.length && Math.random() < 0.12) { const a = list[Math.floor(Math.random() * list.length)]; a.classList.add('blink'); setTimeout(() => a.classList.remove('blink'), 140); }
+        setInterval(() => {   // piscar, "pensando" no ultimo avatar enquanto a IA responde, dormir quando parado
+            const avs = [...pets].filter(el => el.isConnected && el.closest('.lp-av')), last = avs[avs.length - 1]; let b = false; try { b = typeof busy !== 'undefined' && !!busy; } catch (e) { b = false; }
+            avs.forEach(a => { const th = a === last && b && cfg.react ? 'thinking' : (a.dataset.mood === 'thinking' ? 'idle' : a.dataset.mood); if (a.dataset.mood !== th) { a.dataset.mood = th; paint(a); } });
+            if (b && !wasBusy) { wasBusy = true; if (root && cfg.on) { pet.dataset.mood = 'thinking'; paint(pet); say(T('Pensando…'), 1800); } }
+            else if (!b && wasBusy) { wasBusy = false; if (root && cfg.on) { flash('happy', 1600); say(T('Pronto!'), 1800); } }
+            else if (!b && Date.now() - lastMove > 90000 && cfg.react) pets.forEach(el => { if (el.isConnected && el.dataset.mood === 'idle') { el.dataset.mood = 'sleep'; paint(el); } });
+            if (cfg.blinking && pets.size && Math.random() < .35) { const list = [...pets].filter(el => el.isConnected); const a = list[Math.floor(Math.random() * list.length)]; if (a) { a.classList.add('blink'); setTimeout(() => a.classList.remove('blink'), 140); } }
         }, 700);
     }
+
+    // ---- janela de personalizacao (com previa ao vivo)
     function openSettings() {
         if (document.getElementById('lp-modal')) return;
         const m = document.createElement('div'); m.id = 'lp-modal'; const card = document.createElement('div'); card.className = 'lp-card'; m.appendChild(card);
+        const apply = rebuild => { save(); if (rebuild) build(); repaintAll(); if (root) place(); scanAv(); };
+        const group = t => { const h = document.createElement('h4'); h.textContent = T(t); card.appendChild(h); };
         const row = (label, el) => { const r = document.createElement('div'); r.className = 'lp-row'; const l = document.createElement('span'); l.textContent = T(label); r.append(l, el); card.appendChild(r); return r; };
-        const apply = rebuild => { save(); if (rebuild) build(); else { place(); paint(); } refreshAv(); };
-        card.appendChild(Object.assign(document.createElement('h3'), { textContent: T('Mascote') }));
-        const av = document.createElement('input'); av.type = 'checkbox'; av.checked = cfg.avatar; av.onchange = () => { cfg.avatar = av.checked; apply(); }; row('Ao lado das respostas da IA', av);
-        const on = document.createElement('input'); on.type = 'checkbox'; on.checked = cfg.on; on.onchange = () => { cfg.on = on.checked; apply(); }; row('Flutuando na tela', on);
-        const nm = document.createElement('input'); nm.type = 'text'; nm.maxLength = 20; nm.value = cfg.name; nm.onchange = () => { cfg.name = nm.value.trim() || 'Lume'; if (root) root.title = cfg.name; save(); say(T('Oi, eu sou {n}!').replace('{n}', cfg.name)); }; row('Nome', nm);
-        const sw = document.createElement('div'); sw.className = 'lp-sw'; ['#ee5a8a', '#2f8bff', '#8b5cf6', '#22c55e', '#f59e0b', '#ef4444', '#14b8a6', '#9ca3af'].forEach(c => { const b = document.createElement('button'); b.type = 'button'; b.style.background = c; b.onclick = () => { cfg.color = c; col.value = c; apply(); }; sw.appendChild(b); });
-        const col = document.createElement('input'); col.type = 'color'; col.value = cfg.color; col.oninput = () => { cfg.color = col.value; apply(); }; const cw = document.createElement('div'); cw.style.cssText = 'display:flex;flex-direction:column;gap:8px;align-items:flex-end'; cw.append(sw, col); row('Cor', cw);
         const sel = (opts, val, fn) => { const s = document.createElement('select'); opts.forEach(([v, l]) => s.add(new Option(T(l), v))); s.value = val; s.onchange = () => fn(s.value); return s; };
-        row('Estilo', sel([['orb', 'Bolha brilhante'], ['led', 'LED de pontinhos']], cfg.style, v => { cfg.style = v; apply(true); }));
-        row('Olhos (bolha)', sel([['oval', 'Ovais'], ['round', 'Redondos'], ['wide', 'Grandes'], ['dot', 'Pontinhos']], cfg.eyes, v => { cfg.eyes = v; apply(); }));
-        const sz = document.createElement('input'); sz.type = 'range'; sz.min = 40; sz.max = 140; sz.value = cfg.size; sz.oninput = () => { cfg.size = +sz.value; apply(); }; row('Tamanho', sz);
-        const bb = document.createElement('input'); bb.type = 'checkbox'; bb.checked = cfg.bubble; bb.onchange = () => { cfg.bubble = bb.checked; save(); }; row('Balões de fala', bb);
+        const chk = (key, fn) => { const c = document.createElement('input'); c.type = 'checkbox'; c.checked = !!cfg[key]; c.onchange = () => { cfg[key] = c.checked; (fn || apply)(); }; return c; };
+        const rng = (key, min, max, fn) => { const r = document.createElement('input'); r.type = 'range'; r.min = min; r.max = max; r.value = cfg[key]; r.oninput = () => { cfg[key] = +r.value; (fn || apply)(); }; return r; };
+        const colorPick = (key, swatches) => { const c = document.createElement('input'); c.type = 'color'; c.value = cfg[key]; c.oninput = () => { cfg[key] = c.value; apply(); }; const w = document.createElement('div'); w.style.cssText = 'display:flex;flex-direction:column;gap:8px;align-items:flex-end'; const sw = document.createElement('div'); sw.className = 'lp-sw'; swatches.forEach(col => { const b = document.createElement('button'); b.type = 'button'; b.style.background = col; b.onclick = () => { cfg[key] = col; c.value = col; apply(); }; sw.appendChild(b); }); w.append(sw, c); return w; };
+        card.appendChild(Object.assign(document.createElement('h3'), { textContent: T('Mascote') }));
+        const prev = document.createElement('div'); prev.className = 'lp-prev'; card.appendChild(prev); const pv = make(prev); point(pv, 0, 0);
+        prev.addEventListener('pointermove', e => { const r = pv.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2), d = Math.hypot(dx, dy) || 1; point(pv, +(dx / d).toFixed(2), +(dy / d).toFixed(2)); });
+        group('Onde aparece');
+        row('Ao lado das respostas da IA', chk('avatar')); row('Flutuando na tela', chk('on')); row('Tamanho ao lado das respostas', rng('avSize', 22, 56));
+        row('Tamanho flutuando', rng('size', 40, 140)); row('Balões de fala', chk('bubble', save));
+        group('Rosto');
+        const nm = document.createElement('input'); nm.type = 'text'; nm.maxLength = 20; nm.value = cfg.name; nm.onchange = () => { cfg.name = nm.value.trim() || 'Lume'; if (root) root.title = cfg.name; save(); say(T('Oi, eu sou {n}!').replace('{n}', cfg.name)); }; row('Nome', nm);
+        row('Expressão', sel(EXPR, cfg.expr, v => { cfg.expr = v; apply(); }));
+        row('Olhos (formato)', sel([['oval', 'Ovais'], ['round', 'Redondos'], ['wide', 'Grandes'], ['dot', 'Pontinhos']], cfg.eyes, v => { cfg.eyes = v; apply(); }));
+        row('Cor dos olhos', colorPick('eyeColor', ['#ffffff', '#111111', '#ffd166', '#7dd3fc', '#86efac', '#f9a8d4']));
+        row('Bochechas rosadas', chk('blush')); row('Acessório', sel(ACC_NAMES, cfg.acc, v => { cfg.acc = v; apply(); }));
+        group('Corpo');
+        row('Cor', colorPick('color', ['#2f8bff', '#ee5a8a', '#8b5cf6', '#22c55e', '#f59e0b', '#ef4444', '#14b8a6', '#9ca3af', '#f5f5f5', '#222222']));
+        row('Estilo', sel([['orb', 'Bolha brilhante'], ['led', 'LED de pontinhos']], cfg.style, v => { cfg.style = v; apply(); }));
+        row('Formato', sel([['circle', 'Redondo'], ['wide', 'Achatado'], ['square', 'Quadrado arredondado'], ['drop', 'Gota'], ['ghost', 'Fantasminha']], cfg.shape, v => { cfg.shape = v; apply(); }));
+        row('Brilho (aura)', rng('glow', 0, 100));
+        group('Comportamento');
+        row('Olhos seguem o cursor', chk('follow', save)); row('Piscar', chk('blinking', save)); row('Balançar parado', chk('bob')); row('Reagir (pensar, comemorar, dormir)', chk('react'));
         const btns = document.createElement('div'); btns.className = 'lp-btns';
-        const reset = document.createElement('button'); reset.type = 'button'; reset.className = 'btn btn-secondary'; reset.textContent = T('Restaurar'); reset.onclick = () => { cfg = Object.assign({}, DEF); save(); build(); m.remove(); };
+        const reset = document.createElement('button'); reset.type = 'button'; reset.className = 'btn btn-secondary'; reset.textContent = T('Restaurar'); reset.onclick = () => { cfg = Object.assign({}, DEF); save(); build(); repaintAll(); scanAv(); m.remove(); };
         const pos = document.createElement('button'); pos.type = 'button'; pos.className = 'btn btn-secondary'; pos.textContent = T('Voltar ao canto'); pos.onclick = () => { cfg.x = cfg.y = null; apply(); };
         const ok = document.createElement('button'); ok.type = 'button'; ok.className = 'btn btn-primary'; ok.textContent = T('Fechar'); ok.onclick = () => m.remove();
         btns.append(reset, pos, ok); card.appendChild(btns); m.addEventListener('mousedown', e => { if (e.target === m) m.remove(); }); document.body.appendChild(m);
     }
-    window.lumePet = { openSettings, get config() { return cfg; }, say, setMood };
-    const start = () => { build(); initAv(); if (cfg.on) setTimeout(() => say(T('Oi, eu sou {n}!').replace('{n}', cfg.name), 2600), 1800); };
+    window.lumePet = { openSettings, get config() { return cfg; }, say, setMood: flash };
+    addEventListener('resize', () => { if (root) place(); });
+    const start = () => { build(); initAv(); repaintAll(); if (cfg.on) setTimeout(() => say(T('Oi, eu sou {n}!').replace('{n}', cfg.name), 2600), 1800); };
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();

@@ -19,7 +19,7 @@
         .chess-bw { display: flex; gap: 8px; } .chess-eval { width: 14px; height: var(--cb, 520px); border-radius: 6px; overflow: hidden; background: #262522; position: relative; visibility: hidden; } .chess-eval.on { visibility: visible; } .chess-eval i { position: absolute; left: 0; right: 0; bottom: 0; background: #f2f2f2; transition: height .3s; } .chess-eval b { position: absolute; left: 0; right: 0; font: 600 9px system-ui; text-align: center; color: #888; top: 2px; }
         .chess-board { position: relative; width: var(--cb, 520px); height: var(--cb, 520px); display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); border-radius: 8px; overflow: hidden; user-select: none; -webkit-user-select: none; touch-action: none; }
         .chess-sq { position: relative; display: flex; align-items: center; justify-content: center; font-size: calc(var(--cb, 520px) / 8 * 0.78); line-height: 1; cursor: pointer; }
-        .chess-sq.l { background: #eeeed2; } .chess-sq.d { background: #769656; }
+        .chess-sq.l { background: var(--cl, #eeeed2); } .chess-sq.d { background: var(--cd, #769656); }
         .chess-sq.sel { box-shadow: inset 0 0 0 4px rgba(255, 214, 10, .85); } .chess-sq.last { background-image: linear-gradient(rgba(255, 238, 90, .45), rgba(255, 238, 90, .45)); }
         .chess-sq.ill { background-image: linear-gradient(rgba(220, 60, 60, .45), rgba(220, 60, 60, .45)); }
         .chess-sq.chk { background-image: radial-gradient(circle, rgba(255, 40, 40, .9) 0%, rgba(255, 40, 40, 0) 70%); }
@@ -39,6 +39,7 @@
         .chess-moves span.mv { cursor: pointer; padding: 1px 4px; border-radius: 6px; } .chess-moves span.mv:hover { background: rgba(128,128,128,.25); } .chess-moves span.mv.cur { background: var(--accent); color: #fff; }
         .chess-moves i.cl { font-style: normal; font-weight: 700; font-size: .85em; margin-left: 1px; }
         .chess-sum { min-height: 3.6em; font-size: .82em; line-height: 1.5; padding: 8px 10px; border-radius: 12px; background: rgba(128,128,128,.08); }
+        .chess-lk { flex: 1 1 45%; min-width: 0; padding: 7px 8px; border-radius: 10px; font-size: .85em; }
         .chess-hint { font-size: .76em; color: var(--text-muted); line-height: 1.4; }
         .chess-ov { animation: chFade .22s ease both; } .chess-ov.out { animation: chFadeOut .18s ease both; } .chess-wrap { animation: chPop .32s cubic-bezier(.2,.85,.25,1.05) both; } .chess-ov.out .chess-wrap { animation: chPopOut .18s ease both; }
         @keyframes chFade { from { opacity: 0; } to { opacity: 1; } } @keyframes chFadeOut { from { opacity: 1; } to { opacity: 0; } }
@@ -134,7 +135,12 @@
         game = new Chess(); st = { human, model: o.model, flip: human === 'b', sel: null, targets: [], last: null, illegal: [], arrows: [], marks: [], thinking: false, over: '', note: '', rid: null, token: Math.random(), log: [], an: {}, cls: {}, opts, review: null, busy: '', rk: 0, pre: null, psel: null };
         render(); if (human === 'b') aiMove();
     }
+    function mateOk() {   // xeque-mate de verdade: posicao possivel e quem da o mate tem alguma peca alem do rei
+        if (!game.in_checkmate() || !fenSafe(game.fen())) return false; const winner = game.turn() === 'w' ? 'b' : 'w';
+        return game.board().some(row => row.some(p => p && p.color === winner && p.type !== 'k'));
+    }
     function result() {
+        if (game.in_checkmate() && !mateOk()) return T('Empate: material insuficiente.');
         if (game.in_checkmate()) return game.turn() === st.human ? T('Xeque-mate: o modelo ganhou.') : T('Xeque-mate: você ganhou!');
         if (game.in_stalemate()) return T('Empate por afogamento.');
         if (game.insufficient_material()) return T('Empate: material insuficiente.');
@@ -156,6 +162,7 @@
         const next = piece.color === 'w' ? 'b' : 'w', full = +parts[5] + (piece.color === 'b' ? 1 : 0), newFen = `${placement} ${next} ${rightsAfter(parts[2], grid)} - 0 ${full}`;
         st.log.push({ san: from + to + (promo || '') + '⚠', uci: from + to + (promo || ''), fen: fen0, color: piece.color, from, to, illegal: true });
         st.last = { from, to }; st.illegal = [from, to];
+        if (captured && captured.toLowerCase() === 'k') { st.log.pop(); return null; }
         if (/k/i.test(captured) && captured.toLowerCase() === 'k') { st.over = piece.color === st.human ? T('Você capturou o rei do modelo.') : T('O modelo capturou o seu rei (lance ilegal): o modelo ganhou.'); return { kingCaptured: true }; }
         if (!game.load(newFen)) { st.log.pop(); return null; } return { ok: true };
     }
@@ -194,7 +201,12 @@
         ov.querySelector('.chess-sum').style.visibility = st.summary ? 'visible' : 'hidden'; ov.querySelector('.chess-sum').textContent = st.summary || ' ';
         ov.querySelector('.chess-nav').style.visibility = rv !== null && rv !== undefined ? 'visible' : 'hidden';
     }
-    function pieceEl(p) { const src = window.CHESS_PIECES && window.CHESS_PIECES[p.color + p.type.toUpperCase()]; if (!src) return mk('span', 'chess-pc ' + p.color, GLYPH[p.type]); const im = document.createElement('img'); im.className = 'chess-pc'; im.src = src; im.alt = ''; im.draggable = false; return im; }
+    const BOARDS = { green: ['Verde', '#eeeed2', '#769656'], brown: ['Marrom', '#f0d9b5', '#b58863'], blue: ['Azul', '#dee3e6', '#8ca2ad'], gray: ['Cinza', '#e8e8e8', '#9aa0a6'], purple: ['Roxo', '#e6dff0', '#8877b3'], wood: ['Madeira', '#ecd9b4', '#ae8a68'], night: ['Noite', '#8d99ae', '#2b2d42'] };
+    const SET_NAMES = { cardinal: 'Cardinal', caliente: 'Caliente', california: 'California', chessnut: 'Chessnut', fresca: 'Fresca', gioco: 'Gioco', icpieces: 'IC Pieces', kosal: 'Kosal', maestro: 'Maestro', merida: 'Mérida', rhosgfx: 'RhosGFX', staunty: 'Staunty', tatiana: 'Tatiana', cburnett: 'Clássico (Lichess)' };
+    const LOOK_KEY = 'lume_chess_look'; let look = (() => { try { return Object.assign({ set: 'cardinal', board: 'green' }, JSON.parse(localStorage.getItem(LOOK_KEY) || '{}')); } catch (e) { return { set: 'cardinal', board: 'green' }; } })();
+    const saveLook = () => { try { localStorage.setItem(LOOK_KEY, JSON.stringify(look)); } catch (e) { /* sem armazenamento */ } };
+    function applyBoard() { const b = BOARDS[look.board] || BOARDS.green, bd = ov && ov.querySelector('.chess-board'); if (bd) { bd.style.setProperty('--cl', b[1]); bd.style.setProperty('--cd', b[2]); } }
+    function pieceEl(p) { const set = (window.CHESS_SETS && (window.CHESS_SETS[look.set] || window.CHESS_SETS.cburnett)) || window.CHESS_PIECES, src = set && set[p.color + p.type.toUpperCase()]; if (!src) return mk('span', 'chess-pc ' + p.color, GLYPH[p.type]); const im = document.createElement('img'); im.className = 'chess-pc'; im.src = src; im.alt = ''; im.draggable = false; return im; }
     const evalTxt = l => (l.mate ? (l.cp > 0 ? '#' : '-#') : (l.cp >= 0 ? '+' : '') + (l.cp / 100).toFixed(1));
     function sanOf(g, uci) { try { const m = g.moves({ verbose: true }).find(x => uciOf(x) === uci); return m ? m.san : uci; } catch (e) { return uci; } }
 
@@ -221,14 +233,14 @@
     }
     function parseSpawn(text) { const m = /\+\s*([qrbnp])\s*@\s*([a-h][1-8])/i.exec(String(text || '')); return m ? { type: m[1].toLowerCase(), sq: m[2] } : null; }
     function spawnPiece(type, sq) {   // lance ILEGAL: cria uma peca do modelo numa casa (nao vale rei nem peao na ultima fileira)
-        const color = game.turn(), cur = game.get(sq); if ((cur && cur.color === color) || (type === 'p' && (sq[1] === '1' || sq[1] === '8'))) return null;
+        const color = game.turn(), cur = game.get(sq); if ((cur && (cur.color === color || cur.type === 'k')) || (type === 'p' && (sq[1] === '1' || sq[1] === '8'))) return null;
         const fen0 = game.fen(), parts = fen0.split(' '), grid = parts[0].split('/').map(r => { const row = []; for (const ch of r) { if (/\d/.test(ch)) for (let k = 0; k < +ch; k++) row.push(''); else row.push(ch); } return row; });
         const x = FILES.indexOf(sq[0]), y = 8 - +sq[1], captured = grid[y][x]; grid[y][x] = color === 'w' ? type.toUpperCase() : type;
         const placement = grid.map(r => { let o = '', n = 0; r.forEach(c => { if (!c) n++; else { if (n) { o += n; n = 0; } o += c; } }); return o + (n || ''); }).join('/');
         const next = color === 'w' ? 'b' : 'w', full = +parts[5] + (color === 'b' ? 1 : 0), newFen = `${placement} ${next} ${rightsAfter(parts[2], grid)} - 0 ${full}`;
         st.log.push({ san: '+' + type.toUpperCase() + '@' + sq + '⚠', uci: '+' + type + '@' + sq, fen: fen0, color, from: sq, to: sq, illegal: true });
         st.last = { from: sq, to: sq }; st.illegal = [sq];
-        if (captured && captured.toLowerCase() === 'k') { st.over = T('O modelo capturou o seu rei (lance ilegal): o modelo ganhou.'); return { kingCaptured: true }; }
+
         if (!game.load(newFen)) { st.log.pop(); return null; } return { ok: true };
     }
     function parseCoord(text) { const m = /([a-h][1-8])\s*[-x:]?\s*([a-h][1-8])\s*=?\s*([qrbn])?/i.exec(String(text || '').toLowerCase()); return m ? { from: m[1], to: m[2], promo: m[3] || '' } : null; }
@@ -256,8 +268,8 @@
                 const text = await askModel(ask(extra), ctl.signal); if (my !== st.token) return;
                 if (/^\s*\[Erro/.test(text)) { st.note = text.trim().slice(0, 220); err = true; break; }
                 chosen = parseMove(text, legal);
-                if (!chosen && free) { const sp = parseSpawn(text); if (sp) { if (st.opts.noSpawn) { extra = '\nCriar peças do nada está BLOQUEADO. Mova uma peça que já está no tabuleiro.'; continue; } const cur = game.get(sp.sq); if ((cur && cur.color === game.turn()) || (sp.type === 'p' && (sp.sq[1] === '1' || sp.sq[1] === '8'))) { extra = '\nEssa casa não serve para criar a peça. Escolha outra.'; continue; } spawn = sp; break; } }
-                if (!chosen && free) { const c = parseCoord(text), p = c && game.get(c.from); if (c && p && p.color === game.turn()) { const lg = game.moves({ verbose: true }).find(m => m.from === c.from && m.to === c.to && (!m.promotion || m.promotion === (c.promo || 'q'))); if (lg) chosen = lg.san; else forced = c; } }
+                if (!chosen && free) { const sp = parseSpawn(text); if (sp) { if (st.opts.noSpawn) { extra = '\nCriar peças do nada está BLOQUEADO. Mova uma peça que já está no tabuleiro.'; continue; } const cur = game.get(sp.sq); if ((cur && (cur.color === game.turn() || cur.type === 'k')) || (sp.type === 'p' && (sp.sq[1] === '1' || sp.sq[1] === '8'))) { extra = '\nEssa casa não serve para criar a peça. Escolha outra.'; continue; } spawn = sp; break; } }
+                if (!chosen && free) { const c = parseCoord(text), p = c && game.get(c.from); if (c && p && p.color === game.turn()) { const lg = game.moves({ verbose: true }).find(m => m.from === c.from && m.to === c.to && (!m.promotion || m.promotion === (c.promo || 'q'))), tg = game.get(c.to); if (lg) chosen = lg.san; else if (tg && tg.type === 'k') { extra = '\nO rei não pode ser capturado: a partida só acaba por xeque-mate. Escolha outro lance.'; continue; } else forced = c; } }
                 if (!chosen && !forced && !spawn) extra = free ? `\nA sua resposta anterior ("${String(text).trim().slice(0, 40)}") não tinha um lance em coordenadas (ex.: e2e4) com uma peça sua na casa de origem. Tente de novo.` : `\nA sua resposta anterior ("${String(text).trim().slice(0, 40)}") não era um lance legal. Escolha exatamente um da lista: ${legal.join(', ')}`;
             }
         } catch (e) { if (my !== st.token) return; st.note = T('Não consegui falar com o modelo.'); err = true; }
@@ -430,6 +442,9 @@
         let colorVal = 'w'; const seg = mk('div', 'chess-seg'); [['w', 'Brancas'], ['b', 'Pretas'], ['random', 'Aleatório']].forEach(([v, l]) => { const b = mk('button', v === colorVal ? 'on' : '', T(l)); b.type = 'button'; b.onclick = () => { colorVal = v; seg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); if (st && !st.log.length) { st.token = Math.random(); newGame({ model: list[pick], color: colorVal }); } }; seg.appendChild(b); }); side.appendChild(seg);
         const opt = (id, label, key) => { const l = mk('label', 'chess-tog'), c = document.createElement('input'); c.type = 'checkbox'; c.id = id; c.onchange = () => { st.opts[key] = c.checked; if (key === 'rank') { if (c.checked) rankBackfill(); render(); } }; c.checked = st ? !!st.opts[key] : key === 'noSpawn'; l.append(mk('span', '', T(label)), c, mk('span', 'sw')); side.appendChild(l); return c; };
         opt('chess-ill', 'Permitir lances ilegais do modelo', 'illegal'); opt('chess-nospawn', 'Bloquear peças criadas do nada pelo modelo (só vale com lances ilegais)', 'noSpawn'); opt('chess-rank', 'Ranking dos lances (Brilhante, Melhor, Erro…)', 'rank');
+        const lk = mk('div', 'chess-row'); const mkSel = (opts, val, fn) => { const x = document.createElement('select'); x.className = 'chess-lk'; opts.forEach(([v, l]) => x.add(new Option(T(l), v))); x.value = val; x.onchange = () => fn(x.value); lk.appendChild(x); };
+        mkSel(Object.entries(SET_NAMES).map(([k, n]) => [k, T('Peças') + ': ' + T(n)]), look.set, v => { look.set = v; saveLook(); render(); });
+        mkSel(Object.entries(BOARDS).map(([k, b]) => [k, T('Tabuleiro') + ': ' + T(b[0])]), look.board, v => { look.board = v; saveLook(); applyBoard(); }); side.appendChild(lk);
         const row = mk('div', 'chess-row'); side.appendChild(row);
         const btn = (txt, fn) => { const b = mk('button', 'btn btn-secondary', T(txt)); b.type = 'button'; b.onclick = fn; row.appendChild(b); return b; };
         const start = btn('Novo jogo', () => { if (st) st.token = Math.random(); newGame({ model: list[pick], color: colorVal }); }); start.classList.replace('btn-secondary', 'btn-primary');
@@ -440,10 +455,12 @@
         const navRow = mk('div', 'chess-row chess-nav'); [['⏮', 'start'], ['◀', -1], ['▶', 1], ['⏭', 'end']].forEach(([t, d]) => { const b = mk('button', 'btn btn-secondary', t); b.type = 'button'; b.onclick = () => nav(d); navRow.appendChild(b); }); const ex = mk('button', 'btn btn-secondary', T('Sair da análise')); ex.type = 'button'; ex.onclick = () => { st.review = null; render(); }; navRow.appendChild(ex); side.appendChild(navRow);
         side.appendChild(mk('div', 'chess-status', '')); side.appendChild(mk('div', 'chess-moves', '')); const sum = mk('div', 'chess-sum', ''); sum.style.whiteSpace = 'pre-line'; side.appendChild(sum);
         side.appendChild(mk('div', 'chess-hint', T('Botão direito: segure e arraste para desenhar uma seta (Shift vermelha, Ctrl azul, Alt amarela); clique direito numa casa marca a casa; clique esquerdo limpa. No celular: segure o dedo numa casa e arraste.')));
-        wire(board); document.body.appendChild(ov);
+        applyBoard(); wire(board); document.body.appendChild(ov);
         newGame({ model: list[pick], color: 'w' });
     }
     async function rankBackfill() { for (let i = 0; i < st.log.length; i++) { if (st.cls[i]) continue; const my = st.token; try { await analyze(st.log[i].fen); await analyze(i + 1 < st.log.length ? st.log[i + 1].fen : game.fen()); if (my !== st.token) return; const c = classify(i); if (c) st.cls[i] = c; render(); } catch (e) { st.note = T('Motor de análise indisponível: ') + String(e.message || e).slice(0, 80); st.opts.rank = false; render(); return; } } }
-    window.openChess = open;
+    let setsP = null;
+    const loadSets = () => window.CHESS_SETS ? Promise.resolve() : (setsP = setsP || new Promise(res => { const sc = document.createElement('script'); sc.src = 'libs/chess-sets.js'; sc.onload = sc.onerror = () => res(); document.head.appendChild(sc); }));
+    window.openChess = () => { loadSets().then(open); };
     window.__chess = { get game() { return game; }, get st() { return st; }, parseMove, parseCoord, classify, analyze, wpct, forceMove, pgnText };
 })();
