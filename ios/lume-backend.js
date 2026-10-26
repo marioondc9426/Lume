@@ -285,14 +285,26 @@ function oaiFail(label, code, body, msg) {
     if (code === 429) throw new Error(`${label}: limite de pedidos (429). ${msg}`);
     throw new Error(`${label} respondeu ${code}: ${msg}`);
 }
+const noStream = new Set();   // modelos que responderam "streaming nao suportado": a resposta passa a vir inteira
+async function* oaiNonStream(model, messages, base, key, label, maxTokens, signal, t0) {
+    const payload = { model, messages: toOai(messages), stream: false }; if (maxTokens) payload.max_tokens = +maxTokens;
+    const r = await fetchT(base + '/chat/completions', { method: 'POST', headers: bearer(key), body: JSON.stringify(payload), signal }, 120000, label);
+    if (!r.ok) { const { body, msg } = await errMsg(r); oaiFail(label, r.status, body, msg); }
+    const j = await r.json().catch(() => ({})), m = ((j.choices || [{}])[0] || {}).message || {}, think = m.reasoning_content || m.reasoning;
+    if (think) yield ['thinking', String(think)]; if (m.content) yield ['content', String(m.content)];
+    const u = j.usage || {}, total = Math.max(0.001, now() - t0);
+    if (u.completion_tokens) yield ['stats', { tokens: u.completion_tokens, seconds: total, buffered: true, limits: null, prompt_tokens: u.prompt_tokens || 0, prompt_seconds: 0, load_seconds: 0, total_seconds: total }];
+}
 async function* streamOaiCompat(model, messages, base, key, label, maxTokens, signal) {
     key = (key || '').trim(); if (!key) throw new Error(`${label} sem chave. Abra Configuracoes e cole a chave.`);
     const payload = { model, messages: toOai(messages), stream: true, stream_options: { include_usage: true } }; if (maxTokens) payload.max_tokens = +maxTokens;
     const t0 = now();
+    if (noStream.has(base + '|' + model)) { yield* oaiNonStream(model, messages, base, key, label, maxTokens, signal, t0); return; }
     for (let attempt = 0; attempt < 3; attempt++) {
         const r = await fetchT(base + '/chat/completions', { method: 'POST', headers: bearer(key), body: JSON.stringify(payload), signal }, 45000, label);
         if (r.ok) { yield* sseChat(r, t0, {}); return; }
         const { body, msg } = await errMsg(r);
+        if (r.status === 400 && /treaming is not supported/.test(body)) { noStream.add(base + '|' + model); yield ['status', 'Este modelo nao aceita streaming: a resposta chega inteira']; yield* oaiNonStream(model, messages, base, key, label, maxTokens, signal, t0); return; }
         if ((r.status === 429 || (r.status === 403 && /ate limit|oncurrent/.test(body))) && attempt < 2) { let wait = parseFloat(r.headers.get('Retry-After') || (/[Rr]etry after (\d+(?:\.\d+)?)/.exec(msg) || /\((\d+(?:\.\d+)?) seconds/.exec(msg) || [0, 1])[1]) || 1; yield ['status', `Limite de pedidos; esperando ${Math.min(wait, 8).toFixed(0)} s`]; await sleep(Math.min(wait, 8) * 1000 + 300); continue; }
         oaiFail(label, r.status, body, msg);
     }

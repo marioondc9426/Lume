@@ -1583,6 +1583,26 @@ def llm7_models(cfg, force=False):
         out.append({"id": m["id"], "ctx": m.get("context_window") or 32768, "tools": bool(m.get("tools_calling")), "vision": "image" in (mo.get("input") or [])})
     out.sort(key=lambda m: m["id"]); _l7_cache.update(t=time.time(), models=out); return out
 
+_NO_STREAM = set()   # (endereco, modelo) que respondeu "streaming nao suportado": dai em diante a resposta vem inteira de uma vez
+
+def _oai_nonstream(model, msgs, base, key, label, max_tokens, t0):
+    """Pedido sem streaming (alguns modelos, como o Claude Haiku da Aichixia, nao aceitam): a resposta chega inteira e sai como um pedaco so."""
+    payload = {"model": model, "messages": msgs, "stream": False}
+    if max_tokens: payload["max_tokens"] = int(max_tokens)
+    req = urllib.request.Request(base + "/chat/completions", data=json.dumps(payload).encode("utf-8"), headers={"Authorization": "Bearer " + key, "Content-Type": "application/json", "User-Agent": "lume-app"})
+    try:
+        with _cloud_open(req, label, timeout=CLOUD_FIRST_TIMEOUT * 2) as r: j = json.load(r)
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", "replace"); msg = body[:250]
+        try: msg = str((json.loads(body).get("error") or {}).get("message") or msg)[:250]
+        except (ValueError, AttributeError): pass
+        _oai_fail(label, e.code, body, msg)
+    m = ((j.get("choices") or [{}])[0].get("message") or {}); think = m.get("reasoning_content") or m.get("reasoning"); text = m.get("content") or ""
+    if think: yield "thinking", str(think)
+    if text: yield "content", str(text)
+    u = j.get("usage") or {}; total = max(0.001, time.time() - t0)
+    if u.get("completion_tokens"): yield "stats", {"tokens": u["completion_tokens"], "seconds": total, "buffered": True, "limits": None, "prompt_tokens": u.get("prompt_tokens", 0), "prompt_seconds": 0, "load_seconds": 0, "total_seconds": total}
+
 def stream_openai_compat(model, messages, base, key, label, max_tokens=None):
     key = (key or "").strip()
     if not key: raise Exception(f"{label} sem chave. Abra Configuracoes e cole a chave.")
@@ -1595,12 +1615,15 @@ def stream_openai_compat(model, messages, base, key, label, max_tokens=None):
     if max_tokens: payload["max_tokens"] = int(max_tokens)
     req = urllib.request.Request(base + "/chat/completions", data=json.dumps(payload).encode("utf-8"), headers={"Authorization": "Bearer " + key, "Content-Type": "application/json", "User-Agent": "lume-app"})
     t0 = time.time()
+    if (base, model) in _NO_STREAM: yield from _oai_nonstream(model, msgs, base, key, label, max_tokens, t0); return
     for attempt in range(3):
         try: response = _cloud_open(req, label); break
         except urllib.error.HTTPError as e:
             body = e.read().decode("utf-8", "replace"); msg = body[:250]
             try: msg = str((json.loads(body).get("error") or {}).get("message") or msg)[:250]
             except (ValueError, AttributeError): pass
+            if e.code == 400 and re.search(r"treaming is not supported", body):   # o provedor so entrega o texto inteiro: pede sem streaming
+                _NO_STREAM.add((base, model)); yield "status", "Este modelo nao aceita streaming: a resposta chega inteira"; yield from _oai_nonstream(model, msgs, base, key, label, max_tokens, t0); return
             if (e.code == 429 or (e.code == 403 and re.search(r"ate limit|oncurrent", body))) and attempt < 2:   # limite de pedidos por segundo (LLM7 pede 1 s; o LiteRouter responde 403 e pede 7 s): espera o que o provedor pede e tenta de novo
                 try: wait = float(e.headers.get("Retry-After") or (re.search(r"[Rr]etry after (\d+(?:\.\d+)?)", msg) or re.search(r"\((\d+(?:\.\d+)?) seconds", msg) or [0, 1])[1])
                 except (TypeError, ValueError): wait = 1.0
