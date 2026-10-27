@@ -1,0 +1,32 @@
+name: Testes
+
+# Roda a cada push e pull request: sintaxe dos arquivos, o registro de provedores, o leitor de respostas dos provedores e o backend do iPhone.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tests:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Instalar dependencias
+        run: pip install -r requirements.txt
+      - name: Sintaxe (Python e JavaScript)
+        run: |
+          python -m py_compile app.py guests.py tls.py build_exe.py build_linux.py
+          node --check ios/lume-backend.js
+          for f in libs/lume-*.js libs/providers.js; do node --check "$f"; done
+      - name: Testes do Python
+        run: python -m unittest discover tests -v
+      - name: Teste do backend do iPhone
+        run: node tests/test_ios_backend.js

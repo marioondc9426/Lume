@@ -7,6 +7,7 @@ Como numerar:
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
 ## v4.0 (em desenvolvimento)
+- **Testes automáticos** (`tests/` e `.github/workflows/tests.yml`, a cada push): sintaxe de todos os arquivos, registro de provedores (campos, logos, mesma lista no Python e no JS), leitor de respostas dos provedores (JSON de erro, resposta inteira, vazia), voz sem chave/texto e o backend do iPhone no Node com a rede de mentira. Rode local com `python -m unittest discover tests -v` e `node tests/test_ios_backend.js`.
 - **Registro de provedores num arquivo só** (`libs/providers.js`): o PC, o iPhone e a interface leem a mesma lista; para adicionar um provedor no formato da OpenAI basta um item ali (campo de chave, logo, lista de modelos, teste e salvamento saem sozinhos, sem mexer no `app.py` nem no `lume-backend.js`). Guia em `libs/PROVIDERS.md`. Efeito colateral bom: o campo de chave do TokenReply agora é limpo ao salvar e o prefixo `tk:` conta como nuvem no iPhone.
 - **Jogos com o modelo** (botão "Jogos" na lateral): **jogo da velha** (você é o X e o modelo joga de O), **forca** (o modelo escolhe a palavra e a dica) e **20 perguntas** (o modelo pensa em algo e responde Sim/Não/Talvez), além do xadrez, que continua no botão dele. Para criar outro jogo basta um item em `GAMES` no `libs/lume-games.js`.
 - **Comparar modelos** (botão na lateral): a mesma pergunta para 2 ou 3 modelos ao mesmo tempo, lado a lado, com o tempo e as palavras de cada um e botão de copiar (Ctrl+Enter compara).
