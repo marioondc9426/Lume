@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Lume Feedback</title>
+<!-- A janela separada de feedback (aberta pelo Lume com Ctrl+Shift+F, /feedback ou Configuracoes). Usa o mesmo formulario do painel flutuante: libs/lume-feedback.js -->
+<style>
+:root { --bg-main: #1b1b1f; --text-main: #ececee; --text-muted: #9a9aa6; --border-color: #34353b; --accent: #4d6bfe; --bg-input: #27282c; }
+@media (prefers-color-scheme: light) { :root { --bg-main: #f6f6f8; --text-main: #1b1b20; --text-muted: #6b6b76; --border-color: #dcdce2; --bg-input: #fff; } }
+* { box-sizing: border-box; } html, body { margin: 0; height: 100%; }
+body { background: var(--bg-main); color: var(--text-main); font: 14.5px/1.45 -apple-system, "Segoe UI", system-ui, sans-serif; padding: 14px 16px 18px; overflow-y: auto; }
+h1 { font-size: 1.05rem; margin: 0 0 4px; } .sub { color: var(--text-muted); font-size: .82rem; margin: 0 0 12px; }
+input[type=text], textarea, select { font: inherit; color: var(--text-main); background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 10px; padding: 9px 12px; width: 100%; outline: none; } input:focus, textarea:focus { border-color: var(--accent); }
+.btn { font: inherit; color: var(--text-main); background: var(--bg-input); border: 1px solid var(--border-color); border-radius: 10px; padding: 8px 14px; cursor: pointer; } .btn:hover { filter: brightness(1.12); } .btn:disabled { opacity: .5; cursor: default; }
+.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+</style></head>
+<body>
+<h1>Enviar feedback</h1>
+<p class="sub">Esta janela fica separada: continue testando o Lume e anotando aqui. Nada de chaves, conversas ou do seu config.json é enviado.</p>
+<div id="root"></div>
+<script>
+  var API = '';   // mesma origem do servidor do Lume
+  var q = new URLSearchParams(location.search); window.__FB_VERSION = q.get('v') || '';
+</script>
+<script src="libs/lume-ui.js"></script>
+<script src="libs/lume-feedback.js"></script>
+<script>window.lumeFeedbackForm(document.getElementById('root'));</script>
+</body></html>

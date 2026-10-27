@@ -2395,7 +2395,7 @@ LOOPBACK_IPS = ("127.0.0.1", "::1", "::ffff:127.0.0.1")
 LOCAL_HOSTS = ("127.0.0.1", "localhost")
 # So estes arquivos sao servidos (nunca config.json, history.json, app.py...)
 STATIC_PAGES = ("/", "/index.html")
-PAGE_ALIAS = {"/share": "/share.html", "/dashboard": "/dashboard.html"}
+PAGE_ALIAS = {"/share": "/share.html", "/dashboard": "/dashboard.html", "/feedback": "/feedback.html"}
 # So o proprio PC (janela do app) pode usar estas rotas
 LOCAL_ONLY_POST = ("/api/save_config", "/api/save_key", "/api/server_config", "/api/perf_interval",
                    "/api/custom_theme", "/api/custom_theme_delete", "/api/account_import", "/api/config_import", "/api/pol_effort_probe", "/api/account/login", "/api/account/logout", "/api/resolve_pending", "/api/export", "/api/ios_profile_save", "/api/undo", "/api/stats_clear", "/api/open_url", "/api/update_apply", "/api/restart_app", "/api/run_code", "/api/run_stop", "/api/tunnel_start", "/api/tunnel_stop", "/api/tunnel_install", "/api/app_options", "/api/model_pull", "/api/model_delete", "/api/models_update_now", "/api/cloudflare_usage_set")
@@ -4097,6 +4097,18 @@ def tray_quit():
     except Exception: pass
 
 class WindowApi:
+    def open_feedback(self):
+        """Janela SEPARADA de feedback (fica por cima, nao bloqueia o app): da para testar o Lume e anotar ao mesmo tempo. Se ja esta aberta, so traz para a frente."""
+        try:
+            w = getattr(self, "_fb_win", None)
+            if w is not None:
+                try: w.show(); w.restore(); return True
+                except Exception: self._fb_win = None
+            w = webview.create_window("Lume Feedback", f"http://127.0.0.1:{PORT}/feedback?v={urllib.parse.quote(VERSION)}", width=440, height=720, min_size=(360, 480), on_top=True)
+            w.events.closed += lambda: setattr(self, "_fb_win", None)
+            self._fb_win = w; return True
+        except Exception as e:
+            log("FEEDBACK", f"Nao consegui abrir a janela de feedback: {e}", COLOR_YELLOW); return False
     """Botoes da barra de titulo propria (a janela nao tem a borda do Windows)."""
     def __init__(self):
         self._window = None   # com "_" o pywebview nao expoe ao JavaScript
