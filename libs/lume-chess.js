@@ -152,6 +152,10 @@
         if (game.in_draw()) return T('Empate (regra dos 50 lances).');
         return '';
     }
+    const gmv = o => game.moves(Object.assign({ verbose: true }, o || {})).filter(m => m.captured !== 'k');   // lances legais SEM captura de rei: o rei nunca sai do tabuleiro (so xeque-mate acaba a partida)
+    function leavesKingInCheck(newFen, color) {   // depois de um lance ILEGAL, o rei de quem jogou nao pode ficar em xeque (senao o outro lado o capturaria e a posicao ficaria impossivel)
+        try { const t = new Chess(); return t.load(newFen.replace(/ [wb] /, ' ' + color + ' ')) && t.in_check(); } catch (e) { return false; }
+    }
     function pushLegal(fen0, mv) { st.log.push({ san: mv.san, uci: uciOf(mv), fen: fen0, color: mv.color, from: mv.from, to: mv.to }); st.last = { from: mv.from, to: mv.to }; st.illegal = []; }
     function rightsAfter(rights, grid) {   // so mantem o roque se o rei e a torre ainda estao nas casas de origem
         const ok = { K: grid[7][4] === 'K' && grid[7][7] === 'R', Q: grid[7][4] === 'K' && grid[7][0] === 'R', k: grid[0][4] === 'k' && grid[0][7] === 'r', q: grid[0][4] === 'k' && grid[0][0] === 'r' };
@@ -168,6 +172,7 @@
         st.last = { from, to }; st.illegal = [from, to];
         if (captured && captured.toLowerCase() === 'k') { st.log.pop(); return null; }
         if (/k/i.test(captured) && captured.toLowerCase() === 'k') { st.over = piece.color === st.human ? T('Você capturou o rei do modelo.') : T('O modelo capturou o seu rei (lance ilegal): o modelo ganhou.'); return { kingCaptured: true }; }
+        if (leavesKingInCheck(newFen, piece.color)) { st.log.pop(); st.rej = 'check'; return null; }
         if (!game.load(newFen)) { st.log.pop(); return null; } return { ok: true };
     }
 
@@ -246,6 +251,7 @@
         st.log.push({ san: '+' + type.toUpperCase() + '@' + sq + '⚠', uci: '+' + type + '@' + sq, fen: fen0, color, from: sq, to: sq, illegal: true });
         st.last = { from: sq, to: sq }; st.illegal = [sq];
 
+        if (leavesKingInCheck(newFen, color)) { st.log.pop(); st.rej = 'check'; return null; }
         if (!game.load(newFen)) { st.log.pop(); return null; } return { ok: true };
     }
     function parseCoord(text) { const m = /([a-h][1-8])\s*[-x:]?\s*([a-h][1-8])\s*=?\s*([qrbn])?/i.exec(String(text || '').toLowerCase()); return m ? { from: m[1], to: m[2], promo: m[3] || '' } : null; }
@@ -263,10 +269,10 @@
     async function aiMove() {
         if (!game || game.game_over() || st.over || game.turn() === st.human) return;
         const my = st.token; st.thinking = true; st.note = ''; render();
-        const color = game.turn() === 'w' ? 'brancas' : 'pretas', legal = game.moves(), free = st.opts.illegal, fen0 = game.fen();
+        const color = game.turn() === 'w' ? 'brancas' : 'pretas', legal = gmv().map(m => m.san), free = st.opts.illegal, fen0 = game.fen(), inCheck = game.in_check();
         const sys = free ? 'Você joga xadrez de verdade e quer ganhar. Em cada vez, responda SOMENTE com o seu lance em coordenadas (exemplos: e2e4, g1f3, e7e8q). Nada de explicação, nada de outro texto.' + (st.opts.noSpawn ? '' : ' Em vez de mover, você também pode CRIAR uma peça sua do nada numa casa, escrevendo +peça@casa (exemplo: +Q@d5 cria uma dama sua em d5).')
             : 'Você joga xadrez de verdade e quer ganhar. Em cada vez, responda SOMENTE com um lance da lista de lances legais, exatamente como está escrito (notação SAN, por exemplo: Nf3, exd5, O-O, e8=Q). Nada de explicação, nada de outro texto.';
-        const ask = extra => ([{ role: 'system', content: sys }, { role: 'user', content: `Posição (FEN): ${fen0}\nLances até agora: ${movesText() || '(nenhum, é o primeiro lance)'}\nVocê joga de ${color}.${free ? '' : '\nLances legais: ' + legal.join(', ')}\nResponda só com o seu lance.${extra || ''}` }]);
+        const ask = extra => ([{ role: 'system', content: sys }, { role: 'user', content: `Posição (FEN): ${fen0}\nLances até agora: ${movesText() || '(nenhum, é o primeiro lance)'}\nVocê joga de ${color}.${free ? '' : '\nLances legais: ' + legal.join(', ')}\nResponda só com o seu lance.${inCheck ? '\nATENÇÃO: o seu rei está em XEQUE. O seu lance precisa tirar o rei do xeque.' : ''}${extra || ''}` }]);
         let chosen = null, forced = null, spawn = null, err = false, extra = '', ctl = new AbortController(); const to = setTimeout(() => ctl.abort(), 180000);
         try {
             for (let i = 0; i < 3 && !chosen && !forced && !spawn; i++) {
@@ -274,21 +280,22 @@
                 if (/^\s*\[Erro/.test(text)) { st.note = text.trim().slice(0, 220); err = true; break; }
                 chosen = parseMove(text, legal);
                 if (!chosen && free) { const sp = parseSpawn(text); if (sp) { if (st.opts.noSpawn) { extra = '\nCriar peças do nada está BLOQUEADO. Mova uma peça que já está no tabuleiro.'; continue; } const cur = game.get(sp.sq); if ((cur && (cur.color === game.turn() || cur.type === 'k')) || (sp.type === 'p' && (sp.sq[1] === '1' || sp.sq[1] === '8'))) { extra = '\nEssa casa não serve para criar a peça. Escolha outra.'; continue; } spawn = sp; break; } }
-                if (!chosen && free) { const c = parseCoord(text), p = c && game.get(c.from); if (c && p && p.color === game.turn()) { const lg = game.moves({ verbose: true }).find(m => m.from === c.from && m.to === c.to && (!m.promotion || m.promotion === (c.promo || 'q'))), tg = game.get(c.to); if (lg) chosen = lg.san; else if (tg && tg.type === 'k') { extra = '\nO rei não pode ser capturado: a partida só acaba por xeque-mate. Escolha outro lance.'; continue; } else forced = c; } }
+                if (!chosen && free) { const c = parseCoord(text), p = c && game.get(c.from); if (c && p && p.color === game.turn()) { const lg = gmv().find(m => m.from === c.from && m.to === c.to && (!m.promotion || m.promotion === (c.promo || 'q'))), tg = game.get(c.to); if (lg) chosen = lg.san; else if (tg && tg.type === 'k') { extra = '\nO rei não pode ser capturado: a partida só acaba por xeque-mate. Escolha outro lance.'; continue; } else forced = c; } }
                 if (!chosen && !forced && !spawn) extra = free ? `\nA sua resposta anterior ("${String(text).trim().slice(0, 40)}") não tinha um lance em coordenadas (ex.: e2e4) com uma peça sua na casa de origem. Tente de novo.` : `\nA sua resposta anterior ("${String(text).trim().slice(0, 40)}") não era um lance legal. Escolha exatamente um da lista: ${legal.join(', ')}`;
             }
         } catch (e) { if (my !== st.token) return; st.note = T('Não consegui falar com o modelo.'); err = true; }
         clearTimeout(to); if (my !== st.token) return;
         st.thinking = false;
         if (!chosen && !forced && !spawn && !err) { chosen = legal[Math.floor(Math.random() * legal.length)]; st.note = T('(o modelo não respondeu um lance válido; joguei um lance qualquer por ele)'); }
-        if (spawn) { const r = spawnPiece(spawn.type, spawn.sq); st.note = r ? T('⚠ O modelo CRIOU uma peça do nada.') : T('Lance ilegal sem efeito.'); if (!r) { const rnd = legal[Math.floor(Math.random() * legal.length)]; const mv = game.move(rnd); pushLegal(fen0, mv); } }
-        else if (forced) { const r = forceMove(forced.from, forced.to, forced.promo); st.note = T('⚠ O modelo jogou um lance ILEGAL.'); if (!r) { st.note = T('Lance ilegal sem efeito.'); const rnd = legal[Math.floor(Math.random() * legal.length)]; const mv = game.move(rnd); pushLegal(fen0, mv); } }
+        st.rej = ''; const rejNote = () => st.rej === 'check' ? T('Lance ilegal recusado: deixaria o rei do modelo em xeque. Joguei um lance legal por ele.') : T('Lance ilegal sem efeito.');
+        if (spawn) { const r = spawnPiece(spawn.type, spawn.sq); st.note = r ? T('⚠ O modelo CRIOU uma peça do nada.') : rejNote(); if (!r) { const rnd = legal[Math.floor(Math.random() * legal.length)]; const mv = game.move(rnd); pushLegal(fen0, mv); } }
+        else if (forced) { const r = forceMove(forced.from, forced.to, forced.promo); st.note = T('⚠ O modelo jogou um lance ILEGAL.'); if (!r) { st.note = rejNote(); const rnd = legal[Math.floor(Math.random() * legal.length)]; const mv = game.move(rnd); pushLegal(fen0, mv); } }
         else if (chosen) { const mv = game.move(chosen); pushLegal(fen0, mv); }
         st.arrows = []; st.marks = []; render(); afterMove(); runPremove();
     }
     function runPremove() {   // jogada adiantada: executa assim que o modelo responde, se ainda for legal
         const p = st.pre; st.pre = null; st.psel = null; if (!p || game.game_over() || st.over || game.turn() !== st.human) { render(); return; }
-        const mv = game.moves({ verbose: true }).find(m => m.from === p.from && m.to === p.to); if (!mv) { render(); return; }
+        const mv = gmv().find(m => m.from === p.from && m.to === p.to); if (!mv) { render(); return; }
         tryMove(p.from, p.to, mv.promotion ? 'q' : undefined);
     }
     function afterMove() { if (st.opts.rank && !st.over) rankNow(); }
@@ -307,7 +314,7 @@
         st.note = T('Lance seguido: você joga de novo') + ' (' + n + '/' + max + ').'; return true;
     }
     function tryMove(from, to, promo) {
-        const mv = game.moves({ verbose: true }).find(m => m.from === from && m.to === to && (!m.promotion || m.promotion === (promo || 'q')));
+        const mv = gmv().find(m => m.from === from && m.to === to && (!m.promotion || m.promotion === (promo || 'q')));
         if (!mv) return false;
         if (mv.promotion && !promo) { askPromo(from, to); return true; }
         const fen0 = game.fen(), prior = trailingHuman(), done = game.move({ from, to, promotion: promo || undefined }); pushLegal(fen0, done); if (prior >= 1) st.log[st.log.length - 1].extra = true; st.sel = null; st.targets = []; st.note = '';
@@ -389,7 +396,7 @@
             if (st.sel && st.targets.includes(s)) { tryMove(st.sel, s); return; }
             const selP = st.sel && game.get(st.sel), clk = game.get(s);
             if (selP && selP.type === 'k' && clk && clk.type === 'r' && clk.color === selP.color) { const dest = (s[0] > st.sel[0] ? 'g' : 'c') + st.sel[1]; if (st.targets.includes(dest)) { tryMove(st.sel, dest); return; } }   // clicar na propria torre = roque
-            const p = game.get(s); if (p && p.color === st.human) { st.sel = s; st.targets = game.moves({ square: s, verbose: true }).map(m => m.to); } else { st.sel = null; st.targets = []; }
+            const p = game.get(s); if (p && p.color === st.human) { st.sel = s; st.targets = gmv({ square: s }).map(m => m.to); } else { st.sel = null; st.targets = []; }
             render();
         };
         let drag = null, noClick = 0;
