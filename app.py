@@ -149,7 +149,7 @@ MONITOR_EVERY_S = 2.5     # de quanto em quanto tempo a memoria da GPU e conferi
 VRAM_ALERT_EVERY_S = 2.5 # a cada quantos segundos o aviso de VRAM alta (terminal) se repete
 VRAM_WARN_MB = 7144        # aviso de VRAM alta (7 GB)
 ollama_process = None
-pending_command = {"cmd": "", "resolve": None}
+pending_command = {"cmd": "", "resolve": None, "rule": "", "detail": ""}
 stop_generation_flag = threading.Event()   # so para as esperas de permissao e o desligamento do app; cada geracao do dono tem o seu proprio "parar"
 gens_active = {}           # id do pedido -> modelo (geracoes do dono em andamento; pode haver varias, uma por chat)
 req_stops = {}             # id do pedido -> Event (parar so aquela geracao)
@@ -591,7 +591,7 @@ def run_code(lang, code, analyze=False, install=False, rid=None):
     elif lang == "bat": exe = shutil.which("cmd")
     elif lang == "bash": exe = shutil.which("bash")
     if not exe: return {"error": {"javascript": "Node.js nao encontrado neste PC (instale em nodejs.org).", "bash": "Bash nao encontrado neste PC (instale o Git for Windows)."}.get(lang, "Interpretador nao encontrado.")}
-    if analyze: return {"ok": True, "missing": missing, "gui": gui}
+    if analyze: return {"ok": True, "missing": missing, "gui": gui, "rule": dangerous_reason("cmd", {"command": code}) or ""}   # "rule": o que a lista de comandos perigosos achou (a bolinha usa)
     os.makedirs(RUN_DIR, exist_ok=True)
     for f in os.listdir(RUN_DIR):   # apaga scripts com mais de 1 dia
         fp = os.path.join(RUN_DIR, f)
@@ -1231,17 +1231,22 @@ def native_tool_call(model, messages, num_ctx=None, workdir=None):
     c = find_tool_call(msg.get("content") or "")   # alguns modelos respondem com o formato de texto mesmo assim
     return (c[0], c[1]) if c else None
 
-def ask_permission(description, stop_check=None):
+def ask_permission(description, stop_check=None, call=None):
     """Bloqueia ate o usuario aprovar/negar no popup (ou parar a geracao)."""
     event = threading.Event()
     result = {"ok": False}
     def resolve(val): result["ok"] = bool(val); event.set()
     pending_command["cmd"] = description
+    pending_command["rule"] = ""; pending_command["detail"] = ""
+    if call:   # o que a bolinha analisa: a regra de comandos perigosos e o conteudo (do comando ou do arquivo a escrever)
+        try: pending_command["rule"] = dangerous_reason(call[0], call[1]) or ""
+        except Exception: pass
+        pending_command["detail"] = str(call[1].get("content") if call[0] == "write_file" else call[1].get("command", ""))[:6000]
     pending_command["resolve"] = resolve
     log("PERMISSAO", f"Aguardando o usuario: {description}", COLOR_YELLOW)
     while not event.wait(1):
         if stop_generation_flag.is_set() or (stop_check and stop_check()): resolve(False)
-    pending_command["cmd"] = ""
+    pending_command["cmd"] = ""; pending_command["rule"] = ""; pending_command["detail"] = ""
     pending_command["resolve"] = None
     return result["ok"]
 
@@ -2303,6 +2308,63 @@ def pol_stt(audio, mime, opts, cfg):
     except ValueError: raise Exception("Resposta estranha do Pollinations ao transcrever.")
 
 # ---------------------------------------------------------------- feedback: manda para o servidor lume-feedback (lume-feedback/server.py)
+# ---------------------------------------------------------------- log do Lume Auto (o roteador de modelos): tudo que ele decide fica no terminal e em router.log
+ROUTER_LOG = os.path.join(BASE_DIR, "router.log"); _router_lock = threading.Lock()
+def router_log_write(lines):
+    out = []
+    for l in (lines or [])[:200]:
+        if not isinstance(l, dict): continue
+        t = float(l.get("t") or time.time() * 1000) / 1000; ev = re.sub(r"[^a-z_ -]", "", str(l.get("ev") or "info").lower())[:20] or "info"; msg = re.sub(r"[\r\n]+", " ", str(l.get("msg") or ""))[:600]
+        out.append(f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(t))} [{ev}] {msg}"); log("ROUTER", f"{ev}: {msg}", COLOR_CYAN)
+    if not out: return 0
+    with _router_lock:
+        try:
+            if os.path.exists(ROUTER_LOG) and os.path.getsize(ROUTER_LOG) > 1_500_000:
+                os.replace(ROUTER_LOG, ROUTER_LOG + ".1")
+            with open(ROUTER_LOG, "a", encoding="utf-8") as f: f.write("\n".join(out) + "\n")
+        except OSError: pass
+    return len(out)
+def router_log_tail(n=300):
+    try:
+        with open(ROUTER_LOG, "r", encoding="utf-8", errors="replace") as f: return f.read().splitlines()[-max(1, min(int(n), 2000)):]
+    except OSError: return []
+
+# ---------------------------------------------------------------- notas dos modelos (inteligencia e velocidade): vem do Gratisfy (dados do Artificial Analysis), guardadas 24 h
+SCORES_FILE = os.path.join(BASE_DIR, "model_scores.json"); SCORES_URL = "https://gratisfy.xyz/api/benchmarks"; SCORES_TTL = 24 * 3600
+def _score_keys(*names):
+    """Chaves para casar um modelo do Lume com uma linha do Gratisfy: o nome sem enfeites, so letras e numeros (igual ao libs/lume-scores.js)."""
+    out = set()
+    for n in names:
+        if not n: continue
+        n = re.sub(r"\((?:free|max|xhigh|high|medium|low|default|reasoning|non-reasoning)[^)]*\)", "", str(n).lower()); base = re.sub(r":(free|cloud|thinking|latest|beta)$", "", n.split("/")[-1])
+        for v in (n, base):
+            k = re.sub(r"[^a-z0-9]", "", v)
+            if len(k) >= 4: out.add(k)
+    return out
+def fetch_model_scores(refresh=False):
+    """{ts, rows: [[chave, inteligencia, tok/s], ...]}. Usa o que ja foi baixado (ate 24 h); sem internet devolve o antigo."""
+    old = None
+    try:
+        with open(SCORES_FILE, "r", encoding="utf-8") as f: old = json.load(f)
+    except Exception: pass
+    if old and not refresh and time.time() - old.get("ts", 0) < SCORES_TTL: return old
+    try:
+        req = urllib.request.Request(SCORES_URL, headers={"User-Agent": "lume-app", "Accept": "application/json"})
+        with urllib.request.urlopen(req, timeout=45) as r: d = json.loads(r.read(12_000_000).decode("utf-8"))
+        best = {}
+        for row in list(d.get("models") or []) + list(d.get("benchmarkRows") or []):
+            b = row.get("benchmark") or {}; i = b.get("intelligence")
+            if not isinstance(i, (int, float)): continue
+            tps = b.get("speed") if isinstance(b.get("speed"), (int, float)) else None
+            for k in _score_keys(row.get("id"), row.get("name"), b.get("aaSlug"), b.get("aaName"), *(row.get("sourceModelIds") or [])):
+                if k not in best or i > best[k][0]: best[k] = (i, tps)
+        out = {"ts": time.time(), "rows": [[k, v[0], v[1]] for k, v in best.items()]}
+        with open(SCORES_FILE, "w", encoding="utf-8") as f: json.dump(out, f)
+        return out
+    except Exception as e:
+        if old: return old
+        raise Exception("Nao consegui baixar as notas dos modelos (" + str(getattr(e, "reason", e))[:80] + ").")
+
 def send_feedback(cfg, d):
     """Repassa o feedback ao servidor configurado em feedback_url. Nunca manda config.json, chaves nem conversas: so o que o usuario escreveu, a imagem que ele anexou e (se marcou) versao/sistema."""
     url = str(cfg.get("feedback_url") or "").strip().rstrip("/")
@@ -2772,7 +2834,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         if p == '/api/usage':
             return self.send_json(load_config().get("usage", {}))
         if p == '/api/check_pending':
-            return self.send_json({"cmd": pending_command["cmd"] if local else ""})   # so o PC aprova comandos
+            return self.send_json({"cmd": pending_command["cmd"], "rule": pending_command["rule"], "detail": pending_command["detail"]} if local else {"cmd": ""})   # so o PC aprova comandos
         if p == '/api/history':
             return self.send_json(load_history())
         if p == '/api/state':
@@ -2869,6 +2931,11 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 return self.send_json({"saved": True, "models": models, "probing": probing})
             except urllib.error.HTTPError as e: return self.send_json({"saved": True, "models": [], "error": CF_HTTP_ERRORS.get(e.code) or f"Cloudflare respondeu {e.code}"})
             except Exception as e: return self.send_json({"saved": True, "models": [], "error": str(e)[:200]})
+        if p == '/api/router_log':
+            return self.send_json({"lines": router_log_tail(self.query.get('n', ['300'])[0] or 300), "file": ROUTER_LOG if local else ""})
+        if p == '/api/model_scores':   # nota de inteligencia e velocidade por modelo (Gratisfy/Artificial Analysis); so baixa, nao manda nada seu
+            try: return self.send_json(fetch_model_scores(self.query.get('refresh', [''])[0] == '1'))
+            except Exception as e: return self.send_json({"error": str(e)[:200]}, 502)
         if p == '/api/providers_overview':   # painel de provedores: chave salva, quantos estao fora do ar e quando foi o ultimo teste (nunca devolve a chave)
             cfg = load_config(); out = {}
             for prov, (field, _u, name, _s) in X_PROVIDERS.items():
@@ -3121,6 +3188,14 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             try: return self.send_json({"ok": True, "message": do_undo(str(data.get("id", "")))})
             except Exception as e: return self.send_json({"error": str(e)}, 400)
 
+        if p == '/api/router_log':   # o Lume Auto manda aqui cada decisao (escolha, troca, falha...)
+            return self.send_json({"ok": router_log_write(data.get("lines"))})
+        if p == '/api/router_log_clear':
+            with _router_lock:
+                for f in (ROUTER_LOG, ROUTER_LOG + ".1"):
+                    try: os.remove(f)
+                    except OSError: pass
+            return self.send_json({"ok": True})
         if p == '/api/run_code':
             return self.send_json(run_code(data.get("lang"), data.get("code"), bool(data.get("analyze")), bool(data.get("install")), str(data.get("rid") or "") or None))
         if p == '/api/run_stop':
@@ -3637,7 +3712,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                         else: log("PERMISSAO", f"Permitido sozinho: {describe_tool(tool_name, tool_args)}", COLOR_YELLOW)
                     if needs_permission(tool_name) and not auto and not blocked and not web_denied:
                         status("Aguardando permissão")
-                        if not ask_permission(describe_tool(tool_name, tool_args), stopped):
+                        if not ask_permission(describe_tool(tool_name, tool_args), stopped, (tool_name, tool_args)):
                             send(L("\n\n[Acao negada pelo usuario]", "\n\n[Action denied by the user]"))
                             denied = True; break
                     status("Pesquisando na web" if web_tool else f"Executando: {tool_name}")

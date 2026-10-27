@@ -34,3 +34,6 @@ sounds/*
 lume-feedback/data/
 lume-feedback/feedback.db
 lume-feedback/feedback_password.txt
+router.log
+router.log.1
+model_scores.json

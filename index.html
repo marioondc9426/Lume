@@ -1295,6 +1295,7 @@
         </div>
 
         <div class="section-title">Chat</div>
+        <div class="form-group"><div class="srv-actions"><button class="btn btn-secondary" type="button" onclick="lumeRouter.openSettings()">Lume Auto…</button><button class="btn btn-secondary" type="button" onclick="lumeRouter.openLog()">Log do Lume Auto</button></div><span class="hint">O Lume Auto é um modelo especial do seletor: a cada pedido ele escolhe o modelo mais apropriado, estável e rápido, e passa para o próximo sozinho se um falhar. Tudo que ele faz fica no log.</span></div>
         <div class="form-group">
             <label>System Prompt (aba Chat)</label>
             <textarea id="system-prompt-input" rows="2"></textarea>
@@ -1643,6 +1644,7 @@
         // gb = tamanho aproximado na memoria (usado para prever estouro de VRAM)
         // fam/famName/params agrupam por familia; rec = tamanho sugerido ao escolher a familia; gb = tamanho aproximado
         const MODELS = [
+            { id: 'lume:auto', fam: 'lume-auto', famName: 'Lume Auto', params: '', label: 'Lume Auto', icon: 'zap', tabs: ['chat', 'code'], auto: true, vision: true, rec: true },   // roteador: escolhe o modelo a cada pedido (libs/lume-router.js)
             { id: 'qwen3.5:2b', fam: 'qwen3.5', famName: 'Qwen 3.5', params: '2B', label: 'Qwen 3.5 2B (Básico)', icon: 'zap', tabs: ['chat'], gb: 2.7, vision: true, ctx: 262144 },
             { id: 'qwen3.5:4b', fam: 'qwen3.5', famName: 'Qwen 3.5', params: '4B', rec: true, label: 'Qwen 3.5 4B (Local)', icon: 'zap', tabs: ['chat', 'code'], gb: 3.3, vision: true, ctx: 262144 },
             { id: 'qwen3.5:9b', fam: 'qwen3.5', famName: 'Qwen 3.5', params: '9B', label: 'Qwen 3.5 9B (Pesado)', icon: 'triangle-alert', tabs: ['chat', 'code'], gb: 6.6, heavy: true, vision: true, ctx: 262144 },
@@ -1795,7 +1797,7 @@
             'Painel de provedores': 'Providers panel', 'Provedores': 'Providers', 'Todos os provedores numa tela: quem tem chave, quantos modelos aparecem, quantos estão fora do ar, saldo e um botão para testar.': 'All providers on one screen: who has a key, how many models show up, how many are down, balance and a test button.', 'chave salva': 'key saved', 'sem chave': 'no key', 'modelos': 'models', 'fora do ar': 'down', 'mostra todos': 'shows all', 'provedor extra': 'extra provider', 'provedor': 'provider', 'local / nuvem do Ollama': 'Ollama local / cloud', 'Testar': 'Test', 'Colocar chave': 'Add key', 'limite de pedidos': 'rate limited', '{k} provedores com chave · {m} modelos na lista · {d} fora do ar': '{k} providers with a key · {m} models listed · {d} down',
             'Comparar modelos': 'Compare models', 'Comparar': 'Compare', 'Escreva a pergunta que todos vão responder…': 'Write the question they will all answer…', 'Escolha pelo menos 2 modelos diferentes.': 'Pick at least 2 different models.', 'Preciso de pelo menos 2 modelos disponíveis. Configure uma chave ou ligue o Ollama.': 'I need at least 2 available models. Add a key or turn Ollama on.', 'palavras': 'words', 'erro': 'error', '(escolha)': '(choose)', '(nenhum)': '(none)', 'Copiar': 'Copy',
             'Filtros: modelo:gemini  desde:2026-10-01  ate:2026-10-31  pasta:trabalho  fixado  tudo (todas as abas)': 'Filters: modelo:gemini  desde:2026-10-01  ate:2026-10-31  pasta:work  fixado  tudo (all tabs)',
-            "Jogos": "Games", "Jogo da velha": "Tic-tac-toe", "Forca": "Hangman", "20 perguntas": "20 questions", "Você é o X; o modelo joga de O.": "You are X; the model plays O.", "O modelo escolhe a palavra e uma dica.": "The model picks the word and a hint.", "O modelo pensa em algo; você descobre.": "The model thinks of something; you guess.", "Contra qualquer modelo, com análise e peças.": "Against any model, with analysis and piece sets.", "Novo jogo": "New game", "Nova palavra": "New word", "Enviar": "Send", "Sua vez (você é o X).": "Your turn (you are X).", "O modelo está pensando…": "The model is thinking…", "Você ganhou! 🎉": "You won! 🎉", "O modelo ganhou.": "The model won.", "Deu velha (empate).": "Draw.", "joguei por ele.": "I played for it.", "Erro do modelo: ": "Model error: ", "O modelo está escolhendo uma palavra…": "The model is picking a word…", "Dica: ": "Hint: ", "Dicas: ": "Hints: ", "Abrindo a janela de feedback… (pode levar alguns segundos)": "Opening the feedback window… (it can take a few seconds)", "Nenhum modelo disponível para jogos agora.": "No model available for games right now.", "está lento; um modelo menor ou mais rápido joga mais depressa.": "it is slow; a smaller or faster model plays quicker.", "imagem colada": "pasted image", "Conte o que aconteceu ou o que você gostaria… (Enter envia, Shift+Enter quebra a linha; Ctrl+V cola uma imagem)": "Tell us what happened or what you would like… (Enter sends, Shift+Enter adds a line; Ctrl+V pastes an image)", "Escolha as letras.": "Pick letters.", "Você acertou! 🎉": "You got it! 🎉", "Perdeu! A palavra era: ": "You lost! The word was: ", "erros": "mistakes", "O modelo está pensando em algo…": "The model is thinking of something…", "Pensei em algo! Categoria: ": "I thought of something! Category: ", "Você tem 20 perguntas.": "You have 20 questions.", "Acertou! Era: ": "Correct! It was: ", "Você venceu em ": "You won in ", " perguntas!": " questions!", "Sim": "Yes", "Não": "No", "Talvez": "Maybe", "Acabaram as perguntas! Era: ": "Out of questions! It was: ", "Fim de jogo.": "Game over.", "Pergunta ": "Question ", "Erro: ": "Error: ", "Preciso de um modelo disponível. Configure uma chave ou ligue o Ollama.": "I need an available model. Add a key or turn Ollama on.",
+            "Jogos": "Games", "Jogo da velha": "Tic-tac-toe", "Forca": "Hangman", "20 perguntas": "20 questions", "Você é o X; o modelo joga de O.": "You are X; the model plays O.", "O modelo escolhe a palavra e uma dica.": "The model picks the word and a hint.", "O modelo pensa em algo; você descobre.": "The model thinks of something; you guess.", "Contra qualquer modelo, com análise e peças.": "Against any model, with analysis and piece sets.", "Novo jogo": "New game", "Nova palavra": "New word", "Enviar": "Send", "Sua vez (você é o X).": "Your turn (you are X).", "O modelo está pensando…": "The model is thinking…", "Você ganhou! 🎉": "You won! 🎉", "O modelo ganhou.": "The model won.", "Deu velha (empate).": "Draw.", "joguei por ele.": "I played for it.", "Erro do modelo: ": "Model error: ", "O modelo está escolhendo uma palavra…": "The model is picking a word…", "Dica: ": "Hint: ", "Dicas: ": "Hints: ", "Lume Auto…": "Lume Auto…", "Log do Lume Auto": "Lume Auto log", "Lume Auto escolheu {m} ({c})": "Lume Auto picked {m} ({c})", "{a} falhou: {e}. O Lume Auto trocou para {b}...": "{a} failed: {e}. Lume Auto switched to {b}...", "Abrindo a janela de feedback… (pode levar alguns segundos)": "Opening the feedback window… (it can take a few seconds)", "Nenhum modelo disponível para jogos agora.": "No model available for games right now.", "está lento; um modelo menor ou mais rápido joga mais depressa.": "it is slow; a smaller or faster model plays quicker.", "imagem colada": "pasted image", "Conte o que aconteceu ou o que você gostaria… (Enter envia, Shift+Enter quebra a linha; Ctrl+V cola uma imagem)": "Tell us what happened or what you would like… (Enter sends, Shift+Enter adds a line; Ctrl+V pastes an image)", "Escolha as letras.": "Pick letters.", "Você acertou! 🎉": "You got it! 🎉", "Perdeu! A palavra era: ": "You lost! The word was: ", "erros": "mistakes", "O modelo está pensando em algo…": "The model is thinking of something…", "Pensei em algo! Categoria: ": "I thought of something! Category: ", "Você tem 20 perguntas.": "You have 20 questions.", "Acertou! Era: ": "Correct! It was: ", "Você venceu em ": "You won in ", " perguntas!": " questions!", "Sim": "Yes", "Não": "No", "Talvez": "Maybe", "Acabaram as perguntas! Era: ": "Out of questions! It was: ", "Fim de jogo.": "Game over.", "Pergunta ": "Question ", "Erro: ": "Error: ", "Preciso de um modelo disponível. Configure uma chave ou ligue o Ollama.": "I need an available model. Add a key or turn Ollama on.",
             'Importar o meu config.json': 'Import my config.json', 'Traz as chaves de API e as opções de outro Lume (a senha, as sessões e as portas nunca entram).': 'Brings the API keys and options from another Lume (the password, sessions and ports are never imported).', 'Esse arquivo não é um config.json do Lume.': 'That file is not a Lume config.json.', 'Importado: {n} configuração(ões). Ignorei {k} (senha, sessões, portas e acesso remoto nunca são importados).': 'Imported: {n} setting(s). Skipped {k} (password, sessions, ports and remote access are never imported).',
             "Enviar feedback": "Send feedback", "Enviar feedback aqui": "Send feedback here", "Bug": "Bug", "Sugestão": "Suggestion", "Outro": "Other", "Conte o que aconteceu ou o que você gostaria…": "Tell what happened or what you would like…", "Contato (opcional: e-mail ou usuário)": "Contact (optional: email or username)", "Incluir a versão e o sistema": "Include the version and system", "Anexar uma imagem": "Attach an image", "sem imagem": "no image", "Não deu para usar essa imagem.": "Could not use that image.", "Servidor do feedback": "Feedback server", "Endereço": "Address", "É o servidor do projeto lume-feedback (quem recebe e mostra no dashboard).": "It is the lume-feedback project server (it receives and shows on the dashboard).", "Chave de envio": "Send key", "(só se o servidor pedir)": "(only if the server asks)", "Escreva pelo menos algumas palavras.": "Write at least a few words.", "Coloque o endereço do servidor de feedback.": "Enter the feedback server address.", "Enviando…": "Sending…", "Enviado! Obrigado.": "Sent! Thank you.", "Enviar": "Send",
             'Bug ou sugestão': 'Bug or suggestion', 'Abrir os modelos de issue no GitHub': 'Open the issue templates on GitHub', 'Abre a página do GitHub com dois formulários prontos: um para relatar um bug e outro para sugerir uma ideia.': 'Opens the GitHub page with two ready forms: one to report a bug and one to suggest an idea.', 'Opções': 'Options', 'Mais': 'More', 'Voltar ao canto': 'Back to the corner',
@@ -2137,7 +2139,7 @@
         let _pxKeys = null; const modelKey = m => { fin(m); return [m.base, m.ver, m.psize].join('|'); };
         const pxDup = m => false;   // Paxsenix mostra todos os seus modelos, mesmo os que outro provedor ja tem
         const noIcon = m => { if (!m.x) return false; if (m._ni === undefined) { try { m._ni = !brandOf(fin(m)); } catch (e) { return false; } } return m._ni; };   // modelos dos provedores extras sem logo da marca nao entram na lista
-        const isAvail = m => guestBlocks(m) ? false : pxDup(m) ? false : noIcon(m) ? false : m.phone ? phoneMode() : (phoneMode() && !m.cloud ? false : (m.groq || m.or || m.cf || m.pol || m.tdc || m.vc || m.l7 || m.x || installed === null || installed.has(m.id)));   // no modo celular os locais do PC saem da lista
+        const isAvail = m => m.auto ? !isGuest() : guestBlocks(m) ? false : pxDup(m) ? false : noIcon(m) ? false : m.phone ? phoneMode() : (phoneMode() && !m.cloud ? false : (m.groq || m.or || m.cf || m.pol || m.tdc || m.vc || m.l7 || m.x || installed === null || installed.has(m.id)));   // no modo celular os locais do PC saem da lista
         const availIn = tab => MODELS.filter(m => m.tabs.includes(tab) && isAvail(m));
         const pickDefault = list => list.find(m => m.rec && !m.cloud) || list.find(m => !m.cloud && !m.heavy) || list.find(m => !m.cloud) || list[0];
         // ---------- familias: todas as versoes e provedores de uma marca ficam num lugar so ("Qwen 2.5, 3 e 3.5"); a lista de parametros traz "versao, tamanho"
@@ -2228,7 +2230,7 @@
             const map = new Map(); availIn(tab).forEach(m => { fin(m); if (!map.has(m.grp)) map.set(m.grp, []); map.get(m.grp).push(m); });
             map.forEach(ms => ms.sort((a, b) => verKey(a.ver) - verKey(b.ver) || sizeNum(a) - sizeNum(b) || provOrd(a) - provOrd(b) || a.plabel.localeCompare(b.plabel)));
             const key = ([, ms]) => ms[0].base.toLowerCase();
-            return new Map([...map.entries()].sort((a, b) => key(a).localeCompare(key(b), 'pt', { numeric: true })));
+            return new Map([...map.entries()].sort((a, b) => (b[0] === 'lume-auto') - (a[0] === 'lume-auto') || key(a).localeCompare(key(b), 'pt', { numeric: true })));   // o Lume Auto fica no topo
         }
         // ---- abertura rapida e o ultimo modelo de volta ----
         // A ultima lista de modelos da nuvem fica guardada no aparelho e aparece NA HORA; cada provedor atualiza quando responder (os carregadores trocam as entradas dele).
@@ -2478,6 +2480,7 @@
         // marcas: a logo da marca aparece ao lado do nome do modelo. A marca e detectada pelo nome (familia/id), entao modelos novos ja saem com a logo certa.
         // wordmark = a imagem ja tem o nome (Qwen, DeepSeek, Beam), entao vai sozinha; chip = fundo branco (logo escuro); mono = logo de uma cor so, pintado com a cor do texto do tema
         const BRANDS = [
+            { re: /lume-auto/i, img: 'lume-mark.png' },
             { re: /deepseek/i, img: 'DeepSeek.png', wordmark: true },
             { re: /beam/i, img: 'beam.png', wordmark: true, mono: true, ratio: 5.06 },
             { re: /gemini/i, img: 'Gemini.svg' },
@@ -2629,7 +2632,7 @@
             tm.style.display = br && br.mono ? '' : 'none'; if (br && br.mono) tm.style.aspectRatio = br.ratio || 1; tm.className = 'brand-mono' + (br && br.wordmark ? ' wm' : ''); if (br && br.mono) tm.style.setProperty('--m', `url("icons/${brandFile(br, cur)}")`);
             ti.style.display = br && br.mono ? 'none' : ''; ti.className = br ? (br.wordmark ? 'wordmark' + (br.chip ? '' : ' bare') : 'brand-img') : 'ic';
             ti.src = br ? 'icons/' + brandFile(br, cur) : `icons/${cur.icon === 'triangle-alert' ? 'zap' : cur.icon}.png`; ti.onerror = br ? () => { ti.style.display = 'none'; } : null;
-            $('model-trigger-text').textContent = br && br.wordmark ? [cur.ver, cur.psize].filter(Boolean).join(' ') : cur.short;
+            $('model-trigger-text').textContent = cur.auto ? 'Lume Auto' + (window.lumeRouter && lumeRouter.last ? ' · ' + lumeRouter.last.label : '') : br && br.wordmark ? [cur.ver, cur.psize].filter(Boolean).join(' ') : cur.short;
             updateCtxBar();
         }
         // ---------- tipos: local = azul, nuvem gratis = cinza, pago (gasta pollen) = amarelo
@@ -3872,8 +3875,16 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
 
         // ---- a geracao em si (roda em segundo plano mesmo se voce abrir outro chat)
         async function runTurn(chatId, opts) {
-            const chat = chats[chatId], model = modelById(opts.model), fork = opts.fork || null;
+            const chat = chats[chatId], fork = opts.fork || null; let model = modelById(opts.model);
             const isCode = tabOf(chatId) === 'code', isCur = () => chatId === currentChatId;
+            // Lume Auto (libs/lume-router.js): olha o pedido, escolhe o modelo mais apropriado/estavel/rapido e deixa o resto da lista como reserva
+            let routePlan = null, autoSw = false;
+            const lastUser = () => { const arr = (fork ? (fork.kind === 'edit' ? chat.messages.slice(0, fork.i).concat([fork.userMsg]) : chat.messages.slice(0, fork.i)) : chat.messages); for (let k = arr.length - 1; k >= 0; k--) if (arr[k].role === 'user') return arr[k]; return {}; };
+            if (model && model.auto) {
+                const um = lastUser(); routePlan = window.lumeRouter ? lumeRouter.route({ tab: isCode ? 'code' : 'chat', text: um.content || '', hasImages: !!(um.images && um.images.length), hasFiles: !!(um.files && um.files.length), chatId }) : { list: [] };
+                if (!routePlan.list.length) { showInfo('Lume Auto: nenhum modelo disponível com os filtros atuais (veja o log em Configurações > Chat > Lume Auto).', 9000); return; }
+                model = routePlan.list[0]; opts = Object.assign({}, opts, { model: model.id }); { const tt = $('model-trigger-text'); if (tt && selectedModel === 'lume:auto') tt.textContent = 'Lume Auto · ' + model.label; }
+            }
             const aiDiv = addMessageToUI('ai', `<span class="loading-dots">${tr('Iniciando')}</span>`, { html: true, model: opts.model, detached: true });
             const textSpan = aiDiv.querySelector('.final-text'), firstThink = aiDiv.querySelector('.think');
             const stLine = document.createElement('div'); stLine.className = 'msg-status';
@@ -3886,7 +3897,13 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             }
             renderSidebar();
             let fullResponse = '', gotText = false, chars = 0, tokEst = 0, lastStats = null, failed = false, applied = false; const msgSources = []; let srcEl = null;
-            let active = model; const chain = fallbackChain(model, isCode ? 'code' : 'chat'), ci0 = -1; let ci = ci0;   // active = provedor em uso; chain = os proximos mais baratos do mesmo modelo
+            let active = model; let chain = fallbackChain(model, isCode ? 'code' : 'chat'), ci0 = -1; let ci = ci0;   // active = provedor em uso; chain = os proximos mais baratos do mesmo modelo
+            if (routePlan) chain = routePlan.list.slice(1);   // Lume Auto: os proximos da lista dele (cada um e um modelo diferente)
+            else if (window.lumeRouter && lumeRouter.config.autoSwitch && !model.phone) {   // "trocar sozinho quando falhar": depois dos outros provedores do mesmo modelo, os proximos que o roteador escolheria
+                const um = lastUser(), tried = new Set([model.id].concat(chain.map(x => x.id)));
+                chain = chain.concat(lumeRouter.route({ tab: isCode ? 'code' : 'chat', text: um.content || '', hasImages: !!(um.images && um.images.length), hasFiles: !!(um.files && um.files.length), chatId, exclude: tried }).list); autoSw = chain.length > 0;
+            }
+            if (routePlan) { const note = document.createElement('div'); note.className = 'retry-note'; note.textContent = '🧭 ' + tr('Lume Auto escolheu {m} ({c})', { m: model.label, c: routePlan.category }); aiDiv.insertBefore(note, textSpan); }
             let curThink = null, thinkLast = null, thinkN = 0;   // um bloco de pensamento por rodada: a IA pode pensar de novo depois de usar uma ferramenta ou pesquisar
             const thinkBox = () => {
                 if (!curThink) {
@@ -3922,8 +3939,9 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 const apiMessages = buildApiMessages(chat, model, sys, job.view);
 
                 status('Iniciando');
+                let lastAct = Date.now();   // ultimo sinal do servidor (para o cronometro do Lume Auto)
                 const handle = line => {
-                    if (!line.trim()) return;
+                    if (!line.trim()) return; lastAct = Date.now();
                     let data; try { data = JSON.parse(line); } catch (e) { return; }
                     if (data.stats) { lastStats = data.stats; if (isCur()) showRealPerf(data.stats); return; }
                     if (data.status) { status(data.status); return; }
@@ -3940,10 +3958,17 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 };
                 while (true) {
                     let reader = null, decoder = null, buf = '';
+                    const ctl = new AbortController(); let wdWhy = ''; lastAct = Date.now();   // Lume Auto/troca automatica: sem nenhum sinal do servidor por N segundos = o modelo "morreu", passa para o proximo
+                    const wdSecs = ((routePlan || autoSw) && window.lumeRouter) ? lumeRouter.config.timeout : 0;
+                    const wd = wdSecs ? setInterval(() => { if (!gotText && !thinkN && !job.stopped && Date.now() - lastAct > wdSecs * 1000) { wdWhy = 'sem resposta em ' + wdSecs + ' s'; ctl.abort(); } }, 1000) : 0;
                     const retry = why => {   // este provedor falhou antes de responder: mostra o erro e recomeca com o proximo mais barato do mesmo modelo
-                        const nx = chain[ci + 1]; if (!nx || job.stopped) return false;
+                        const nx = chain[ci + 1]; if (window.lumeRouter && !job.stopped) lumeRouter.report(active, false, { why: String(why).replace(/\s+/g, ' ').slice(0, 150), auto: !!(routePlan || autoSw) });   // todo uso conta para o historico de estabilidade
+                        if (!nx || job.stopped) { if ((routePlan || autoSw) && window.lumeRouter) lumeRouter.log('esgotou', 'acabaram os modelos da lista para este pedido; mostrando o erro de ' + (active.label || active.id)); return false; }
+                        const swModel = (routePlan || autoSw) && nx.id !== active.id && !(fin(nx).grp === fin(active).grp && nx.pk === active.pk);
+                        if ((routePlan || autoSw) && window.lumeRouter) lumeRouter.log('troca', (active.label || active.id) + ' → ' + (nx.label || nx.id) + ' (tentativa ' + (ci + 3) + ')');
+                        if (routePlan && window.lumeRouter) { lumeRouter.last = { id: nx.id, label: nx.label || nx.id }; const tt = $('model-trigger-text'); if (tt && selectedModel === 'lume:auto') tt.textContent = 'Lume Auto · ' + lumeRouter.last.label; }
                         const note = document.createElement('div'); note.className = 'retry-note';
-                        note.textContent = '⚠ ' + tr('{a} falhou: {e}. Recomeçando com {b}...', { a: providerName(active), e: String(why).replace(/\s+/g, ' ').slice(0, 170), b: providerName(nx) });
+                        note.textContent = '⚠ ' + (swModel ? tr('{a} falhou: {e}. O Lume Auto trocou para {b}...', { a: active.label || active.id, e: String(why).replace(/\s+/g, ' ').slice(0, 170), b: nx.label || nx.id }) : tr('{a} falhou: {e}. Recomeçando com {b}...', { a: providerName(active), e: String(why).replace(/\s+/g, ' ').slice(0, 170), b: providerName(nx) }));
                         aiDiv.insertBefore(note, textSpan);
                         ci++; active = nx; aiDiv.dataset.model = nx.id; const tg0 = aiDiv.querySelector('.msg-tag'); if (tg0) tg0.replaceWith(modelTag(nx.id));
                         tStart = Date.now(); lastWait = ''; clearTimeout(renderTimer); renderTimer = null; dirty = false; fullResponse = ''; gotText = false; chars = 0; tokEst = 0; streamStart = null; perfSamples = []; lastStats = null; textSpan.innerHTML = `<span class="loading-dots">${esc(tr('Iniciando'))}</span>`;
@@ -3952,7 +3977,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                     try {
                         if (!active.phone) {
                             const response = await fetch(API + '/api/chat', {
-                                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ctl.signal,
                                 body: JSON.stringify({ model: apiModelId(active), rid: job.rid, messages: apiMessages, stream: true, think: opts.think, effort: (active.pol && active.effort && (config.effort || {})[active.id]) || undefined, search_web: !isCode && config.webSearch && !blockedFeature('web'), agent: isCode && !isGuest(), lang: curLang(), num_ctx: active.cloud ? undefined : effCtx(active) })
                             });
                             if (!response.ok) { let err = {}; try { err = await response.json(); } catch (e) {} throw new Error(err.error || ('HTTP ' + response.status)); }
@@ -3971,7 +3996,8 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                             lines.forEach(handle);
                         }
                         if (!active.phone) handle(buf);
-                    } catch (err) { if (!gotText && retry(err.message)) continue; throw err; }
+                    } catch (err) { if (!gotText && retry(wdWhy || err.message)) continue; throw err; }
+                    finally { clearInterval(wd); }
                     if (/^\s*\[(Erro|Error):/.test(fullResponse) && fullResponse.length < 700 && retry(fullResponse.replace(/^\s*\[(Erro|Error):\s*/, '').replace(/\]\s*$/, ''))) continue;
                     break;
                 }
@@ -3984,6 +4010,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 const credits = active.xp === 'vd' && lastStats ? Math.round((active.credBase || 0) + (lastStats.prompt_tokens || 0) * (active.credIn || 0) + (lastStats.tokens || 0) * (active.credOut || 0)) : 0;
                 const usd = active.xp === 'tk' && lastStats ? (lastStats.prompt_tokens || 0) * (active.credIn || 0) + (lastStats.tokens || 0) * (active.credOut || 0) : 0;
                 if (window.lumeAutoRead) lumeAutoRead(aiDiv);
+                if (window.lumeRouter && !active.phone && gotText && !/^\s*\[(Erro|Error):/.test(fullResponse)) lumeRouter.report(active, true, { ms: Date.now() - tStart, auto: !!(routePlan || autoSw) });   // alimenta o historico de estabilidade
                 if (window.lumePetOnReply) lumePetOnReply(aiDiv, active);
                 const tg = aiDiv.querySelector('.msg-tag'); if (tg) { setTagTps(tg, tps); setTagCost(tg, pollen, credits, usd); } if (active.xp === 'vd') refreshVdCredits(true); if (active.xp === 'tk') refreshTkUsage(true);
                 if (chats[chatId]) {   // o chat pode ter sido apagado enquanto a IA respondia
@@ -5433,6 +5460,8 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
     <script src="libs/lume-ui.js"></script>
     <script src="libs/lume-ask.js"></script>
     <script src="libs/lume-feedback.js"></script>
+    <script src="libs/lume-scores.js"></script>
+    <script src="libs/lume-router.js"></script>
     <script src="libs/lume-compare.js"></script>
     <script src="libs/lume-games.js"></script>
     <script src="libs/lume-voice.js"></script>

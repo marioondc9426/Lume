@@ -565,6 +565,29 @@ const ROUTES = {
     'GET /api/auth/status': () => json({ local: true, root: true, authed: true, role: 'owner', remote_enabled: false, allow_remote_code: false, password_required: false, version: VERSION, app_name: 'Lume', https_port: 0, secure: true, share_open: false, invite_required: false, ios: true }),
     'POST /api/auth/logout': () => json({ ok: true }),
     'GET /api/discover': () => json({ servers: [] }),
+    'GET /api/router_log': u => json({ lines: LS.get('router_log', []).slice(-Math.max(1, Math.min(+u.searchParams.get('n') || 300, 2000))), file: '' }),   // o log do Lume Auto fica no aparelho (ultimas 600 linhas)
+    'POST /api/router_log': (u, b) => {
+        const old = LS.get('router_log', []), add = ((b && b.lines) || []).slice(0, 200).filter(l => l && typeof l === 'object').map(l => {
+            const d = new Date(Number(l.t) || Date.now()), p2 = n => String(n).padStart(2, '0');
+            return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) + ' ' + p2(d.getHours()) + ':' + p2(d.getMinutes()) + ':' + p2(d.getSeconds()) + ' [' + (String(l.ev || 'info').toLowerCase().replace(/[^a-z_ -]/g, '').slice(0, 20) || 'info') + '] ' + String(l.msg || '').replace(/[\r\n]+/g, ' ').slice(0, 600);
+        });
+        LS.set('router_log', old.concat(add).slice(-600)); return json({ ok: add.length });
+    },
+    'POST /api/router_log_clear': () => { LS.set('router_log', []); return json({ ok: true }); },
+    'GET /api/model_scores': async u => {   // nota de inteligencia e velocidade por modelo (Gratisfy/Artificial Analysis), guardada 24 h; so baixa, nao manda nada seu
+        const old = LS.get('model_scores', null), refresh = u.searchParams.get('refresh') === '1';
+        if (old && !refresh && Date.now() / 1000 - old.ts < 86400) return json(old);
+        try {
+            const r = await fetchT('https://gratisfy.xyz/api/benchmarks', { headers: { Accept: 'application/json' } }, 45000, 'O Gratisfy'); if (!r.ok) throw new Error('respondeu ' + r.status);
+            const d = await r.json(), best = new Map();
+            const keys = (...names) => { const out = new Set(); for (let n of names) { if (!n) continue; n = String(n).toLowerCase().replace(/\((?:free|max|xhigh|high|medium|low|default|reasoning|non-reasoning)[^)]*\)/g, ''); const base = n.split('/').pop().replace(/:(free|cloud|thinking|latest|beta)$/, ''); for (const v of [n, base]) { const k = v.replace(/[^a-z0-9]/g, ''); if (k.length >= 4) out.add(k); } } return out; };
+            for (const row of [...(d.models || []), ...(d.benchmarkRows || [])]) {
+                const b = row.benchmark || {}, i = b.intelligence; if (typeof i !== 'number') continue; const tps = typeof b.speed === 'number' ? b.speed : null;
+                for (const k of keys(row.id, row.name, b.aaSlug, b.aaName, ...(row.sourceModelIds || []))) { const c = best.get(k); if (!c || i > c[0]) best.set(k, [i, tps]); }
+            }
+            const out = { ts: Date.now() / 1000, rows: [...best].map(([k, v]) => [k, v[0], v[1]]) }; LS.set('model_scores', out); return json(out);
+        } catch (e) { if (old) return json(old); return json({ error: 'Nao consegui baixar as notas dos modelos (' + String(e.message || e).slice(0, 80) + ').' }, 502); }
+    },
     'GET /api/pol_menu': async () => {
         const cfg = await loadConfig(), key = cfg.pollinations_api_key || '';
         try {
