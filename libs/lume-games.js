@@ -7,7 +7,7 @@
     css.textContent = `
         .gm-hub { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
         .gm-card { padding: 14px; border-radius: 16px; background: rgba(128,128,128,.12); cursor: pointer; display: flex; flex-direction: column; gap: 4px; transition: background .15s, transform .15s; } .gm-card:hover { background: rgba(128,128,128,.22); transform: translateY(-2px); } .gm-card b { font-size: 1.02em; } .gm-card span { font-size: .8em; color: var(--text-muted); }
-        .gm-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; } .gm-bar select { flex: 1 1 220px; min-width: 0; }
+        .gm-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; } 
         .gm-status { padding: 9px 12px; border-radius: 12px; background: rgba(128,128,128,.12); font-size: .92em; min-height: 1.4em; }
         .ttt { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; width: min(300px, 100%); margin: 6px auto; } .ttt button { aspect-ratio: 1; font-size: 2.2em; font-weight: 700; border-radius: 14px; border: 0; cursor: pointer; background: rgba(128,128,128,.16); color: var(--text-main); } .ttt button:hover:not(:disabled) { background: rgba(128,128,128,.28); } .ttt button.x { color: #4d8bff; } .ttt button.o { color: #ff7a59; } .ttt button.win { background: rgba(63,185,80,.3); }
         .hg-word { font-size: 1.9em; letter-spacing: .28em; text-align: center; font-weight: 700; padding: 8px 0; word-break: break-all; } .hg-keys { display: flex; flex-wrap: wrap; gap: 5px; justify-content: center; } .hg-keys button { width: 34px; height: 36px; border-radius: 9px; border: 0; cursor: pointer; background: rgba(128,128,128,.18); color: var(--text-main); font-weight: 600; } .hg-keys button:disabled { opacity: .35; cursor: default; } .hg-keys button.hit { background: rgba(63,185,80,.35); } .hg-keys button.miss { background: rgba(229,72,77,.3); }
@@ -20,11 +20,12 @@
 
     // ---- escolha do modelo (o mesmo select em todos os jogos)
     function modelBar(host) {
-        const u = window.LumeUI, list = (window.lumeModels ? lumeModels() : []).filter(m => !m.phone);
+        const list = () => (window.lumeModels ? lumeModels() : []).filter(m => !m.phone && !m.or);   // sem os modelos gratis do OpenRouter: lentos e instaveis demais para jogo rapido
         const bar = el('div', 'gm-bar'); host.appendChild(bar);
-        const label = m => { let p = ''; try { p = providerName(m); } catch (e) { /* sem provedor */ } return (m.label || m.id) + (p ? ' · ' + p : ''); };
-        const sel = u.select(list.map(m => [m.id, label(m)]), '', () => {}); const cur = typeof selectedModel !== 'undefined' ? list.find(m => m.id === selectedModel) : null; sel.value = (cur || list[0] || {}).id || ''; bar.appendChild(sel);
-        return { bar, sel, model: () => lumeModelById(sel.value) };
+        const p = window.lumeModelPicker({ models: list, value: typeof selectedModel !== 'undefined' ? selectedModel : '' });   // o mesmo seletor do chat
+        if (!p) { bar.appendChild(el('div', 'lu-hint', T('Nenhum modelo disponível para jogos agora.'))); return { bar, model: () => null }; }
+        p.el.style.flex = '1 1 220px'; bar.appendChild(p.el);
+        return { bar, model: () => p.get() };
     }
     const ask = (model, system, user) => lumeAsk({ model, system, user, timeoutMs: 60000 });
 
@@ -50,21 +51,23 @@
     const u_button = (host, t, fn) => window.LumeUI.button(host, t, fn);
 
     // ---- forca: o modelo escolhe a palavra (guardada aqui, sem ele "mudar de ideia")
-    const WORDS = [['abacaxi', 'fruta'], ['elefante', 'animal'], ['guitarra', 'instrumento'], ['computador', 'objeto'], ['montanha', 'lugar'], ['borboleta', 'inseto'], ['biblioteca', 'lugar'], ['chocolate', 'comida']];
+    const WORDS = [['abacaxi', 'fruta', 'tem uma coroa de folhas', 'é amarela por dentro', 'combina com pizza (polêmica!)'], ['elefante', 'animal', 'é o maior animal terrestre', 'tem uma tromba', 'tem presas de marfim'], ['guitarra', 'instrumento', 'tem cordas', 'é a estrela do rock', 'costuma ser ligada num amplificador'], ['computador', 'objeto', 'tem teclado e tela', 'processa informações', 'você provavelmente está usando um agora'], ['montanha', 'lugar', 'é bem alta', 'pode ter neve no topo', 'alpinistas gostam de subir'], ['borboleta', 'inseto', 'vem de uma lagarta', 'tem asas coloridas', 'passa por uma metamorfose'], ['biblioteca', 'lugar', 'tem muitos livros', 'o silêncio é regra', 'dá para pegar livros emprestados'], ['chocolate', 'comida', 'é doce', 'vem do cacau', 'ovo de Páscoa é feito dele']];
     function startHangman(host) {
         const mb = modelBar(host); const status = el('div', 'gm-status', ''), hang = el('div', 'hg-hang', ''), word = el('div', 'hg-word', ''), keys = el('div', 'hg-keys'); host.append(status, hang, word, keys);
-        let secret = '', hint = '', guessed = new Set(), wrong = 0, over = false; const MAX = 6, FACE = ['😀', '😐', '😟', '😨', '😰', '😵', '💀'];
+        let secret = '', hints = [], shown = 1, guessed = new Set(), wrong = 0, over = false; const MAX = 8, FACE = ['😀', '😐', '😟', '😨', '😰', '😵', '💀'], face = () => FACE[Math.min(6, Math.ceil(wrong * 6 / MAX))];   // 8 erros (6 era pouco); cada letra certa libera mais uma dica
         const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
         const draw = () => {
-            word.textContent = [...secret].map(ch => (guessed.has(norm(ch)) || over ? ch.toUpperCase() : '_')).join(' '); hang.textContent = FACE[wrong] + '  ' + T('erros') + ': ' + wrong + '/' + MAX;
+            word.textContent = [...secret].map(ch => (guessed.has(norm(ch)) || over ? ch.toUpperCase() : '_')).join(' '); hang.textContent = face() + '  ' + T('erros') + ': ' + wrong + '/' + MAX;
             keys.textContent = ''; 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').forEach(L => { const b = el('button', guessed.has(L) ? (norm(secret).includes(L) ? 'hit' : 'miss') : '', L); b.type = 'button'; b.disabled = guessed.has(L) || over || !secret; b.onclick = () => guess(L); keys.appendChild(b); });
         };
-        function guess(L) { guessed.add(L); if (!norm(secret).includes(L)) wrong++; if ([...norm(secret)].every(c => guessed.has(c))) { over = true; status.textContent = T('Você acertou! 🎉'); } else if (wrong >= MAX) { over = true; status.textContent = T('Perdeu! A palavra era: ') + secret.toUpperCase(); } draw(); }
+        const hintTxt = () => T('Dicas: ') + hints.slice(0, shown).join(' · ') + (shown < hints.length ? ' (+' + (hints.length - shown) + ')' : '') + '. ' + T('Escolha as letras.');
+        function guess(L) { guessed.add(L); if (!norm(secret).includes(L)) wrong++; else if (shown < hints.length) shown++; if ([...norm(secret)].every(c => guessed.has(c))) { over = true; status.textContent = T('Você acertou! 🎉'); } else if (wrong >= MAX) { over = true; status.textContent = T('Perdeu! A palavra era: ') + secret.toUpperCase(); } else status.textContent = hintTxt(); draw(); }
         async function fresh() {
             over = false; guessed = new Set(); wrong = 0; secret = ''; status.textContent = T('O modelo está escolhendo uma palavra…'); draw();
-            try { const r = await ask(mb.model(), 'Você vai ser o mestre de um jogo da forca em português. Escolha UMA palavra comum, de 5 a 10 letras, sem hífen e sem espaço. Responda SOMENTE com JSON: {"palavra":"...","dica":"categoria em poucas palavras"}', 'Escolha uma palavra aleatória e diferente.'); const j = JSON.parse((r.match(/\{[\s\S]*\}/) || ['{}'])[0]); if (/^[a-zA-ZÀ-ÿ]{4,12}$/.test(j.palavra || '')) { secret = j.palavra; hint = String(j.dica || '').slice(0, 40); } } catch (e) { /* usa a lista */ }
-            if (!secret) { const w = WORDS[Math.floor(Math.random() * WORDS.length)]; secret = w[0]; hint = w[1]; }
-            status.textContent = T('Dica: ') + hint + '. ' + T('Escolha as letras.'); draw();
+            try { const r = await ask(mb.model(), 'Você vai ser o mestre de um jogo da forca em português. Escolha UMA palavra comum, de 5 a 10 letras, sem hífen e sem espaço. Responda SOMENTE com JSON: {"palavra":"...","dicas":["categoria em poucas palavras","dica 2","dica 3","dica 4"]} — as dicas vão da mais vaga para a mais reveladora e NUNCA contêm a palavra', 'Escolha uma palavra aleatória e diferente.'); const j = JSON.parse((r.match(/\{[\s\S]*\}/) || ['{}'])[0]); if (/^[a-zA-ZÀ-ÿ]{4,12}$/.test(j.palavra || '')) { secret = j.palavra; const nrm = x => String(x).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); hints = (Array.isArray(j.dicas) ? j.dicas : [j.dica]).map(x => String(x || '').trim().slice(0, 70)).filter(x => x && !nrm(x).includes(nrm(secret))).slice(0, 5); if (!hints.length) secret = ''; } } catch (e) { /* usa a lista */ }
+            if (!secret) { const w = WORDS[Math.floor(Math.random() * WORDS.length)]; secret = w[0]; hints = w.slice(1); }
+            shown = 1;
+            status.textContent = hintTxt(); draw();
         }
         u_button(host, 'Nova palavra', fresh); fresh();
     }

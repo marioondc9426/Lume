@@ -35,19 +35,21 @@
         try { url = (await (await fetch(API + '/api/config_status')).json()).feedback_url || ''; } catch (e) { /* sem status */ }
         const box = el('div'); box.style.cssText = 'display:flex;flex-direction:column;gap:10px'; host.appendChild(box);
         u.seg(box, [['bug', 'Bug'], ['sugestao', 'Sugestão'], ['outro', 'Outro']], 'bug', v => { cat = v; });
-        const msg = el('textarea'); msg.placeholder = T('Conte o que aconteceu ou o que você gostaria…'); msg.style.cssText = 'width:100%;box-sizing:border-box;min-height:110px;resize:vertical'; box.appendChild(msg);
+        const msg = el('textarea'); msg.placeholder = T('Conte o que aconteceu ou o que você gostaria… (Enter envia, Shift+Enter quebra a linha; Ctrl+V cola uma imagem)'); msg.style.cssText = 'width:100%;box-sizing:border-box;min-height:110px;resize:vertical'; box.appendChild(msg);
         const contact = u.text('', null, 120); contact.placeholder = T('Contato (opcional: e-mail ou usuário)'); box.appendChild(contact);
         let info = true; u.toggle(box, 'Incluir a versão e o sistema', true, v => { info = v; });
         const file = el('input'); file.type = 'file'; file.accept = 'image/*'; file.style.display = 'none'; box.appendChild(file);
         const row = el('div'); row.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap'; box.appendChild(row);
         const lbl = el('span', 'lu-hint', T('sem imagem')); u.button(row, 'Anexar uma imagem', () => file.click()); row.appendChild(lbl);
-        file.onchange = async () => { const f = file.files && file.files[0]; if (!f) return; try { shot = await shrink(f); lbl.textContent = '✓ ' + f.name.slice(0, 26) + ' (' + Math.round(shot.length * 0.75 / 1024) + ' KB)'; } catch (e) { shot = ''; lbl.textContent = T('Não deu para usar essa imagem.'); } };
+        const useFile = async f => { try { shot = await shrink(f); lbl.textContent = '✓ ' + (f.name || T('imagem colada')).slice(0, 26) + ' (' + Math.round(shot.length * 0.75 / 1024) + ' KB)'; } catch (e) { shot = ''; lbl.textContent = T('Não deu para usar essa imagem.'); } };
+        file.onchange = () => { const f = file.files && file.files[0]; if (f) useFile(f); };
+        box.addEventListener('paste', e => { const it = [...((e.clipboardData && e.clipboardData.items) || [])].find(x => x.kind === 'file' && /^image\//.test(x.type)); const f = it && it.getAsFile(); if (f) { e.preventDefault(); useFile(f); } });   // Ctrl+V com uma imagem copiada (print) anexa ela
         const sec = u.section(box, 'Servidor do feedback', { open: !url });
         const urlIn = u.text(url, null, 200); urlIn.placeholder = 'http://endereco:8787'; u.row(sec, 'Endereço', urlIn, 'É o servidor do projeto lume-feedback (quem recebe e mostra no dashboard).');
         const keyIn = u.text('', null, 100); keyIn.placeholder = T('(só se o servidor pedir)'); u.row(sec, 'Chave de envio', keyIn);
         const status = el('div', 'lu-hint', ''); box.appendChild(status);
         const saveSrv = async () => { const body = { feedback_url: urlIn.value.trim() }; if (keyIn.value.trim()) body.feedback_key = keyIn.value.trim(); await fetch(API + '/api/save_config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); };
-        const send = u.button(box, 'Enviar', async () => {
+        const doSend = async () => {
             const text = msg.value.trim(); if (text.length < 3) { status.textContent = T('Escreva pelo menos algumas palavras.'); msg.focus(); return; }
             if (!/^https?:\/\//.test(urlIn.value.trim())) { sec.parentNode.open = true; status.textContent = T('Coloque o endereço do servidor de feedback.'); urlIn.focus(); return; }
             send.disabled = true; status.style.color = ''; status.textContent = T('Enviando…');
@@ -58,7 +60,9 @@
                 status.style.color = '#3fb950'; status.textContent = T('Enviado! Obrigado.') + (d.id ? ' (#' + d.id + ')' : ''); msg.value = ''; shot = ''; lbl.textContent = T('sem imagem'); file.value = '';
             } catch (e) { status.style.color = '#e5484d'; status.textContent = String(e.message || e).slice(0, 160); }
             send.disabled = false; setTimeout(() => msg.focus(), 50);
-        }, 'primary');
+        };
+        const send = u.button(box, 'Enviar', () => { if (!send.disabled) doSend(); }, 'primary');
+        msg.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); if (!send.disabled) doSend(); } });   // Enter envia; Shift+Enter quebra a linha
         send.style.alignSelf = 'flex-end'; setTimeout(() => msg.focus(), 60);
     };
 
@@ -81,9 +85,20 @@
     window.openFeedbackPanel = openPanel;
 
     // ---- abrir: janela separada (PC/Linux) ou painel flutuante
+    let opening = 0;
+    function note(txt) {   // aviso rapido: no Linux a janela e um processo novo e leva alguns segundos; sem aviso parece que o clique nao fez nada
+        let n = document.getElementById('fb-note'); if (!n) { n = el('div'); n.id = 'fb-note'; n.style.cssText = 'position:fixed;left:50%;bottom:26px;transform:translateX(-50%);z-index:7100;padding:9px 16px;border-radius:999px;background:var(--bg-main);color:var(--text-main);border:1px solid var(--border-color);box-shadow:0 8px 30px rgba(0,0,0,.45);font-size:.9em;pointer-events:none'; document.body.appendChild(n); }
+        n.textContent = T(txt); n.style.display = ''; clearTimeout(n._t); n._t = setTimeout(() => { n.style.display = 'none'; }, 6000);
+    }
     window.openFeedback = async function () {
         const api = window.pywebview && window.pywebview.api;
-        if (!window.__LUME_IOS && api && api.open_feedback) { try { if (await api.open_feedback()) return; } catch (e) { /* cai no painel */ } }
+        if (!window.__LUME_IOS && api && api.open_feedback) {
+            const linux = /Linux|X11/.test(navigator.userAgent);
+            if (linux && Date.now() - opening < 10000) { note('Abrindo a janela de feedback… (pode levar alguns segundos)'); return; }   // cliques repetidos nao abrem outra
+            opening = Date.now(); if (linux) note('Abrindo a janela de feedback… (pode levar alguns segundos)');
+            try { if (await api.open_feedback()) return; } catch (e) { /* cai no painel */ }
+            opening = 0;
+        }
         openPanel();
     };
     document.addEventListener('keydown', e => { if (e.ctrlKey && e.shiftKey && (e.key === 'F' || e.key === 'f') && !e.altKey && window.LumeUI && document.getElementById('titlebar') !== null) { e.preventDefault(); window.openFeedback(); } });

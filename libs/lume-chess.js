@@ -50,7 +50,7 @@
         @keyframes chFade { from { opacity: 0; } to { opacity: 1; } } @keyframes chFadeOut { from { opacity: 1; } to { opacity: 0; } }
         @keyframes chPop { from { opacity: 0; transform: translateY(18px) scale(.96); } to { opacity: 1; transform: none; } } @keyframes chPopOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(10px) scale(.97); } }
         @media (prefers-reduced-motion: reduce) { .chess-ov, .chess-wrap { animation: none !important; } }
-        .chess-side .custom-select { position: relative; height: auto; display: block; } .chess-side .select-trigger { height: 42px; box-sizing: border-box; } .chess-side .select-options { position: absolute; top: calc(100% + 6px); bottom: auto; left: 0; right: 0; width: auto; min-width: 0; margin: 0; max-height: min(460px, 62vh); z-index: 30; box-shadow: 0 14px 40px rgba(0,0,0,.5); } .chess-side .select-options .mo-list { max-height: 240px; }
+        
         .cm-wrap { position: relative; } .cm-btn { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border-color); background: rgba(128,128,128,.10); color: var(--text-main); cursor: pointer; text-align: left; font-size: .92em; transition: border-color .2s, background .2s; } .cm-btn:hover, .cm-btn.on { border-color: var(--accent); background: rgba(128,128,128,.16); }
         .cm-logo { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; flex: none; } .cm-logo > * { max-height: 20px; max-width: 22px; height: 20px; display: inline-block; object-fit: contain; }
         .cm-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; } .cm-prov { font-size: .8em; color: var(--text-muted); white-space: nowrap; } .cm-car { color: var(--text-muted); transition: transform .2s; } .cm-btn.on .cm-car { transform: rotate(180deg); }
@@ -176,6 +176,10 @@
         if (!game.load(newFen)) { st.log.pop(); return null; } return { ok: true };
     }
 
+    function thinkTxt() {   // "O modelo esta pensando... 12 s" (e um aviso se demorar)
+        const sec = st.since ? Math.floor((Date.now() - st.since) / 1000) : 0;
+        return T('O modelo está pensando…') + (st.since ? ' ' + sec + ' s' + (sec >= 25 ? ' — ' + T('está lento; um modelo menor ou mais rápido joga mais depressa.') : '') : '');
+    }
     function render() {
         if (!ov) return;
         const rv = st.review, g = rv !== null && rv !== undefined ? new Chess(rv < st.log.length ? st.log[rv].fen : game.fen()) : game, b = g.board();
@@ -193,7 +197,7 @@
         }
         drawArrows();
         const over = game.game_over() ? result() : st.over; st.over = over || st.over;
-        const turnTxt = game.turn() === st.human ? T('Sua vez.') + (game.in_check() ? ' ' + T('Você está em xeque!') : '') : (st.thinking ? T('O modelo está pensando…') : T('Vez do modelo.'));
+        const turnTxt = game.turn() === st.human ? T('Sua vez.') + (game.in_check() ? ' ' + T('Você está em xeque!') : '') : (st.thinking ? thinkTxt() : T('Vez do modelo.'));
         let line = st.busy || (st.rk > 0 && rv === null ? T('Analisando o lance…') : '') || (rv !== null && rv !== undefined ? '' : (st.over || turnTxt)) + (st.note ? ' ' + st.note : '');
         if (rv !== null && rv !== undefined) { const A = st.an[rv < st.log.length ? st.log[rv].fen : game.fen()]; line = (rv === 0 ? T('Posição inicial.') : T('Depois do lance') + ' ' + rv + ' (' + st.log[rv - 1].san + ')') + (lastCls ? ' · ' + T(CLS[lastCls.key].n) : '') + (A && A.lines[0] ? ' · ' + T('Melhor') + ': ' + sanOf(g, A.best) + ' (' + evalTxt(A.lines[0]) + ')' : ''); }
         else if (st.opts.rank && lastCls && !st.busy && !st.rk) line += ' · ' + T('Último lance') + ': ' + T(CLS[lastCls.key].n);
@@ -268,7 +272,7 @@
     }
     async function aiMove() {
         if (!game || game.game_over() || st.over || game.turn() === st.human) return;
-        const my = st.token; st.thinking = true; st.note = ''; render();
+        const my = st.token; st.thinking = true; st.since = Date.now(); st.note = ''; const tick = setInterval(() => { if (!st.thinking || my !== st.token) { clearInterval(tick); return; } const el = ov && ov.querySelector('.chess-status'); if (el && el.textContent.startsWith(T('O modelo está pensando…'))) el.textContent = thinkTxt() + (st.note ? ' ' + st.note : ''); }, 1000); render();   // o contador de segundos mostra que ele nao travou
         const color = game.turn() === 'w' ? 'brancas' : 'pretas', legal = gmv().map(m => m.san), free = st.opts.illegal, fen0 = game.fen(), inCheck = game.in_check();
         const sys = free ? 'Você joga xadrez de verdade e quer ganhar. Em cada vez, responda SOMENTE com o seu lance em coordenadas (exemplos: e2e4, g1f3, e7e8q). Nada de explicação, nada de outro texto.' + (st.opts.noSpawn ? '' : ' Em vez de mover, você também pode CRIAR uma peça sua do nada numa casa, escrevendo +peça@casa (exemplo: +Q@d5 cria uma dama sua em d5).')
             : 'Você joga xadrez de verdade e quer ganhar. Em cada vez, responda SOMENTE com um lance da lista de lances legais, exatamente como está escrito (notação SAN, por exemplo: Nf3, exd5, O-O, e8=Q). Nada de explicação, nada de outro texto.';
@@ -430,41 +434,9 @@
         const bw = mk('div', 'chess-bw'); wrap.appendChild(bw); const evb = mk('div', 'chess-eval'); evb.appendChild(mk('i')); evb.appendChild(mk('b')); bw.appendChild(evb);
         const board = mk('div', 'chess-board'); board.appendChild(document.createElementNS('http://www.w3.org/2000/svg', 'svg')); const svg = board.lastChild; svg.setAttribute('class', 'chess-arrows'); svg.setAttribute('viewBox', '0 0 8 8'); bw.appendChild(board);
         const side = mk('div', 'chess-side'); wrap.appendChild(side); side.appendChild(mk('h3', '', T('Xadrez contra um modelo')));
-        const provOf = m => { try { return providerName(m); } catch (e) { return ''; } }, logoOf = m => { const sp = mk('span', 'cm-logo'); try { fin(m); const br = brandOf(m); if (br) sp.appendChild(brandEl(br, m)); else sp.textContent = '☁'; } catch (e) { sp.textContent = '☁'; } return sp; };
-        let pick = Math.max(0, list.findIndex(m => m.id === (typeof selectedModel !== 'undefined' ? selectedModel : '')));
-        // seletor igual ao do chat: familias na lista, e embaixo Parametros e Provedor (reusa as funcoes do index.html)
-        const cw = mk('div', 'custom-select'), cb = mk('div', 'select-trigger'), box = mk('div', 'select-options'); cw.append(cb, box);
-        const paintBtn = () => { cb.textContent = ''; const m = list[pick]; cb.append(logoOf(m), mk('span', 'model-text shrinkable', m.label || m.id), mk('div', 'select-arrow')); };
-        const families = () => { const map = new Map(); list.forEach(m => { fin(m); if (!map.has(m.grp)) map.set(m.grp, []); map.get(m.grp).push(m); }); map.forEach(ms => ms.sort((x, y) => verKey(x.ver) - verKey(y.ver) || sizeNum(x) - sizeNum(y) || provOrd(x) - provOrd(y) || (x.plabel || '').localeCompare(y.plabel || ''))); return new Map([...map.entries()].sort((x, y) => x[1][0].base.toLowerCase().localeCompare(y[1][0].base.toLowerCase(), 'pt', { numeric: true }))); };
-        let term = '';
-        const choose = m => { pick = list.indexOf(m); paintBtn(); fillList(); if (st && !st.log.length) { st.token = Math.random(); newGame({ model: list[pick], color: colorVal }); } };
-        const fillList = () => {
-            box.textContent = ''; const cur = list[pick], fams = families();
-            const srch = document.createElement('input'); srch.type = 'text'; srch.placeholder = T('Buscar modelo…'); srch.autocomplete = 'off'; srch.value = term; srch.style.cssText = 'margin:8px;width:calc(100% - 16px);box-sizing:border-box'; srch.oninput = () => { term = srch.value; const pos = srch.selectionStart; fillList(); const n = box.querySelector('input'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }; box.appendChild(srch);
-            const lst = mk('div', 'mo-list'); box.appendChild(lst); let i = 0;
-            fams.forEach((sizes, fam) => {
-                if (term && !(famTitle(sizes) + ' ' + sizes.map(providerOf).join(' ')).toLowerCase().includes(term.trim().toLowerCase())) return;
-                const rec = sizes.find(m => m.rec) || sizes[0], el = mk('div', 'select-option k-' + famKind(sizes) + (fam === fin(cur).grp ? ' selected' : '')); el.style.setProperty('--i', i++);
-                const label = mk('span', 'mo-label'); famLabelNodes(rec, famTitle(sizes)).forEach(n => label.appendChild(n)); el.appendChild(label);
-                const pv = provLogos(sizes); if (pv) el.appendChild(pv);
-                el.onclick = () => { if (fam === fin(cur).grp) return; const p0 = sizes.find(m => m.rec) || sizes.find(m => !m.heavy) || sizes[0]; choose(bestVariant(sizes.filter(x => x.pk === p0.pk))); };
-                lst.appendChild(el);
-            });
-            if (!lst.firstChild) lst.appendChild(mk('div', 'select-option', T('Nenhum modelo encontrado')));
-            const sizes = fams.get(fin(cur).grp) || [];
-            if (sizes.length) {
-                const row = mk('div', 'size-row'), keys = []; sizes.forEach(m => { let k = keys.find(x => x.pk === m.pk); if (!k) keys.push(k = { pk: m.pk, items: [] }); k.items.push(m); });
-                const variants = (keys.find(k => k.pk === cur.pk) || { items: [cur] }).items;
-                row.append(mk('span', 'size-label', T('Parâmetros')), miniSelect(keys.map(k => { const rep = k.pk === cur.pk ? cur : bestVariant(k.items), kinds = new Set(k.items.map(kindOf)); return { value: rep.id, label: rep.klabel + (rep.heavy ? ' ⚠' : ''), color: kinds.has('local') ? 'var(--k-local)' : kinds.has('cloud') ? 'var(--k-cloud)' : 'var(--k-paid)' }; }), cur.id, v => choose(list.find(m => m.id === v) || cur), T('Parâmetros')));
-                row.appendChild(miniSelect(variants.map(m => ({ value: m.id, label: providerName(m) + provInfo(m), title: m.warn || '', color: m.pol ? 'var(--k-paid)' : isLocalM(m) ? 'var(--k-local)' : 'var(--k-cloud)' })), cur.id, v => choose(list.find(m => m.id === v) || cur), T('Provedor')));
-                box.appendChild(row);
-            }
-        };
-        const providerOf = m => { try { return providerName(m); } catch (e) { return ''; } };
-        cb.onclick = () => { const on = !cw.classList.contains('open'); if (on) { const id = list[pick].id; list = models(); pick = Math.max(0, list.findIndex(m => m.id === id)); term = ''; fillList(); } cw.classList.toggle('open', on); if (on) { const cur = box.querySelector('.select-option.selected'); if (cur) cur.scrollIntoView({ block: 'center' }); } };
-        ov.addEventListener('mousedown', e => { if (!cw.contains(e.target)) cw.classList.remove('open'); }); paintBtn(); side.appendChild(cw);
+        const pk = window.lumeModelPicker({ models, value: typeof selectedModel !== 'undefined' ? selectedModel : '', onPick: () => { if (st && !st.log.length) { st.token = Math.random(); newGame({ model: pk.get(), color: colorVal }); } } }); side.appendChild(pk.el);   // o mesmo seletor do chat (libs/lume-modelpick.js)
         const optBox = mk('details', 'chess-opts'); optBox.appendChild(mk('summary', '', T('Opções')));
-        let colorVal = 'w'; LumeUI.seg(side, [['w', 'Brancas'], ['b', 'Pretas'], ['random', 'Aleatório']], colorVal, v => { colorVal = v; if (st && !st.log.length) { st.token = Math.random(); newGame({ model: list[pick], color: colorVal }); } });
+        let colorVal = 'w'; LumeUI.seg(side, [['w', 'Brancas'], ['b', 'Pretas'], ['random', 'Aleatório']], colorVal, v => { colorVal = v; if (st && !st.log.length) { st.token = Math.random(); newGame({ model: pk.get(), color: colorVal }); } });
         const opt = (id, label, key) => LumeUI.toggle(optBox, label, st ? !!st.opts[key] : key === 'noSpawn', v => { st.opts[key] = v; if (key === 'rank') { if (v) rankBackfill(); render(); } }, id);
         opt('chess-ill', 'Permitir lances ilegais do modelo', 'illegal'); opt('chess-nospawn', 'Bloquear peças criadas do nada pelo modelo (só vale com lances ilegais)', 'noSpawn'); opt('chess-rank', 'Ranking dos lances (Brilhante, Melhor, Erro…)', 'rank');
         const mrow = mk('label', 'lu-row'); const ml = mk('span', '', T('Lances seguidos (seus)')), ni = document.createElement('input'); ni.type = 'number'; ni.min = 1; ni.max = 8; ni.id = 'chess-multi'; ni.value = st ? st.opts.multi : (parseInt(localStorage.getItem('lume_chess_multi')) || 1);
@@ -476,7 +448,7 @@
         mkSel(Object.entries(BOARDS).map(([k, b]) => [k, T('Tabuleiro') + ': ' + T(b[0])]), look.board, v => { look.board = v; saveLook(); applyBoard(); }); optBox.appendChild(lk);
         const row = mk('div', 'chess-row chess-main'); side.appendChild(row);
         const btn = (txt, fn, title, host) => { const b = mk('button', 'btn btn-secondary', T(txt)); b.type = 'button'; if (title) { b.title = T(title); b.setAttribute('aria-label', T(title)); } b.onclick = fn; (host || row).appendChild(b); return b; };
-        const start = btn('Novo jogo', () => { if (st) st.token = Math.random(); newGame({ model: list[pick], color: colorVal }); }); start.classList.replace('btn-secondary', 'btn-primary'); start.style.flex = '1 1 110px';
+        const start = btn('Novo jogo', () => { if (st) st.token = Math.random(); newGame({ model: pk.get(), color: colorVal }); }); start.classList.replace('btn-secondary', 'btn-primary'); start.style.flex = '1 1 110px';
         btn('↶', undo, 'Desfazer'); btn('⇅', () => { st.flip = !st.flip; render(); }, 'Virar o tabuleiro');
         const mw = mk('div', 'chess-mw'), menu = mk('div', 'chess-menu'); row.appendChild(mw);
         const mb = mk('button', 'btn btn-secondary', '⋯'); mb.type = 'button'; mb.title = T('Mais'); mb.setAttribute('aria-label', T('Mais')); mw.append(mb, menu);
@@ -491,7 +463,7 @@
         optBox.appendChild(mk('div', 'chess-hint', T('Botão direito: segure e arraste para desenhar uma seta (Shift vermelha, Ctrl azul, Alt amarela); clique direito numa casa marca a casa; clique esquerdo limpa. No celular: segure o dedo numa casa e arraste.')));
         side.appendChild(optBox);
         applyBoard(); wire(board); document.body.appendChild(ov);
-        newGame({ model: list[pick], color: 'w' });
+        newGame({ model: pk.get(), color: 'w' });
     }
     async function rankBackfill() { for (let i = 0; i < st.log.length; i++) { if (st.cls[i]) continue; const my = st.token; try { await analyze(st.log[i].fen); await analyze(i + 1 < st.log.length ? st.log[i + 1].fen : game.fen()); if (my !== st.token) return; const c = classify(i); if (c) st.cls[i] = c; render(); } catch (e) { st.note = T('Motor de análise indisponível: ') + String(e.message || e).slice(0, 80); st.opts.rank = false; render(); return; } } }
     let setsP = null;
