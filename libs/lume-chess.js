@@ -66,7 +66,10 @@
     const mk = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
     const uciOf = m => m.from + m.to + (m.promotion || '');
     function models() { return (typeof MODELS !== 'undefined' ? MODELS : []).filter(m => { try { return isAvail(m); } catch (e) { return false; } }); }   // qualquer modelo disponivel, de qualquer aba
-    function movesText() { let o = ''; st.log.forEach((e, i) => { if (i % 2 === 0) o += (i / 2 + 1) + '. '; o += e.san + ' '; }); return o.trim(); }
+    // numeracao: os lances seguidos do jogador ("extras") nao contam como lance novo (ficam colados no anterior, com um +)
+    function numLabels() { let n = 0; return st.log.map(e => { if (e.extra) return ''; const l = n % 2 === 0 ? (n / 2 + 1) + '. ' : ''; n++; return l; }); }
+    function movesText() { const lab = numLabels(); let o = ''; st.log.forEach((e, i) => { o += lab[i] + (e.extra ? '+' : '') + e.san + ' '; }); return o.trim(); }
+    const trailingHuman = () => { let n = 0; for (let i = st.log.length - 1; i >= 0 && st.log[i].color === st.human && !st.log[i].illegal; i--) n++; return n; };   // lances seguidos do jogador no fim da partida
 
     // ---------------------------------------------------------------- motor (Stockfish) para ranking e analise
     function xhrText(url) { return new Promise((res, rej) => { const x = new XMLHttpRequest(); x.open('GET', url); x.onload = () => ((x.status === 200 || x.status === 0) && x.responseText ? res(x.responseText) : rej(new Error('HTTP ' + x.status))); x.onerror = () => rej(new Error('rede')); x.send(); }); }
@@ -132,7 +135,7 @@
 
     // ---------------------------------------------------------------- jogo
     function newGame(o) {
-        const human = o.color === 'random' ? (Math.random() < 0.5 ? 'w' : 'b') : o.color, opts = st ? st.opts : { illegal: false, rank: false, noSpawn: true };
+        const human = o.color === 'random' ? (Math.random() < 0.5 ? 'w' : 'b') : o.color, opts = st ? st.opts : { illegal: false, rank: false, noSpawn: true, multi: Math.max(1, Math.min(8, parseInt(localStorage.getItem('lume_chess_multi')) || 1)) };
         game = new Chess(); st = { human, model: o.model, flip: human === 'b', sel: null, targets: [], last: null, illegal: [], arrows: [], marks: [], thinking: false, over: '', note: '', rid: null, token: Math.random(), log: [], an: {}, cls: {}, opts, review: null, busy: '', rk: 0, pre: null, psel: null };
         render(); if (human === 'b') aiMove();
     }
@@ -191,9 +194,10 @@
         else if (st.opts.rank && lastCls && !st.busy && !st.rk) line += ' · ' + T('Último lance') + ': ' + T(CLS[lastCls.key].n);
         ov.querySelector('.chess-status').textContent = line;
         const mv = ov.querySelector('.chess-moves'); mv.textContent = '';
+        const labs = numLabels();
         st.log.forEach((e, i) => {
-            if (i % 2 === 0) mv.appendChild(document.createTextNode((i / 2 + 1) + '. '));
-            const s = mk('span', 'mv' + (rv === i + 1 ? ' cur' : ''), e.san); s.onclick = () => { if (st.review !== null && st.review !== undefined) { st.review = i + 1; render(); } };
+            if (labs[i]) mv.appendChild(document.createTextNode(labs[i]));
+            const s = mk('span', 'mv' + (rv === i + 1 ? ' cur' : ''), (e.extra ? '+' : '') + e.san); s.onclick = () => { if (st.review !== null && st.review !== undefined) { st.review = i + 1; render(); } };
             mv.appendChild(s); const c = st.cls[i]; if (c && (st.opts.rank || rv !== null)) { const ic = mk('i', 'cl', CLS[c.key].sym); ic.style.color = CLS[c.key].c; ic.title = T(CLS[c.key].n); mv.appendChild(ic); } mv.appendChild(document.createTextNode(' '));
         });
         mv.scrollTop = mv.scrollHeight;
@@ -295,12 +299,20 @@
         catch (e) { if (my === S.token) { S.note = T('Motor de análise indisponível: ') + String(e.message || e).slice(0, 80); S.opts.rank = false; const cb = ov && ov.querySelector('#chess-rank'); if (cb) cb.checked = false; } }
         finally { S.rk = Math.max(0, S.rk - 1); if (st === S) render(); }
     }
+    function extendTurn() {   // "lances seguidos": depois do seu lance a vez VOLTA para voce, ate o limite da opcao. Nao vale se o lance deu xeque (a vez passa).
+        const n = trailingHuman(), max = (st.opts && st.opts.multi) || 1;
+        if (max <= 1 || n >= max || game.game_over() || game.in_check()) return false;
+        const f = game.fen().split(' '); f[1] = st.human; f[3] = '-'; const nf = f.join(' ');
+        if (!fenSafe(nf) || !game.load(nf)) return false;
+        st.note = T('Lance seguido: você joga de novo') + ' (' + n + '/' + max + ').'; return true;
+    }
     function tryMove(from, to, promo) {
         const mv = game.moves({ verbose: true }).find(m => m.from === from && m.to === to && (!m.promotion || m.promotion === (promo || 'q')));
         if (!mv) return false;
         if (mv.promotion && !promo) { askPromo(from, to); return true; }
-        const fen0 = game.fen(), done = game.move({ from, to, promotion: promo || undefined }); pushLegal(fen0, done); st.sel = null; st.targets = []; st.note = ''; render();
-        if (!game.game_over()) { aiMove(); } afterMove(); return true;
+        const fen0 = game.fen(), prior = trailingHuman(), done = game.move({ from, to, promotion: promo || undefined }); pushLegal(fen0, done); if (prior >= 1) st.log[st.log.length - 1].extra = true; st.sel = null; st.targets = []; st.note = '';
+        const again = !game.game_over() && extendTurn(); render();
+        if (!game.game_over() && !again) aiMove(); afterMove(); return true;
     }
     function askPromo(from, to) {
         const box = mk('div', 'chess-promo'); ['q', 'r', 'b', 'n'].forEach(p => { const b = mk('button', ''); b.appendChild(pieceEl({ color: st.human, type: p })); b.style.color = st.human === 'w' ? '#fff' : '#151515'; b.style.textShadow = st.human === 'w' ? '0 0 2px #000, 0 0 3px #000' : 'none'; b.onclick = e => { e.stopPropagation(); box.remove(); tryMove(from, to, p); }; box.appendChild(b); });
@@ -327,10 +339,13 @@
     function pgnText() {   // PGN padrao; lances ilegais do modelo nao existem no PGN, entao viram comentario e a FEN final vai no cabecalho
         const d = new Date(), pad = n => String(n).padStart(2, '0'), me = st.human === 'w', mdl = st.model.label || st.model.id, over = st.over || '';
         let res = '*'; if (game.in_checkmate()) res = game.turn() === 'w' ? '0-1' : '1-0'; else if (game.in_draw() || game.in_stalemate()) res = '1/2-1/2'; else if (/desistiu|modelo ganhou/i.test(over)) res = me ? '0-1' : '1-0'; else if (/você capturou|você ganhou/i.test(over)) res = me ? '1-0' : '0-1';
-        const hasIll = st.log.some(e => e.illegal), H = { Event: 'Lume: Xadrez contra um modelo', Site: 'Lume', Date: d.getFullYear() + '.' + pad(d.getMonth() + 1) + '.' + pad(d.getDate()), Round: '1', White: me ? 'Voce' : mdl, Black: me ? mdl : 'Voce', Result: res };
+        const hasIll = st.log.some(e => e.illegal || e.extra), H = { Event: 'Lume: Xadrez contra um modelo', Site: 'Lume', Date: d.getFullYear() + '.' + pad(d.getMonth() + 1) + '.' + pad(d.getDate()), Round: '1', White: me ? 'Voce' : mdl, Black: me ? mdl : 'Voce', Result: res };
         if (hasIll) { H.SetUp = '1'; H.FEN = game.fen(); H.Variant = 'Lume (lances ilegais)'; }
-        let mt = '', prevIll = false;
-        st.log.forEach((e, i) => { const w = i % 2 === 0, no = Math.floor(i / 2) + 1; mt += (w ? no + '. ' : (prevIll || i === 0 ? no + '... ' : '')) + (e.illegal ? '{lance ILEGAL ' + e.san.replace('⚠', '') + '} ' : e.san + ' '); prevIll = !!e.illegal; });
+        let mt = '', prevIll = false, k = 0;   // k = lances "normais" ate agora (os seguidos entram como comentario e nao contam)
+        st.log.forEach(e => {
+            if (e.extra) { mt += '{lance seguido ' + e.san + '} '; prevIll = true; return; }
+            const w = k % 2 === 0, no = Math.floor(k / 2) + 1; mt += (w ? no + '. ' : (prevIll || k === 0 ? no + '... ' : '')) + (e.illegal ? '{lance ILEGAL ' + e.san.replace('⚠', '') + '} ' : e.san + ' '); prevIll = !!e.illegal; k++;
+        });
         return Object.keys(H).map(k => '[' + k + ' "' + String(H[k]).replace(/"/g, "'") + '"]').join('\n') + '\n\n' + mt.trim() + ' ' + res + '\n';
     }
     function exportPgn() {
@@ -403,7 +418,7 @@
         if (ov) return; if (typeof Chess === 'undefined') { alert('O xadrez não carregou.'); return; }
         let list = models(); if (!list.length) { alert(T('Nenhum modelo disponível agora. Configure uma chave ou ligue o Ollama.')); return; }
         ov = mk('div', 'chess-ov'); const wrap = mk('div', 'chess-wrap'); ov.appendChild(wrap);
-        const fit = () => { const wide = innerWidth >= 860, w = wide ? innerWidth - 24 - 32 - 22 - 16 - 320 : innerWidth - 24 - 32 - 22, h = wide ? innerHeight - 36 - 24 - 32 : innerHeight * .62; wrap.style.setProperty('--cb', Math.max(260, Math.floor(Math.min(w, h))) + 'px'); wrap.classList.toggle('narrow', !wide); };
+        const fit = () => { const wide = innerWidth >= 860, w = wide ? innerWidth - 24 - 32 - 22 - 16 - 320 - 24 : innerWidth - 24 - 32 - 22, h = wide ? innerHeight - 36 - 24 - 32 : innerHeight * .62; wrap.style.setProperty('--cb', Math.max(260, Math.floor(Math.min(w, h))) + 'px'); wrap.classList.toggle('narrow', !wide); };
         fit(); const onRs = () => { if (ov && ov.isConnected) fit(); else removeEventListener('resize', onRs); }; addEventListener('resize', onRs);
         const bw = mk('div', 'chess-bw'); wrap.appendChild(bw); const evb = mk('div', 'chess-eval'); evb.appendChild(mk('i')); evb.appendChild(mk('b')); bw.appendChild(evb);
         const board = mk('div', 'chess-board'); board.appendChild(document.createElementNS('http://www.w3.org/2000/svg', 'svg')); const svg = board.lastChild; svg.setAttribute('class', 'chess-arrows'); svg.setAttribute('viewBox', '0 0 8 8'); bw.appendChild(board);
@@ -445,6 +460,10 @@
         let colorVal = 'w'; LumeUI.seg(side, [['w', 'Brancas'], ['b', 'Pretas'], ['random', 'Aleatório']], colorVal, v => { colorVal = v; if (st && !st.log.length) { st.token = Math.random(); newGame({ model: list[pick], color: colorVal }); } });
         const opt = (id, label, key) => LumeUI.toggle(optBox, label, st ? !!st.opts[key] : key === 'noSpawn', v => { st.opts[key] = v; if (key === 'rank') { if (v) rankBackfill(); render(); } }, id);
         opt('chess-ill', 'Permitir lances ilegais do modelo', 'illegal'); opt('chess-nospawn', 'Bloquear peças criadas do nada pelo modelo (só vale com lances ilegais)', 'noSpawn'); opt('chess-rank', 'Ranking dos lances (Brilhante, Melhor, Erro…)', 'rank');
+        const mrow = mk('label', 'lu-row'); const ml = mk('span', '', T('Lances seguidos (seus)')), ni = document.createElement('input'); ni.type = 'number'; ni.min = 1; ni.max = 8; ni.id = 'chess-multi'; ni.value = st ? st.opts.multi : (parseInt(localStorage.getItem('lume_chess_multi')) || 1);
+        ni.title = T('Quantos lances você faz seguidos antes do modelo jogar. 1 = jogo normal. Se o seu lance der xeque, a vez passa para o modelo.'); ni.style.cssText = 'width:76px;box-sizing:border-box;padding:7px 10px;border-radius:10px;border:1px solid var(--border-color);background:var(--bg-input);color:var(--text-main)';
+        ni.onchange = () => { const v = Math.max(1, Math.min(8, parseInt(ni.value) || 1)); ni.value = v; if (st) st.opts.multi = v; try { localStorage.setItem('lume_chess_multi', String(v)); } catch (e) { /* sem armazenamento */ } };
+        mrow.style.cssText = 'padding:9px 12px;border-radius:12px;background:rgba(128,128,128,.10);font-size:.88em'; mrow.append(ml, ni); optBox.appendChild(mrow);
         const lk = mk('div', 'chess-row'); const mkSel = (opts, val, fn) => { const x = document.createElement('select'); x.className = 'chess-lk'; opts.forEach(([v, l]) => x.add(new Option(T(l), v))); x.value = val; x.onchange = () => fn(x.value); lk.appendChild(x); };
         mkSel(Object.entries(SET_NAMES).map(([k, n]) => [k, T('Peças') + ': ' + T(n)]), look.set, v => { look.set = v; saveLook(); render(); });
         mkSel(Object.entries(BOARDS).map(([k, b]) => [k, T('Tabuleiro') + ': ' + T(b[0])]), look.board, v => { look.board = v; saveLook(); applyBoard(); }); optBox.appendChild(lk);
