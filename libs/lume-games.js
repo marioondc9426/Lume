@@ -19,8 +19,9 @@
     const el = (t, c, x) => window.LumeUI.el(t, c, x);
 
     // ---- escolha do modelo (o mesmo select em todos os jogos)
+    const gameModels = () => (window.lumeModels ? lumeModels() : []).filter(m => !m.phone && !m.or && !m.auto);   // sem os modelos gratis do OpenRouter (lentos e instaveis demais para jogo rapido) e sem o Lume Auto (aqui voce escolhe quem joga)
     function modelBar(host) {
-        const list = () => (window.lumeModels ? lumeModels() : []).filter(m => !m.phone && !m.or);   // sem os modelos gratis do OpenRouter: lentos e instaveis demais para jogo rapido
+        const list = gameModels;
         const bar = el('div', 'gm-bar'); host.appendChild(bar);
         const p = window.lumeModelPicker({ models: list, value: typeof selectedModel !== 'undefined' ? selectedModel : '' });   // o mesmo seletor do chat
         if (!p) { bar.appendChild(el('div', 'lu-hint', T('Nenhum modelo disponível para jogos agora.'))); return { bar, model: () => null }; }
@@ -28,6 +29,7 @@
         return { bar, model: () => p.get() };
     }
     const ask = (model, system, user) => lumeAsk({ model, system, user, timeoutMs: 60000 });
+    window.lumeGamesKit = { modelBar, ask, pickerFor(host) { const p = window.lumeModelPicker({ models: gameModels, value: typeof selectedModel !== 'undefined' ? selectedModel : '' }); if (p) host.appendChild(p.el); return p; } };   // o duelo de xadrez (libs/lume-duel.js) usa o mesmo seletor
 
     // ---- jogo da velha: voce e X, o modelo e O (responde com o numero da casa)
     const LINES = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]];
@@ -72,6 +74,51 @@
         u_button(host, 'Nova palavra', fresh); fresh();
     }
 
+
+    // ---- quiz: o modelo cria as perguntas (JSON), voce responde; ele explica a resposta certa
+    function startQuiz(host) {
+        const u = window.LumeUI, mb = modelBar(host), form = el('div', 'gm-bar'), topic = el('input'), area = el('div'); area.style.cssText = 'display:flex;flex-direction:column;gap:10px';
+        topic.type = 'text'; topic.placeholder = T('Tema (ex.: história do Brasil, planetas, filmes dos anos 90)'); topic.style.cssText = 'flex:1 1 220px;min-width:0';
+        const lvl = u.select([['fácil', 'Fácil'], ['médio', 'Médio'], ['difícil', 'Difícil']], 'médio', () => {}), cnt = u.select([['5', '5 perguntas'], ['8', '8 perguntas'], ['10', '10 perguntas']], '5', () => {});
+        form.append(topic, lvl, cnt); host.append(form, area);
+        let qs = [], i = 0, score = 0, token = 0;
+        function show() {
+            area.textContent = ''; if (i >= qs.length) { const pct = Math.round(score / qs.length * 100); area.append(el('div', 'gm-status', T('Fim! Você acertou ') + score + '/' + qs.length + ' (' + pct + '%) ' + (pct >= 80 ? '🏆' : pct >= 50 ? '👍' : '📚'))); return; }
+            const q = qs[i]; area.appendChild(el('div', 'gm-status', (i + 1) + '/' + qs.length + ' — ' + q.pergunta)); const opts = el('div'); opts.style.cssText = 'display:flex;flex-direction:column;gap:6px'; area.appendChild(opts);
+            let done = false; q.opcoes.forEach((o, k) => { const b = u.button(opts, 'ABCD'[k] + ') ' + o, () => { if (done) return; done = true; if (k === q.correta) score++; [...opts.children].forEach((x, j) => { x.disabled = true; if (j === q.correta) x.style.background = 'rgba(63,185,80,.35)'; else if (j === k) x.style.background = 'rgba(229,72,77,.3)'; }); area.appendChild(el('div', 'lu-hint', (k === q.correta ? '✅ ' : '❌ ') + (q.explicacao || ''))); u.button(area, i + 1 >= qs.length ? 'Ver o resultado' : 'Próxima', () => { i++; show(); }, 'primary'); } ); b.style.textAlign = 'left'; });
+        }
+        async function begin() {
+            const t = topic.value.trim(); if (!t) { topic.focus(); return; } const my = ++token; area.textContent = ''; area.appendChild(el('div', 'gm-status', T('O modelo está criando as perguntas…'))); qs = []; i = 0; score = 0;
+            for (let tries = 0; tries < 2 && !qs.length; tries++) {
+                try {
+                    const r = await ask(mb.model(), 'Você cria quizzes de múltipla escolha em português. Responda SOMENTE com JSON válido: {"perguntas":[{"pergunta":"...","opcoes":["...","...","...","..."],"correta":0,"explicacao":"uma frase"}]}. "correta" é o índice (0 a 3) da opção certa; a opção certa deve variar de posição; nunca invente fatos.', 'Tema: ' + t + '. Dificuldade: ' + lvl.value + '. Crie exatamente ' + cnt.value + ' perguntas.');
+                    if (my !== token) return; const j = JSON.parse((r.match(/\{[\s\S]*\}/) || ['{}'])[0]);
+                    qs = (j.perguntas || []).filter(q => q && q.pergunta && Array.isArray(q.opcoes) && q.opcoes.length === 4 && Number.isInteger(q.correta) && q.correta >= 0 && q.correta < 4).slice(0, +cnt.value);
+                } catch (e) { qs = []; }
+            }
+            if (my !== token) return; if (!qs.length) { area.textContent = ''; area.appendChild(el('div', 'gm-status', T('O modelo não conseguiu montar o quiz. Tente de novo ou escolha outro modelo.'))); return; }
+            show();
+        }
+        u.button(form, 'Começar', begin, 'primary'); topic.addEventListener('keydown', e => { if (e.key === 'Enter') begin(); });
+    }
+
+    // ---- eu adivinho: voce pensa em algo, o modelo faz perguntas de sim/nao (ate 20) e tenta acertar
+    function startGuess(host) {
+        const u = window.LumeUI, mb = modelBar(host), status = el('div', 'gm-status', ''), qbox = el('div', 'gm-status', ''), btns = el('div', 'gm-bar'); host.append(status, qbox, btns);
+        let msgs = [], n = 0, busy = false, token = 0;
+        const SYS = 'Você joga "20 perguntas" ao contrário: o usuário pensou em algo (animal, objeto, lugar ou pessoa famosa) e VOCÊ tenta descobrir. Faça UMA pergunta de sim ou não por vez, começando pelas mais amplas, e use as respostas anteriores. Quando tiver confiança, ou quando acabarem as 20 perguntas, faça um palpite. Responda SOMENTE com JSON: {"tipo":"pergunta","texto":"..."} ou {"tipo":"palpite","texto":"é um(a) ..."}.';
+        function row(labels) { btns.textContent = ''; labels.forEach(([l, fn, kind]) => u.button(btns, l, fn, kind)); }
+        async function turn(userText) {
+            if (busy) return; busy = true; const my = token; row([]); status.textContent = T('O modelo está pensando…');
+            msgs.push({ role: 'user', content: userText + (n >= 19 ? '\n(Esta é a última pergunta possível: faça um palpite final.)' : '') });
+            let j = null, raw = ''; try { raw = await lumeAsk({ model: mb.model(), messages: [{ role: 'system', content: SYS }].concat(msgs), timeoutMs: 60000 }); if (my !== token) return; j = JSON.parse((raw.match(/\{[\s\S]*\}/) || ['{}'])[0]); } catch (e) { if (my !== token) return; if (!raw) { busy = false; status.textContent = T('Erro do modelo: ') + String(e.message || e).slice(0, 100); row([[T('Tentar de novo'), () => { msgs.pop(); turn(userText); }]]); return; } }
+            busy = false; const text = (j && j.texto) || String(raw).slice(0, 200), guess = j && j.tipo === 'palpite'; msgs.push({ role: 'assistant', content: raw });
+            if (guess) { status.textContent = T('Palpite!'); qbox.textContent = text; row([[T('Acertou! 🎉'), () => { status.textContent = T('O modelo acertou em ') + n + T(' perguntas.'); row([[T('Jogar de novo'), begin, 'primary']]); }, 'primary'], [T('Errou'), () => { if (n >= 20) { status.textContent = T('Você venceu o modelo! 🏆'); qbox.textContent = ''; row([[T('Jogar de novo'), begin, 'primary']]); } else turn('Errou, não é isso. Continue perguntando.'); }]]); return; }
+            n++; status.textContent = T('Pergunta ') + n + '/20'; qbox.textContent = text; row([[T('Sim'), () => turn('Sim'), 'primary'], [T('Não'), () => turn('Não')], [T('Talvez'), () => turn('Talvez')], [T('Não sei'), () => turn('Não sei')]]);
+        }
+        function begin() { token++; busy = false; msgs = []; n = 0; qbox.textContent = ''; status.textContent = T('Pense em um animal, objeto, lugar ou pessoa famosa e não conte. Pronto?'); row([[T('Estou pronto!'), () => turn('Já pensei em algo. Pode começar a perguntar.'), 'primary']]); }
+        begin();
+    }
     // ---- 20 perguntas: o modelo pensa em algo (segredo guardado aqui); voce pergunta, ele responde Sim/Nao/Talvez
     function startTwenty(host) {
         const mb = modelBar(host); const status = el('div', 'gm-status', ''), log = el('div', 'tq-log'), inp = el('div', 'tq-in'); const input = el('input'); input.type = 'text'; input.placeholder = T('Pergunte (sim ou não) ou arrisque: "é um cachorro?"'); const go = u_button(inp, 'Enviar', () => send()); inp.insertBefore(input, go); host.append(status, log, inp);
@@ -96,6 +143,8 @@
         { id: 'ttt', name: 'Jogo da velha', desc: 'Você é o X; o modelo joga de O.', start: startTTT },
         { id: 'hangman', name: 'Forca', desc: 'O modelo escolhe a palavra e uma dica.', start: startHangman },
         { id: 'twenty', name: '20 perguntas', desc: 'O modelo pensa em algo; você descobre.', start: startTwenty },
+        { id: 'guess', name: 'Eu adivinho você', desc: 'Você pensa em algo; o modelo tenta descobrir.', start: startGuess },
+        { id: 'quiz', name: 'Quiz', desc: 'O modelo cria perguntas sobre o tema que você quiser.', start: startQuiz },
     ];
     window.LUME_GAMES = GAMES;
     window.openGames = function (only) {
