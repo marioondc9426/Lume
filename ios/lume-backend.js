@@ -552,7 +552,7 @@ function handleChat(req) {
 }
 
 // ---------------------------------------------------------------- rotas
-const SECRET_KEYS = ['groq_api_key', 'openrouter_api_key', 'pollinations_api_key', 'cloudflare_api_token', 'cloudflare_account_id', 'exa_api_key', 'tomdacat_api_key', 'vercel_api_key', 'llm7_api_key',
+const SECRET_KEYS = ['feedback_url', 'feedback_key', 'groq_api_key', 'openrouter_api_key', 'pollinations_api_key', 'cloudflare_api_token', 'cloudflare_account_id', 'exa_api_key', 'tomdacat_api_key', 'vercel_api_key', 'llm7_api_key',
     'groq_api_key_backup', 'openrouter_api_key_backup', 'pollinations_api_key_backup', 'tomdacat_api_key_backup', 'vercel_api_key_backup', 'llm7_api_key_backup',
     'aichixia_api_key', 'aihubmix_api_key', 'literouter_api_key', 'paxsenix_api_key', 'voidai_api_key', 'tokenreply_api_key', 'tokenreply_api_key_backup', 'aichixia_api_key_backup', 'aihubmix_api_key_backup', 'literouter_api_key_backup', 'paxsenix_api_key_backup', 'voidai_api_key_backup'].concat(Object.values(XPROV).flatMap(v => [v[0], v[0] + '_backup']));   // + os campos de qualquer provedor novo do registro
 const NOPE = () => json({ ok: false, error: 'Isto precisa do PC e nao existe no iPhone.' }, 400);
@@ -609,6 +609,17 @@ const ROUTES = {
         }
         LS.set('accounts', names); return json({ ok: true, imported: done });
     },
+    'POST /api/feedback_send': async (u, b) => {   // repassa ao servidor lume-feedback; so o que o usuario escreveu (nunca chaves nem conversas)
+        try {
+            const cfg = await loadConfig(), url = String(cfg.feedback_url || '').trim().replace(/\/+$/, '');
+            if (!/^https?:\/\//.test(url)) return json({ error: 'Configure o endereco do servidor de feedback primeiro.' }, 502);
+            const body = { app: 'Lume' }; for (const k of ['category', 'message', 'contact', 'version', 'os', 'log', 'screenshot_b64']) body[k] = (b || {})[k];
+            const headers = { 'Content-Type': 'application/json' }; if (cfg.feedback_key) headers['X-Feedback-Key'] = String(cfg.feedback_key);
+            const r = await fetchT(url + '/api/feedback', { method: 'POST', headers, body: JSON.stringify(body) }, 20000, 'O servidor de feedback');
+            const j = await r.json().catch(() => ({})); if (!r.ok) return json({ error: j.error || ('o servidor de feedback respondeu ' + r.status) }, 502);
+            return json(j);
+        } catch (e) { return json({ error: String(e.message || e).slice(0, 200) }, 502); }
+    },
     'POST /api/config_import': async (u, b) => {   // so chaves de API e o endereco do Ollama; senha/sessoes nao existem aqui
         const src = b && b.config; if (!src || typeof src !== 'object') return json({ error: 'Esse arquivo nao e um config.json do Lume.' }, 400);
         const c = Object.assign({}, await loadConfig()); let n = 0, skipped = 0;
@@ -664,7 +675,7 @@ const ROUTES = {
     },
     'GET /api/config_status': async () => {
         const c = await loadConfig();
-        return json({ groq_key_saved: !!c.groq_api_key, openrouter_key_saved: !!c.openrouter_api_key, cloudflare_saved: false, pollinations_saved: !!c.pollinations_api_key, tomdacat_saved: !!c.tomdacat_api_key, vercel_saved: !!c.vercel_api_key, llm7_saved: !!c.llm7_api_key, x_saved: Object.fromEntries(Object.entries(XPROV).map(([p, v]) => [p, !!c[v[0]]])), aichixia_saved: !!c.aichixia_api_key, aihubmix_saved: !!c.aihubmix_api_key, literouter_saved: !!c.literouter_api_key,
+        return json({ feedback_url: c.feedback_url || '', groq_key_saved: !!c.groq_api_key, openrouter_key_saved: !!c.openrouter_api_key, cloudflare_saved: false, pollinations_saved: !!c.pollinations_api_key, tomdacat_saved: !!c.tomdacat_api_key, vercel_saved: !!c.vercel_api_key, llm7_saved: !!c.llm7_api_key, x_saved: Object.fromEntries(Object.entries(XPROV).map(([p, v]) => [p, !!c[v[0]]])), aichixia_saved: !!c.aichixia_api_key, aihubmix_saved: !!c.aihubmix_api_key, literouter_saved: !!c.literouter_api_key,
             exa_key_saved: !!c.exa_api_key, search_provider: c.search_provider, exa_type: c.exa_type, search_results: c.search_results, search_daily_limit: c.search_daily_limit, exa_today: 0, auto_allow: false, workdir: '', default_workdir: '', ollama_url: c.ollama_url || '' });
     },
     'POST /api/save_config': async (u, b) => {

@@ -4,7 +4,8 @@
     python server.py                      sobe em http://0.0.0.0:8787  (dashboard em /dashboard)
     python server.py --port 9000 --host 127.0.0.1
 
-Senha do dashboard: variavel FEEDBACK_PASSWORD, ou (se nao tiver) uma senha gerada na primeira vez e guardada em feedback_password.txt.
+Senha do dashboard: NAO tem quando o servidor roda so neste PC (--host 127.0.0.1); quando fica exposto na rede (padrao 0.0.0.0) pede senha: variavel FEEDBACK_PASSWORD,
+ou uma gerada na primeira vez e guardada em feedback_password.txt. Force com --password ou --no-password.
 Chave de envio (opcional): FEEDBACK_KEY; se existir, o app precisa mandar o mesmo valor no cabecalho X-Feedback-Key.
 Dados: feedback.db (SQLite) na pasta do servidor (ou FEEDBACK_DATA). So usa a biblioteca padrao do Python."""
 import argparse
@@ -35,6 +36,7 @@ _lock = threading.Lock()
 _hits = {}          # ip -> horarios dos ultimos envios (limite por hora)
 _login_fail = {}    # ip -> (falhas, ate quando bloqueado)
 _sessions = {}      # token -> expira em
+NEED_PW = True      # False quando roda so neste PC (ver main)
 
 
 @contextmanager
@@ -99,6 +101,7 @@ class H(BaseHTTPRequestHandler):
         if n > MAX_BODY: return None
         return self.rfile.read(n)
     def authed(self):
+        if not NEED_PW: return True
         tok = (re.search(r"fb_session=([\w-]+)", self.headers.get("Cookie") or "") or [None, ""])[1]
         return _sessions.get(tok, 0) > time.time()
 
@@ -134,6 +137,9 @@ class H(BaseHTTPRequestHandler):
                 return self.send(200, out.getvalue(), "text/csv; charset=utf-8", {"Content-Disposition": 'attachment; filename="feedback.csv"'})
         return self.send(404, {"error": "nao encontrado"})
 
+    def do_OPTIONS(self):   # o Lume do iPhone manda direto do navegador: libera o envio (CORS)
+        self.send(204, b"", "text/plain", {"Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type, X-Feedback-Key", "Access-Control-Max-Age": "86400"})
+
     # ---- POST / DELETE
     def do_POST(self):
         p = urllib.parse.urlsplit(self.path).path; raw = self.body()
@@ -149,7 +155,7 @@ class H(BaseHTTPRequestHandler):
             if err: return self.send(400, {"error": err})
             _hits[self.ip()] = hits + [now]
             with _lock, db() as c: cur = c.execute("INSERT INTO feedback (ts, category, message, contact, app, version, os, ip, log, shot, shot_type) VALUES (?,?,?,?,?,?,?,?,?,?,?)", (now, f["category"], f["message"], f["contact"], f["app"], f["version"], f["os"], self.ip(), f["log"], f["shot"], f["shot_type"]))
-            return self.send(201, {"ok": True, "id": cur.lastrowid})
+            return self.send(201, {"ok": True, "id": cur.lastrowid}, headers={"Access-Control-Allow-Origin": "*"})
         if p == "/api/login":
             fails, until = _login_fail.get(self.ip(), (0, 0))
             if until > time.time(): return self.send(429, {"error": "muitas tentativas; espere um pouco"})
@@ -217,10 +223,14 @@ load().catch(()=>show(false));setInterval(()=>{if(!$('app').hidden)load().catch(
 
 def main():
     ap = argparse.ArgumentParser(description="lume-feedback: servidor + dashboard")
-    ap.add_argument("--host", default="0.0.0.0"); ap.add_argument("--port", type=int, default=int(os.environ.get("PORT") or 8787))
+    ap.add_argument("--host", default="0.0.0.0"); ap.add_argument("--password", action="store_true", help="exige senha mesmo rodando so neste PC"); ap.add_argument("--no-password", action="store_true", help="nunca pede senha (so use em rede de confianca)"); ap.add_argument("--port", type=int, default=int(os.environ.get("PORT") or 8787))
     a = ap.parse_args(); os.makedirs(DATA, exist_ok=True)
+    global NEED_PW
+    local = a.host in ("127.0.0.1", "localhost", "::1")
+    NEED_PW = a.password or not (a.no_password or local)
     with db(): pass
-    password()
+    if NEED_PW: password()
+    print("Dashboard:", "com senha" if NEED_PW else "sem senha (so quem alcanca este servidor entra)", flush=True)
     srv = ThreadingHTTPServer((a.host, a.port), H)
     print(f"lume-feedback em http://{a.host}:{a.port}  (dashboard: /dashboard)", flush=True)
     try: srv.serve_forever()

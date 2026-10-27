@@ -58,6 +58,14 @@ class FeedbackTests(unittest.TestCase):
         self.assertEqual(self.req(f"/api/admin/item/{i['id']}", method="DELETE", cookie=ck)[0], 200)
         self.assertEqual(json.loads(self.req("/api/admin/items", cookie=ck)[1])["items"], [])
 
+    def test_sem_senha_quando_local(self):
+        fb.NEED_PW = False
+        try:
+            self.assertEqual(self.req("/api/admin/items")[0], 200)   # abre direto, sem login
+            self.assertEqual(self.req("/api/feedback", method="OPTIONS")[0], 204)   # preflight (CORS) do iPhone
+        finally: fb.NEED_PW = True
+        self.assertEqual(self.req("/api/admin/items")[0], 401)
+
     def test_validacao(self):
         self.assertEqual(self.req("/api/feedback", {"message": "oi"})[0], 400)                       # curto demais
         self.assertEqual(self.req("/api/feedback", {"message": "mensagem valida", "screenshot_b64": base64.b64encode(b"nao e imagem").decode()})[0], 400)
@@ -67,6 +75,13 @@ class FeedbackTests(unittest.TestCase):
         fb._hits.clear()
         codes = [self.req("/api/feedback", {"message": "mensagem %d" % n})[0] for n in range(12)]
         self.assertEqual(codes[:10], [201] * 10); self.assertEqual(codes[10:], [429, 429]); fb._hits.clear()
+
+    def test_lume_repassa_ao_servidor(self):   # o app.py (PC) manda o feedback da janela do Lume para o servidor
+        import app
+        r = app.send_feedback({"feedback_url": self.url}, {"category": "sugestao", "message": "vindo de dentro do Lume", "os": "Linux", "version": "4.0"})
+        self.assertTrue(r["ok"])
+        with self.assertRaises(Exception): app.send_feedback({"feedback_url": ""}, {"message": "x"})
+        with self.assertRaises(Exception): app.send_feedback({"feedback_url": "ftp://x"}, {"message": "x"})
 
     def test_cliente_erro_de_rede(self):
         ok, msg = cli.send_feedback("http://127.0.0.1:1", {"category": "outro", "message": "x" * 5}, timeout=2)

@@ -275,6 +275,7 @@ def load_config():
     cfg.setdefault("owner_link_enabled", False)  # link secreto /owner-CODIGO: entra com acesso total (como a janela do PC)
     cfg.setdefault("owner_code", "")
     cfg.setdefault("port", PORT)
+    cfg.setdefault("feedback_url", ""); cfg.setdefault("feedback_key", "")   # servidor do lume-feedback (Enviar feedback)
     cfg.setdefault("exa_api_key", "")            # pesquisa feita para IAs (exa.ai); vazio = usa DuckDuckGo
     cfg.setdefault("search_provider", "auto")    # auto | exa | duckduckgo
     cfg.setdefault("exa_type", "lite")           # lite (US$ 0,004/busca) | auto (US$ 0,007) | deep-lite
@@ -2301,6 +2302,22 @@ def pol_stt(audio, mime, opts, cfg):
     try: return str(json.loads(data).get("text") or "").strip()
     except ValueError: raise Exception("Resposta estranha do Pollinations ao transcrever.")
 
+# ---------------------------------------------------------------- feedback: manda para o servidor lume-feedback (lume-feedback/server.py)
+def send_feedback(cfg, d):
+    """Repassa o feedback ao servidor configurado em feedback_url. Nunca manda config.json, chaves nem conversas: so o que o usuario escreveu, a imagem que ele anexou e (se marcou) versao/sistema."""
+    url = str(cfg.get("feedback_url") or "").strip().rstrip("/")
+    if not re.match(r"^https?://", url): raise Exception("Configure o endereco do servidor de feedback primeiro.")
+    body = {k: d.get(k) for k in ("category", "message", "contact", "version", "os", "log", "screenshot_b64")}; body["app"] = "Lume"
+    headers = {"Content-Type": "application/json", "User-Agent": "lume-app"}
+    if cfg.get("feedback_key"): headers["X-Feedback-Key"] = str(cfg["feedback_key"])
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url + "/api/feedback", data=json.dumps(body).encode("utf-8"), headers=headers), timeout=20) as r: return json.load(r)
+    except urllib.error.HTTPError as e:
+        try: msg = json.load(e).get("error")
+        except Exception: msg = ""
+        raise Exception(msg or f"o servidor de feedback respondeu {e.code}")
+    except Exception as e: raise Exception("Nao consegui falar com o servidor de feedback (" + str(getattr(e, "reason", e))[:80] + ").")
+
 def backup_keys(cfg, field):
     """Chaves de reserva (campo <chave>_backup: uma por linha ou separadas por virgula)."""
     return [k for k in re.split(r"[\s,;]+", str(cfg.get(field + "_backup") or "")) if k]
@@ -2860,7 +2877,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return self.send_json(out)
         if p == '/api/config_status':
             cfg = load_config()
-            return self.send_json({"groq_key_saved": bool(cfg.get("groq_api_key")), "openrouter_key_saved": bool(cfg.get("openrouter_api_key")), "cloudflare_saved": all(cf_creds(cfg)), "pollinations_saved": bool(cfg.get("pollinations_api_key")), "tomdacat_saved": bool(cfg.get("tomdacat_api_key")), "vercel_saved": bool(cfg.get("vercel_api_key")), "llm7_saved": bool(cfg.get("llm7_api_key")), "x_saved": {p: bool(cfg.get(v[0])) for p, v in X_PROVIDERS.items()}, "aichixia_saved": bool(cfg.get("aichixia_api_key")), "aihubmix_saved": bool(cfg.get("aihubmix_api_key")), "literouter_saved": bool(cfg.get("literouter_api_key")),  "exa_key_saved": bool(exa_api_key(cfg)), "search_provider": cfg.get("search_provider", "auto"), "exa_type": cfg.get("exa_type", "lite"), "search_results": max_results(), "search_daily_limit": cfg.get("search_daily_limit", 100), "exa_today": exa_searches_today(), "auto_allow": bool(cfg.get("auto_allow")), "workdir": get_workdir(cfg) if local else "", "default_workdir": BASE_DIR if local else ""})
+            return self.send_json({"groq_key_saved": bool(cfg.get("groq_api_key")), "openrouter_key_saved": bool(cfg.get("openrouter_api_key")), "cloudflare_saved": all(cf_creds(cfg)), "pollinations_saved": bool(cfg.get("pollinations_api_key")), "tomdacat_saved": bool(cfg.get("tomdacat_api_key")), "vercel_saved": bool(cfg.get("vercel_api_key")), "llm7_saved": bool(cfg.get("llm7_api_key")), "x_saved": {p: bool(cfg.get(v[0])) for p, v in X_PROVIDERS.items()}, "aichixia_saved": bool(cfg.get("aichixia_api_key")), "aihubmix_saved": bool(cfg.get("aihubmix_api_key")), "literouter_saved": bool(cfg.get("literouter_api_key")),  "feedback_url": cfg.get("feedback_url", ""), "exa_key_saved": bool(exa_api_key(cfg)), "search_provider": cfg.get("search_provider", "auto"), "exa_type": cfg.get("exa_type", "lite"), "search_results": max_results(), "search_daily_limit": cfg.get("search_daily_limit", 100), "exa_today": exa_searches_today(), "auto_allow": bool(cfg.get("auto_allow")), "workdir": get_workdir(cfg) if local else "", "default_workdir": BASE_DIR if local else ""})
         if p == '/api/models_status':
             tags = ollama_tags(); running = tags is not None
             used, total, _ = get_gpu_metrics()
@@ -2971,6 +2988,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             ok, ms, err = health_test(prov, ids[0], cfg)
             if ok is not None and prov not in X_SHOW_ALL: _health[prov + ":" + ids[0]] = {"ok": bool(ok), "ts": time.time(), "ms": ms, "err": err}
             return self.send_json({"ok": ok, "ms": ms, "err": err, "model": ids[0]})
+        if p == '/api/feedback_send':
+            try: return self.send_json(send_feedback(load_config(), data))
+            except Exception as e: return self.send_json({"error": str(e)[:200]}, 502)
         if p == '/api/tts':
             try: audio, mime = pol_tts(data.get("text"), data, load_config())
             except Exception as e: return self.send_json({"error": str(e)[:200]}, 502)
@@ -3060,8 +3080,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 if k in data:
                     try: data[k] = max(lo, min(hi, int(data[k])))
                     except (TypeError, ValueError): return self.send_json({"error": "Opcao de pesquisa invalida."}, 400)
-            for k in ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "cloudflare_api_token", "cloudflare_account_id", "exa_api_key", "tomdacat_api_key", "vercel_api_key", "llm7_api_key", "aichixia_api_key", "aihubmix_api_key", "literouter_api_key", "aichixia_api_key_backup", "aihubmix_api_key_backup", "literouter_api_key_backup", "paxsenix_api_key", "paxsenix_api_key_backup", "voidai_api_key", "voidai_api_key_backup", "tokenreply_api_key", "tokenreply_api_key_backup", "groq_api_key_backup", "openrouter_api_key_backup", "pollinations_api_key_backup", "tomdacat_api_key_backup", "vercel_api_key_backup", "llm7_api_key_backup", "workdir", "search_provider", "exa_type", "search_results", "search_daily_limit", "auto_allow", *X_KEY_FIELDS):
-                if k in data: cfg[k] = bool(data[k]) if k == "auto_allow" else data[k].strip() if k.endswith(("_key", "_token", "_id", "_backup")) else data[k]
+            for k in ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "cloudflare_api_token", "cloudflare_account_id", "exa_api_key", "tomdacat_api_key", "vercel_api_key", "llm7_api_key", "aichixia_api_key", "aihubmix_api_key", "literouter_api_key", "aichixia_api_key_backup", "aihubmix_api_key_backup", "literouter_api_key_backup", "paxsenix_api_key", "paxsenix_api_key_backup", "voidai_api_key", "voidai_api_key_backup", "tokenreply_api_key", "tokenreply_api_key_backup", "groq_api_key_backup", "openrouter_api_key_backup", "pollinations_api_key_backup", "tomdacat_api_key_backup", "vercel_api_key_backup", "llm7_api_key_backup", "workdir", "search_provider", "exa_type", "search_results", "search_daily_limit", "auto_allow", "feedback_url", "feedback_key", *X_KEY_FIELDS):
+                if k in data: cfg[k] = bool(data[k]) if k == "auto_allow" else data[k].strip() if k.endswith(("_key", "_token", "_id", "_backup", "_url")) else data[k]
             save_config(cfg)
             secrets_sent = [k for k in ("aichixia_api_key", "aihubmix_api_key", "literouter_api_key", "aichixia_api_key_backup", "aihubmix_api_key_backup", "literouter_api_key_backup", "paxsenix_api_key", "paxsenix_api_key_backup", "voidai_api_key", "voidai_api_key_backup", "tokenreply_api_key", "tokenreply_api_key_backup", "groq_api_key_backup", "openrouter_api_key_backup", "pollinations_api_key_backup", "tomdacat_api_key_backup", "vercel_api_key_backup", "llm7_api_key_backup", "groq_api_key", "openrouter_api_key", "pollinations_api_key", "tomdacat_api_key", "vercel_api_key", "llm7_api_key", "cloudflare_api_token", "exa_api_key", *X_KEY_FIELDS) if k in data]
             log("CONFIG", "Configuracoes salvas (" + ", ".join([k for k in data if k not in secrets_sent] + [f"chave {k.split('_')[0]}" for k in secrets_sent]) + ")", COLOR_GREEN)

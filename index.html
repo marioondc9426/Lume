@@ -1109,6 +1109,7 @@
             <div id="command-menu">
                 <div class="command-item" onclick="insertCommand('/rename ')"><b>/rename</b> - Renomeia o chat</div>
                 <div class="command-item" onclick="insertCommand('/clear')"><b>/clear</b> - Limpa este chat</div>
+                <div class="command-item" onclick="insertCommand('/feedback')"><b>/feedback</b> - Enviar feedback</div>
             </div>
 
             <div id="attach-strip"></div>
@@ -1442,7 +1443,7 @@
         </div>
         <div class="form-group">
             <label>Bug ou sugestão</label>
-            <div class="srv-actions"><button class="btn btn-secondary" onclick="openExternal('https://github.com/marioondc9426/Lume/issues/new/choose')">Abrir os modelos de issue no GitHub</button></div>
+            <div class="srv-actions"><button class="btn btn-primary" onclick="openFeedback()">Enviar feedback aqui</button><button class="btn btn-secondary" onclick="openExternal('https://github.com/marioondc9426/Lume/issues/new/choose')">Abrir os modelos de issue no GitHub</button></div>
             <span class="hint">Abre a página do GitHub com dois formulários prontos: um para relatar um bug e outro para sugerir uma ideia.</span>
         </div>
         </div>
@@ -1787,6 +1788,7 @@
             'Filtros: modelo:gemini  desde:2026-10-01  ate:2026-10-31  pasta:trabalho  fixado  tudo (todas as abas)': 'Filters: modelo:gemini  desde:2026-10-01  ate:2026-10-31  pasta:work  fixado  tudo (all tabs)',
             "Jogos": "Games", "Jogo da velha": "Tic-tac-toe", "Forca": "Hangman", "20 perguntas": "20 questions", "Você é o X; o modelo joga de O.": "You are X; the model plays O.", "O modelo escolhe a palavra e uma dica.": "The model picks the word and a hint.", "O modelo pensa em algo; você descobre.": "The model thinks of something; you guess.", "Contra qualquer modelo, com análise e peças.": "Against any model, with analysis and piece sets.", "Novo jogo": "New game", "Nova palavra": "New word", "Enviar": "Send", "Sua vez (você é o X).": "Your turn (you are X).", "O modelo está pensando…": "The model is thinking…", "Você ganhou! 🎉": "You won! 🎉", "O modelo ganhou.": "The model won.", "Deu velha (empate).": "Draw.", "joguei por ele.": "I played for it.", "Erro do modelo: ": "Model error: ", "O modelo está escolhendo uma palavra…": "The model is picking a word…", "Dica: ": "Hint: ", "Escolha as letras.": "Pick letters.", "Você acertou! 🎉": "You got it! 🎉", "Perdeu! A palavra era: ": "You lost! The word was: ", "erros": "mistakes", "O modelo está pensando em algo…": "The model is thinking of something…", "Pensei em algo! Categoria: ": "I thought of something! Category: ", "Você tem 20 perguntas.": "You have 20 questions.", "Acertou! Era: ": "Correct! It was: ", "Você venceu em ": "You won in ", " perguntas!": " questions!", "Sim": "Yes", "Não": "No", "Talvez": "Maybe", "Acabaram as perguntas! Era: ": "Out of questions! It was: ", "Fim de jogo.": "Game over.", "Pergunta ": "Question ", "Erro: ": "Error: ", "Preciso de um modelo disponível. Configure uma chave ou ligue o Ollama.": "I need an available model. Add a key or turn Ollama on.",
             'Importar o meu config.json': 'Import my config.json', 'Traz as chaves de API e as opções de outro Lume (a senha, as sessões e as portas nunca entram).': 'Brings the API keys and options from another Lume (the password, sessions and ports are never imported).', 'Esse arquivo não é um config.json do Lume.': 'That file is not a Lume config.json.', 'Importado: {n} configuração(ões). Ignorei {k} (senha, sessões, portas e acesso remoto nunca são importados).': 'Imported: {n} setting(s). Skipped {k} (password, sessions, ports and remote access are never imported).',
+            "Enviar feedback": "Send feedback", "Enviar feedback aqui": "Send feedback here", "Bug": "Bug", "Sugestão": "Suggestion", "Outro": "Other", "Conte o que aconteceu ou o que você gostaria…": "Tell what happened or what you would like…", "Contato (opcional: e-mail ou usuário)": "Contact (optional: email or username)", "Incluir a versão e o sistema": "Include the version and system", "Anexar uma imagem": "Attach an image", "sem imagem": "no image", "Não deu para usar essa imagem.": "Could not use that image.", "Servidor do feedback": "Feedback server", "Endereço": "Address", "É o servidor do projeto lume-feedback (quem recebe e mostra no dashboard).": "It is the lume-feedback project server (it receives and shows on the dashboard).", "Chave de envio": "Send key", "(só se o servidor pedir)": "(only if the server asks)", "Escreva pelo menos algumas palavras.": "Write at least a few words.", "Coloque o endereço do servidor de feedback.": "Enter the feedback server address.", "Enviando…": "Sending…", "Enviado! Obrigado.": "Sent! Thank you.", "Enviar": "Send",
             'Bug ou sugestão': 'Bug or suggestion', 'Abrir os modelos de issue no GitHub': 'Open the issue templates on GitHub', 'Abre a página do GitHub com dois formulários prontos: um para relatar um bug e outro para sugerir uma ideia.': 'Opens the GitHub page with two ready forms: one to report a bug and one to suggest an idea.', 'Opções': 'Options', 'Mais': 'More', 'Voltar ao canto': 'Back to the corner',
             'Com isso ligado, cada modelo usa tudo o que suporta (ex.: 256K) e o valor acima é ignorado. Cuidado: contextos enormes ocupam MUITA VRAM e deixam tudo mais lento.': 'When on, each model uses everything it supports (e.g. 256K) and the value above is ignored. Careful: huge contexts take A LOT of VRAM and slow everything down.', 'Salvar': 'Save', 'Atualizações': 'Updates', 'Verificar atualizações': 'Check for updates', 'Atualizar agora': 'Update now',
             'Avisar quando houver versão nova ao abrir o app': 'Notify me when a new version is available at startup', 'Verificando...': 'Checking...', 'Atualizando...': 'Updating...',
@@ -3721,6 +3723,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             let text = promptInput.value.trim();
             if ((!text && !attachCount()) || !currentChatId || compacting) return;
             const chatId = currentChatId, chat = chats[chatId];
+            if (text === '/feedback') { clearPrompt(); openFeedback(); return; }
             if (text === '/clear') {
                 if (gens[chatId]) { showInfo('Espere a resposta terminar (ou pare) para limpar o chat.'); return; }
                 chat.messages = []; delete queues[chatId]; saveToStorage(); loadChat(chatId); clearPrompt(); return;
@@ -5382,6 +5385,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
     <script src="libs/chess-pieces.js"></script>
     <script src="libs/lume-ui.js"></script>
     <script src="libs/lume-ask.js"></script>
+    <script src="libs/lume-feedback.js"></script>
     <script src="libs/lume-compare.js"></script>
     <script src="libs/lume-games.js"></script>
     <script src="libs/lume-voice.js"></script>
