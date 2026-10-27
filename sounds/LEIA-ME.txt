@@ -1,0 +1,8 @@
+Sons da tela de carregamento do Mac.
+
+Coloque aqui (no seu PC) estes arquivos; o Lume toca sozinho:
+  mac-startup.mp3   (ou .wav / .m4a / .ogg)  o som de abertura do Mac
+  secret-boot.mp3   (ou .wav / .m4a / .ogg)  o som secreto: toca no lugar do outro 1 vez em cada 25
+
+Estes arquivos nao sobem para o GitHub (sao ignorados pelo .gitignore) porque o som do Mac
+e da Apple. Sem os arquivos, a tela do Mac abre em silencio.
