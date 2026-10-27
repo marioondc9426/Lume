@@ -38,16 +38,18 @@ jobs:
           mkdir -p AppDir/usr/bin
           cp dist/Lume-linux AppDir/usr/bin/Lume
           cp icons/lume.png AppDir/lume.png
-          printf '[Desktop Entry]
-Type=Application
-Name=Lume
-Exec=Lume
-Icon=lume
-Categories=Utility;
-' > AppDir/lume.desktop
-          printf '#!/bin/sh
-exec "$(dirname "$(readlink -f "$0")")/usr/bin/Lume" "$@"
-' > AppDir/AppRun
+          cat > AppDir/lume.desktop <<'EOF'
+          [Desktop Entry]
+          Type=Application
+          Name=Lume
+          Exec=Lume
+          Icon=lume
+          Categories=Utility;
+          EOF
+          cat > AppDir/AppRun <<'EOF'
+          #!/bin/sh
+          exec "$(dirname "$(readlink -f "$0")")/usr/bin/Lume" "$@"
+          EOF
           chmod +x AppDir/AppRun
           wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
           chmod +x appimagetool-x86_64.AppImage
