@@ -5,7 +5,7 @@
 (() => {
     'use strict';
     const KEY = 'lume_pet', T = s => (typeof tr === 'function' ? tr(s) : s);
-    const DEF = { on: false, avatar: true, name: 'Lume', color: '#2f8bff', eyeColor: '#ffffff', style: 'orb', eyes: 'oval', expr: 'neutral', shape: 'circle', acc: 'none', blush: false, glow: 60, size: 64, avSize: 30, bubble: true, follow: true, blinking: true, bob: true, react: true, x: null, y: null };
+    const DEF = { on: false, avatar: true, name: 'Lume', color: '#2f8bff', eyeColor: '#ffffff', style: 'orb', eyes: 'oval', expr: 'neutral', shape: 'circle', acc: 'none', blush: false, glow: 60, size: 64, avSize: 30, bubble: true, tips: true, model: '', follow: true, blinking: true, bob: true, react: true, x: null, y: null };
     const load = () => { try { return Object.assign({}, DEF, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { return Object.assign({}, DEF); } };
     const save = () => { try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) { /* sem armazenamento */ } };
     let cfg = load(), root = null, pet = null, bub = null, mood = 'idle', look = { x: 0, y: 0 }, lastMove = Date.now(), bubTimer = 0, moodTimer = 0, wasBusy = false, typing = false;
@@ -67,6 +67,8 @@
         #lume-pet { position: fixed; z-index: 4400; touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab; } #lume-pet.drag { cursor: grabbing; } #lume-pet.hide { display: none; }
         #lume-pet .lp-bub { position: absolute; bottom: calc(100% + 8px); right: 0; max-width: 220px; white-space: nowrap; padding: 6px 12px; border-radius: 14px; background: var(--bg-input, #2a2a2e); color: var(--text-main, #eee); border: 1px solid var(--border-color, #444); font-size: 12.5px; box-shadow: 0 6px 18px rgba(0,0,0,.4); opacity: 0; transform: translateY(6px) scale(.96); transition: opacity .2s, transform .2s; pointer-events: none; } #lume-pet .lp-bub.on { opacity: 1; transform: none; }
         body.pet-av .msg.ai { padding-left: calc(var(--lp-avs, 30px) + 22px); } body.pet-av .msg.ai > .lp-av { position: absolute; left: 10px; top: 14px; width: var(--lp-avs, 30px); height: var(--lp-avs, 30px); cursor: pointer; }
+        .lp-tip { display: flex; gap: 10px; align-items: flex-start; margin: 10px 0 2px; padding: 10px 12px; border-radius: 14px; background: rgba(128,128,128,.12); border-left: 3px solid var(--accent, #4d6bfe); font-size: .9em; } .lp-tip-ic { flex: none; width: 30px; height: 30px; } .lp-tip-body { flex: 1; min-width: 0; } .lp-tip-text { line-height: 1.45; }
+        .lp-tip-row { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; } .lp-tip-row .btn { margin: 0; padding: 4px 11px; font-size: .82em; }
         .lp-prev { flex: none; width: 84px; height: 84px; margin: 6px 14px 4px 0; }
     `;
     document.head.appendChild(css);
@@ -166,9 +168,63 @@
         U.row(s, 'Brilho (aura)', rng('glow', 0, 100));
         s = U.section(w.body, 'Comportamento', { open: true });
         tog(s, 'Olhos seguem o cursor', 'follow', save); tog(s, 'Piscar', 'blinking', save); tog(s, 'Balançar parado', 'bob'); tog(s, 'Reagir (pensar, comemorar, dormir)', 'react');
+        s = U.section(w.body, 'Dicas de erro', { open: true });
+        tog(s, 'Dar dicas quando acontecer um erro', 'tips', save);
+        const opts = [['', 'Automático (um modelo diferente do que falhou)']].concat((window.lumeModels ? lumeModels() : []).map(m => [m.id, (m.label || m.id) + (m.free ? ' · grátis' : '')]));
+        U.row(s, 'Modelo do mascote', U.select(opts, cfg.model || '', v => { cfg.model = v; save(); }), 'É o modelo que ele usa para explicar erros que ele nunca viu. A dica fica guardada: o mesmo erro não gasta outro pedido.');
+        U.button(s, 'Testar uma dica', () => { const d = document.createElement('div'); d.className = 'msg ai lp-demo'; d.style.cssText = 'position:relative;margin:8px 0'; s.parentNode.appendChild(d); window.lumeTipDemo && window.lumeTipDemo(d); });
         U.button(w.foot, 'Voltar ao canto', () => { cfg.x = cfg.y = null; apply(); });
         U.button(w.foot, 'Restaurar', () => { cfg = Object.assign({}, DEF); save(); build(); repaintAll(); scanAv(); w.close(); });
     }
+
+    // ---- dicas de erro: quando a resposta vem com "[Erro: ...]" o mascote explica e sugere o que fazer.
+    // Erros conhecidos tem dica pronta; erros nunca vistos vao para o modelo do mascote (Configuracoes do mascote > Dicas de erro), e a dica fica guardada para a proxima vez.
+    const KNOWN = [
+        [/\b429\b|limite de pedidos|rate limit|too many/i, 'Esse provedor limitou os pedidos. Espere um pouquinho ou escolha outro modelo.'],
+        [/\b40[13]\b|chave|api key|unauthorized|sem permiss/i, 'A chave parece inválida ou sem permissão. Confira em Configurações > Chaves de API.'],
+        [/\b402\b|saldo|credit|pollen|quota/i, 'Acabou o saldo desse provedor. Escolha um modelo grátis ou outro provedor.'],
+        [/plan|plano|upgrade/i, 'O seu plano não cobre esse modelo. Escolha outro da lista.'],
+        [/n[aã]o respondeu|timed out|timeout|sem conex|parou de responder|fora do ar/i, 'O provedor não respondeu. Ele pode estar fora do ar: tente outro modelo.'],
+        [/vazio|empty/i, 'O provedor respondeu vazio. Tente de novo ou troque de modelo.'],
+    ];
+    const seenKey = 'lume_pet_tips';
+    const seen = () => { try { return JSON.parse(localStorage.getItem(seenKey) || '{}'); } catch (e) { return {}; } };
+    const remember = (sig, tip) => { try { const o = seen(), ks = Object.keys(o); if (ks.length > 80) delete o[ks[0]]; o[sig] = tip; localStorage.setItem(seenKey, JSON.stringify(o)); } catch (e) { /* sem armazenamento */ } };
+    const sigOf = e => String(e).toLowerCase().replace(/https?:\/\/\S+/g, '').replace(/[0-9a-f]{8,}/g, '').replace(/\d+/g, '#').replace(/\s+/g, ' ').slice(0, 90);
+    function pickModel(failed) {   // "automatico": um modelo que nao seja o que falhou, de preferencia gratis e de outro provedor
+        if (cfg.model) { const m = window.lumeModelById && lumeModelById(cfg.model); if (m) return m; }
+        const all = (window.lumeModels ? lumeModels() : []).filter(m => m.id !== (failed && failed.id) && !m.heavy && !m.phone);
+        const prov = m => { try { return provKey(m); } catch (e) { return ''; } }, fp = failed ? prov(failed) : '';
+        const score = m => (prov(m) !== fp ? 4 : 0) + (m.free ? 2 : 0) + (m.cloud || m.pol || m.or || m.groq || m.x ? 1 : 0);
+        return all.sort((a, b) => score(b) - score(a))[0] || null;
+    }
+    async function tipFor(err, failed) {
+        const k = KNOWN.find(([re]) => re.test(err)); if (k) return k[1];
+        const sig = sigOf(err), s = seen(); if (s[sig]) return s[sig];
+        const m = pickModel(failed); if (!m || !window.lumeAsk) return T('Não conheço esse erro ainda. Tente de novo ou escolha outro modelo.');
+        const tip = await lumeAsk({ model: m, timeoutMs: 40000, system: 'Você é ' + cfg.name + ', o mascote simpático do Lume (um app de chat com IA). Explique em NO MÁXIMO duas frases curtas o que provavelmente causou o erro abaixo e dê UMA ação concreta (trocar de modelo, conferir a chave, esperar, tentar de novo). Responda em português, sem markdown, sem lista.', user: 'Erro: ' + err + '\nModelo que falhou: ' + (failed ? (failed.label || failed.id) : '?') });
+        const clean = String(tip || '').replace(/\s+/g, ' ').trim().slice(0, 320); if (!clean) throw new Error('vazio'); remember(sig, clean); return clean;
+    }
+    function showTip(div, text, thinking) {
+        let card = div.querySelector(':scope > .lp-tip');
+        if (!card) { card = document.createElement('div'); card.className = 'lp-tip'; const ic = document.createElement('div'); ic.className = 'lp-tip-ic'; make(ic); const body = document.createElement('div'); body.className = 'lp-tip-body'; card.append(ic, body); div.appendChild(card); }
+        const body = card.querySelector('.lp-tip-body'); body.textContent = '';
+        const t = document.createElement('div'); t.className = 'lp-tip-text'; t.textContent = thinking ? T('Deixa eu ver o que houve…') : text; body.appendChild(t);
+        if (!thinking) {
+            const row = document.createElement('div'); row.className = 'lp-tip-row';
+            const sw = document.createElement('button'); sw.type = 'button'; sw.className = 'btn btn-secondary'; sw.textContent = T('Tentar com outro modelo'); sw.onclick = () => { if (typeof regenMenu === 'function') regenMenu(div, sw); };
+            const x = document.createElement('button'); x.type = 'button'; x.className = 'btn btn-secondary'; x.textContent = T('Fechar'); x.onclick = () => card.remove(); row.append(sw, x); body.appendChild(row);
+        }
+        return card;
+    }
+    window.lumePetOnReply = async function (div, failedModel) {
+        if (!cfg.tips || !div) return;
+        const span = div.querySelector('.final-text'), txt = span ? (span.innerText || span.textContent || '') : '';
+        const m = txt.match(/\[(?:Erro|Error):\s*([^\]]+)\]/); if (!m) return;
+        const err = m[1].trim(); showTip(div, '', true);
+        try { showTip(div, await tipFor(err, failedModel), false); } catch (e) { showTip(div, T('Não consegui descobrir o que houve. Tente de novo ou escolha outro modelo.'), false); }
+    };
+    window.lumeTipDemo = div => { div.innerHTML = '<div class="final-text">[Erro: Provedor X respondeu 599: bad gateway kaboom-42]</div>'; window.lumePetOnReply(div, null); };
     window.lumePet = { openSettings, get config() { return cfg; }, say, setMood: flash };
     addEventListener('resize', () => { if (root) place(); });
     const start = () => { build(); initAv(); repaintAll(); if (cfg.on) setTimeout(() => say(T('Oi, eu sou {n}!').replace('{n}', cfg.name), 2600), 1800); };

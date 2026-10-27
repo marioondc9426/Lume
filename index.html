@@ -3952,6 +3952,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 const credits = active.xp === 'vd' && lastStats ? Math.round((active.credBase || 0) + (lastStats.prompt_tokens || 0) * (active.credIn || 0) + (lastStats.tokens || 0) * (active.credOut || 0)) : 0;
                 const usd = active.xp === 'tk' && lastStats ? (lastStats.prompt_tokens || 0) * (active.credIn || 0) + (lastStats.tokens || 0) * (active.credOut || 0) : 0;
                 if (window.lumeAutoRead) lumeAutoRead(aiDiv);
+                if (window.lumePetOnReply) lumePetOnReply(aiDiv, active);
                 const tg = aiDiv.querySelector('.msg-tag'); if (tg) { setTagTps(tg, tps); setTagCost(tg, pollen, credits, usd); } if (active.xp === 'vd') refreshVdCredits(true); if (active.xp === 'tk') refreshTkUsage(true);
                 if (chats[chatId]) {   // o chat pode ter sido apagado enquanto a IA respondia
                     const facts = !isCode && config.memorySuggest !== false ? memFacts(fullResponse) : [];
@@ -5372,6 +5373,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
     <script src="libs/chess.min.js"></script>
     <script src="libs/chess-pieces.js"></script>
     <script src="libs/lume-ui.js"></script>
+    <script src="libs/lume-ask.js"></script>
     <script src="libs/lume-voice.js"></script>
     <script src="libs/lume-providers.js"></script>
     <script src="libs/lume-chess.js"></script>
