@@ -287,6 +287,22 @@ async function* sseChat(resp, t0, errMap, firstMs, idleMs) {
         yield ['stats', { tokens: usage.completion_tokens, seconds: gen, buffered: gen === total, limits: null, prompt_tokens: usage.prompt_tokens || 0, prompt_seconds: first ? first - t0 : 0, load_seconds: 0, total_seconds: total }];
     }
 }
+// ---- voz (Pollinations): STT = fala -> texto, TTS = texto -> fala
+const STT_MODELS = ['openai/whisper-large-v3', 'openai/gpt-transcribe', 'microsoft/mai-transcribe-2'], TTS_MODELS = ['openai/tts-1', 'openai/tts-1-hd', 'microsoft/mai-voice-2.1', 'microsoft/mai-voice-2.1-flash'];
+const POL_AUDIO_FAIL = { 401: 'Chave do Pollinations invalida (401).', 402: 'Saldo de pollen insuficiente (402).', 403: 'A chave do Pollinations nao tem permissao (403).', 429: 'Limite do Pollinations atingido (429). Espere um pouco.' };
+async function polAudioPost(path, body, contentType) {
+    const cfg = await loadConfig(), keys = [...new Set([(cfg.pollinations_api_key || '').trim()].concat(String(cfg.pollinations_api_key_backup || '').split(/[\s,;]+/)).filter(Boolean))];
+    if (!keys.length) throw new Error('Voz precisa da chave do Pollinations (Configuracoes > Chaves de API).');
+    let last = null;
+    for (const k of keys) {
+        const headers = { Authorization: 'Bearer ' + k }; if (contentType) headers['Content-Type'] = contentType;
+        const r = await fetchT(POL_API + path, { method: 'POST', headers, body }, 60000, 'O Pollinations');
+        if (r.ok) return r;
+        const { msg } = await errMsg(r, 200); last = new Error(POL_AUDIO_FAIL[r.status] || ('Pollinations respondeu ' + r.status + ': ' + msg));
+        if (![401, 402, 403, 429].includes(r.status)) break;
+    }
+    throw last;
+}
 const toOai = messages => messages.map(m => (m.images && m.images.length && m.role === 'user')
     ? { role: 'user', content: [{ type: 'text', text: m.content }].concat(m.images.map(b => ({ type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + b } }))) }
     : { role: m.role, content: m.content });
@@ -640,6 +656,25 @@ const ROUTES = {
         } catch (e) { return json({ error: String(e.message || e) }, 400); }
     },
     'POST /api/chat': (u, b) => handleChat(b || {}),
+    'POST /api/tts': async (u, b) => {
+        try {
+            const text = String((b && b.text) || '').replace(/\s+/g, ' ').trim().slice(0, 4000); if (!text) return json({ error: 'Nada para falar.' }, 502);
+            const model = TTS_MODELS.includes(b.model) ? b.model : TTS_MODELS[0], voice = String(b.voice || '').replace(/[^\w-]/g, '').slice(0, 40) || (model.startsWith('openai/') ? 'nova' : 'pt-BR-Luana');
+            const r = await polAudioPost('/v1/audio/speech', JSON.stringify({ model, input: text, voice, response_format: 'mp3' }), 'application/json');
+            return new Response(await r.blob(), { status: 200, headers: { 'Content-Type': 'audio/mpeg' } });
+        } catch (e) { return json({ error: String(e.message || e).slice(0, 200) }, 502); }
+    },
+    'POST /api/stt': async (u, b) => {
+        try {
+            const bin = atob(String((b && b.audio) || '')), bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            if (!bytes.length) return json({ error: 'Audio vazio.' }, 502);
+            const mime = String(b.mime || 'audio/webm').split(';')[0].replace(/[^\w/+.-]/g, '') || 'audio/webm', ext = { 'audio/mp4': 'm4a', 'audio/mpeg': 'mp3', 'audio/ogg': 'ogg', 'audio/wav': 'wav', 'audio/x-wav': 'wav', 'audio/webm': 'webm' }[mime] || 'webm';
+            const fd = new FormData(); fd.append('model', STT_MODELS.includes(b.model) ? b.model : STT_MODELS[0]); const lang = String(b.lang || '').replace(/[^a-zA-Z-]/g, '').slice(0, 8); if (lang) fd.append('language', lang);
+            fd.append('file', new Blob([bytes], { type: mime }), 'fala.' + ext);
+            const j = await (await polAudioPost('/v1/audio/transcriptions', fd, null)).json();
+            return json({ text: String(j.text || '').trim() });
+        } catch (e) { return json({ error: String(e.message || e).slice(0, 200) }, 502); }
+    },
     'POST /api/stop': (u, b) => { const rid = String((b && b.rid) || ''); if (rid) { stops[rid] && stops[rid].abort(); } else Object.values(stops).forEach(c => c.abort()); return json({ ok: true }); },
     'GET /api/models_status': async () => {
         const cfg = await loadConfig(), base = (cfg.ollama_url || '').trim().replace(/\/+$/, '');

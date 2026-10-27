@@ -6,6 +6,9 @@ Como numerar:
 - O número fica em `VERSION` no topo do `app.py` e aparece em Configurações > Atualizações.
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
+## v4.0 (em desenvolvimento)
+- **Voz (STT e TTS pelo Pollinations):** botão de **microfone** ao lado do enviar (grava, transcreve e coloca o texto na caixa; opção de enviar sozinho) e botão de **alto-falante** em cada resposta (e opção de ler tudo sozinho). Em Configurações > Geral você escolhe o modelo de fala→texto (Whisper large v3, GPT Transcribe, MAI Transcribe 2), o idioma, o modelo de texto→fala (OpenAI TTS-1, TTS-1 HD, MAI Voice 2.1 e Flash) e a voz (as OpenAI e dezenas de vozes MAI em pt-BR, pt-PT, en, es, fr, de, it). Gasta pollen da sua chave (com chaves de reserva). No iPhone o microfone depende do app novo e de o WebKit liberar a gravação no app.
+
 ## v3.1.01
 - **Linux funcionando:** o binário da 3.1 abortava ao abrir (o Qt embutido não achava o EGL do sistema); agora roda sem GPU e abre em qualquer máquina (`LUME_GPU=1` desliga isso). A janela usa o modo X11, porque no Wayland puro não dá para arrastar a janela sem moldura. Testado em CachyOS com KDE Plasma: abrir, arrastar, maximizar, restaurar e redimensionar funcionam.
 - **AppImage:** o workflow do Linux também gera `Lume-x86_64.AppImage` (baixe, `chmod +x` e abra com duplo clique); ele vai para a Release.

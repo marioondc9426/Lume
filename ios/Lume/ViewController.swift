@@ -208,6 +208,12 @@ class ViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, WKSc
     }
 
     // alert / confirm / prompt do JavaScript
+    // microfone (botao de falar do chat): o iOS ja pergunta ao usuario na primeira vez (NSMicrophoneUsageDescription); aqui so liberamos para a propria pagina do app
+    @available(iOS 15.0, *)
+    func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin, initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType, decisionHandler: @escaping (WKPermissionDecision) -> Void) {
+        decisionHandler(.grant)
+    }
+
     func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
         let a = UIAlertController(title: nil, message: message, preferredStyle: .alert)
         a.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler() })

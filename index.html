@@ -1125,6 +1125,7 @@
 
                 <span id="cost-est" style="display:none"></span>
                 <textarea id="prompt" rows="1" placeholder="Digite... (Shift+Enter quebra a linha, / para comandos)" autocomplete="off"></textarea>
+                <button class="btn btn-secondary mic-btn" id="mic-btn" type="button" onclick="lumeMic()" title="Falar (microfone)"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
                 <button class="btn btn-primary send-circle" id="send-btn" onclick="onSendClick()" title="Enviar"><img class="ic" id="send-icon" src="icons/send-horizontal.png"></button>
             </div>
         </div>
@@ -1174,6 +1175,21 @@
         <div class="form-group">
             <label>Idioma / Language</label>
             <select id="opt-lang" onchange="setLang(this.value)"><option value="pt">Português (Brasil)</option><option value="en">English</option></select>
+        </div>
+        <div class="form-group" id="voice-stt">
+            <label>Microfone (fala → texto)</label>
+            <select id="opt-stt-model"></select>
+            <select id="opt-stt-lang"></select>
+            <label class="toggle-container"><input type="checkbox" id="opt-stt-send"><div class="toggle-switch"></div> Enviar sozinho depois de transcrever</label>
+            <span class="hint">Pelo Pollinations (gasta pollen da sua chave). O botão do microfone fica ao lado do enviar; clique para gravar e de novo para parar (Esc cancela).</span>
+        </div>
+        <div class="form-group" id="voice-tts">
+            <label>Voz da IA (ler em voz alta)</label>
+            <select id="opt-tts-model"></select>
+            <select id="opt-tts-voice"></select>
+            <label class="toggle-container"><input type="checkbox" id="opt-tts-auto"><div class="toggle-switch"></div> Ler as respostas em voz alta sozinho</label>
+            <div class="srv-actions"><button class="btn btn-secondary" type="button" onclick="lumeVoiceTest()">Testar a voz</button></div>
+            <span class="hint">Cada resposta tem um botão de alto-falante. As vozes "MAI" têm sotaques e idiomas (pt-BR, en-US, es...); as "OpenAI" falam bem vários idiomas.</span>
         </div>
 
         <div class="section-title host-only">Chaves de API</div>
@@ -1808,6 +1824,11 @@
             'não roda neste celular': 'will not run on this phone', 'apertado para este celular': 'tight for this phone', 'baixando': 'downloading', 'Não consegui carregar {m}: {e}': 'Could not load {m}: {e}', 'Baixando/carregando o modelo no celular... {p}%': 'Downloading/loading the model on the phone... {p}%',
             'Não consegui carregar a lista de modelos do celular (sem internet?).': 'Could not load the phone model list (no internet?).', 'Copiar mensagem': 'Copy message', 'Copiar pergunta e resposta': 'Copy question and answer', 'Usuário': 'User', 'Resposta': 'Answer', 'Mostrar mais': 'Show more', 'Mostrar menos': 'Show less', '\n\nFORMATAÇÃO: use Markdown só se quiser. Para emojis escreva o código entre dois-pontos, como :fire: ou :skull: (nunca só a palavra). Para setas e símbolos use o caractere Unicode direto (→ ≈ ✓ ≠), sem LaTeX.': '\n\nFORMATTING: use Markdown only if you want to. For emojis write the code between colons, like :fire: or :skull: (never just the word). For arrows and symbols use the Unicode character directly (→ ≈ ✓ ≠), no LaTeX.', 'Versão desatualizada: você usa a v{a} e já existe a v{b}.': 'Outdated version: you are on v{a} and v{b} is available.', 'Versão desatualizada: há {n} atualização(ões) nova(s).': 'Outdated version: {n} new update(s) available.', 'Depois': 'Later', 'Esconder os avisos de VRAM na janela (continuam aparecendo no terminal)': 'Hide VRAM warnings in the window (they still show in the terminal)', 'Roda na nuvem (precisa de internet)': 'Runs in the cloud (needs internet)', 'Funciona sem internet': 'Works offline', 'Roda no seu PC': 'Runs on your PC',
             'Usar o contexto máximo de cada modelo': 'Use the maximum context of each model', 'Código': 'Code', 'Copiar': 'Copy', 'Copiado ✓': 'Copied ✓',
+            'Microfone (fala → texto)': 'Microphone (speech → text)', 'Voz da IA (ler em voz alta)': 'AI voice (read aloud)', 'Enviar sozinho depois de transcrever': 'Send automatically after transcribing', 'Ler as respostas em voz alta sozinho': 'Read replies aloud automatically', 'Testar a voz': 'Test the voice', 'Ler em voz alta': 'Read aloud', 'Falar (microfone)': 'Speak (microphone)',
+            'Pelo Pollinations (gasta pollen da sua chave). O botão do microfone fica ao lado do enviar; clique para gravar e de novo para parar (Esc cancela).': 'Through Pollinations (spends pollen from your key). The microphone button sits next to send; click to record and again to stop (Esc cancels).',
+            'Cada resposta tem um botão de alto-falante. As vozes "MAI" têm sotaques e idiomas (pt-BR, en-US, es...); as "OpenAI" falam bem vários idiomas.': 'Every reply has a speaker button. "MAI" voices have accents and languages (pt-BR, en-US, es...); "OpenAI" voices handle many languages well.',
+            'Whisper large v3 (padrão)': 'Whisper large v3 (default)', 'OpenAI TTS-1 (rápido)': 'OpenAI TTS-1 (fast)', 'OpenAI TTS-1 HD (mais natural)': 'OpenAI TTS-1 HD (more natural)', 'Automático': 'Automatic', 'Parar de gravar': 'Stop recording', 'Transcrevendo...': 'Transcribing...',
+            'Este aparelho não deixa gravar áudio aqui.': 'This device does not allow recording audio here.', 'Sem permissão para usar o microfone.': 'No permission to use the microphone.', 'Não entendi o áudio. Tente de novo.': 'I could not understand the audio. Try again.', 'Não consegui transcrever: ': 'Could not transcribe: ', 'Não consegui falar: ': 'Could not speak: ', 'Olá! Esta é a voz que você escolheu.': 'Hello! This is the voice you chose.',
             'Bug ou sugestão': 'Bug or suggestion', 'Abrir os modelos de issue no GitHub': 'Open the issue templates on GitHub', 'Abre a página do GitHub com dois formulários prontos: um para relatar um bug e outro para sugerir uma ideia.': 'Opens the GitHub page with two ready forms: one to report a bug and one to suggest an idea.', 'Opções': 'Options', 'Mais': 'More', 'Voltar ao canto': 'Back to the corner',
             'Com isso ligado, cada modelo usa tudo o que suporta (ex.: 256K) e o valor acima é ignorado. Cuidado: contextos enormes ocupam MUITA VRAM e deixam tudo mais lento.': 'When on, each model uses everything it supports (e.g. 256K) and the value above is ignored. Careful: huge contexts take A LOT of VRAM and slow everything down.', 'Salvar': 'Save', 'Atualizações': 'Updates', 'Verificar atualizações': 'Check for updates', 'Atualizar agora': 'Update now',
             'Avisar quando houver versão nova ao abrir o app': 'Notify me when a new version is available at startup', 'Verificando...': 'Checking...', 'Atualizando...': 'Updating...',
@@ -3140,6 +3161,7 @@
                 const act = (icon, glyph, title, fn) => { const btn = document.createElement('button'); btn.className = 'copy-btn'; btn.type = 'button'; btn.title = tr(title); btn.innerHTML = glyph ? `<span class="glyph">${glyph}</span>` : `<img class="ic" src="icons/${icon}">`; btn.onclick = () => fn(btn); bar.appendChild(btn); };
                 if (role === 'user') act('pen-line.png', '', 'Editar e reenviar', () => startEdit(div));
                 if (role === 'ai') act(null, '↻', 'Regenerar a resposta', btn => regenMenu(div, btn));
+                if (role === 'ai' && window.lumeSpeakBtn) act(null, '<svg class="spk" viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4zM15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>', 'Ler em voz alta', btn => lumeSpeakBtn(div, btn));
                 act('trash.png', '', 'Apagar esta mensagem', () => deleteMessage(div));
                 div.appendChild(bar);
                 if (opts.vars && opts.vars.length > 1) div.appendChild(varNav(div, opts.vars.length, opts.vi || 0));
@@ -3927,6 +3949,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 const pollen = active.pol && !active.free && lastStats ? ((lastStats.prompt_tokens || 0) * (active.priceIn || 0) + (lastStats.tokens || 0) * (active.priceOut || 0)) / 1e6 : 0;   // quanto esta mensagem gastou (estimado pelos tokens)
                 const credits = active.xp === 'vd' && lastStats ? Math.round((active.credBase || 0) + (lastStats.prompt_tokens || 0) * (active.credIn || 0) + (lastStats.tokens || 0) * (active.credOut || 0)) : 0;
                 const usd = active.xp === 'tk' && lastStats ? (lastStats.prompt_tokens || 0) * (active.credIn || 0) + (lastStats.tokens || 0) * (active.credOut || 0) : 0;
+                if (window.lumeAutoRead) lumeAutoRead(aiDiv);
                 const tg = aiDiv.querySelector('.msg-tag'); if (tg) { setTagTps(tg, tps); setTagCost(tg, pollen, credits, usd); } if (active.xp === 'vd') refreshVdCredits(true); if (active.xp === 'tk') refreshTkUsage(true);
                 if (chats[chatId]) {   // o chat pode ter sido apagado enquanto a IA respondia
                     const facts = !isCode && config.memorySuggest !== false ? memFacts(fullResponse) : [];
@@ -4028,7 +4051,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             $('code-prompt-input').value = sysPrompt(true);
             $('opt-bgspeed').value = config.bgSpeed == null ? 4 : config.bgSpeed; $('opt-bgspeed-val').textContent = +$('opt-bgspeed').value ? $('opt-bgspeed').value + '/10' : 'parado';
             $('opt-lang').value = curLang(); $('opt-anim').checked = config.animations !== false; $('opt-hidevram').checked = config.hideVramWarn !== false;
-            $('opt-ctx').value = String(config.numCtx); $('opt-maxctx').checked = !!config.maxCtx; $('opt-ctx').disabled = !!config.maxCtx; $('opt-ctxdiv').checked = !!config.ctxDivide; $('opt-ctxdiv-num').value = config.ctxDivisor || 4; ctxDivUi(true); $('opt-ctxbar').checked = config.showCtxBar; $('opt-web').checked = config.webSearch; applyWinBtn(); $('opt-legacy').checked = !!config.uiLegacy; $('opt-themelayout').checked = config.themeLayout !== false; $('opt-star').checked = config.starToDot; $('opt-autostop').checked = config.autoStopPrev;
+            $('opt-ctx').value = String(config.numCtx); $('opt-maxctx').checked = !!config.maxCtx; $('opt-ctx').disabled = !!config.maxCtx; $('opt-ctxdiv').checked = !!config.ctxDivide; $('opt-ctxdiv-num').value = config.ctxDivisor || 4; ctxDivUi(true); $('opt-ctxbar').checked = config.showCtxBar; $('opt-web').checked = config.webSearch; if (window.lumeVoiceLoad) lumeVoiceLoad(); applyWinBtn(); $('opt-legacy').checked = !!config.uiLegacy; $('opt-themelayout').checked = config.themeLayout !== false; $('opt-star').checked = config.starToDot; $('opt-autostop').checked = config.autoStopPrev;
             $('perf-enabled').checked = config.perfEnabled; $('opt-autoupd').checked = config.autoUpdate !== false;
             $('perf-style').value = config.perfStyle;
             if (auth.local) checkUpdates(false);
@@ -4226,7 +4249,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
         async function saveSettings() {
             config.systemPrompt = $('system-prompt-input').value;
             config.codePrompt = $('code-prompt-input').value || CODE_PROMPT_DEFAULT;
-            config.numCtx = +$('opt-ctx').value; config.maxCtx = $('opt-maxctx').checked; config.ctxDivide = $('opt-ctxdiv').checked; config.ctxDivisor = Math.min(1000, Math.max(1, parseFloat($('opt-ctxdiv-num').value) || 4)); config.showCtxBar = $('opt-ctxbar').checked; config.webSearch = $('opt-web').checked; config.starToDot = $('opt-star').checked; config.autoStopPrev = $('opt-autostop').checked;
+            config.numCtx = +$('opt-ctx').value; config.maxCtx = $('opt-maxctx').checked; config.ctxDivide = $('opt-ctxdiv').checked; config.ctxDivisor = Math.min(1000, Math.max(1, parseFloat($('opt-ctxdiv-num').value) || 4)); config.showCtxBar = $('opt-ctxbar').checked; config.webSearch = $('opt-web').checked; if (window.lumeVoiceSave) lumeVoiceSave(); config.starToDot = $('opt-star').checked; config.autoStopPrev = $('opt-autostop').checked;
             saveState();
             if (auth.local) {
                 const body = { workdir: $('workdir-input').value.trim(), auto_allow: $('opt-autoallow').checked, search_provider: $('opt-provider').value, exa_type: $('opt-exatype').value };
@@ -5347,6 +5370,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
     <script src="libs/chess.min.js"></script>
     <script src="libs/chess-pieces.js"></script>
     <script src="libs/lume-ui.js"></script>
+    <script src="libs/lume-voice.js"></script>
     <script src="libs/lume-chess.js"></script>
     <script src="libs/lume-pet.js"></script>
 </body>

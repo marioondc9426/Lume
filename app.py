@@ -2229,6 +2229,51 @@ KEY_FIELDS = tuple((p + ":", v[0]) for p, v in X_PROVIDERS.items()) + (("pol:", 
 _bad_keys = {}   # chave -> ate quando evitar (ela falhou por saldo/limite/invalida)
 KEY_FAIL_RE = re.compile(r"\b(401|402|403|429)\b|chave|saldo|pollen|credit|quota|limite|api key|unauthorized", re.I)
 
+# ---------------------------------------------------------------- voz (Pollinations): STT = fala -> texto, TTS = texto -> fala
+STT_MODELS = ("openai/whisper-large-v3", "openai/gpt-transcribe", "microsoft/mai-transcribe-2")
+TTS_MODELS = ("openai/tts-1", "openai/tts-1-hd", "microsoft/mai-voice-2.1", "microsoft/mai-voice-2.1-flash")
+POL_AUDIO_FAIL = {401: "Chave do Pollinations invalida (401).", 402: "Saldo de pollen insuficiente (402).", 403: "A chave do Pollinations nao tem permissao (403).", 429: "Limite do Pollinations atingido (429). Espere um pouco."}
+
+def pol_audio_post(path, body, content_type, cfg, timeout=60):
+    """POST de audio no Pollinations com a chave principal e, se ela falhar (invalida, sem saldo, limite), as de reserva. Devolve (bytes, content-type)."""
+    keys = list(dict.fromkeys(k for k in [(cfg.get("pollinations_api_key") or "").strip()] + backup_keys(cfg, "pollinations_api_key") if k))
+    if not keys: raise Exception("Voz precisa da chave do Pollinations (Configuracoes > Chaves de API).")
+    last = None
+    for k in keys:
+        req = urllib.request.Request(POL_API + path, data=body, headers={"Authorization": "Bearer " + k, "Content-Type": content_type, "User-Agent": "lume-app"})
+        try:
+            with _cloud_open(req, "O Pollinations", timeout=timeout) as r: return r.read(), r.headers.get("Content-Type", "")
+        except urllib.error.HTTPError as e:
+            msg = e.read().decode("utf-8", "replace")[:200]
+            try: msg = str((json.loads(msg).get("error") or {}).get("message") or msg)[:200]
+            except (ValueError, AttributeError): pass
+            last = Exception(POL_AUDIO_FAIL.get(e.code) or f"Pollinations respondeu {e.code}: {msg}")
+            if e.code not in (401, 402, 403, 429): break
+    raise last
+
+def pol_tts(text, opts, cfg):
+    """Texto -> audio mp3. opts: model (TTS_MODELS), voice. Devolve (bytes, mime)."""
+    text = re.sub(r"\s+", " ", str(text or "")).strip()[:4000]
+    if not text: raise Exception("Nada para falar.")
+    model = opts.get("model") if opts.get("model") in TTS_MODELS else TTS_MODELS[0]
+    voice = re.sub(r"[^\w\-]", "", str(opts.get("voice") or ""))[:40] or ("nova" if model.startswith("openai/") else "pt-BR-Luana")
+    data, mime = pol_audio_post("/v1/audio/speech", json.dumps({"model": model, "input": text, "voice": voice, "response_format": "mp3"}).encode("utf-8"), "application/json", cfg)
+    return data, ("audio/mpeg" if "audio" not in mime else mime)
+
+def pol_stt(audio, mime, opts, cfg):
+    """Audio gravado -> texto. opts: model (STT_MODELS), lang (pt, en...)."""
+    if not audio: raise Exception("Audio vazio.")
+    model = opts.get("model") if opts.get("model") in STT_MODELS else STT_MODELS[0]
+    lang = re.sub(r"[^a-zA-Z\-]", "", str(opts.get("lang") or ""))[:8]
+    mime = re.sub(r"[^\w/+.\-]", "", str(mime or "audio/webm").split(";")[0]) or "audio/webm"
+    ext = {"audio/mp4": "m4a", "audio/mpeg": "mp3", "audio/ogg": "ogg", "audio/wav": "wav", "audio/x-wav": "wav", "audio/webm": "webm"}.get(mime, "webm")
+    b = uuid.uuid4().hex; parts = [f'--{b}\r\nContent-Disposition: form-data; name="model"\r\n\r\n{model}\r\n'.encode()]
+    if lang: parts.append(f'--{b}\r\nContent-Disposition: form-data; name="language"\r\n\r\n{lang}\r\n'.encode())
+    parts += [f'--{b}\r\nContent-Disposition: form-data; name="file"; filename="fala.{ext}"\r\nContent-Type: {mime}\r\n\r\n'.encode() + audio + b"\r\n", f"--{b}--\r\n".encode()]
+    data, _ = pol_audio_post("/v1/audio/transcriptions", b"".join(parts), "multipart/form-data; boundary=" + b, cfg)
+    try: return str(json.loads(data).get("text") or "").strip()
+    except ValueError: raise Exception("Resposta estranha do Pollinations ao transcrever.")
+
 def backup_keys(cfg, field):
     """Chaves de reserva (campo <chave>_backup: uma por linha ou separadas por virgula)."""
     return [k for k in re.split(r"[\s,;]+", str(cfg.get(field + "_backup") or "")) if k]
@@ -2876,6 +2921,14 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             try: res = import_accounts(data.get("data"))
             except ValueError as e: return self.send_json({"error": str(e)}, 400)
             log("CONTA", f"Importadas {len(res)} conta(s) de um arquivo", COLOR_GREEN); return self.send_json({"ok": True, "imported": res})
+        if p == '/api/tts':
+            try: audio, mime = pol_tts(data.get("text"), data, load_config())
+            except Exception as e: return self.send_json({"error": str(e)[:200]}, 502)
+            self.send_response(200); self.send_header('Content-Type', mime); self.send_header('Content-Length', str(len(audio))); self.end_headers(); self.wfile.write(audio); return
+        if p == '/api/stt':
+            try: text = pol_stt(base64.b64decode(str(data.get("audio") or ""), validate=False), data.get("mime"), data, load_config())
+            except Exception as e: return self.send_json({"error": str(e)[:200]}, 502)
+            return self.send_json({"text": text})
         if p == '/api/pol_effort_probe':
             try: levels, source = probe_pol_efforts(str(data.get("model") or ""), load_config())
             except Exception as e: return self.send_json({"error": str(e)[:200]})
