@@ -11,7 +11,7 @@ Só usa a biblioteca padrão do Python. Os dados ficam em `feedback.db` (SQLite)
 
 - **Senha do dashboard:** variável `FEEDBACK_PASSWORD`; se não tiver, o servidor gera uma na primeira vez, mostra no terminal e guarda em `feedback_password.txt`.
 - **Chave de envio (opcional):** se `FEEDBACK_KEY` existir, o app precisa mandar o mesmo valor (campo `key` em `~/.lume-feedback.json`).
-- Limites: 10 envios por hora por IP, mensagem até 5000 caracteres, captura de tela PNG/JPEG até 1,5 MB, 5 senhas erradas = espera de 1 minuto.
+- Limites: 10 envios por hora por IP (mude com `--rate N`; `--rate 0` = sem limite), mensagem até 5000 caracteres, captura de tela PNG/JPEG até 1,5 MB, 5 senhas erradas = espera de 1 minuto.
 - **Dashboard** (`/dashboard`): lista com busca e filtros por categoria e status, detalhe com a captura de tela, marcar novo/lido/resolvido, apagar e exportar CSV. O texto é sempre mostrado como texto (nada que o usuário escreva vira HTML).
 
 ## Onde hospedar

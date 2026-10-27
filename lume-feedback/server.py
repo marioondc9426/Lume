@@ -33,6 +33,7 @@ MAX_SHOT = 1_500_000              # captura de tela (bytes, ja decodificada)
 CATS = ("bug", "sugestao", "outro")
 STATUS = ("novo", "lido", "resolvido")
 _lock = threading.Lock()
+RATE = int(os.environ.get("FEEDBACK_RATE") or 10)   # envios por hora por IP (0 = sem limite; --rate 0)
 _hits = {}          # ip -> horarios dos ultimos envios (limite por hora)
 _login_fail = {}    # ip -> (falhas, ate quando bloqueado)
 _sessions = {}      # token -> expira em
@@ -150,7 +151,7 @@ class H(BaseHTTPRequestHandler):
             key = os.environ.get("FEEDBACK_KEY")
             if key and not hmac.compare_digest(str(self.headers.get("X-Feedback-Key") or ""), key): return self.send(401, {"error": "chave de envio invalida"})
             now = time.time(); hits = [t for t in _hits.get(self.ip(), []) if now - t < 3600]
-            if len(hits) >= 10: return self.send(429, {"error": "muitos envios; tente mais tarde"})
+            if RATE and len(hits) >= RATE: return self.send(429, {"error": "muitos envios; tente mais tarde"})
             f, err = validate(d)
             if err: return self.send(400, {"error": err})
             _hits[self.ip()] = hits + [now]
@@ -222,9 +223,10 @@ load().catch(()=>show(false));setInterval(()=>{if(!$('app').hidden)load().catch(
 
 
 def main():
+    global RATE
     ap = argparse.ArgumentParser(description="lume-feedback: servidor + dashboard")
-    ap.add_argument("--host", default="0.0.0.0"); ap.add_argument("--password", action="store_true", help="exige senha mesmo rodando so neste PC"); ap.add_argument("--no-password", action="store_true", help="nunca pede senha (so use em rede de confianca)"); ap.add_argument("--port", type=int, default=int(os.environ.get("PORT") or 8787))
-    a = ap.parse_args(); os.makedirs(DATA, exist_ok=True)
+    ap.add_argument("--host", default="0.0.0.0"); ap.add_argument("--password", action="store_true", help="exige senha mesmo rodando so neste PC"); ap.add_argument("--no-password", action="store_true", help="nunca pede senha (so use em rede de confianca)"); ap.add_argument("--rate", type=int, default=None, help="envios por hora por IP (padrao 10; 0 = sem limite)"); ap.add_argument("--port", type=int, default=int(os.environ.get("PORT") or 8787))
+    a = ap.parse_args(); RATE = RATE if a.rate is None else a.rate; os.makedirs(DATA, exist_ok=True)
     global NEED_PW
     local = a.host in ("127.0.0.1", "localhost", "::1")
     NEED_PW = a.password or not (a.no_password or local)
