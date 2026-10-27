@@ -4099,6 +4099,14 @@ def tray_quit():
 class WindowApi:
     def open_feedback(self):
         """Janela SEPARADA de feedback (fica por cima, nao bloqueia o app): da para testar o Lume e anotar ao mesmo tempo. Se ja esta aberta, so traz para a frente."""
+        if sys.platform.startswith("linux"):   # no Qt (Linux) uma 2a janela no MESMO processo trava a interface (CPU em 100%); la ela abre como um processo separado do Lume
+            try:
+                pr = getattr(self, "_fb_proc", None)
+                if pr is not None and pr.poll() is None: return True   # ja esta aberta
+                args = ([sys.executable] if FROZEN else [sys.executable, os.path.abspath(__file__)]) + ["--feedback-window", str(PORT), VERSION]
+                self._fb_proc = subprocess.Popen(args, env=dict(os.environ, PYINSTALLER_RESET_ENVIRONMENT="1"), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); return True
+            except Exception as e:
+                log("FEEDBACK", f"Nao consegui abrir a janela de feedback: {e}", COLOR_YELLOW); return False
         try:
             w = getattr(self, "_fb_win", None)
             if w is not None:
@@ -4157,6 +4165,11 @@ class WindowApi:
         self._window.destroy()
 
 if __name__ == '__main__':
+    if "--feedback-window" in sys.argv:   # processo so da janela de feedback (aberto pelo Lume no Linux): nao sobe servidor, so mostra a pagina do Lume que ja esta rodando
+        _i = sys.argv.index("--feedback-window")
+        webview.create_window("Lume Feedback", f"http://127.0.0.1:{int(sys.argv[_i + 1])}/feedback?v={urllib.parse.quote(sys.argv[_i + 2] if len(sys.argv) > _i + 2 else '')}", width=440, height=720, min_size=(360, 480))
+        webview.start(private_mode=True)
+        sys.exit(0)
     log("INICIO", f"Pasta do programa: {BASE_DIR}", COLOR_BLUE)
     PORT = int(_env("PORT") or load_config().get("port", PORT))
     if FROZEN and load_config().get("start_with_terminal"): set_terminal(True)
