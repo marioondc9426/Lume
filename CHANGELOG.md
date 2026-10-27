@@ -7,6 +7,7 @@ Como numerar:
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
 ## v4.0 (em desenvolvimento)
+- **Jogos com o modelo** (botão "Jogos" na lateral): **jogo da velha** (você é o X e o modelo joga de O), **forca** (o modelo escolhe a palavra e a dica) e **20 perguntas** (o modelo pensa em algo e responde Sim/Não/Talvez), além do xadrez, que continua no botão dele. Para criar outro jogo basta um item em `GAMES` no `libs/lume-games.js`.
 - **Comparar modelos** (botão na lateral): a mesma pergunta para 2 ou 3 modelos ao mesmo tempo, lado a lado, com o tempo e as palavras de cada um e botão de copiar (Ctrl+Enter compara).
 - **Busca de chats com filtros**, no próprio campo de pesquisa: `modelo:gemini`, `desde:2026-10-01`, `ate:2026-10-31`, `pasta:trabalho`, `fixado` e `tudo` (procura em todas as abas); o resto é texto, e dá para combinar (`bolo modelo:qwen desde:2026-10-01`). Fixados e pastas já existiam.
 - **Mascote com dicas de erro e modelo próprio:** quando uma resposta vem com "[Erro: ...]", o mascote aparece embaixo dela com uma dica e o botão **Tentar com outro modelo**. Erros conhecidos (limite, chave, saldo, plano, sem resposta, vazio) têm dica na hora; um erro **nunca visto** é explicado pelo modelo do mascote e a dica fica guardada, então o mesmo erro não gasta outro pedido. Em Configurações do mascote > Dicas de erro dá para ligar/desligar e **escolher o modelo do mascote** (ou deixar Automático: um modelo diferente do que falhou, de preferência grátis). Novo `libs/lume-ask.js` (`lumeAsk`) para qualquer painel perguntar a um modelo.
