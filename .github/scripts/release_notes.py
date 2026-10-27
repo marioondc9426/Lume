@@ -21,7 +21,7 @@ def section(tag):
 
 def body_for(tag):
     body = section(tag) or "Veja o CHANGELOG.md"
-    return body + "\n\n---\nFull changelog: https://github.com/" + REPO + "/blob/main/CHANGELOG.md\n"
+    return body + "\n\n---\nFull changelog: https://github.com/" + REPO + "/blob/main/CHANGELOG-EN.md (EN) · https://github.com/" + REPO + "/blob/main/CHANGELOG.md\n"
 
 
 if __name__ == "__main__":

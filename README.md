@@ -41,7 +41,6 @@ The code is fully open source: read it, change it, break it.
 
 **Accounts and sync**
 - Accounts without passwords (`accounts/<name>/` folders): separate chats and memories per person or per device. Export or import them as a `.json` file.
-- Optional PC sync for the iPhone app. Devices you mark as trusted (`trusted_devices.json`) get your chats, memories and API keys back from the PC.
 
 **Costs**
 - Pollinations pricing is shown per 1,000 tokens; while you type, a small estimate shows the tokens of your message and its likely cost in pollen. The stats page tracks real spending per model and per day.

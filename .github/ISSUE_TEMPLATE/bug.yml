@@ -1,0 +1,51 @@
+name: Bug / Bug report
+description: Algo não funciona direito / Something is broken
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Obrigado por avisar! Quanto mais detalhes, mais rápido eu acho o problema. / Thanks for reporting! The more detail, the faster I can find it.
+  - type: textarea
+    id: what
+    attributes:
+      label: O que aconteceu? / What happened?
+      description: Descreva o problema e o que você esperava que acontecesse. / Describe the problem and what you expected.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Como reproduzir / Steps to reproduce
+      placeholder: |
+        1. Abrir...
+        2. Clicar em...
+        3. Ver o erro
+  - type: dropdown
+    id: where
+    attributes:
+      label: Onde aconteceu? / Where?
+      options:
+        - PC (Lume.exe)
+        - PC (python app.py)
+        - iPhone (app)
+        - Navegador / Browser (acesso remoto)
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Versão / Version
+      description: Aparece em Configurações > Atualizações. / Shown in Settings > Updates.
+      placeholder: "3.1"
+  - type: input
+    id: model
+    attributes:
+      label: Modelo e provedor (se for o caso) / Model and provider (if relevant)
+      placeholder: "Gemini 3 Flash (VoidAI)"
+  - type: textarea
+    id: extra
+    attributes:
+      label: Prints, mensagem de erro, logs / Screenshots, error message, logs
+      description: Pode arrastar imagens para cá. NÃO cole chaves de API. / You can drag images here. Do NOT paste API keys.

@@ -67,13 +67,7 @@
         #lume-pet { position: fixed; z-index: 4400; touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab; } #lume-pet.drag { cursor: grabbing; } #lume-pet.hide { display: none; }
         #lume-pet .lp-bub { position: absolute; bottom: calc(100% + 8px); right: 0; max-width: 220px; white-space: nowrap; padding: 6px 12px; border-radius: 14px; background: var(--bg-input, #2a2a2e); color: var(--text-main, #eee); border: 1px solid var(--border-color, #444); font-size: 12.5px; box-shadow: 0 6px 18px rgba(0,0,0,.4); opacity: 0; transform: translateY(6px) scale(.96); transition: opacity .2s, transform .2s; pointer-events: none; } #lume-pet .lp-bub.on { opacity: 1; transform: none; }
         body.pet-av .msg.ai { padding-left: calc(var(--lp-avs, 30px) + 22px); } body.pet-av .msg.ai > .lp-av { position: absolute; left: 10px; top: 14px; width: var(--lp-avs, 30px); height: var(--lp-avs, 30px); cursor: pointer; }
-        #lp-modal { position: fixed; inset: 0; z-index: 6600; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.5); padding: 12px; }
-        #lp-modal .lp-card { width: min(420px, 100%); max-height: 100%; overflow: auto; background: var(--bg-main); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 20px 60px rgba(0,0,0,.55); }
-        #lp-modal h3 { margin: 0; } #lp-modal h4 { margin: 6px 0 0; font-size: .72em; letter-spacing: .1em; text-transform: uppercase; color: var(--text-muted); }
-        #lp-modal .lp-prev { flex: none; align-self: center; width: 110px; height: 110px; margin: 22px 0 10px; } #lp-modal .lp-row { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: .9em; } #lp-modal .lp-row > :last-child { flex: 0 1 200px; min-width: 0; }
-        #lp-modal input[type=text], #lp-modal select { width: 100%; } #lp-modal input[type=color] { width: 44px; height: 30px; padding: 0; border: 1px solid var(--border-color); border-radius: 8px; background: none; }
-        #lp-modal .lp-sw { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; } #lp-modal .lp-sw button { width: 22px; height: 22px; border-radius: 50%; border: 2px solid rgba(255,255,255,.25); cursor: pointer; padding: 0; }
-        #lp-modal .lp-btns { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; } #lp-modal .lp-btns .btn { margin: 0; }
+        .lp-prev { flex: none; align-self: center; width: 110px; height: 110px; margin: 14px 0 6px; }
     `;
     document.head.appendChild(css);
 
@@ -150,38 +144,30 @@
     // ---- janela de personalizacao (com previa ao vivo)
     function openSettings() {
         if (document.getElementById('lp-modal')) return;
-        const m = document.createElement('div'); m.id = 'lp-modal'; const card = document.createElement('div'); card.className = 'lp-card'; m.appendChild(card);
+        const U = window.LumeUI, w = U.modal({ title: 'Mascote', id: 'lp-modal', width: 430 });
         const apply = rebuild => { save(); if (rebuild) build(); repaintAll(); if (root) place(); scanAv(); };
-        const group = t => { const h = document.createElement('h4'); h.textContent = T(t); card.appendChild(h); };
-        const row = (label, el) => { const r = document.createElement('div'); r.className = 'lp-row'; const l = document.createElement('span'); l.textContent = T(label); r.append(l, el); card.appendChild(r); return r; };
-        const sel = (opts, val, fn) => { const s = document.createElement('select'); opts.forEach(([v, l]) => s.add(new Option(T(l), v))); s.value = val; s.onchange = () => fn(s.value); return s; };
-        const chk = (key, fn) => { const c = document.createElement('input'); c.type = 'checkbox'; c.checked = !!cfg[key]; c.onchange = () => { cfg[key] = c.checked; (fn || apply)(); }; return c; };
-        const rng = (key, min, max, fn) => { const r = document.createElement('input'); r.type = 'range'; r.min = min; r.max = max; r.value = cfg[key]; r.oninput = () => { cfg[key] = +r.value; (fn || apply)(); }; return r; };
-        const colorPick = (key, swatches) => { const c = document.createElement('input'); c.type = 'color'; c.value = cfg[key]; c.oninput = () => { cfg[key] = c.value; apply(); }; const w = document.createElement('div'); w.style.cssText = 'display:flex;flex-direction:column;gap:8px;align-items:flex-end'; const sw = document.createElement('div'); sw.className = 'lp-sw'; swatches.forEach(col => { const b = document.createElement('button'); b.type = 'button'; b.style.background = col; b.onclick = () => { cfg[key] = col; c.value = col; apply(); }; sw.appendChild(b); }); w.append(sw, c); return w; };
-        card.appendChild(Object.assign(document.createElement('h3'), { textContent: T('Mascote') }));
-        const prev = document.createElement('div'); prev.className = 'lp-prev'; card.appendChild(prev); const pv = make(prev); point(pv, 0, 0);
+        const tog = (sec, label, key, fn) => U.toggle(sec, label, cfg[key], v => { cfg[key] = v; (fn || apply)(); });
+        const rng = (key, min, max) => U.range(min, max, cfg[key], v => { cfg[key] = v; apply(); });
+        const sel = (key, opts) => U.select(opts, cfg[key], v => { cfg[key] = v; apply(); });
+        const prev = document.createElement('div'); prev.className = 'lp-prev'; w.card.insertBefore(prev, w.body); const pv = make(prev); point(pv, 0, 0);
         prev.addEventListener('pointermove', e => { const r = pv.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2), d = Math.hypot(dx, dy) || 1; point(pv, +(dx / d).toFixed(2), +(dy / d).toFixed(2)); });
-        group('Onde aparece');
-        row('Ao lado das respostas da IA', chk('avatar')); row('Flutuando na tela', chk('on')); row('Tamanho ao lado das respostas', rng('avSize', 22, 56));
-        row('Tamanho flutuando', rng('size', 40, 140)); row('Balões de fala', chk('bubble', save));
-        group('Rosto');
-        const nm = document.createElement('input'); nm.type = 'text'; nm.maxLength = 20; nm.value = cfg.name; nm.onchange = () => { cfg.name = nm.value.trim() || 'Lume'; if (root) root.title = cfg.name; save(); say(T('Oi, eu sou {n}!').replace('{n}', cfg.name)); }; row('Nome', nm);
-        row('Expressão', sel(EXPR, cfg.expr, v => { cfg.expr = v; apply(); }));
-        row('Olhos (formato)', sel([['oval', 'Ovais'], ['round', 'Redondos'], ['wide', 'Grandes'], ['dot', 'Pontinhos']], cfg.eyes, v => { cfg.eyes = v; apply(); }));
-        row('Cor dos olhos', colorPick('eyeColor', ['#ffffff', '#111111', '#ffd166', '#7dd3fc', '#86efac', '#f9a8d4']));
-        row('Bochechas rosadas', chk('blush')); row('Acessório', sel(ACC_NAMES, cfg.acc, v => { cfg.acc = v; apply(); }));
-        group('Corpo');
-        row('Cor', colorPick('color', ['#2f8bff', '#ee5a8a', '#8b5cf6', '#22c55e', '#f59e0b', '#ef4444', '#14b8a6', '#9ca3af', '#f5f5f5', '#222222']));
-        row('Estilo', sel([['orb', 'Bolha brilhante'], ['led', 'LED de pontinhos']], cfg.style, v => { cfg.style = v; apply(); }));
-        row('Formato', sel([['circle', 'Redondo'], ['wide', 'Achatado'], ['square', 'Quadrado arredondado'], ['drop', 'Gota'], ['ghost', 'Fantasminha']], cfg.shape, v => { cfg.shape = v; apply(); }));
-        row('Brilho (aura)', rng('glow', 0, 100));
-        group('Comportamento');
-        row('Olhos seguem o cursor', chk('follow', save)); row('Piscar', chk('blinking', save)); row('Balançar parado', chk('bob')); row('Reagir (pensar, comemorar, dormir)', chk('react'));
-        const btns = document.createElement('div'); btns.className = 'lp-btns';
-        const reset = document.createElement('button'); reset.type = 'button'; reset.className = 'btn btn-secondary'; reset.textContent = T('Restaurar'); reset.onclick = () => { cfg = Object.assign({}, DEF); save(); build(); repaintAll(); scanAv(); m.remove(); };
-        const pos = document.createElement('button'); pos.type = 'button'; pos.className = 'btn btn-secondary'; pos.textContent = T('Voltar ao canto'); pos.onclick = () => { cfg.x = cfg.y = null; apply(); };
-        const ok = document.createElement('button'); ok.type = 'button'; ok.className = 'btn btn-primary'; ok.textContent = T('Fechar'); ok.onclick = () => m.remove();
-        btns.append(reset, pos, ok); card.appendChild(btns); m.addEventListener('mousedown', e => { if (e.target === m) m.remove(); }); document.body.appendChild(m);
+        let s = U.section(w.body, 'Onde aparece', { open: true });
+        tog(s, 'Ao lado das respostas da IA', 'avatar'); tog(s, 'Flutuando na tela', 'on'); tog(s, 'Balões de fala', 'bubble', save);
+        U.row(s, 'Tamanho ao lado das respostas', rng('avSize', 22, 56)); U.row(s, 'Tamanho flutuando', rng('size', 40, 140));
+        s = U.section(w.body, 'Rosto', { open: true });
+        U.row(s, 'Nome', U.text(cfg.name, v => { cfg.name = v || 'Lume'; if (root) root.title = cfg.name; save(); say(T('Oi, eu sou {n}!').replace('{n}', cfg.name)); }, 20));
+        U.row(s, 'Expressão', sel('expr', EXPR)); U.row(s, 'Olhos', sel('eyes', [['oval', 'Ovais'], ['round', 'Redondos'], ['wide', 'Grandes'], ['dot', 'Pontinhos']]));
+        U.row(s, 'Cor dos olhos', U.color(cfg.eyeColor, v => { cfg.eyeColor = v; apply(); }, ['#ffffff', '#111111', '#ffd166', '#7dd3fc', '#86efac', '#f9a8d4']));
+        U.row(s, 'Acessório', sel('acc', ACC_NAMES)); tog(s, 'Bochechas rosadas', 'blush');
+        s = U.section(w.body, 'Corpo');
+        U.row(s, 'Cor', U.color(cfg.color, v => { cfg.color = v; apply(); }, ['#2f8bff', '#ee5a8a', '#8b5cf6', '#22c55e', '#f59e0b', '#ef4444', '#14b8a6', '#9ca3af', '#f5f5f5', '#222222']));
+        U.row(s, 'Estilo', sel('style', [['orb', 'Bolha brilhante'], ['led', 'LED de pontinhos']]));
+        U.row(s, 'Formato', sel('shape', [['circle', 'Redondo'], ['wide', 'Achatado'], ['square', 'Quadrado arredondado'], ['drop', 'Gota'], ['ghost', 'Fantasminha']]));
+        U.row(s, 'Brilho (aura)', rng('glow', 0, 100));
+        s = U.section(w.body, 'Comportamento');
+        tog(s, 'Olhos seguem o cursor', 'follow', save); tog(s, 'Piscar', 'blinking', save); tog(s, 'Balançar parado', 'bob'); tog(s, 'Reagir (pensar, comemorar, dormir)', 'react');
+        U.button(w.foot, 'Voltar ao canto', () => { cfg.x = cfg.y = null; apply(); });
+        U.button(w.foot, 'Restaurar', () => { cfg = Object.assign({}, DEF); save(); build(); repaintAll(); scanAv(); w.close(); });
     }
     window.lumePet = { openSettings, get config() { return cfg; }, say, setMood: flash };
     addEventListener('resize', () => { if (root) place(); });

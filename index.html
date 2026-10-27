@@ -1174,11 +1174,6 @@
             <div class="ol-row"><button type="button" class="btn btn-secondary" id="ollama-login-btn">Logar com o Ollama</button><input type="password" id="ollama-key-input" placeholder="cole a chave do Ollama aqui" autocomplete="off" spellcheck="false"></div>
             <span class="hint">Toque em "Logar com o Ollama": abre ollama.com/settings/keys no Safari. Crie uma chave, copie e cole aqui. Se você estiver numa conta do Lume, o login do Ollama fica nela (troca de conta, troca de login). A chave fica só neste aparelho.</span>
         </div>
-        <div class="form-group" id="pc-url-box" style="display:none">
-            <label>PC do Lume (cópia das contas) <span class="badge" id="pc-sync-status">desligado</span></label>
-            <input type="text" id="pc-url-input" placeholder="http://192.168.0.10:8000" autocomplete="off" spellcheck="false">
-            <span class="hint">Opcional. Com o PC ligado e "acessar de outros aparelhos" ativado, cada conta do iPhone ganha uma pasta em accounts/ no PC com uma cópia das conversas. Sem o PC, o app funciona igual. Use o mesmo endereço e porta de Configurações > Servidor no PC.</span>
-        </div>
         <div class="form-group" id="ollama-url-box" style="display:none">
             <label>Ollama no PC (só no iPhone)</label>
             <input type="text" id="ollama-url-input" placeholder="http://192.168.0.10:11434" autocomplete="off" spellcheck="false">
@@ -1339,8 +1334,6 @@
         </div>
         <label class="toggle-container"><input type="checkbox" id="opt-ctxbar"><div class="toggle-switch"></div> Mostrar a barra de contexto no topo</label>
         <label class="toggle-container"><input type="checkbox" id="opt-web"><div class="toggle-switch"></div> Pesquisar na web nas respostas (aba Chat)</label>
-        <div class="form-group"><label>Como pesquisar</label><select id="opt-searchmode"><option value="tool">A IA decide quando pesquisar (ferramenta)</option><option value="auto">Automático: pesquisa a cada pergunta</option></select>
-            <span class="hint">Na primeira opção a IA escolhe as palavras-chave e só pesquisa quando precisa (modelos pequenos às vezes não usam a ferramenta: aí escolha Automático).</span></div>
         <div class="form-group host-only">
             <label>Provedor de pesquisa na web</label>
             <select id="opt-provider">
@@ -1470,6 +1463,11 @@
             <div id="upd-list" class="hint"></div>
             <label class="toggle-container"><input type="checkbox" id="opt-autoupd" onchange="config.autoUpdate = this.checked; saveState();"><div class="toggle-switch"></div> Avisar quando houver versão nova ao abrir o app</label>
         </div>
+        <div class="form-group">
+            <label>Bug ou sugestão</label>
+            <div class="srv-actions"><button class="btn btn-secondary" onclick="openExternal('https://github.com/marioondc9426/Lume/issues/new/choose')">Abrir os modelos de issue no GitHub</button></div>
+            <span class="hint">Abre a página do GitHub com dois formulários prontos: um para relatar um bug e outro para sugerir uma ideia.</span>
+        </div>
         </div>
 
         <div id="set-server" class="set-pane" style="display:none;">
@@ -1518,10 +1516,6 @@
                 <div class="section-title">Aparelhos conectados</div>
                 <div id="srv-devices" class="srv-list"></div>
                 <button class="btn btn-secondary" style="margin:0; align-self:flex-start;" onclick="srvSet({ revoke_all: true })">Desconectar todos</button>
-
-                <div class="section-title">Aparelhos confiáveis</div>
-                <div id="trusted-list" class="srv-actions" style="flex-direction:column; align-items:stretch; gap:8px;"></div>
-                <span class="hint">Os aparelhos que mandaram uma cópia da conta aparecem aqui (arquivo trusted_devices.json). Só os que você marcar como confiáveis recebem de volta as conversas, as memórias e as chaves de API deste PC. Isso trafega pela sua rede de casa, sem criptografia: confie só em aparelhos seus.</span>
 
                 <div class="section-title">iPhone</div>
                 <span class="hint">Gera um perfil (.mobileconfig) que coloca na tela inicial do iPhone um ícone que abre só este site. Também dá para abrir o site no Safari do iPhone e instalar por lá, em Configurações, aba Servidor.</span>
@@ -1804,8 +1798,9 @@
             'Ainda não testado.': 'Not tested yet.', 'Sem WebGPU: nenhum modelo roda aqui.': 'No WebGPU: no model runs here.', 'Memória utilizável ≈ {mb} MB · velocidade ≈ {g} GFLOPS{c}': 'Usable memory ≈ {mb} MB · speed ≈ {g} GFLOPS{c}', ' (a aba caiu no teste; valor estimado)': ' (the tab crashed during the test; estimated value)',
             'deve rodar': 'should run', 'apertado': 'tight', 'não roda': 'will not run', 'não testado': 'not tested', 'Medindo a memória...': 'Measuring memory...', 'Medindo a velocidade...': 'Measuring speed...', 'de memória': 'of memory', 'roda neste celular': 'runs on this phone',
             'não roda neste celular': 'will not run on this phone', 'apertado para este celular': 'tight for this phone', 'baixando': 'downloading', 'Não consegui carregar {m}: {e}': 'Could not load {m}: {e}', 'Baixando/carregando o modelo no celular... {p}%': 'Downloading/loading the model on the phone... {p}%',
-            'Não consegui carregar a lista de modelos do celular (sem internet?).': 'Could not load the phone model list (no internet?).', 'Copiar mensagem': 'Copy message', 'Copiar pergunta e resposta': 'Copy question and answer', 'Usuário': 'User', 'Resposta': 'Answer', 'Mostrar mais': 'Show more', 'Mostrar menos': 'Show less', '\n\nFORMATAÇÃO: responda em Markdown. Para emojis escreva o código entre dois-pontos, como :fire: ou :skull: (nunca só a palavra). Para setas e símbolos use o caractere Unicode direto (→ ≈ ✓ ≠), sem LaTeX.': '\n\nFORMATTING: answer in Markdown. For emojis write the code between colons, like :fire: or :skull: (never just the word). For arrows and symbols use the Unicode character directly (→ ≈ ✓ ≠), no LaTeX.', 'Versão desatualizada: você usa a v{a} e já existe a v{b}.': 'Outdated version: you are on v{a} and v{b} is available.', 'Versão desatualizada: há {n} atualização(ões) nova(s).': 'Outdated version: {n} new update(s) available.', 'Depois': 'Later', 'Esconder os avisos de VRAM na janela (continuam aparecendo no terminal)': 'Hide VRAM warnings in the window (they still show in the terminal)', 'Roda na nuvem (precisa de internet)': 'Runs in the cloud (needs internet)', 'Funciona sem internet': 'Works offline', 'Roda no seu PC': 'Runs on your PC',
+            'Não consegui carregar a lista de modelos do celular (sem internet?).': 'Could not load the phone model list (no internet?).', 'Copiar mensagem': 'Copy message', 'Copiar pergunta e resposta': 'Copy question and answer', 'Usuário': 'User', 'Resposta': 'Answer', 'Mostrar mais': 'Show more', 'Mostrar menos': 'Show less', '\n\nFORMATAÇÃO: use Markdown só se quiser. Para emojis escreva o código entre dois-pontos, como :fire: ou :skull: (nunca só a palavra). Para setas e símbolos use o caractere Unicode direto (→ ≈ ✓ ≠), sem LaTeX.': '\n\nFORMATTING: use Markdown only if you want to. For emojis write the code between colons, like :fire: or :skull: (never just the word). For arrows and symbols use the Unicode character directly (→ ≈ ✓ ≠), no LaTeX.', 'Versão desatualizada: você usa a v{a} e já existe a v{b}.': 'Outdated version: you are on v{a} and v{b} is available.', 'Versão desatualizada: há {n} atualização(ões) nova(s).': 'Outdated version: {n} new update(s) available.', 'Depois': 'Later', 'Esconder os avisos de VRAM na janela (continuam aparecendo no terminal)': 'Hide VRAM warnings in the window (they still show in the terminal)', 'Roda na nuvem (precisa de internet)': 'Runs in the cloud (needs internet)', 'Funciona sem internet': 'Works offline', 'Roda no seu PC': 'Runs on your PC',
             'Usar o contexto máximo de cada modelo': 'Use the maximum context of each model', 'Código': 'Code', 'Copiar': 'Copy', 'Copiado ✓': 'Copied ✓',
+            'Bug ou sugestão': 'Bug or suggestion', 'Abrir os modelos de issue no GitHub': 'Open the issue templates on GitHub', 'Abre a página do GitHub com dois formulários prontos: um para relatar um bug e outro para sugerir uma ideia.': 'Opens the GitHub page with two ready forms: one to report a bug and one to suggest an idea.', 'Opções': 'Options', 'Mais': 'More', 'Voltar ao canto': 'Back to the corner',
             'Com isso ligado, cada modelo usa tudo o que suporta (ex.: 256K) e o valor acima é ignorado. Cuidado: contextos enormes ocupam MUITA VRAM e deixam tudo mais lento.': 'When on, each model uses everything it supports (e.g. 256K) and the value above is ignored. Careful: huge contexts take A LOT of VRAM and slow everything down.', 'Salvar': 'Save', 'Atualizações': 'Updates', 'Verificar atualizações': 'Check for updates', 'Atualizar agora': 'Update now',
             'Avisar quando houver versão nova ao abrir o app': 'Notify me when a new version is available at startup', 'Verificando...': 'Checking...', 'Atualizando...': 'Updating...',
             'Versão atual: v{v} ({c}, {d})': 'Current version: v{v} ({c}, {d})', 'v{v} disponível': 'v{v} available', '{n} atualização(ões) disponível(is)': '{n} update(s) available', 'você está na versão mais recente ✓': 'you are on the latest version ✓',
@@ -3858,7 +3853,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 const summaries = chat.messages.filter(m => m.role === 'summary').map(m => m.content);
                 if (summaries.length) sys += tr('\n\nRESUMO DA CONVERSA ANTERIOR (as mensagens antigas foram compactadas):\n') + summaries.join('\n') + '\n';
                 if (globalMemories.length > 0) sys += tr('\n\nFATOS QUE VOCÊ DEVE LEMBRAR:\n') + globalMemories.map(m => `- ${m}`).join('\n') + '\n';
-                if (!model.phone) sys += tr('\n\nFORMATAÇÃO: responda em Markdown. Para emojis escreva o código entre dois-pontos, como :fire: ou :skull: (nunca só a palavra). Para setas e símbolos use o caractere Unicode direto (→ ≈ ✓ ≠), sem LaTeX.');
+                if (!model.phone) sys += tr('\n\nFORMATAÇÃO: use Markdown só se quiser. Para emojis escreva o código entre dois-pontos, como :fire: ou :skull: (nunca só a palavra). Para setas e símbolos use o caractere Unicode direto (→ ≈ ✓ ≠), sem LaTeX.');
                 if (!isCode && !model.phone && config.memorySuggest !== false) sys += tr('\n\nMEMÓRIA: se o usuário contar algo pessoal e duradouro que valha lembrar em outras conversas (nome, profissão, preferência, projeto, jeito que quer as respostas), termine a resposta com uma última linha [[lembrar: fato curto, escrito em terceira pessoa]]. No máximo uma vez, só quando for realmente útil; nunca em pedidos comuns e nunca repita o que já está na lista de fatos.');
                 const apiMessages = buildApiMessages(chat, model, sys, job.view);
 
@@ -3894,7 +3889,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                         if (!active.phone) {
                             const response = await fetch(API + '/api/chat', {
                                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ model: apiModelId(active), rid: job.rid, messages: apiMessages, stream: true, think: opts.think, effort: (active.pol && active.effort && (config.effort || {})[active.id]) || undefined, search_web: !isCode && config.webSearch && !blockedFeature('web'), search_mode: config.searchMode || 'tool', agent: isCode && !isGuest(), lang: curLang(), num_ctx: active.cloud ? undefined : effCtx(active) })
+                                body: JSON.stringify({ model: apiModelId(active), rid: job.rid, messages: apiMessages, stream: true, think: opts.think, effort: (active.pol && active.effort && (config.effort || {})[active.id]) || undefined, search_web: !isCode && config.webSearch && !blockedFeature('web'), agent: isCode && !isGuest(), lang: curLang(), num_ctx: active.cloud ? undefined : effCtx(active) })
                             });
                             if (!response.ok) { let err = {}; try { err = await response.json(); } catch (e) {} throw new Error(err.error || ('HTTP ' + response.status)); }
                             reader = response.body.getReader(); decoder = new TextDecoder();
@@ -4025,7 +4020,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             $('code-prompt-input').value = sysPrompt(true);
             $('opt-bgspeed').value = config.bgSpeed == null ? 4 : config.bgSpeed; $('opt-bgspeed-val').textContent = +$('opt-bgspeed').value ? $('opt-bgspeed').value + '/10' : 'parado';
             $('opt-lang').value = curLang(); $('opt-anim').checked = config.animations !== false; $('opt-hidevram').checked = config.hideVramWarn !== false;
-            $('opt-ctx').value = String(config.numCtx); $('opt-maxctx').checked = !!config.maxCtx; $('opt-ctx').disabled = !!config.maxCtx; $('opt-ctxdiv').checked = !!config.ctxDivide; $('opt-ctxdiv-num').value = config.ctxDivisor || 4; ctxDivUi(true); $('opt-ctxbar').checked = config.showCtxBar; $('opt-web').checked = config.webSearch; applyWinBtn(); $('opt-legacy').checked = !!config.uiLegacy; $('opt-themelayout').checked = config.themeLayout !== false; $('opt-searchmode').value = config.searchMode || 'tool'; $('opt-star').checked = config.starToDot; $('opt-autostop').checked = config.autoStopPrev;
+            $('opt-ctx').value = String(config.numCtx); $('opt-maxctx').checked = !!config.maxCtx; $('opt-ctx').disabled = !!config.maxCtx; $('opt-ctxdiv').checked = !!config.ctxDivide; $('opt-ctxdiv-num').value = config.ctxDivisor || 4; ctxDivUi(true); $('opt-ctxbar').checked = config.showCtxBar; $('opt-web').checked = config.webSearch; applyWinBtn(); $('opt-legacy').checked = !!config.uiLegacy; $('opt-themelayout').checked = config.themeLayout !== false; $('opt-star').checked = config.starToDot; $('opt-autostop').checked = config.autoStopPrev;
             $('perf-enabled').checked = config.perfEnabled; $('opt-autoupd').checked = config.autoUpdate !== false;
             $('perf-style').value = config.perfStyle;
             if (auth.local) checkUpdates(false);
@@ -4222,7 +4217,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
         async function saveSettings() {
             config.systemPrompt = $('system-prompt-input').value;
             config.codePrompt = $('code-prompt-input').value || CODE_PROMPT_DEFAULT;
-            config.numCtx = +$('opt-ctx').value; config.maxCtx = $('opt-maxctx').checked; config.ctxDivide = $('opt-ctxdiv').checked; config.ctxDivisor = Math.min(1000, Math.max(1, parseFloat($('opt-ctxdiv-num').value) || 4)); config.showCtxBar = $('opt-ctxbar').checked; config.webSearch = $('opt-web').checked; config.searchMode = $('opt-searchmode').value; config.starToDot = $('opt-star').checked; config.autoStopPrev = $('opt-autostop').checked;
+            config.numCtx = +$('opt-ctx').value; config.maxCtx = $('opt-maxctx').checked; config.ctxDivide = $('opt-ctxdiv').checked; config.ctxDivisor = Math.min(1000, Math.max(1, parseFloat($('opt-ctxdiv-num').value) || 4)); config.showCtxBar = $('opt-ctxbar').checked; config.webSearch = $('opt-web').checked; config.starToDot = $('opt-star').checked; config.autoStopPrev = $('opt-autostop').checked;
             saveState();
             if (auth.local) {
                 const body = { workdir: $('workdir-input').value.trim(), auto_allow: $('opt-autoallow').checked, search_provider: $('opt-provider').value, exa_type: $('opt-exatype').value };
@@ -4882,20 +4877,6 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             refreshTunnel();
         }
         async function tunnelStop() { await fetch(API + '/api/tunnel_stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); refreshTunnel(); }
-        async function renderTrusted() {
-            const box = $('trusted-list'); if (!box || !auth.local) return;
-            let d = {}; try { d = await (await fetch(API + '/api/trusted_devices')).json(); } catch (e) { return; }
-            box.innerHTML = '';
-            if (!(d.devices || []).length) { const s = document.createElement('span'); s.className = 'hint'; s.textContent = tr('Nenhum aparelho ainda. Ligue "PC do Lume" nas configurações do iPhone e entre numa conta.'); box.appendChild(s); return; }
-            d.devices.forEach(v => {
-                const r = document.createElement('div'); r.className = 'wl-row' + (v.trusted ? '' : ' warn'); r.style.margin = '0';
-                const t = document.createElement('span'); t.className = 'grow'; t.textContent = `${v.name || 'Aparelho'}${v.account ? ' · ' + v.account : ''} · ${v.trusted ? tr('confiável') : tr('aguardando você')}`;
-                const b = document.createElement('button'); b.className = 'btn btn-secondary'; b.textContent = tr(v.trusted ? 'Deixar de confiar' : 'Confiar neste aparelho');
-                b.onclick = async () => { await fetch(API + '/api/trusted_devices_set', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: v.id, trusted: !v.trusted }) }); renderTrusted(); };
-                const x = document.createElement('button'); x.className = 'btn btn-secondary'; x.textContent = tr('Remover'); x.onclick = async () => { await fetch(API + '/api/trusted_devices_set', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: v.id, remove: true }) }); renderTrusted(); };
-                r.appendChild(t); r.appendChild(b); r.appendChild(x); box.appendChild(r);
-            });
-        }
         // menu do Pollinations: catalogo inteiro com filtros (saude, pagos, grátis/quest)
         async function openPolMenu() {
             const ov = document.createElement('div'); ov.className = 'acct-ov'; const sh = document.createElement('div'); sh.className = 'acct-sheet'; sh.style.cssText = 'width:min(760px,100%);max-height:90%'; ov.appendChild(sh);
@@ -4984,7 +4965,6 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             };
         }
         async function refreshServerTab() {
-            renderTrusted();
             $('srv-host').style.display = auth.local ? '' : 'none';
             $('srv-client').style.display = auth.local ? 'none' : '';
             $('ios-install').style.display = (!auth.local || auth.root) && isIphone() && !isStandalone() ? '' : 'none';   // tambem para quem entrou como root pelo iPhone
@@ -5357,6 +5337,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
     </script>
     <script src="libs/chess.min.js"></script>
     <script src="libs/chess-pieces.js"></script>
+    <script src="libs/lume-ui.js"></script>
     <script src="libs/lume-chess.js"></script>
     <script src="libs/lume-pet.js"></script>
 </body>

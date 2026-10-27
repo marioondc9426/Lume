@@ -16,7 +16,7 @@
     css.textContent = `
         .chess-x { position: fixed; top: 44px; right: 14px; z-index: 2; width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(0,0,0,.55); color: #fff; font-size: 16px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; } .chess-x:hover { background: rgba(220,50,50,.85); }
         .chess-ov { position: fixed; inset: 36px 0 0 0; z-index: 6500; display: flex; align-items: flex-start; justify-content: center; background: rgba(0,0,0,0.6); padding: 12px; overflow: auto; } .chess-ov > .chess-wrap { margin: auto; }
-        .chess-wrap { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; justify-content: center; max-width: 100%; background: var(--bg-main); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 20px; padding: 16px; box-shadow: 0 20px 60px rgba(0,0,0,.55); }
+        .chess-wrap { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; justify-content: center; max-width: 100%; box-sizing: border-box; background: var(--bg-main); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 20px; padding: 16px; box-shadow: 0 20px 60px rgba(0,0,0,.55); }
         .chess-bw { display: flex; gap: 8px; } .chess-eval { width: 14px; height: var(--cb, 520px); border-radius: 6px; overflow: hidden; background: #262522; position: relative; visibility: hidden; } .chess-eval.on { visibility: visible; } .chess-eval i { position: absolute; left: 0; right: 0; bottom: 0; background: #f2f2f2; transition: height .3s; } .chess-eval b { position: absolute; left: 0; right: 0; font: 600 9px system-ui; text-align: center; color: #888; top: 2px; }
         .chess-board { position: relative; width: var(--cb, 520px); height: var(--cb, 520px); display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); border-radius: 8px; overflow: hidden; user-select: none; -webkit-user-select: none; touch-action: none; }
         .chess-sq { position: relative; display: flex; align-items: center; justify-content: center; font-size: calc(var(--cb, 520px) / 8 * 0.78); line-height: 1; cursor: pointer; }
@@ -32,24 +32,24 @@
         .chess-co { position: absolute; font: 600 10px system-ui, sans-serif; opacity: .65; pointer-events: none; color: #333; } .chess-co.r { top: 2px; left: 3px; } .chess-co.f { bottom: 1px; right: 3px; }
         .chess-badge { position: absolute; top: 2px; right: 2px; min-width: 1.5em; padding: 0 3px; height: 1.5em; border-radius: 999px; z-index: 2; display: flex; align-items: center; justify-content: center; font: 700 12px system-ui, sans-serif; color: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.5); pointer-events: none; }
         .chess-arrows { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
-        .chess-side { display: flex; flex-direction: column; gap: 10px; width: min(300px, 100%); }
+        .chess-side { display: flex; flex-direction: column; gap: 10px; width: min(320px, 100%); height: var(--cb, 520px); overflow-y: auto; padding-right: 2px; } .chess-wrap.narrow .chess-side { height: auto; overflow: visible; }
         .chess-side h3 { margin: 0; } .chess-side select { width: 100%; } .chess-row { display: flex; flex-wrap: wrap; gap: 6px; } .chess-row .btn { margin: 0; padding: 8px 12px; flex: 1 1 auto; }
         .chess-opt { display: flex; gap: 8px; align-items: center; font-size: .88em; cursor: pointer; } .chess-opt input { width: auto; }
         .chess-status { padding: 10px 12px; border-radius: 12px; background: rgba(128,128,128,.14); font-size: .92em; min-height: 3.4em; }
-        .chess-moves { height: 170px; flex: none; overflow-y: auto; font-size: .88em; line-height: 1.9; padding: 8px 10px; border-radius: 12px; background: rgba(128,128,128,.08); }
+        .chess-moves { flex: 1 1 120px; min-height: 90px; overflow-y: auto; font-size: .88em; line-height: 1.9; padding: 8px 10px; border-radius: 12px; background: rgba(128,128,128,.08); }
         .chess-moves span.mv { cursor: pointer; padding: 1px 4px; border-radius: 6px; } .chess-moves span.mv:hover { background: rgba(128,128,128,.25); } .chess-moves span.mv.cur { background: var(--accent); color: #fff; }
         .chess-moves i.cl { font-style: normal; font-weight: 700; font-size: .85em; margin-left: 1px; }
         .chess-sum { min-height: 3.6em; font-size: .82em; line-height: 1.5; padding: 8px 10px; border-radius: 12px; background: rgba(128,128,128,.08); }
-        .chess-lk { flex: 1 1 45%; min-width: 0; padding: 7px 8px; border-radius: 10px; font-size: .85em; }
+        .chess-lk { flex: 1 1 100%; min-width: 0; padding: 7px 8px; border-radius: 10px; font-size: .85em; }
+        .chess-main .btn { flex: 0 0 auto; min-width: 40px; } .chess-mw { position: relative; flex: 0 0 auto; display: flex; } .chess-mw .btn { margin: 0; padding: 8px 12px; }
+        .chess-menu { display: none; position: absolute; right: 0; top: calc(100% + 6px); z-index: 25; min-width: 180px; padding: 6px; border-radius: 14px; background: var(--bg-input, var(--bg-main)); border: 1px solid var(--border-color); box-shadow: 0 14px 40px rgba(0,0,0,.5); } .chess-menu.on { display: block; }
+        .chess-menu button { display: block; width: 100%; text-align: left; border: 0; background: transparent; color: var(--text-main); padding: 9px 12px; border-radius: 9px; cursor: pointer; font-size: .9em; } .chess-menu button:hover { background: rgba(128,128,128,.2); }
+        .chess-opts { border-radius: 12px; background: rgba(128,128,128,.08); padding: 4px 10px 10px; } .chess-opts > summary { cursor: pointer; padding: 8px 2px; font-size: .88em; color: var(--text-muted); list-style: none; } .chess-opts > summary::-webkit-details-marker { display: none; } .chess-opts > summary::before { content: '▸ '; } .chess-opts[open] > summary::before { content: '▾ '; } .chess-opts[open] { display: flex; flex-direction: column; gap: 8px; }
         .chess-hint { font-size: .76em; color: var(--text-muted); line-height: 1.4; }
         .chess-ov { animation: chFade .22s ease both; } .chess-ov.out { animation: chFadeOut .18s ease both; } .chess-wrap { animation: chPop .32s cubic-bezier(.2,.85,.25,1.05) both; } .chess-ov.out .chess-wrap { animation: chPopOut .18s ease both; }
         @keyframes chFade { from { opacity: 0; } to { opacity: 1; } } @keyframes chFadeOut { from { opacity: 1; } to { opacity: 0; } }
         @keyframes chPop { from { opacity: 0; transform: translateY(18px) scale(.96); } to { opacity: 1; transform: none; } } @keyframes chPopOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(10px) scale(.97); } }
         @media (prefers-reduced-motion: reduce) { .chess-ov, .chess-wrap { animation: none !important; } }
-        .chess-tog { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 12px; border-radius: 12px; background: rgba(128,128,128,.10); font-size: .88em; cursor: pointer; }
-        .chess-tog input { position: absolute; opacity: 0; pointer-events: none; } .chess-tog .sw { position: relative; flex: none; width: 38px; height: 22px; border-radius: 999px; background: rgba(128,128,128,.45); transition: background .2s; } .chess-tog .sw::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .2s cubic-bezier(.3,.9,.3,1.2); box-shadow: 0 1px 3px rgba(0,0,0,.4); }
-        .chess-tog input:checked + .sw { background: var(--accent); } .chess-tog input:checked + .sw::after { transform: translateX(16px); } .chess-tog input:focus-visible + .sw { outline: 2px solid var(--accent); outline-offset: 2px; }
-        .chess-seg { display: flex; padding: 3px; border-radius: 12px; background: rgba(128,128,128,.14); gap: 2px; } .chess-seg button { flex: 1; border: 0; background: transparent; color: var(--text-muted); padding: 8px 6px; border-radius: 9px; cursor: pointer; font-size: .86em; transition: background .2s, color .2s; } .chess-seg button.on { background: var(--bg-main); color: var(--text-main); box-shadow: 0 1px 4px rgba(0,0,0,.3); }
         .chess-side .custom-select { position: relative; height: auto; display: block; } .chess-side .select-trigger { height: 42px; box-sizing: border-box; } .chess-side .select-options { position: absolute; top: calc(100% + 6px); bottom: auto; left: 0; right: 0; width: auto; min-width: 0; margin: 0; max-height: min(460px, 62vh); z-index: 30; box-shadow: 0 14px 40px rgba(0,0,0,.5); } .chess-side .select-options .mo-list { max-height: 240px; }
         .cm-wrap { position: relative; } .cm-btn { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--border-color); background: rgba(128,128,128,.10); color: var(--text-main); cursor: pointer; text-align: left; font-size: .92em; transition: border-color .2s, background .2s; } .cm-btn:hover, .cm-btn.on { border-color: var(--accent); background: rgba(128,128,128,.16); }
         .cm-logo { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; flex: none; } .cm-logo > * { max-height: 20px; max-width: 22px; height: 20px; display: inline-block; object-fit: contain; }
@@ -199,8 +199,8 @@
         mv.scrollTop = mv.scrollHeight;
         const ev = ov.querySelector('.chess-eval'), curFen = rv !== null && rv !== undefined ? (rv < st.log.length ? st.log[rv].fen : game.fen()) : game.fen(), an = st.an[curFen];
         ev.classList.toggle('on', !!(st.opts.rank || (rv !== null && rv !== undefined)) && !!an); if (an && an.lines[0]) { ev.firstChild.style.height = wpct(an.lines[0].cp) + '%'; ev.lastChild.textContent = evalTxt(an.lines[0]); }
-        ov.querySelector('.chess-sum').style.visibility = st.summary ? 'visible' : 'hidden'; ov.querySelector('.chess-sum').textContent = st.summary || ' ';
-        ov.querySelector('.chess-nav').style.visibility = rv !== null && rv !== undefined ? 'visible' : 'hidden';
+        ov.querySelector('.chess-sum').style.display = st.summary ? '' : 'none'; ov.querySelector('.chess-sum').textContent = st.summary || '';
+        ov.querySelector('.chess-nav').style.display = rv !== null && rv !== undefined ? '' : 'none';
     }
     const BOARDS = { green: ['Verde', '#ebecd0', '#779556'], brown: ['Marrom', '#f0d9b5', '#b58863'], blue: ['Azul', '#dee3e6', '#8ca2ad'], gray: ['Cinza', '#e8e8e8', '#9aa0a6'], purple: ['Roxo', '#e6dff0', '#8877b3'], wood: ['Madeira', '#ecd9b4', '#ae8a68'], night: ['Noite', '#8d99ae', '#2b2d42'] };
     const SET_NAMES = { cardinal: 'Cardinal', caliente: 'Caliente', california: 'California', chessnut: 'Chessnut', fresca: 'Fresca', gioco: 'Gioco', icpieces: 'IC Pieces', kosal: 'Kosal', maestro: 'Maestro', merida: 'Mérida', rhosgfx: 'RhosGFX', staunty: 'Staunty', tatiana: 'Tatiana', cburnett: 'Clássico (Lichess)' };
@@ -403,7 +403,8 @@
         if (ov) return; if (typeof Chess === 'undefined') { alert('O xadrez não carregou.'); return; }
         let list = models(); if (!list.length) { alert(T('Nenhum modelo disponível agora. Configure uma chave ou ligue o Ollama.')); return; }
         ov = mk('div', 'chess-ov'); const wrap = mk('div', 'chess-wrap'); ov.appendChild(wrap);
-        const bsz = Math.max(280, Math.min(560, innerWidth - 80, innerHeight - 120)); wrap.style.setProperty('--cb', bsz + 'px');
+        const fit = () => { const wide = innerWidth >= 860, w = wide ? innerWidth - 24 - 32 - 22 - 16 - 320 : innerWidth - 24 - 32 - 22, h = wide ? innerHeight - 36 - 24 - 32 : innerHeight * .62; wrap.style.setProperty('--cb', Math.max(260, Math.floor(Math.min(w, h))) + 'px'); wrap.classList.toggle('narrow', !wide); };
+        fit(); const onRs = () => { if (ov && ov.isConnected) fit(); else removeEventListener('resize', onRs); }; addEventListener('resize', onRs);
         const bw = mk('div', 'chess-bw'); wrap.appendChild(bw); const evb = mk('div', 'chess-eval'); evb.appendChild(mk('i')); evb.appendChild(mk('b')); bw.appendChild(evb);
         const board = mk('div', 'chess-board'); board.appendChild(document.createElementNS('http://www.w3.org/2000/svg', 'svg')); const svg = board.lastChild; svg.setAttribute('class', 'chess-arrows'); svg.setAttribute('viewBox', '0 0 8 8'); bw.appendChild(board);
         const side = mk('div', 'chess-side'); wrap.appendChild(side); side.appendChild(mk('h3', '', T('Xadrez contra um modelo')));
@@ -440,23 +441,29 @@
         const providerOf = m => { try { return providerName(m); } catch (e) { return ''; } };
         cb.onclick = () => { const on = !cw.classList.contains('open'); if (on) { const id = list[pick].id; list = models(); pick = Math.max(0, list.findIndex(m => m.id === id)); term = ''; fillList(); } cw.classList.toggle('open', on); if (on) { const cur = box.querySelector('.select-option.selected'); if (cur) cur.scrollIntoView({ block: 'center' }); } };
         ov.addEventListener('mousedown', e => { if (!cw.contains(e.target)) cw.classList.remove('open'); }); paintBtn(); side.appendChild(cw);
-        let colorVal = 'w'; const seg = mk('div', 'chess-seg'); [['w', 'Brancas'], ['b', 'Pretas'], ['random', 'Aleatório']].forEach(([v, l]) => { const b = mk('button', v === colorVal ? 'on' : '', T(l)); b.type = 'button'; b.onclick = () => { colorVal = v; seg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); if (st && !st.log.length) { st.token = Math.random(); newGame({ model: list[pick], color: colorVal }); } }; seg.appendChild(b); }); side.appendChild(seg);
-        const opt = (id, label, key) => { const l = mk('label', 'chess-tog'), c = document.createElement('input'); c.type = 'checkbox'; c.id = id; c.onchange = () => { st.opts[key] = c.checked; if (key === 'rank') { if (c.checked) rankBackfill(); render(); } }; c.checked = st ? !!st.opts[key] : key === 'noSpawn'; l.append(mk('span', '', T(label)), c, mk('span', 'sw')); side.appendChild(l); return c; };
+        const optBox = mk('details', 'chess-opts'); optBox.appendChild(mk('summary', '', T('Opções')));
+        let colorVal = 'w'; LumeUI.seg(side, [['w', 'Brancas'], ['b', 'Pretas'], ['random', 'Aleatório']], colorVal, v => { colorVal = v; if (st && !st.log.length) { st.token = Math.random(); newGame({ model: list[pick], color: colorVal }); } });
+        const opt = (id, label, key) => LumeUI.toggle(optBox, label, st ? !!st.opts[key] : key === 'noSpawn', v => { st.opts[key] = v; if (key === 'rank') { if (v) rankBackfill(); render(); } }, id);
         opt('chess-ill', 'Permitir lances ilegais do modelo', 'illegal'); opt('chess-nospawn', 'Bloquear peças criadas do nada pelo modelo (só vale com lances ilegais)', 'noSpawn'); opt('chess-rank', 'Ranking dos lances (Brilhante, Melhor, Erro…)', 'rank');
         const lk = mk('div', 'chess-row'); const mkSel = (opts, val, fn) => { const x = document.createElement('select'); x.className = 'chess-lk'; opts.forEach(([v, l]) => x.add(new Option(T(l), v))); x.value = val; x.onchange = () => fn(x.value); lk.appendChild(x); };
         mkSel(Object.entries(SET_NAMES).map(([k, n]) => [k, T('Peças') + ': ' + T(n)]), look.set, v => { look.set = v; saveLook(); render(); });
-        mkSel(Object.entries(BOARDS).map(([k, b]) => [k, T('Tabuleiro') + ': ' + T(b[0])]), look.board, v => { look.board = v; saveLook(); applyBoard(); }); side.appendChild(lk);
-        const row = mk('div', 'chess-row'); side.appendChild(row);
-        const btn = (txt, fn) => { const b = mk('button', 'btn btn-secondary', T(txt)); b.type = 'button'; b.onclick = fn; row.appendChild(b); return b; };
-        const start = btn('Novo jogo', () => { if (st) st.token = Math.random(); newGame({ model: list[pick], color: colorVal }); }); start.classList.replace('btn-secondary', 'btn-primary');
-        btn('Desfazer', undo); btn('Virar', () => { st.flip = !st.flip; render(); });
-        btn('Desistir', () => { if (game && !game.game_over() && !st.over) { st.token = Math.random(); st.thinking = false; st.over = T('Você desistiu.'); st.pre = null; st.psel = null; render(); } });
-        btn('Analisar partida', analyzeGame); btn('Exportar PGN', exportPgn);
+        mkSel(Object.entries(BOARDS).map(([k, b]) => [k, T('Tabuleiro') + ': ' + T(b[0])]), look.board, v => { look.board = v; saveLook(); applyBoard(); }); optBox.appendChild(lk);
+        const row = mk('div', 'chess-row chess-main'); side.appendChild(row);
+        const btn = (txt, fn, title, host) => { const b = mk('button', 'btn btn-secondary', T(txt)); b.type = 'button'; if (title) { b.title = T(title); b.setAttribute('aria-label', T(title)); } b.onclick = fn; (host || row).appendChild(b); return b; };
+        const start = btn('Novo jogo', () => { if (st) st.token = Math.random(); newGame({ model: list[pick], color: colorVal }); }); start.classList.replace('btn-secondary', 'btn-primary'); start.style.flex = '1 1 110px';
+        btn('↶', undo, 'Desfazer'); btn('⇅', () => { st.flip = !st.flip; render(); }, 'Virar o tabuleiro');
+        const mw = mk('div', 'chess-mw'), menu = mk('div', 'chess-menu'); row.appendChild(mw);
+        const mb = mk('button', 'btn btn-secondary', '⋯'); mb.type = 'button'; mb.title = T('Mais'); mb.setAttribute('aria-label', T('Mais')); mw.append(mb, menu);
+        mb.onclick = e => { e.stopPropagation(); menu.classList.toggle('on'); }; ov.addEventListener('click', () => menu.classList.remove('on'));
+        const mi = (txt, fn) => { const b = mk('button', '', T(txt)); b.type = 'button'; b.onclick = () => { menu.classList.remove('on'); fn(); }; menu.appendChild(b); };
+        mi('Desistir', () => { if (game && !game.game_over() && !st.over) { st.token = Math.random(); st.thinking = false; st.over = T('Você desistiu.'); st.pre = null; st.psel = null; render(); } });
+        mi('Analisar partida', analyzeGame); mi('Exportar PGN', exportPgn);
         const xb = mk('button', 'chess-x', '✕'); xb.type = 'button'; xb.title = T('Fechar'); xb.setAttribute('aria-label', T('Fechar')); ov.appendChild(xb);
         xb.onclick = () => { if (st) st.token = Math.random(); if (st && st.rid) { try { fetch(API + '/api/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rid: st.rid }) }); } catch (e) { /* ok */ } } const o = ov; ov = null; o.classList.add('out'); setTimeout(() => o.remove(), 190); };
-        const navRow = mk('div', 'chess-row chess-nav'); [['⏮', 'start'], ['◀', -1], ['▶', 1], ['⏭', 'end']].forEach(([t, d]) => { const b = mk('button', 'btn btn-secondary', t); b.type = 'button'; b.onclick = () => nav(d); navRow.appendChild(b); }); const ex = mk('button', 'btn btn-secondary', T('Sair da análise')); ex.type = 'button'; ex.onclick = () => { st.review = null; render(); }; navRow.appendChild(ex); side.appendChild(navRow);
         side.appendChild(mk('div', 'chess-status', '')); side.appendChild(mk('div', 'chess-moves', '')); const sum = mk('div', 'chess-sum', ''); sum.style.whiteSpace = 'pre-line'; side.appendChild(sum);
-        side.appendChild(mk('div', 'chess-hint', T('Botão direito: segure e arraste para desenhar uma seta (Shift vermelha, Ctrl azul, Alt amarela); clique direito numa casa marca a casa; clique esquerdo limpa. No celular: segure o dedo numa casa e arraste.')));
+        const navRow = mk('div', 'chess-row chess-nav'); [['⏮', 'start'], ['◀', -1], ['▶', 1], ['⏭', 'end']].forEach(([t, d]) => { const b = mk('button', 'btn btn-secondary', t); b.type = 'button'; b.onclick = () => nav(d); navRow.appendChild(b); }); const ex = mk('button', 'btn btn-secondary', T('Sair da análise')); ex.type = 'button'; ex.onclick = () => { st.review = null; render(); }; navRow.appendChild(ex); side.appendChild(navRow);
+        optBox.appendChild(mk('div', 'chess-hint', T('Botão direito: segure e arraste para desenhar uma seta (Shift vermelha, Ctrl azul, Alt amarela); clique direito numa casa marca a casa; clique esquerdo limpa. No celular: segure o dedo numa casa e arraste.')));
+        side.appendChild(optBox);
         applyBoard(); wire(board); document.body.appendChild(ov);
         newGame({ model: list[pick], color: 'w' });
     }

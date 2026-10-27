@@ -1,0 +1,34 @@
+name: Sugestão / Suggestion
+description: Uma ideia para o Lume / An idea for Lume
+title: "[Sugestão] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: Qual é a ideia? / What's the idea?
+      description: Explique o que você gostaria que o Lume fizesse. / Explain what you'd like Lume to do.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Para que serve? / Why would it help?
+      description: Que problema isso resolve ou o que melhora no seu uso? / What problem does it solve?
+  - type: dropdown
+    id: where
+    attributes:
+      label: Em que parte? / Which part?
+      options:
+        - Chat
+        - Modelos e provedores / Models and providers
+        - Xadrez / Chess
+        - Mascote / Mascot
+        - Temas e visual / Themes and looks
+        - iPhone
+        - Outro / Other
+  - type: textarea
+    id: extra
+    attributes:
+      label: Referências / References
+      description: Prints, links, exemplos de outros apps. / Screenshots, links, examples from other apps.

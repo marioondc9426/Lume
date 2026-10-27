@@ -585,7 +585,7 @@ const ROUTES = {
     'GET /api/account': () => json({ name: ACCT, accounts: LS.get('accounts', []) }),
     'POST /api/account/login': (u, b) => {
         const n = String((b && b.name) || '').trim().replace(/\s+/g, ' ').slice(0, 40); if (!n) { LS.set('account', ''); ACCT = ''; return json({ ok: true, name: '' }); }
-        const list = LS.get('accounts', []); if (!list.includes(n)) list.push(n); LS.set('accounts', list); LS.set('account', n); ACCT = n; setTimeout(pcSync, 300); return json({ ok: true, name: n });   // ao logar ja puxa do PC
+        const list = LS.get('accounts', []); if (!list.includes(n)) list.push(n); LS.set('accounts', list); LS.set('account', n); ACCT = n; return json({ ok: true, name: n });
     },
     'POST /api/account/logout': () => { LS.set('account', ''); ACCT = ''; return json({ ok: true }); },
     'POST /api/account/delete': async (u, b) => {
@@ -603,9 +603,9 @@ const ROUTES = {
     'GET /api/update_check': () => json({ available: false, error: 'No iPhone o Lume se atualiza sozinho ao abrir (avisa se nao conseguir).' }),
     'GET /api/tunnel': () => json({ running: false, url: '', error: '', tool: '', cloudflared: false, tailscale: {}, port: 0 }),
     'GET /api/history': async () => json(await kv.get('history', {})),
-    'POST /api/history': async (u, b) => { await kv.set('history', b || {}); schedulePcSync(); return json({ ok: true }); },
+    'POST /api/history': async (u, b) => { await kv.set('history', b || {}); return json({ ok: true }); },
     'GET /api/state': async () => json(await kv.get('state', {})),
-    'POST /api/state': async (u, b) => { await kv.set('state', b || {}); schedulePcSync(); return json({ ok: true }); },
+    'POST /api/state': async (u, b) => { await kv.set('state', b || {}); return json({ ok: true }); },
     'GET /api/custom_themes': async () => { const t = await kv.get('themes', {}); return json(Object.keys(t).sort().map(n => Object.assign({}, t[n], { name: n }))); },
     'POST /api/custom_theme': async (u, b) => { const t = await kv.get('themes', {}), n = slug(b && b.name); t[n] = (b && b.theme) || {}; await kv.set('themes', t); return json({ ok: true, name: n, path: n }); },
     'POST /api/custom_theme_delete': async (u, b) => { const t = await kv.get('themes', {}); delete t[slug(b && b.name)]; await kv.set('themes', t); return json({ ok: true }); },
@@ -619,7 +619,7 @@ const ROUTES = {
     'POST /api/save_config': async (u, b) => {
         const c = Object.assign({}, await loadConfig()); b = b || {};
         for (const k of SECRET_KEYS) if (k in b) c[k] = String(b[k]).trim();
-        for (const k of ['search_provider', 'exa_type', 'search_results', 'search_daily_limit', 'ollama_url', 'pc_url']) if (k in b) c[k] = (k === 'ollama_url' || k === 'pc_url') ? String(b[k]).trim() : b[k];
+        for (const k of ['search_provider', 'exa_type', 'search_results', 'search_daily_limit', 'ollama_url']) if (k in b) c[k] = k === 'ollama_url' ? String(b[k]).trim() : b[k];
         await saveConfig(c); Object.keys(cache).forEach(k => { if (cache[k].v !== undefined) cache[k].v = null; }); cache.pol.cat = null; return json({ ok: true });
     },
     'POST /api/extract_text': async (u, b) => {
@@ -693,45 +693,7 @@ window.fetch = async function (input, init) {
 };
 window.__lumeBackendRoutes = ROUTES;
 
-// copia/sincronizacao da conta com o PC (opcional). O aparelho tem um id e um segredo proprios; o PC so devolve conversas, memorias e chaves se voce marcar este aparelho como confiavel la
-let pcTimer = null;
-const setPcStatus = t => { LS.set('pc_status', t); const el = typeof document !== 'undefined' && document.getElementById('pc-sync-status'); if (el) el.textContent = t; };
-function deviceId() {
-    let d = LS.get('device', null);
-    if (!d || !d.id || !d.secret) { const hex = n => Array.from(crypto.getRandomValues(new Uint8Array(n)), x => x.toString(16).padStart(2, '0')).join(''); d = { id: hex(8), secret: hex(24) }; LS.set('device', d); }
-    return d;
-}
-const mergeHistory = (a, b) => { const out = Object.assign({}, a || {}); for (const [id, chat] of Object.entries(b || {})) { const old = out[id]; if (!old || ((chat && chat.messages) || []).length > ((old && old.messages) || []).length) out[id] = chat; } return out; };
-async function pcPull(base) {
-    const dv = deviceId();
-    const r = await fetchT(base + '/api/device_pull', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ device_id: dv.id, secret: dv.secret, name: ACCT, device: 'iPhone' }) }, 20000, 'O PC');
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) { setPcStatus(j.error === 'not_trusted' ? 'copiado ✓ (confie neste aparelho no PC para receber as chaves)' : 'o PC recusou (' + (j.error || r.status) + ')'); return false; }
-    let changed = false;
-    const lh = await kv.get('history', {}), mh = mergeHistory(lh, j.history); if (JSON.stringify(mh) !== JSON.stringify(lh)) { await kv.set('history', mh); changed = true; }
-    const ls = await kv.get('state', {}), ms = Object.assign({}, ls), mem = Array.isArray(ls.memories) ? ls.memories.slice() : [];
-    for (const m of (j.state && j.state.memories) || []) if (!mem.some(x => JSON.stringify(x) === JSON.stringify(m))) mem.push(m);
-    if (mem.length !== (ls.memories || []).length) { ms.memories = mem; await kv.set('state', ms); changed = true; }
-    const cfg = Object.assign({}, await loadConfig()); let keys = 0;
-    for (const [k, v] of Object.entries(j.keys || {})) if (!cfg[k] && v) { cfg[k] = v; keys++; }
-    if (keys) { await saveConfig(cfg); changed = true; }
-    setPcStatus('sincronizado ✓' + (keys ? ' (' + keys + ' chave(s) recebida(s))' : ''));
-    if (changed && typeof location !== 'undefined' && typeof document !== 'undefined' && document.getElementById('chat')) setTimeout(() => location.reload(), 600);   // a tela le de novo as conversas/chaves novas
-    return changed;
-}
-async function pcSync() {
-    const cfg = await loadConfig(), base = (cfg.pc_url || '').trim().replace(/\/+$/, '');
-    if (!base) { setPcStatus('desligado'); return; }
-    if (!ACCT) { setPcStatus('entre numa conta'); return; }
-    try {
-        const dv = deviceId();
-        const r = await fetchT(base + '/api/device_sync', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: JSON.stringify({ name: ACCT, device: 'iPhone', device_id: dv.id, secret: dv.secret, history: await kv.get('history', {}), state: await kv.get('state', {}) }) }, 20000, 'O PC');
-        const j = await r.json().catch(() => ({}));
-        if (!r.ok) { setPcStatus(j.error === 'remote_off' ? 'ligue "acessar de outros aparelhos" no PC' : j.error === 'taken' ? 'nome ja usado no PC' : j.error === 'owner_untrusted' ? 'confie neste aparelho no PC (Servidor > Aparelhos confiaveis) para sincronizar a conta do dono' : j.error === 'device_secret' ? 'o PC nao reconhece este aparelho (remova-o la)' : j.error === 'forbidden' ? 'o PC so aceita a rede de casa (este endereco veio de fora)' : 'o PC recusou (' + (j.error || r.status) + ')'); return; }
-        if (j.trusted) await pcPull(base); else setPcStatus('copiado ✓ (confie neste aparelho no PC para receber as chaves)');
-    } catch (e) { setPcStatus('PC fora do ar'); }
-}
-function schedulePcSync() { clearTimeout(pcTimer); pcTimer = setTimeout(pcSync, 4000); }
+const mergeHistory = (a, b) => { const out = Object.assign({}, a || {}); for (const [id, chat] of Object.entries(b || {})) { const old = out[id]; if (!old || ((chat && chat.messages) || []).length > ((old && old.messages) || []).length) out[id] = chat; } return out; };   // junta conversas por id (vale a com mais mensagens)
 
 // avisos da atualizacao automatica (o app nativo chama window.lumeUpdateReady / window.lumeUpdateFailed)
 function updateBanner(text, label, onClick, warn) {
@@ -788,12 +750,5 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
     const box = document.getElementById('ollama-url-box'); if (!box) return; box.style.display = '';
     const inp = document.getElementById('ollama-url-input'); loadConfig().then(c => { inp.value = c.ollama_url || ''; });
     inp.addEventListener('change', async () => { const c = Object.assign({}, await loadConfig()); c.ollama_url = inp.value.trim(); await saveConfig(c); });
-});
-if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', () => {
-    const box = document.getElementById('pc-url-box'); if (!box) return; box.style.display = '';
-    const inp = document.getElementById('pc-url-input'), st = document.getElementById('pc-sync-status'); st.textContent = LS.get('pc_status', 'desligado'); loadConfig().then(c => { inp.value = c.pc_url || ''; });
-    inp.addEventListener('change', async () => { const c = Object.assign({}, await loadConfig()); c.pc_url = inp.value.trim(); await saveConfig(c); pcSync(); });
-    setTimeout(pcSync, 3000);   // ao abrir o app (e depois a cada conversa salva)
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') pcSync(); });   // voltou para o app: puxa de novo
 });
 })();

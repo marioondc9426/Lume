@@ -101,7 +101,7 @@ guest_recent = {}       # id do amigo -> horarios das ultimas respostas (limite 
 guest_lock = threading.Lock()
 login_recent_fails = []  # horarios das senhas erradas de qualquer IP (trava global contra tentativas pela internet)
 # Versao: "1.2" = versao nova com novidades (o numero depois do ponto sobe); "1.2.01", "1.2.02"... = correcoes (patches) dessa versao.
-VERSION = "3.0"
+VERSION = "3.1"
 CONFIG_FILE = os.path.join(BASE_DIR, "config.json")     # chaves de API, pasta de trabalho, uso
 def _owner_dir():
     """accounts/<dono>/: conversas e preferencias do dono. Na primeira vez COPIA (nao move) os history.json/state.json antigos da pasta do app."""
@@ -127,7 +127,7 @@ THEMES_DIR = os.path.join(BASE_DIR, "custom themes")    # temas criados no edito
 MAX_AGENT_STEPS = 8        # limite de chamadas de ferramenta por mensagem
 MAX_TOOL_OUTPUT = 8000     # caracteres devolvidos a IA por ferramenta
 TOOL_TIMEOUT = 60          # segundos para cmd/powershell
-MIN_WEB_QUERY = 5         # mensagens menores que isso ("oi") nao disparam pesquisa na web
+
 MONITOR_EVERY_S = 2.5     # de quanto em quanto tempo a memoria da GPU e conferida
 VRAM_ALERT_EVERY_S = 2.5 # a cada quantos segundos o aviso de VRAM alta (terminal) se repete
 VRAM_WARN_MB = 7144        # aviso de VRAM alta (7 GB)
@@ -290,15 +290,7 @@ def load_state(): return _read_json(STATE_FILE, {})
 def save_state(data): _write_json(STATE_FILE, data)
 
 # ---------------------------------------------------------------- contas no PC + aparelhos confiaveis
-TRUSTED_FILE = os.path.join(BASE_DIR, "trusted_devices.json")   # aparelhos (iPhone) que ja mandaram copia; so os marcados como confiaveis recebem chaves, conversas e memorias
-SYNC_KEYS = ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "tomdacat_api_key", "vercel_api_key", "llm7_api_key", "aichixia_api_key", "aihubmix_api_key", "literouter_api_key", "exa_api_key") + tuple(k + "_backup" for k in ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "tomdacat_api_key", "vercel_api_key", "llm7_api_key", "aichixia_api_key", "aihubmix_api_key", "literouter_api_key"))
-SYNC_KEYS = SYNC_KEYS + ("cloudflare_api_token", "cloudflare_account_id") + tuple(f for f, _u, _n, _s in X_PROVIDERS.values() if f not in SYNC_KEYS) + tuple(f + "_backup" for f, _u, _n, _s in X_PROVIDERS.values() if f + "_backup" not in SYNC_KEYS)
 ACTIVE_ACCOUNT = ""   # "" = a conta do dono
-
-def load_trusted():
-    d = _read_json(TRUSTED_FILE, {}); d = d if isinstance(d, dict) else {}; d.setdefault("devices", {}); return d
-
-def save_trusted(d): _write_json(TRUSTED_FILE, d)
 
 def safe_account_name(raw):
     name = re.sub(r'[\\/:*?"<>|\x00-\x1f]', '_', str(raw or "")).strip(" .")[:40]
@@ -884,21 +876,6 @@ def exa_searches_today():
     """Quantas buscas pagas do Exa foram feitas hoje (da meia-noite local)."""
     midnight = time.mktime(time.strptime(time.strftime("%Y-%m-%d"), "%Y-%m-%d"))
     return sum(1 for e in _read_json(STATS_FILE, {"events": []}).get("events", []) if e.get("type") == "exa" and e.get("kind") == "search" and e.get("ts", 0) >= midnight)
-
-GREETING_RE = re.compile(r"(?i)(oi+|ol[aá]|e a[ií]|bom dia|boa tarde|boa noite|obrigad[oa]|valeu|ok(ay)?|certo|entendi|beleza|tchau|hi|hello|hey|thanks?|thank you|bye|cool)[\s!.?,]*")
-
-CREATIVE_RE = re.compile(r"(?i)(me )?(conta|conte|escreva|escreve|crie|cria|gere|gera|invente|traduza|traduz|resuma|resume|reescreva|reescreve|corrija|corrige|revise|explique (esse|este|o|a) (c[oó]digo|texto|trecho)|tell me (a|an)|write|create|generate|make up|translate|summari[sz]e|rewrite|fix|proofread)\b")
-FRESH_HINT_RE = re.compile(r"(?i)\b(hoje|agora|atual|atuais|recente|recentes|[uú]ltim[ao]s?|not[ií]cias?|pre[cç]o|cota[cç][aã]o|today|current|latest|recent|news|price|2025|2026)\b")
-
-def needs_web(text):
-    """Evita gastar uma busca paga em mensagens que nao precisam: cumprimentos, frases curtas sem pergunta, codigo e arquivos anexados."""
-    t = (text or "").strip()
-    if len(t) < MIN_WEB_QUERY or GREETING_RE.fullmatch(t): return False
-    if len(re.findall(r"\w+", t)) <= 3 and "?" not in t: return False
-    if "```" in t or t.startswith("/"): return False
-    if "[Arquivo anexado" in t or "[Attached file" in t: return False   # a pergunta e sobre o arquivo
-    if CREATIVE_RE.match(t) and not FRESH_HINT_RE.search(t): return False   # pedido criativo/de transformacao: nao precisa de internet
-    return True
 
 def _to_int(v):
     try: return int(float(v))
@@ -2312,7 +2289,7 @@ STATIC_PAGES = ("/", "/index.html")
 PAGE_ALIAS = {"/share": "/share.html", "/dashboard": "/dashboard.html"}
 # So o proprio PC (janela do app) pode usar estas rotas
 LOCAL_ONLY_POST = ("/api/save_config", "/api/save_key", "/api/server_config", "/api/perf_interval",
-                   "/api/custom_theme", "/api/custom_theme_delete", "/api/trusted_devices_set", "/api/account_import", "/api/pol_effort_probe", "/api/account/login", "/api/account/logout", "/api/resolve_pending", "/api/export", "/api/ios_profile_save", "/api/undo", "/api/stats_clear", "/api/open_url", "/api/update_apply", "/api/restart_app", "/api/run_code", "/api/run_stop", "/api/tunnel_start", "/api/tunnel_stop", "/api/tunnel_install", "/api/app_options", "/api/model_pull", "/api/model_delete", "/api/models_update_now", "/api/cloudflare_usage_set")
+                   "/api/custom_theme", "/api/custom_theme_delete", "/api/account_import", "/api/pol_effort_probe", "/api/account/login", "/api/account/logout", "/api/resolve_pending", "/api/export", "/api/ios_profile_save", "/api/undo", "/api/stats_clear", "/api/open_url", "/api/update_apply", "/api/restart_app", "/api/run_code", "/api/run_stop", "/api/tunnel_start", "/api/tunnel_stop", "/api/tunnel_install", "/api/app_options", "/api/model_pull", "/api/model_delete", "/api/models_update_now", "/api/cloudflare_usage_set")
 PUBLIC_POST = ("/api/auth/login", "/api/auth/logout", "/api/guest/register", "/api/guest/code")
 LOGIN_MAX_FAILS, LOGIN_LOCK_SECONDS = 5, 60
 login_failures = {}   # ip -> [falhas, inicio]
@@ -2810,9 +2787,6 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 "vram_pct": vram_pct, "gpu": gpu_util, "vram_warn": vram_warn, "vram_warn_mb": VRAM_WARN_MB,
                 "generation_active": bool(gens_active), "alert": alert_state
             })
-        if p == '/api/trusted_devices':
-            if not local: return self.send_json({"error": "local_only"}, 403)
-            return self.send_json({"devices": [{"id": k, "name": v.get("name", ""), "account": v.get("account", ""), "trusted": bool(v.get("trusted")), "last": v.get("last", 0), "ip": v.get("ip", "")} for k, v in load_trusted()["devices"].items()]})
         if p == '/api/account_export':
             if not local: return self.send_json({"error": "local_only"}, 403)
             return self.send_json(export_accounts((self.query.get('all') or ['0'])[0] == '1'))
@@ -2845,85 +2819,11 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(body); return
         self.send_json({"error": "rota desconhecida"}, 404)
 
-    def _device_check(self, d, need_trusted):
-        """Confere rede de casa, 'acessar de outros aparelhos' e o aparelho (id + segredo). Devolve (erro, codigo, registro)."""
-        if not load_config().get("remote_enabled"): return "remote_off", 403, None
-        if not self.on_private_network(): return "forbidden", 403, None
-        did = re.sub(r"[^0-9a-f]", "", str(d.get("device_id") or "").lower())[:32]; secret = str(d.get("secret") or "")
-        if len(did) < 8 or len(secret) < 16:
-            return ("device_required", 403, None) if need_trusted else (None, 200, None)   # copia antiga/sem identidade: so grava (como antes)
-        reg = load_trusted(); h = hashlib.sha256(secret.encode()).hexdigest(); dev = reg["devices"].get(did)
-        if dev and dev.get("secret_hash") != h: return "device_secret", 403, None
-        if not dev:
-            if need_trusted: return "not_trusted", 403, None
-            dev = reg["devices"][did] = {"name": str(d.get("device") or "iPhone")[:60], "added": time.time(), "trusted": False, "secret_hash": h}
-        dev["last"] = time.time(); dev["ip"] = self.client_address[0]
-        if d.get("name"): dev["account"] = safe_account_name(d.get("name"))
-        save_trusted(reg)
-        if need_trusted and not dev.get("trusted"): return "not_trusted", 403, dev
-        return None, 200, dev
-
-    def _device_reply(self, obj, code=200):
-        body = json.dumps(obj).encode()
-        self.send_response(code); self.send_header('Content-Type', 'application/json'); self.send_header('Access-Control-Allow-Origin', '*'); self.send_header('Content-Length', str(len(body))); self.end_headers(); self.wfile.write(body)
-
-    def device_sync(self, raw):
-        """Copia das contas do app do iPhone em accounts/<nome>/ (so para a rede de casa e com "acessar de outros aparelhos" ligado). Nunca devolve conversas: isso e o /api/device_pull, so para aparelhos confiaveis."""
-        reply = self._device_reply
-        try: d = json.loads(raw or b'{}')
-        except ValueError: return reply({"error": "json"}, 400)
-        if not isinstance(d, dict): return reply({"error": "json"}, 400)
-        err, code, dev = self._device_check(d, False)
-        if err: return reply({"error": err}, code)
-        name = safe_account_name(d.get("name"))
-        if not name: return reply({"error": "name"}, 400)
-        is_owner = name.lower() == OWNER_NAME.lower()
-        if is_owner and not (dev and dev.get("trusted")): return reply({"error": "owner_untrusted"}, 403)   # a conta do dono so troca dados com aparelho confiavel
-        folder = OWNER_DIR if is_owner else os.path.join(ACCOUNTS_DIR, name); meta_path = os.path.join(folder, "account.json")
-        old = _read_json(meta_path, None) if os.path.exists(meta_path) else None
-        if not is_owner and old is not None and old.get("role") not in ("iphone", "account"): return reply({"error": "taken"}, 409)   # nao sobrescreve a conta de um amigo
-        try:
-            os.makedirs(folder, exist_ok=True)
-            meta = dict(old or {})
-            if is_owner: meta["last_sync"] = time.time()   # a conta do dono mantem o nome e o papel; so anota a ultima sincronizacao
-            else:
-                meta.update({"name": name, "role": meta.get("role") or "iphone", "device": str(d.get("device") or "iPhone")[:60], "last_sync": time.time()})
-                if old is None: meta["note"] = "Conta criada pelo app do iPhone."
-            _write_json(meta_path, meta)
-            for key, fn in (("history", "history.json"), ("state", "state.json")):
-                if not isinstance(d.get(key), dict): continue
-                path = os.path.join(folder, fn); data = d[key]
-                if is_owner or name == ACTIVE_ACCOUNT or (dev and dev.get("trusted")):   # a conta tambem esta em uso no PC (ou o aparelho e confiavel): junta em vez de apagar o que so existe aqui
-                    data = (merge_history if key == "history" else merge_state)(_read_json(path, {}), data)
-                _write_json(path, data)
-        except OSError as e:
-            return reply({"error": str(e)[:100]}, 500)
-        log("IPHONE", f"Copia da conta '{name}' salva em accounts/{name}", COLOR_GREEN)
-        return reply({"ok": True, "folder": name, "trusted": bool(dev and dev.get("trusted"))})
-
-    def device_pull(self, raw):
-        """So para aparelhos marcados como confiaveis (trusted_devices.json): devolve conversas, memorias e chaves de API da conta."""
-        reply = self._device_reply
-        try: d = json.loads(raw or b'{}')
-        except ValueError: return reply({"error": "json"}, 400)
-        if not isinstance(d, dict): return reply({"error": "json"}, 400)
-        err, code, dev = self._device_check(d, True)
-        if err: return reply({"error": err}, code)
-        name = safe_account_name(d.get("name")); is_owner = bool(name) and name.lower() == OWNER_NAME.lower()
-        folder = OWNER_DIR if is_owner else (os.path.join(ACCOUNTS_DIR, name) if name else "")
-        meta = _read_json(os.path.join(folder, "account.json"), None) if folder else None
-        if not name or not isinstance(meta, dict) or meta.get("role") not in (("owner",) if is_owner else ("iphone", "account")): return reply({"ok": True, "history": {}, "state": {}, "keys": {}})
-        cfg = load_config()
-        log("IPHONE", f"Aparelho confiavel '{dev.get('name')}' puxou a conta '{name}' (conversas, memorias e chaves)", COLOR_YELLOW)
-        return reply({"ok": True, "history": _read_json(os.path.join(folder, "history.json"), {}), "state": _read_json(os.path.join(folder, "state.json"), {}), "keys": {k: cfg.get(k) for k in SYNC_KEYS if cfg.get(k)}})
-
     def do_POST(self):
         p = urllib.parse.urlsplit(self.path).path; self.path = p
         length = int(self.headers.get('Content-Length') or 0)
         if length > MAX_BODY_BYTES: return self.send_json({"error": "Requisicao grande demais."}, 413)
         post_data = self.rfile.read(length)
-        if p == '/api/device_sync': return self.device_sync(post_data)   # o app do iPhone manda "Origin: null": fica antes da checagem de origem
-        if p == '/api/device_pull': return self.device_pull(post_data)
         origin = self.headers.get('Origin')
         if origin and urllib.parse.urlsplit(origin).netloc != (self.headers.get('Host') or ''):
             log("SEGURANCA", f"Requisicao bloqueada: origem {origin} diferente do host", COLOR_RED)
@@ -2946,13 +2846,6 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
         if p == '/api/auth/login':
             return self.handle_login(data)
-        if p == '/api/trusted_devices_set':
-            reg = load_trusted(); did = str(data.get("id") or ""); dev = reg["devices"].get(did)
-            if not dev: return self.send_json({"error": "aparelho nao encontrado"}, 404)
-            if data.get("remove"): reg["devices"].pop(did, None)
-            else: dev["trusted"] = bool(data.get("trusted"))
-            save_trusted(reg); log("IPHONE", f"Aparelho '{dev.get('name')}': " + ("removido" if data.get("remove") else "confiavel" if dev["trusted"] else "nao confiavel"), COLOR_YELLOW)
-            return self.send_json({"ok": True})
         if p == '/api/account/login':
             name = str(data.get("name") or "").strip()
             if name and name != OWNER_NAME and not safe_account_name(name): return self.send_json({"error": "Nome invalido."}, 400)
@@ -3502,7 +3395,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         def status(text): emit({"status": text})
 
         total_chars = 0
-        web_tool = bool(req_json.get("search_web")) and not agent and (req_json.get("search_mode") or "tool") == "tool"   # a IA decide quando pesquisar (ferramenta), em vez de pesquisar sozinho em toda mensagem
+        web_tool = bool(req_json.get("search_web")) and not agent   # a IA decide quando pesquisar (ferramenta)
         use_tools = agent or web_tool; max_steps = MAX_AGENT_STEPS if agent else 4
         kw_model = {k: v for k, v in (("agent", ("web" if web_tool else True) if use_tools else None), ("effort", str(req_json.get("effort") or "") or None)) if v}   # so manda o que foi pedido
         try:
@@ -3521,23 +3414,6 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 messages[0]["content"] += (TOOL_PROMPT_EN if lang == 'en' else TOOL_PROMPT).replace("{workdir}", workdir)
             elif web_tool:
                 messages[0]["content"] += WEB_TOOL_PROMPT_EN if lang == 'en' else WEB_TOOL_PROMPT
-            elif req_json.get("search_web"):
-                query = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")[:200]
-                if needs_web(query):
-                    status("Pesquisando na web")
-                    log("WEB", f"Pesquisando: {query}", COLOR_CYAN)
-                    results, source = search_web_results(query, guest=bool(gid))
-                    if results:
-                        emit({"sources": [{"title": t, "url": u} for t, _, u in results], "provider": source, "query": query})
-                        messages[0]["content"] += L(f"\n\n[PESQUISA NA WEB - use se for relevante e cite os links. Quem pesquisou foi o app Lume, automaticamente, usando exatamente o texto da ultima mensagem do usuario como consulta: \"{query}\". Voce nao controla nem ve como a busca decide os resultados: se eles nao combinam com a pergunta, diga so que a busca trouxe coisas sem relacao, sem inventar o motivo.]",
-                                                    f"\n\n[WEB SEARCH - use it if relevant and cite the links. The Lume app searched automatically using exactly the user's last message as the query: \"{query}\". You do not control or see how the search ranks results: if they do not fit the question, just say the search returned unrelated things, without inventing the reason.]") + format_search(results, source)
-                    else:
-                        status("Pesquisa na web indisponível")
-                        messages[0]["content"] += L("\n\n[A pesquisa na web falhou: voce NAO tem dados atuais. Se a pergunta depender de informacao recente, diga isso ao usuario em vez de inventar.]",
-                                                    "\n\n[The web search failed: you do NOT have current data. If the question depends on recent information, say so instead of making things up.]")
-                else:
-                    log("WEB", "Mensagem nao precisa de pesquisa (cumprimento, frase curta, codigo ou arquivo); nada foi gasto.", COLOR_GRAY)
-
             corrections = 0; native_tries = 0
             req_tokens = req_prompt = 0; req_seconds = 0.0   # para as estatisticas
             clean = list(messages)   # conversa sem as tentativas falhas e sem os pedidos de correcao (o plano B usa esta)
