@@ -117,14 +117,14 @@
     function classify(i) {   // classifica o lance i (0 = primeiro) com a analise antes e depois
         const e = st.log[i], A = st.an[e.fen], afterFen = i + 1 < st.log.length ? st.log[i + 1].fen : game.fen(), B = st.an[afterFen];
         if (!A || !B || !A.lines.length || !B.lines.length || e.illegal) return null;
-        const white = e.color === 'w', pov = cp => (white ? cp : -cp), bw = wpct(pov(A.lines[0].cp)), aw = wpct(pov(B.lines[0].cp)), loss = Math.max(0, bw - aw), best = e.uci === A.best;
+        const white = e.color === 'w', pov = cp => (white ? cp : -cp), bw = wpct(pov(A.lines[0].cp)), aw = wpct(pov(B.lines[0].cp)), cpl = Math.max(0, pov(A.lines[0].cp) - pov(B.lines[0].cp)), lostLoss = bw < 15 && Math.abs(A.lines[0].cp) < 9000 ? (cpl >= 600 ? 21 : cpl >= 300 ? 11 : cpl >= 150 ? 6 : 0) : 0, loss = Math.max(0, bw - aw, lostLoss), best = e.uci === A.best;   // posicao ja perdida: a chance de ganhar quase nao muda, entao tambem conta a perda em centipeoes (entregar a dama la e erro grave, nao "melhor")
         const second = A.lines[1] ? wpct(pov(A.lines[1].cp)) : null, onlyMove = best && second !== null && bw - second >= 15;
         const prev = i > 0 && st.cls[i - 1] ? st.cls[i - 1] : null, oppLoss = prev ? prev.loss : 0;
         let key;
         if (best || loss <= 0.5) key = 'best'; else if (loss <= 2) key = 'excellent'; else if (loss <= 5) key = 'good'; else if (loss <= 10) key = 'inaccuracy'; else if (loss <= 20) key = 'mistake'; else key = 'blunder';
         if (key !== 'blunder' && oppLoss >= 10 && loss >= 7) key = 'miss';
         if (best && onlyMove && bw < 92) key = 'great';
-        if (loss <= 2 && bw < 90 && aw >= bw - 3) {   // sacrificio de peca que continua bom
+        if ((best || loss <= 1) && bw >= 35 && bw < 88 && aw >= 45 && aw >= bw - 3) {   // sacrificio de peca que continua bom. So vale se a posicao NAO estava perdida (antes >= 35%) nem fica pior (depois >= 45%): numa posicao ja perdida a chance de ganhar nao muda e qualquer peca entregue parecia "brilhante"
             try { const g = new Chess(e.fen), before = materialFor(e.color, g) - materialFor(e.color === 'w' ? 'b' : 'w', g); g.move({ from: e.uci.slice(0, 2), to: e.uci.slice(2, 4), promotion: e.uci[4] }); const reply = B.best && B.best.length >= 4 ? B.best : null; if (reply) g.move({ from: reply.slice(0, 2), to: reply.slice(2, 4), promotion: reply[4] }); const after = materialFor(e.color, g) - materialFor(e.color === 'w' ? 'b' : 'w', g); if (before - after >= 2.5) key = 'brilliant'; } catch (x) { /* ignora */ }
         }
         return { key, loss, bw, aw };
