@@ -635,6 +635,24 @@ const ROUTES = {
     'POST /api/custom_theme_delete': async (u, b) => { const t = await kv.get('themes', {}); delete t[slug(b && b.name)]; await kv.set('themes', t); return json({ ok: true }); },
     'GET /api/stats': async u => json(await buildStats(Math.max(1, Math.min(365, parseInt(u.searchParams.get('days') || '30', 10) || 30)))),
     'POST /api/stats_clear': async () => { await kv.set('stats', { events: [] }); return json({ ok: true }); },
+    'GET /api/providers_overview': async () => {
+        const cfg = await loadConfig(), health = await kv.rawGet('health', {}), out = {};
+        for (const p of Object.keys(XPROV)) {
+            const mine = Object.entries(health).filter(([k]) => k.startsWith(p + ':')), ts = mine.map(([, h]) => h.ts || 0);
+            out[p] = { name: XPROV[p][2], key: !!cfg[XFIELD[p]], show_all: SHOW_ALL.has(p), failing: mine.filter(([, h]) => h.ok === false).map(([k]) => k.slice(p.length + 1)).slice(0, 30), tested: mine.length, last: ts.length ? Math.max(...ts) : 0 };
+        }
+        return json(out);
+    },
+    'POST /api/provider_ping': async (u, b) => {
+        const p = String((b && b.prov) || ''), cfg = await loadConfig();
+        if (!XPROV[p]) return json({ error: 'provedor invalido' }, 400);
+        if (!cfg[XFIELD[p]]) return json({ ok: false, err: 'sem chave' });
+        let ids; try { ids = (await extraRaw(p, cfg)).map(m => m.id); } catch (e) { return json({ ok: false, err: String(e.message || e).slice(0, 120) }); }
+        if (!ids.length) return json({ ok: false, err: 'nenhum modelo listado' });
+        const r = await healthTest(p, ids[0], cfg);
+        if (r.ok !== null && !SHOW_ALL.has(p)) { const health = await kv.rawGet('health', {}); health[p + ':' + ids[0]] = { ok: !!r.ok, ts: now(), ms: r.ms || 0, err: r.err || '' }; await kv.rawSet('health', health); }
+        return json({ ok: r.ok, ms: r.ms || 0, err: r.err || '', model: ids[0] });
+    },
     'GET /api/config_status': async () => {
         const c = await loadConfig();
         return json({ groq_key_saved: !!c.groq_api_key, openrouter_key_saved: !!c.openrouter_api_key, cloudflare_saved: false, pollinations_saved: !!c.pollinations_api_key, tomdacat_saved: !!c.tomdacat_api_key, vercel_saved: !!c.vercel_api_key, llm7_saved: !!c.llm7_api_key, x_saved: Object.fromEntries(Object.entries(XPROV).map(([p, v]) => [p, !!c[v[0]]])), aichixia_saved: !!c.aichixia_api_key, aihubmix_saved: !!c.aihubmix_api_key, literouter_saved: !!c.literouter_api_key,

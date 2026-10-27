@@ -2825,6 +2825,12 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 return self.send_json({"saved": True, "models": models, "probing": probing})
             except urllib.error.HTTPError as e: return self.send_json({"saved": True, "models": [], "error": CF_HTTP_ERRORS.get(e.code) or f"Cloudflare respondeu {e.code}"})
             except Exception as e: return self.send_json({"saved": True, "models": [], "error": str(e)[:200]})
+        if p == '/api/providers_overview':   # painel de provedores: chave salva, quantos estao fora do ar e quando foi o ultimo teste (nunca devolve a chave)
+            cfg = load_config(); out = {}
+            for prov, (field, _u, name, _s) in X_PROVIDERS.items():
+                mine = {k.split(":", 1)[1]: h for k, h in _health.items() if k.startswith(prov + ":")}
+                out[prov] = {"name": name, "key": bool(cfg.get(field)), "show_all": prov in X_SHOW_ALL, "failing": [i for i, h in mine.items() if not h.get("ok", True)][:30], "tested": len(mine), "last": max([h.get("ts", 0) for h in mine.values()] or [0])}
+            return self.send_json(out)
         if p == '/api/config_status':
             cfg = load_config()
             return self.send_json({"groq_key_saved": bool(cfg.get("groq_api_key")), "openrouter_key_saved": bool(cfg.get("openrouter_api_key")), "cloudflare_saved": all(cf_creds(cfg)), "pollinations_saved": bool(cfg.get("pollinations_api_key")), "tomdacat_saved": bool(cfg.get("tomdacat_api_key")), "vercel_saved": bool(cfg.get("vercel_api_key")), "llm7_saved": bool(cfg.get("llm7_api_key")), "x_saved": {p: bool(cfg.get(v[0])) for p, v in X_PROVIDERS.items()}, "aichixia_saved": bool(cfg.get("aichixia_api_key")), "aihubmix_saved": bool(cfg.get("aihubmix_api_key")), "literouter_saved": bool(cfg.get("literouter_api_key")),  "exa_key_saved": bool(exa_api_key(cfg)), "search_provider": cfg.get("search_provider", "auto"), "exa_type": cfg.get("exa_type", "lite"), "search_results": max_results(), "search_daily_limit": cfg.get("search_daily_limit", 100), "exa_today": exa_searches_today(), "auto_allow": bool(cfg.get("auto_allow")), "workdir": get_workdir(cfg) if local else "", "default_workdir": BASE_DIR if local else ""})
@@ -2921,6 +2927,16 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             try: res = import_accounts(data.get("data"))
             except ValueError as e: return self.send_json({"error": str(e)}, 400)
             log("CONTA", f"Importadas {len(res)} conta(s) de um arquivo", COLOR_GREEN); return self.send_json({"ok": True, "imported": res})
+        if p == '/api/provider_ping':   # 1 pedido pequeno de verdade a um modelo do provedor (so os provedores extras)
+            prov = str(data.get("prov") or ""); cfg = load_config()
+            if prov not in X_PROVIDERS: return self.send_json({"error": "provedor invalido"}, 400)
+            if not cfg.get(X_PROVIDERS[prov][0]): return self.send_json({"ok": False, "err": "sem chave"})
+            try: ids = [m["id"] for m in extra_models(prov, cfg, force=False, raw=True)]
+            except Exception as e: return self.send_json({"ok": False, "err": str(e)[:120]})
+            if not ids: return self.send_json({"ok": False, "err": "nenhum modelo listado"})
+            ok, ms, err = health_test(prov, ids[0], cfg)
+            if ok is not None and prov not in X_SHOW_ALL: _health[prov + ":" + ids[0]] = {"ok": bool(ok), "ts": time.time(), "ms": ms, "err": err}
+            return self.send_json({"ok": ok, "ms": ms, "err": err, "model": ids[0]})
         if p == '/api/tts':
             try: audio, mime = pol_tts(data.get("text"), data, load_config())
             except Exception as e: return self.send_json({"error": str(e)[:200]}, 502)

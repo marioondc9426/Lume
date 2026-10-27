@@ -7,6 +7,7 @@ Como numerar:
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
 ## v4.0 (em desenvolvimento)
+- **Painel de provedores** (Configurações > Chaves de API > Painel de provedores): numa tela só, todos os provedores com o logo, se há chave salva, quantos modelos aparecem, quantos estão fora do ar (passe o mouse para ver quais), o saldo do VoidAI e do TokenReply e um botão **Testar** (1 pedido pequeno de verdade) nos provedores extras; "Colocar chave" leva direto às chaves.
 - **Voz (STT e TTS pelo Pollinations):** botão de **microfone** ao lado do enviar (grava, transcreve e coloca o texto na caixa; opção de enviar sozinho) e botão de **alto-falante** em cada resposta (e opção de ler tudo sozinho). Em Configurações > Geral você escolhe o modelo de fala→texto (Whisper large v3, GPT Transcribe, MAI Transcribe 2), o idioma, o modelo de texto→fala (OpenAI TTS-1, TTS-1 HD, MAI Voice 2.1 e Flash) e a voz (as OpenAI e dezenas de vozes MAI em pt-BR, pt-PT, en, es, fr, de, it). Gasta pollen da sua chave (com chaves de reserva). No iPhone o microfone depende do app novo e de o WebKit liberar a gravação no app.
 
 ## v3.1.01
