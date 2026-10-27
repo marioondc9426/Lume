@@ -1074,6 +1074,7 @@
             <button class="btn btn-secondary" onclick="openSettingsEntry()"><svg class="si" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span class="emo">⚙️ </span>Configurações <span id="upd-dot" title="Atualização disponível" style="display:none; color:#4ade80;">●</span></button>
             <button class="btn btn-secondary" onclick="openMemory()"><svg class="si" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg><span class="emo">🧠 </span>Memória</button>
             <button class="btn btn-secondary" id="btn-chess" onclick="openChess()"><svg class="si" viewBox="0 0 24 24"><path d="M8 20h8M9 20c0-3 1-4 1-6-2-1-3-3-3-5a5 5 0 0 1 10 0c0 3-2 4-3 5 0 2 1 3 1 6"/><circle cx="12" cy="5" r="0.01"/></svg> Xadrez</button>
+            <button class="btn btn-secondary" id="btn-compare" onclick="openCompare()"><svg class="si" viewBox="0 0 24 24"><rect x="3" y="4" width="7" height="16" rx="1.5"/><rect x="14" y="4" width="7" height="16" rx="1.5"/></svg>Comparar modelos</button>
             <button class="btn btn-secondary" id="btn-stats" onclick="openStats()"><svg class="si" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><span class="emo">📊 </span>Estatísticas</button>
             <input type="text" id="chat-search" placeholder="Pesquisar nos chats..." autocomplete="off" spellcheck="false">
             <div id="chat-list"></div>
@@ -1831,6 +1832,8 @@
             'Whisper large v3 (padrão)': 'Whisper large v3 (default)', 'OpenAI TTS-1 (rápido)': 'OpenAI TTS-1 (fast)', 'OpenAI TTS-1 HD (mais natural)': 'OpenAI TTS-1 HD (more natural)', 'Automático': 'Automatic', 'Parar de gravar': 'Stop recording', 'Transcrevendo...': 'Transcribing...',
             'Este aparelho não deixa gravar áudio aqui.': 'This device does not allow recording audio here.', 'Sem permissão para usar o microfone.': 'No permission to use the microphone.', 'Não entendi o áudio. Tente de novo.': 'I could not understand the audio. Try again.', 'Não consegui transcrever: ': 'Could not transcribe: ', 'Não consegui falar: ': 'Could not speak: ', 'Olá! Esta é a voz que você escolheu.': 'Hello! This is the voice you chose.',
             'Painel de provedores': 'Providers panel', 'Provedores': 'Providers', 'Todos os provedores numa tela: quem tem chave, quantos modelos aparecem, quantos estão fora do ar, saldo e um botão para testar.': 'All providers on one screen: who has a key, how many models show up, how many are down, balance and a test button.', 'chave salva': 'key saved', 'sem chave': 'no key', 'modelos': 'models', 'fora do ar': 'down', 'mostra todos': 'shows all', 'provedor extra': 'extra provider', 'provedor': 'provider', 'local / nuvem do Ollama': 'Ollama local / cloud', 'Testar': 'Test', 'Colocar chave': 'Add key', 'limite de pedidos': 'rate limited', '{k} provedores com chave · {m} modelos na lista · {d} fora do ar': '{k} providers with a key · {m} models listed · {d} down',
+            'Comparar modelos': 'Compare models', 'Comparar': 'Compare', 'Escreva a pergunta que todos vão responder…': 'Write the question they will all answer…', 'Escolha pelo menos 2 modelos diferentes.': 'Pick at least 2 different models.', 'Preciso de pelo menos 2 modelos disponíveis. Configure uma chave ou ligue o Ollama.': 'I need at least 2 available models. Add a key or turn Ollama on.', 'palavras': 'words', 'erro': 'error', '(escolha)': '(choose)', '(nenhum)': '(none)', 'Copiar': 'Copy',
+            'Filtros: modelo:gemini  desde:2026-10-01  ate:2026-10-31  pasta:trabalho  fixado  tudo (todas as abas)': 'Filters: modelo:gemini  desde:2026-10-01  ate:2026-10-31  pasta:work  fixado  tudo (all tabs)',
             'Bug ou sugestão': 'Bug or suggestion', 'Abrir os modelos de issue no GitHub': 'Open the issue templates on GitHub', 'Abre a página do GitHub com dois formulários prontos: um para relatar um bug e outro para sugerir uma ideia.': 'Opens the GitHub page with two ready forms: one to report a bug and one to suggest an idea.', 'Opções': 'Options', 'Mais': 'More', 'Voltar ao canto': 'Back to the corner',
             'Com isso ligado, cada modelo usa tudo o que suporta (ex.: 256K) e o valor acima é ignorado. Cuidado: contextos enormes ocupam MUITA VRAM e deixam tudo mais lento.': 'When on, each model uses everything it supports (e.g. 256K) and the value above is ignored. Careful: huge contexts take A LOT of VRAM and slow everything down.', 'Salvar': 'Save', 'Atualizações': 'Updates', 'Verificar atualizações': 'Check for updates', 'Atualizar agora': 'Update now',
             'Avisar quando houver versão nova ao abrir o app': 'Notify me when a new version is available at startup', 'Verificando...': 'Checking...', 'Atualizando...': 'Updating...',
@@ -2963,6 +2966,31 @@
             for (const m of c.messages) { const t = m.content || '', k = t.toLowerCase().indexOf(q); if (k !== -1) return (k > 30 ? '…' : '') + t.slice(Math.max(0, k - 30), k + q.length + 50).replace(/\s+/g, ' '); }
             return null;
         }
+        // busca com filtros no proprio campo: modelo:gemini desde:2026-10-01 ate:2026-10-31 pasta:trabalho fixado tudo (tudo = todas as abas); o resto e texto
+        function parseSearch(raw) {
+            const f = { text: [], model: '', since: null, until: null, folder: '', pinned: false, all: false };
+            const dt = v => { const d = /^\d{4}-\d{2}(-\d{2})?$/.test(v) ? new Date(v) : null; return d && !isNaN(d) ? d.getTime() : null; };
+            String(raw || '').trim().split(/\s+/).forEach(w => {
+                const m = w.match(/^([a-zç]+):(.*)$/i), k = m ? m[1].toLowerCase() : '', v = m ? m[2].toLowerCase() : '', lw = w.toLowerCase();
+                if (m && (k === 'modelo' || k === 'model')) f.model = v;
+                else if (m && ['desde', 'since', 'depois'].includes(k)) f.since = dt(v);
+                else if (m && ['ate', 'until', 'antes'].includes(k)) { const t = dt(v); f.until = t == null ? null : t + 86400000; }
+                else if (m && (k === 'pasta' || k === 'folder')) f.folder = v;
+                else if (['fixado', 'fixados', 'pinned'].includes(lw)) f.pinned = true;
+                else if (lw === 'tudo' || lw === 'all') f.all = true;
+                else if (w) f.text.push(w);
+            });
+            f.q = f.text.join(' ').toLowerCase(); f.on = !!(f.q || f.model || f.since != null || f.until != null || f.folder || f.pinned || f.all);
+            return f;
+        }
+        function chatFilter(id, f) {   // null = nao combina; texto = trecho onde achou ('' = sem trecho)
+            const c = chats[id];
+            if (f.pinned && !c.pinned) return null;
+            if (f.folder && !String(c.folder || '').toLowerCase().includes(f.folder)) return null;
+            const t = +id || 0; if (f.since != null && t < f.since) return null; if (f.until != null && t >= f.until) return null;
+            if (f.model && !c.messages.some(m => m.model && (String(m.model).toLowerCase().includes(f.model) || String((modelById(m.model) || {}).label || '').toLowerCase().includes(f.model)))) return null;
+            return f.q ? chatMatch(id, f.q) : '';
+        }
         function chatItem(id, newId, snippet) {
             const c = chats[id], item = document.createElement('div');
             item.className = 'chat-item' + (id === currentChatId ? ' active' : '') + (id === newId ? ' new-chat' : '') + (gens[id] ? ' running' : '') + (unread.has(id) ? ' unread' : '');
@@ -2981,12 +3009,12 @@
         }
         function renderSidebar(newId) {
             const list = $('chat-list'); list.innerHTML = '';
-            const q = ($('chat-search').value || '').trim().toLowerCase();
-            const ids = Object.keys(chats).filter(id => tabOf(id) === currentTab).sort((a, b) => b - a);   // ids = data de criacao: mais novos primeiro
+            const f = parseSearch($('chat-search').value);
+            const ids = Object.keys(chats).filter(id => f.all || tabOf(id) === currentTab).sort((a, b) => b - a);   // ids = data de criacao: mais novos primeiro
             const head = t => { const h = document.createElement('div'); h.className = 'list-head'; h.textContent = t; list.appendChild(h); return h; };
-            if (q) {
+            if (f.on) {
                 let n = 0;
-                ids.forEach(id => { const sn = chatMatch(id, q); if (sn !== null) { list.appendChild(chatItem(id, newId, sn === chats[id].title ? '' : sn)); n++; } });
+                ids.forEach(id => { const sn = chatFilter(id, f); if (sn !== null) { list.appendChild(chatItem(id, newId, !sn || sn === chats[id].title ? '' : sn)); n++; } });
                 if (!n) { const e = document.createElement('div'); e.className = 'list-empty'; e.textContent = tr('Nenhum chat encontrado.'); list.appendChild(e); }
             } else {
                 const pinned = ids.filter(id => chats[id].pinned), folders = {};
@@ -3024,6 +3052,7 @@
             saveToStorage(); renderSidebar();
         }
         let sidebarTimer = null;
+        $('chat-search').title = tr('Filtros: modelo:gemini  desde:2026-10-01  ate:2026-10-31  pasta:trabalho  fixado  tudo (todas as abas)');
         $('chat-search').addEventListener('input', () => { clearTimeout(sidebarTimer); sidebarTimer = setTimeout(() => renderSidebar(), 120); });
         $('chat-search').addEventListener('keydown', e => { if (e.key === 'Escape') { e.target.value = ''; renderSidebar(); } });
         function renameChatPrompt(id, event) { event.stopPropagation(); const n = prompt(tr('Novo nome:'), chats[id].title); if (n) { chats[id].title = n; saveToStorage(); renderSidebar(); } }
@@ -5374,6 +5403,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
     <script src="libs/chess-pieces.js"></script>
     <script src="libs/lume-ui.js"></script>
     <script src="libs/lume-ask.js"></script>
+    <script src="libs/lume-compare.js"></script>
     <script src="libs/lume-voice.js"></script>
     <script src="libs/lume-providers.js"></script>
     <script src="libs/lume-chess.js"></script>
