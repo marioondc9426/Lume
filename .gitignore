@@ -29,3 +29,8 @@ provider_health.json
 # sons de abertura (copyright de terceiros: ficam so no seu PC)
 sounds/*
 !sounds/LEIA-ME.txt
+
+# lume-feedback: dados locais do servidor (mensagens e senha do dashboard)
+lume-feedback/data/
+lume-feedback/feedback.db
+lume-feedback/feedback_password.txt
