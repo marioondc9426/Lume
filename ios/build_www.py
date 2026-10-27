@@ -14,7 +14,7 @@ for a, b in (("<b>Modelos locais e na nuvem</b><span>Rode no seu PC com o Ollama
              ("<span>A IA pesquisa na web, lê PDFs e textos e entende imagens.</span>", "<span>A IA pesquisa na web, lê arquivos de texto e entende imagens.</span>")):
     assert a in html, a[:40]; html = html.replace(a, b, 1)
 html = html.replace("Digite... (Shift+Enter quebra a linha, / para comandos)", "Digite sua mensagem...").replace("Type... (Shift+Enter for a new line, / for commands)", "Type a message...")   # no iPhone nao ha Shift+Enter
-inject = '<script src="backend-data.js"></script><script src="lume-backend.js"></script>'
+inject = '<script src="libs/providers.js"></script><script src="backend-data.js"></script><script src="lume-backend.js"></script>'   # o registro de provedores vem antes do backend
 assert html.count("<head>") == 1, "esperava uma tag <head>"
 html = html.replace("<head>", "<head>" + inject, 1)                  # antes de qualquer script da pagina: o fetch ja nasce trocado
 open(os.path.join(WWW, "index.html"), "w", encoding="utf-8").write(html)
