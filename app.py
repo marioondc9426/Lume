@@ -96,7 +96,7 @@ CLOUD_PREFIXES = ("groq", "or:", "cf:", "pol:", "tdc:", "vc:", "l7:") + tuple(p 
 ACCOUNTS_DIR = os.path.join(BASE_DIR, "accounts")   # uma pasta por conta, com o nome dela (a do dono e a dos amigos)
 def _find_owner_name():
     """O nome da conta do dono e o da pasta de accounts/ cujo account.json tem "role": "owner". Se voce renomear a pasta (e o "name" dentro dela), o app segue o novo nome."""
-    default = "uhhh sla hmmm tung sim ok"
+    default = "owner"   # nome da conta do dono numa instalacao nova (renomeie a pasta em accounts/ e o "name" dentro dela para trocar)
     try:
         cands = []
         for n in sorted(os.listdir(ACCOUNTS_DIR)):
