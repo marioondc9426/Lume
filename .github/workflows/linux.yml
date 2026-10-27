@@ -1,7 +1,7 @@
 name: Build Lume (Linux)
 
 # Binario nativo para Linux (janela Qt). Duas versoes:
-#  - Lume-linux: a normal; nas tags v* vai para a Release.
+#  - Lume-linux (+ AppImage): a normal; nas tags v* o AppImage vai para a Release.
 #  - Lume-linux-owner: so para o dono (nunca abre a porta para a rede); fica so como artefato do workflow, nunca na Release.
 on:
   push:
@@ -32,15 +32,37 @@ jobs:
         run: pip install -r requirements.txt "pywebview[qt]" pyinstaller
       - name: Gerar o binario
         run: python build_linux.py ${{ matrix.variant == 'owner' && '--owner' || '' }}
-      - name: Conferir que o binario existe
+      - name: Gerar o AppImage (so a versao normal)
+        if: matrix.variant == 'normal'
+        run: |
+          mkdir -p AppDir/usr/bin
+          cp dist/Lume-linux AppDir/usr/bin/Lume
+          cp icons/lume.png AppDir/lume.png
+          printf '[Desktop Entry]
+Type=Application
+Name=Lume
+Exec=Lume
+Icon=lume
+Categories=Utility;
+' > AppDir/lume.desktop
+          printf '#!/bin/sh
+exec "$(dirname "$(readlink -f "$0")")/usr/bin/Lume" "$@"
+' > AppDir/AppRun
+          chmod +x AppDir/AppRun
+          wget -q https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool-x86_64.AppImage
+          ARCH=x86_64 ./appimagetool-x86_64.AppImage --appimage-extract-and-run AppDir dist/Lume-x86_64.AppImage
+      - name: Conferir o que foi gerado
         run: ls -lh dist/
       - uses: actions/upload-artifact@v4
         with:
           name: Lume-linux-${{ matrix.variant }}
-          path: dist/Lume-linux*
+          path: |
+            dist/Lume-linux*
+            dist/*.AppImage
           retention-days: 30
       - name: Publicar na Release (so a versao normal, so em tags v*)
         if: matrix.variant == 'normal' && startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/Lume-linux
+          files: dist/Lume-x86_64.AppImage

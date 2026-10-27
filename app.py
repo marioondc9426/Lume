@@ -52,7 +52,7 @@ FROZEN = bool(getattr(sys, "frozen", False))   # True quando roda como Lume.exe 
 RES_DIR = getattr(sys, "_MEIPASS", None) or os.path.dirname(os.path.abspath(__file__))   # o que vem dentro do programa: paginas e icones
 def _env(name): return os.environ.get("LUME_" + name) or os.environ.get("QWEN_" + name)   # QWEN_* ainda vale (nome antigo do app)
 # Seus dados (conversas, chaves, certificados...): na pasta do projeto; no .exe ficam em %LOCALAPPDATA%\Lume (ou na pasta indicada em LUME_DATA_DIR)
-_data_root = os.environ.get("LOCALAPPDATA") or (os.path.join(os.path.expanduser("~"), "Library", "Application Support") if sys.platform == "darwin" else os.environ.get("XDG_DATA_HOME") or os.path.join(os.path.expanduser("~"), ".local", "share") if sys.platform.startswith("linux") else os.path.dirname(sys.executable))   # Windows: %LOCALAPPDATA%; macOS: ~/Library/Application Support; Linux: ~/.local/share
+_data_root = os.environ.get("LOCALAPPDATA") or (os.environ.get("XDG_DATA_HOME") or os.path.join(os.path.expanduser("~"), ".local", "share") if sys.platform.startswith("linux") else os.path.dirname(sys.executable))   # Windows: %LOCALAPPDATA%; Linux: ~/.local/share
 OWNER_ONLY = os.path.exists(os.path.join(RES_DIR, "owner_only.flag")) or bool(_env("OWNER_ONLY"))   # versao so para o dono: nunca abre a porta para a rede (sem acesso remoto, amigos nem tunel)
 if sys.platform.startswith("linux") and not os.environ.get("PYWEBVIEW_GUI"): os.environ["PYWEBVIEW_GUI"] = "qt"   # o Linux usa a janela Qt (vem junto no binario)
 BASE_DIR = _env("DATA_DIR") or (os.path.join(_data_root, "Lume") if FROZEN else RES_DIR)
