@@ -22,6 +22,8 @@
         .lu-x { position: absolute; top: 12px; right: 12px; width: 32px; height: 32px; border-radius: 50%; border: 0; background: rgba(128,128,128,.18); color: var(--text-main); font-size: 15px; line-height: 1; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background .15s; } .lu-x:hover { background: rgba(220,50,50,.85); color: #fff; }
         .lu-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 6px 18px 16px; display: flex; flex-direction: column; gap: 10px; }
         .lu-foot { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; padding: 0 18px 16px; } .lu-foot:empty { display: none; }
+        .lu-body.lu-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-items: start; } @media (max-width: 720px) { .lu-body.lu-cols { grid-template-columns: minmax(0, 1fr); } }
+        .lu-head .lu-aside { margin-left: auto; flex: none; }
         .lu-sec { border-radius: 14px; background: rgba(128,128,128,.08); flex: none; } .lu-sec > summary { cursor: pointer; list-style: none; padding: 11px 14px; font-size: .74em; letter-spacing: .1em; text-transform: uppercase; color: var(--text-muted); display: flex; align-items: center; justify-content: space-between; } .lu-sec > summary::-webkit-details-marker { display: none; }
         .lu-sec > summary::after { content: '▾'; transition: transform .2s; } .lu-sec[open] > summary::after { transform: rotate(180deg); } .lu-sec > div { padding: 0 14px 12px; display: flex; flex-direction: column; gap: 10px; }
         .lu-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: .9em; flex: none; } .lu-row > span:first-child { flex: 1 1 auto; } .lu-row > :last-child { flex: 0 1 190px; min-width: 0; } .lu-row .lu-hint { flex-basis: 100%; }
@@ -44,7 +46,7 @@
         el, T,
         modal(o) {
             o = o || {}; const ov = el('div', 'lu-ov'), card = el('div', 'lu-card'), head = el('div', 'lu-head'), body = el('div', 'lu-body'), foot = el('div', 'lu-foot');
-            if (o.width) card.style.setProperty('--lu-w', o.width + 'px'); if (o.id) ov.id = o.id;
+            if (o.width) card.style.setProperty('--lu-w', o.width + 'px'); if (o.id) ov.id = o.id; if (o.cols) body.classList.add('lu-cols');
             if (o.title) head.appendChild(el('h3', '', T(o.title)));
             const x = el('button', 'lu-x', '✕'); x.type = 'button'; x.title = T('Fechar'); x.setAttribute('aria-label', T('Fechar'));
             let closed = false, esc;
@@ -52,7 +54,7 @@
             esc = e => { if (e.key === 'Escape') close(); };
             x.onclick = close; ov.addEventListener('mousedown', e => { if (e.target === ov) close(); }); document.addEventListener('keydown', esc);
             card.append(head, x, body, foot); ov.appendChild(card); document.body.appendChild(ov);
-            return { ov, card, head, body, foot, close };
+            return { ov, card, head, body, foot, close, aside(node) { node.classList.add('lu-aside'); head.appendChild(node); return node; } };
         },
         section(parent, title, o) { const d = el('details', 'lu-sec'); if (o && o.open) d.open = true; d.appendChild(el('summary', '', T(title))); const b = el('div'); d.appendChild(b); parent.appendChild(d); return b; },
         row(parent, label, control, hint) { const r = el('div', 'lu-row'); r.append(el('span', '', T(label)), control); if (hint) r.appendChild(el('span', 'lu-hint', T(hint))); parent.appendChild(r); return r; },

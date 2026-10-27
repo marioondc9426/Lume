@@ -67,7 +67,7 @@
         #lume-pet { position: fixed; z-index: 4400; touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab; } #lume-pet.drag { cursor: grabbing; } #lume-pet.hide { display: none; }
         #lume-pet .lp-bub { position: absolute; bottom: calc(100% + 8px); right: 0; max-width: 220px; white-space: nowrap; padding: 6px 12px; border-radius: 14px; background: var(--bg-input, #2a2a2e); color: var(--text-main, #eee); border: 1px solid var(--border-color, #444); font-size: 12.5px; box-shadow: 0 6px 18px rgba(0,0,0,.4); opacity: 0; transform: translateY(6px) scale(.96); transition: opacity .2s, transform .2s; pointer-events: none; } #lume-pet .lp-bub.on { opacity: 1; transform: none; }
         body.pet-av .msg.ai { padding-left: calc(var(--lp-avs, 30px) + 22px); } body.pet-av .msg.ai > .lp-av { position: absolute; left: 10px; top: 14px; width: var(--lp-avs, 30px); height: var(--lp-avs, 30px); cursor: pointer; }
-        .lp-prev { flex: none; align-self: center; width: 110px; height: 110px; margin: 14px 0 6px; }
+        .lp-prev { flex: none; width: 84px; height: 84px; margin: 6px 14px 4px 0; }
     `;
     document.head.appendChild(css);
 
@@ -144,12 +144,12 @@
     // ---- janela de personalizacao (com previa ao vivo)
     function openSettings() {
         if (document.getElementById('lp-modal')) return;
-        const U = window.LumeUI, w = U.modal({ title: 'Mascote', id: 'lp-modal', width: 430 });
+        const U = window.LumeUI, w = U.modal({ title: 'Mascote', id: 'lp-modal', width: 820, cols: true });
         const apply = rebuild => { save(); if (rebuild) build(); repaintAll(); if (root) place(); scanAv(); };
         const tog = (sec, label, key, fn) => U.toggle(sec, label, cfg[key], v => { cfg[key] = v; (fn || apply)(); });
         const rng = (key, min, max) => U.range(min, max, cfg[key], v => { cfg[key] = v; apply(); });
         const sel = (key, opts) => U.select(opts, cfg[key], v => { cfg[key] = v; apply(); });
-        const prev = document.createElement('div'); prev.className = 'lp-prev'; w.card.insertBefore(prev, w.body); const pv = make(prev); point(pv, 0, 0);
+        const prev = document.createElement('div'); prev.className = 'lp-prev'; w.aside(prev); const pv = make(prev); point(pv, 0, 0);
         prev.addEventListener('pointermove', e => { const r = pv.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2), d = Math.hypot(dx, dy) || 1; point(pv, +(dx / d).toFixed(2), +(dy / d).toFixed(2)); });
         let s = U.section(w.body, 'Onde aparece', { open: true });
         tog(s, 'Ao lado das respostas da IA', 'avatar'); tog(s, 'Flutuando na tela', 'on'); tog(s, 'Balões de fala', 'bubble', save);
@@ -159,12 +159,12 @@
         U.row(s, 'Expressão', sel('expr', EXPR)); U.row(s, 'Olhos', sel('eyes', [['oval', 'Ovais'], ['round', 'Redondos'], ['wide', 'Grandes'], ['dot', 'Pontinhos']]));
         U.row(s, 'Cor dos olhos', U.color(cfg.eyeColor, v => { cfg.eyeColor = v; apply(); }, ['#ffffff', '#111111', '#ffd166', '#7dd3fc', '#86efac', '#f9a8d4']));
         U.row(s, 'Acessório', sel('acc', ACC_NAMES)); tog(s, 'Bochechas rosadas', 'blush');
-        s = U.section(w.body, 'Corpo');
+        s = U.section(w.body, 'Corpo', { open: true });
         U.row(s, 'Cor', U.color(cfg.color, v => { cfg.color = v; apply(); }, ['#2f8bff', '#ee5a8a', '#8b5cf6', '#22c55e', '#f59e0b', '#ef4444', '#14b8a6', '#9ca3af', '#f5f5f5', '#222222']));
         U.row(s, 'Estilo', sel('style', [['orb', 'Bolha brilhante'], ['led', 'LED de pontinhos']]));
         U.row(s, 'Formato', sel('shape', [['circle', 'Redondo'], ['wide', 'Achatado'], ['square', 'Quadrado arredondado'], ['drop', 'Gota'], ['ghost', 'Fantasminha']]));
         U.row(s, 'Brilho (aura)', rng('glow', 0, 100));
-        s = U.section(w.body, 'Comportamento');
+        s = U.section(w.body, 'Comportamento', { open: true });
         tog(s, 'Olhos seguem o cursor', 'follow', save); tog(s, 'Piscar', 'blinking', save); tog(s, 'Balançar parado', 'bob'); tog(s, 'Reagir (pensar, comemorar, dormir)', 'react');
         U.button(w.foot, 'Voltar ao canto', () => { cfg.x = cfg.y = null; apply(); });
         U.button(w.foot, 'Restaurar', () => { cfg = Object.assign({}, DEF); save(); build(); repaintAll(); scanAv(); w.close(); });

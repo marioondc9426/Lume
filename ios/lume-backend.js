@@ -252,14 +252,14 @@ async function readTimed(reader, ms) {
     try { return await Promise.race([reader.read(), to]); } finally { clearTimeout(t); }
 }
 async function* sseChat(resp, t0, errMap, firstMs, idleMs) {
-    const reader = resp.body.getReader(), dec = new TextDecoder(); let buf = '', first = 0, usage = null, cut = false, started = false, done = false;
+    const reader = resp.body.getReader(), dec = new TextDecoder(); let buf = '', first = 0, usage = null, cut = false, started = false, done = false; const extra = [];   // extra: linhas que nao sao SSE (JSON de erro ou resposta inteira com status 200)
     try {
         while (!done) {
             const { value, done: end } = await readTimed(reader, started ? (idleMs || 60000) : (firstMs || 60000)); started = true;
             if (end) break; buf += dec.decode(value, { stream: true });
             let nl; while ((nl = buf.indexOf('\n')) >= 0) {
                 const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1);
-                if (!line.startsWith('data:')) continue; const d = line.slice(5).trim(); if (d === '[DONE]') { done = true; break; }
+                if (!line.startsWith('data:')) { if (line && !line.startsWith(':') && extra.join('').length < 20000) extra.push(line); continue; } const d = line.slice(5).trim(); if (d === '[DONE]') { done = true; break; }
                 let j; try { j = JSON.parse(d); } catch (e) { continue; }
                 if (j.error) { const e = typeof j.error === 'object' ? j.error : { message: j.error }; throw new Error((errMap && errMap[e.code]) || String(e.message || JSON.stringify(e)).slice(0, 200)); }
                 if (j.usage) usage = j.usage;
@@ -272,6 +272,14 @@ async function* sseChat(resp, t0, errMap, firstMs, idleMs) {
             }
         }
     } finally { try { reader.cancel(); } catch (e) { /* ja fechou */ } }
+    if (!first && !usage) {   // nada chegou como stream: o corpo e um JSON de erro, a resposta inteira ou vazio
+        const body = extra.join('') + buf.trim(); let j = null; try { j = JSON.parse(body); } catch (e) { /* nao e JSON */ }
+        if (j && j.error) { const e = typeof j.error === 'object' ? j.error : { message: j.error }; throw new Error((errMap && errMap[e.code]) || String(e.message || JSON.stringify(e)).slice(0, 200)); }
+        const m = (j && j.choices && j.choices[0] && j.choices[0].message) || {};
+        if (m.reasoning_content || m.reasoning) yield ['thinking', String(m.reasoning_content || m.reasoning)];
+        if (m.content) { yield ['content', String(m.content)]; return; }
+        throw new Error('O provedor respondeu vazio' + (body ? ': ' + body.slice(0, 150) : ' (sem texto)') + '. Tente de novo ou escolha outro modelo.');
+    }
     if (cut) yield ['content', '\n\n[Cortado: o modelo atingiu o limite de tokens da resposta]'];
     if (usage && usage.completion_tokens) {
         const t = now(), win = Math.max(0.001, t - (first || t0)), total = Math.max(0.001, t - t0), burst = !!first && win < 0.25;

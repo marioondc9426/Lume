@@ -780,7 +780,7 @@
             body[data-ui="modern"] #set-nav .sn-label { font-size: 0.74em; color: var(--text-muted); padding: 14px 12px 4px; }
             body[data-ui="modern"] #settings-modal #set-general > .section-title { display: none; }
             /* variacoes por tema (so com "temas mudam o layout" ligado) */
-            body[data-ui="modern"][data-layout="on"][data-settings="modal"][data-theme="deepseek"] #settings-modal .modal-content { width: min(820px, 94vw); height: min(620px, 86vh); grid-template-columns: 200px 1fr; border-radius: 24px; }
+            body[data-ui="modern"][data-layout="on"][data-settings="modal"][data-theme="deepseek"] #settings-modal .modal-content { width: min(1040px, 95vw); height: min(760px, 90vh); grid-template-columns: 210px 1fr; border-radius: 24px; }
             body[data-ui="modern"][data-layout="on"][data-theme="claude"] #settings-modal .modal-content { border-radius: 14px; }
             body[data-ui="modern"][data-layout="on"][data-theme="perplexity"] #settings-modal .modal-content { border-radius: 26px; width: min(1040px, 94vw); }
             body[data-ui="modern"][data-layout="on"][data-settings="page"] #settings-modal { inset: 0; background: var(--bg-main); animation: none; }
@@ -959,6 +959,14 @@
         @keyframes bsMac { 0% { width: 0; } 100% { width: 92%; } }
         #boot-splash.preview { cursor: pointer; }
         @media (prefers-reduced-motion: reduce) { #boot-splash .bs-logo { animation: none; } #boot-splash .bs-mbar i { animation: none; width: 60%; } }
+        /* ===== Configuracoes mais limpas: janela maior, 2 colunas, cartoes, dicas recolhidas (clique abre) ===== */
+        body[data-ui="modern"] #settings-modal .modal-content { width: min(1100px, 95vw); height: min(780px, 90vh); }
+        body[data-ui="modern"] #settings-modal #set-general { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-content: start; }
+        body[data-ui="modern"] #settings-modal #set-general > :is(.hint, .form-group:has(textarea), .form-group:has(.srv-actions), .form-group:has(#opt-ctx), [id$="-box"], [id$="-list"], .section-title) { grid-column: 1 / -1; }
+        body[data-ui="modern"] #settings-modal #set-general > .toggle-container { background: var(--seg-bg); border-radius: 16px; padding: 14px; margin: 0; }
+        body[data-ui="modern"] #settings-modal #set-general > .form-group { margin: 0; min-width: 0; }
+        #settings-modal .hint { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; } #settings-modal .hint.open { -webkit-line-clamp: unset; overflow: visible; }
+        @media (max-width: 900px) { body[data-ui="modern"] #settings-modal #set-general { grid-template-columns: minmax(0, 1fr); } }
     </style>
     <script src="libs/emoji-shortcodes.js"></script>
 </head>
@@ -4088,6 +4096,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             setSecs.forEach(s => item(s.id, s.label, s.id)); item('servidor', 'Servidor', 'servidor');
             showSettingsSection('geral');
         }
+        document.addEventListener('click', e => { const h = e.target.closest && e.target.closest('#settings-modal .hint'); if (h && !e.target.closest('a')) h.classList.toggle('open'); });   // dicas compridas: uma linha ou duas; clique abre tudo
         function showSettingsSection(id) {
             setActive = id;
             document.querySelectorAll('#set-nav .sn-item').forEach(b => b.classList.toggle('on', b.dataset.sec === id));

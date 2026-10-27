@@ -52,7 +52,9 @@ FROZEN = bool(getattr(sys, "frozen", False))   # True quando roda como Lume.exe 
 RES_DIR = getattr(sys, "_MEIPASS", None) or os.path.dirname(os.path.abspath(__file__))   # o que vem dentro do programa: paginas e icones
 def _env(name): return os.environ.get("LUME_" + name) or os.environ.get("QWEN_" + name)   # QWEN_* ainda vale (nome antigo do app)
 # Seus dados (conversas, chaves, certificados...): na pasta do projeto; no .exe ficam em %LOCALAPPDATA%\Lume (ou na pasta indicada em LUME_DATA_DIR)
-_data_root = os.environ.get("LOCALAPPDATA") or os.path.dirname(sys.executable)
+_data_root = os.environ.get("LOCALAPPDATA") or (os.path.join(os.path.expanduser("~"), "Library", "Application Support") if sys.platform == "darwin" else os.environ.get("XDG_DATA_HOME") or os.path.join(os.path.expanduser("~"), ".local", "share") if sys.platform.startswith("linux") else os.path.dirname(sys.executable))   # Windows: %LOCALAPPDATA%; macOS: ~/Library/Application Support; Linux: ~/.local/share
+OWNER_ONLY = os.path.exists(os.path.join(RES_DIR, "owner_only.flag")) or bool(_env("OWNER_ONLY"))   # versao so para o dono: nunca abre a porta para a rede (sem acesso remoto, amigos nem tunel)
+if sys.platform.startswith("linux") and not os.environ.get("PYWEBVIEW_GUI"): os.environ["PYWEBVIEW_GUI"] = "qt"   # o Linux usa a janela Qt (vem junto no binario)
 BASE_DIR = _env("DATA_DIR") or (os.path.join(_data_root, "Lume") if FROZEN else RES_DIR)
 if FROZEN and not _env("DATA_DIR") and not os.path.exists(BASE_DIR) and os.path.isdir(os.path.join(_data_root, "Qwen")):   # o app se chamava Qwen: traz as conversas e configuracoes junto
     try: os.rename(os.path.join(_data_root, "Qwen"), BASE_DIR)
@@ -1791,7 +1793,7 @@ def parse_ratelimit(h):
 def _sse_chat(response, t0, err_map, first_timeout=None, idle_timeout=None):
     """Le a resposta em stream (SSE) de uma API compativel com OpenAI e gera ('content'|'thinking'|'stats', valor).
     Se nao chegar nenhum dado dentro do tempo (first_timeout no comeco, idle_timeout depois), a conexao e cortada e vira um erro."""
-    first = None; usage = None; cut = False; tcalls = {}; limits = parse_ratelimit(getattr(response, "headers", None))
+    first = None; usage = None; cut = False; tcalls = {}; limits = parse_ratelimit(getattr(response, "headers", None)); extra = []   # extra: linhas que nao sao SSE (alguns provedores respondem 200 com um JSON de erro ou a resposta inteira)
     first_timeout = first_timeout or CLOUD_FIRST_TIMEOUT; idle_timeout = idle_timeout or CLOUD_IDLE_TIMEOUT
     state = {"timed": False, "limit": first_timeout}
     def arm(secs):
@@ -1802,7 +1804,9 @@ def _sse_chat(response, t0, err_map, first_timeout=None, idle_timeout=None):
         for raw in response:
             timer.cancel(); timer = arm(idle_timeout)
             line = raw.decode("utf-8", "replace").strip()
-            if not line.startswith("data:"): continue   # linhas ": OPENROUTER PROCESSING" sao so para manter a conexao
+            if not line.startswith("data:"):   # linhas ": OPENROUTER PROCESSING" sao so para manter a conexao
+                if line and not line.startswith(":") and sum(len(x) for x in extra) < 20000: extra.append(line)
+                continue
             d = line[5:].strip()
             if d == "[DONE]": break
             try: j = json.loads(d)
@@ -1828,6 +1832,17 @@ def _sse_chat(response, t0, err_map, first_timeout=None, idle_timeout=None):
     finally:
         timer.cancel()
     if state["timed"]: raise Exception(f"O provedor parou de responder (sem dados por {state['limit']} s).")
+    if first is None and not usage and not tcalls:   # nada chegou como stream: o corpo e um JSON de erro, a resposta inteira ou vazio
+        body = "".join(extra)
+        try: j = json.loads(body)
+        except ValueError: j = None
+        if isinstance(j, dict) and j.get("error"):
+            e = j["error"] if isinstance(j["error"], dict) else {"message": j["error"]}
+            raise Exception(err_map.get(e.get("code")) or str(e.get("message") or e)[:200])
+        m = ((((j or {}).get("choices") or [{}])[0] or {}).get("message") or {}) if isinstance(j, dict) else {}
+        if m.get("reasoning_content") or m.get("reasoning"): yield "thinking", str(m.get("reasoning_content") or m.get("reasoning"))
+        if m.get("content"): yield "content", str(m["content"]); return
+        raise Exception("O provedor respondeu vazio" + (": " + body[:150] if body else " (sem texto)") + ". Tente de novo ou escolha outro modelo.")
     if cut: yield "content", "\n\n[Cortado: o modelo atingiu o limite de tokens da resposta]"
     calls_txt = ["$$[TOOL: %s] %s$$" % (c["name"], c["args"] or "{}") for _, c in sorted(tcalls.items())[:5] if c["name"] in TOOL_NAMES]
     if calls_txt: yield "content", chr(10).join(calls_txt)   # tudo num pedaco so: o laco do agente le a primeira e depois as outras
@@ -3560,7 +3575,7 @@ def start_server():
     if not _health_started:   # teste de saude dos modelos novos (Aichixia, AIHubMix, LiteRouter) a cada 10 minutos
         _health_started = True; _health_load(); threading.Thread(target=health_loop, daemon=True).start()
     handler = functools.partial(AppHandler, directory=RES_DIR)
-    host = "0.0.0.0" if load_config().get("remote_enabled") else "127.0.0.1"
+    host = "0.0.0.0" if load_config().get("remote_enabled") and not OWNER_ONLY else "127.0.0.1"
     srv = None
     for attempt in range(8):   # na troca de modo o socket antigo pode demorar um instante para liberar a porta
         try:
