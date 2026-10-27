@@ -2221,6 +2221,29 @@
             const key = ([, ms]) => ms[0].base.toLowerCase();
             return new Map([...map.entries()].sort((a, b) => key(a).localeCompare(key(b), 'pt', { numeric: true })));
         }
+        // ---- abertura rapida e o ultimo modelo de volta ----
+        // A ultima lista de modelos da nuvem fica guardada no aparelho e aparece NA HORA; cada provedor atualiza quando responder (os carregadores trocam as entradas dele).
+        // O modelo que voce usou por ultimo volta sozinho assim que existir, de qualquer provedor, a nao ser que voce escolha outro enquanto a lista carrega.
+        const MODELS_CACHE = 'lume_models_cache_v1', IS_CLOUDM = m => (m.cloud || m.pol || m.or || m.cf || m.groq || m.tdc || m.vc || m.l7 || m.x) && !m.phone;
+        let userPicked = false, modelsCacheTimer = null;
+        function loadModelsCache() {
+            try {
+                const arr = JSON.parse(localStorage.getItem(MODELS_CACHE) || '[]');
+                (Array.isArray(arr) ? arr : []).forEach(m => { if (m && m.id && !MODELS.some(x => x.id === m.id)) MODELS.push(Object.assign(m, { _cached: true })); });
+            } catch (e) { /* sem cache: a lista vem dos provedores */ }
+        }
+        function saveModelsCache() {   // sem repetir a cada atualizacao
+            clearTimeout(modelsCacheTimer);
+            modelsCacheTimer = setTimeout(() => { try { if (!isGuest()) localStorage.setItem(MODELS_CACHE, JSON.stringify(MODELS.filter(IS_CLOUDM))); } catch (e) { /* sem espaco/armazenamento */ } }, 1500);
+        }
+        function dedupeModels() {   // o que veio do cache some quando a lista nova do provedor chega
+            const fresh = new Set(MODELS.filter(m => !m._cached).map(m => m.id));
+            for (let i = MODELS.length - 1; i >= 0; i--) if (MODELS[i]._cached && fresh.has(MODELS[i].id)) MODELS.splice(i, 1);
+        }
+        function restoreLastModel() {
+            const m = config.model && modelById(config.model);
+            if (!userPicked && m && selectedModel !== config.model && currentTab === 'chat' && (m.tabs || []).includes('chat') && isAvail(m)) selectedModel = config.model;
+        }
         function ensureSelected() {
             const avail = availIn(currentTab); if (!avail.length) return;
             const cur = modelById(selectedModel);
@@ -2264,6 +2287,8 @@
             } catch (e) {}
             if (config.theme === 'kimi') config.theme = 'roxo';   // o tema "Kimi" (que e roxo) agora se chama "Roxo"
             if (!themesNow().includes(config.theme) && !String(config.theme).startsWith('custom:')) config.theme = defaultTheme();   // ex.: o 'dark' antigo vira DeepSeek na interface nova
+            if (!isGuest()) loadModelsCache();   // a ultima lista da nuvem aparece na hora
+            if (config.lastModelRec && config.lastModelRec.id === config.model && !modelById(config.model)) MODELS.push(Object.assign({}, config.lastModelRec, { _cached: true }));   // o ultimo modelo existe desde o primeiro instante
             selectedModel = modelById(config.model) ? config.model : 'qwen3.5:4b';
         }
 
@@ -2327,7 +2352,8 @@
             initStep = 'applyPerf'; applyPerf();
             if (auth.local) fetch(API + '/api/perf_interval', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ms: config.perfInterval }) }).catch(() => {});
             if (auth.local || auth.authed) fetch(API + '/api/usage').then(r => r.json()).then(updateUsageBadge).catch(() => {});
-            initStep = 'refreshLoaded'; if (auth.local || auth.authed) { await refreshLoaded(); loadOpenRouterModels(); loadGroqModels(); loadTomdacatModels(); loadVercelModels(); loadLlm7Models(); loadExtraModels(); loadCloudflareModels(); loadPollinationsModels(); }   // descobre o que esta instalado
+            initStep = 'refreshLoaded'; if (auth.local || auth.authed) { refreshLoaded().then(() => renderModelOptions()); loadOpenRouterModels();   // NAO espera o Ollama/GPU: a tela abre na hora e a lista de instalados chega depois
+                loadGroqModels(); loadTomdacatModels(); loadVercelModels(); loadLlm7Models(); loadExtraModels(); loadCloudflareModels(); loadPollinationsModels(); }   // descobre o que esta instalado
             initStep = 'switchTab'; switchTab('chat', true);
             initDone = true; hideBootSplash(); startPolling();
             if (!metricsStarted) metricsLoop();
@@ -2512,11 +2538,11 @@
             return out;
         }
         function renderModelOptions(onlyIfChanged = false) {
-            ensureSelected();
+            dedupeModels(); restoreLastModel(); ensureSelected();
             // a lista so e reconstruida quando algo mudou (senao a animacao e o hover "reiniciavam" a cada atualizacao)
             const sig = JSON.stringify([currentTab, selectedModel, Object.entries(loadedModels).map(([k, v]) => [k, v.size]), pendingModel, installed ? [...installed].sort() : null, vramTotalMB]);
             if (onlyIfChanged === true && sig === lastModelSig) return;
-            lastModelSig = sig;
+            lastModelSig = sig; saveModelsCache();
             const box = $('model-options'); box.innerHTML = '';
             const fams = familiesIn(currentTab), cur = modelById(selectedModel);
             if (!cur) { const e = document.createElement('div'); e.className = 'select-option'; e.textContent = tr('Nenhum modelo disponível.'); box.appendChild(e); return; }   // nada disponivel nesta aba (ainda): nao quebra a inicializacao
@@ -2867,7 +2893,8 @@
                 const r = await ask({ title: 'Modelo muito pesado', body: tr('{label} é muito pesado para esta máquina e vai rodar super lento (pode estourar a VRAM e usar a RAM/CPU).', { label: m.label }), buttons: ['Usar mesmo assim', 'Cancelar'], danger: true });
                 if (r.index !== 0) return;
             }
-            selectedModel = id; config.model = id; if (!m.cloud) lastLocalModel = id;
+            selectedModel = id; config.model = id; userPicked = true; if (!m.cloud) lastLocalModel = id;
+            try { config.lastModelRec = IS_CLOUDM(m) ? JSON.parse(JSON.stringify(Object.assign({}, m, { _cached: undefined }))) : null; } catch (e) { config.lastModelRec = null; }   // guarda o registro para ele existir ja na proxima abertura
             config.famSize = Object.assign({}, config.famSize, { [fin(m).grp]: id }); config.provPref = Object.assign({}, config.provPref, { [m.grp + '|' + m.pk]: id });
             saveState(); renderModelOptions();
         }
