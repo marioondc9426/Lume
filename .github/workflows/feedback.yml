@@ -1,0 +1,48 @@
+name: Build Lume Feedback
+
+# O app separado de feedback (feedback-app/): Windows (.exe) e Linux (binario). Nas tags v* os arquivos vao para a Release.
+on:
+  push:
+    branches: [main]
+    paths: ["feedback-app/**", ".github/workflows/feedback.yml"]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            out: Lume-Feedback.exe
+          - os: ubuntu-22.04
+            out: Lume-Feedback-linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Tkinter (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y python3-tk scrot
+      - name: Instalar
+        run: pip install pyinstaller pillow
+      - name: Gerar
+        shell: bash
+        run: |
+          pyinstaller --noconfirm --onefile --windowed --name "${{ matrix.out }}" feedback-app/lume_feedback.py
+          ls -lh dist/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.out }}
+          path: dist/${{ matrix.out }}*
+          retention-days: 30
+      - name: Publicar na Release (so em tags v*)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/${{ matrix.out }}*

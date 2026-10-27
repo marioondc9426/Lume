@@ -24,10 +24,18 @@ jobs:
         run: pip install -r requirements.txt -r requirements-build.txt
       - name: Gerar Lume.exe
         run: python build_exe.py
+      - name: Gerar o instalador (Inno Setup, ja vem no runner)
+        shell: pwsh
+        run: |
+          $ver = (Select-String -Path app.py -Pattern '^VERSION = "([^"]+)"').Matches[0].Groups[1].Value
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DMyAppVersion=$ver" installer\lume.iss
+          if (-not (Test-Path dist\Lume-Setup.exe)) { throw "o instalador nao foi gerado" }
       - uses: actions/upload-artifact@v4
         with:
           name: Lume-windows
-          path: dist/Lume.exe
+          path: |
+            dist/Lume.exe
+            dist/Lume-Setup.exe
           retention-days: 30
       - name: Texto da Release (a secao do CHANGELOG)
         if: startsWith(github.ref, 'refs/tags/v')
@@ -36,5 +44,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/Lume.exe
+          files: |
+            dist/Lume.exe
+            dist/Lume-Setup.exe
           body_path: release_notes.md
