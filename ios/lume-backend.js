@@ -609,6 +609,12 @@ const ROUTES = {
         }
         LS.set('accounts', names); return json({ ok: true, imported: done });
     },
+    'POST /api/config_import': async (u, b) => {   // so chaves de API e o endereco do Ollama; senha/sessoes nao existem aqui
+        const src = b && b.config; if (!src || typeof src !== 'object') return json({ error: 'Esse arquivo nao e um config.json do Lume.' }, 400);
+        const c = Object.assign({}, await loadConfig()); let n = 0, skipped = 0;
+        for (const [k, v] of Object.entries(src)) { if ((SECRET_KEYS.includes(k) || k === 'ollama_url') && typeof v === 'string' && v.trim()) { if (c[k] !== v.trim()) { c[k] = v.trim(); n++; } } else skipped++; }
+        await saveConfig(c); return json({ ok: true, imported: n, skipped });
+    },
     'GET /api/account': () => json({ name: ACCT, accounts: LS.get('accounts', []) }),
     'POST /api/account/login': (u, b) => {
         const n = String((b && b.name) || '').trim().replace(/\s+/g, ' ').slice(0, 40); if (!n) { LS.set('account', ''); ACCT = ''; return json({ ok: true, name: '' }); }

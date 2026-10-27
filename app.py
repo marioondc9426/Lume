@@ -344,6 +344,19 @@ def use_account(name):
 def account_folder(name):
     return OWNER_DIR if (not name or name == OWNER_NAME) else os.path.join(ACCOUNTS_DIR, name)
 
+# ---------------------------------------------------------------- importar o seu config.json (chaves e opcoes)
+CONFIG_IMPORT_DENY = re.compile(r"password|^tokens$|owner|remote|^port$|https_port|active_account|guest|cloudflare_blocked|_neurons|_probe|cert", re.I)   # nunca vem de um arquivo: senha, sessoes, portas, acesso remoto, contas
+
+def import_config(new, cfg):
+    """Junta o config.json de outra instalacao nesta: so campos que ja existem aqui e com o mesmo tipo (texto, numero, lista...), menos os de seguranca.
+    Devolve (config novo, quantos entraram, nomes ignorados). Nunca devolve valores."""
+    if not isinstance(new, dict): raise ValueError("Esse arquivo nao e um config.json do Lume.")
+    out, done, skipped = dict(cfg), 0, []
+    for k, v in new.items():
+        if CONFIG_IMPORT_DENY.search(k) or k not in cfg or type(v) is not type(cfg[k]) or v in ("", None): skipped.append(k); continue
+        if out.get(k) != v: out[k] = v; done += 1
+    return out, done, skipped
+
 def export_accounts(all_accounts):
     names = ([""] + list_accounts()) if all_accounts else [ACTIVE_ACCOUNT]
     out = []
@@ -2368,7 +2381,7 @@ STATIC_PAGES = ("/", "/index.html")
 PAGE_ALIAS = {"/share": "/share.html", "/dashboard": "/dashboard.html"}
 # So o proprio PC (janela do app) pode usar estas rotas
 LOCAL_ONLY_POST = ("/api/save_config", "/api/save_key", "/api/server_config", "/api/perf_interval",
-                   "/api/custom_theme", "/api/custom_theme_delete", "/api/account_import", "/api/pol_effort_probe", "/api/account/login", "/api/account/logout", "/api/resolve_pending", "/api/export", "/api/ios_profile_save", "/api/undo", "/api/stats_clear", "/api/open_url", "/api/update_apply", "/api/restart_app", "/api/run_code", "/api/run_stop", "/api/tunnel_start", "/api/tunnel_stop", "/api/tunnel_install", "/api/app_options", "/api/model_pull", "/api/model_delete", "/api/models_update_now", "/api/cloudflare_usage_set")
+                   "/api/custom_theme", "/api/custom_theme_delete", "/api/account_import", "/api/config_import", "/api/pol_effort_probe", "/api/account/login", "/api/account/logout", "/api/resolve_pending", "/api/export", "/api/ios_profile_save", "/api/undo", "/api/stats_clear", "/api/open_url", "/api/update_apply", "/api/restart_app", "/api/run_code", "/api/run_stop", "/api/tunnel_start", "/api/tunnel_stop", "/api/tunnel_install", "/api/app_options", "/api/model_pull", "/api/model_delete", "/api/models_update_now", "/api/cloudflare_usage_set")
 PUBLIC_POST = ("/api/auth/login", "/api/auth/logout", "/api/guest/register", "/api/guest/code")
 LOGIN_MAX_FAILS, LOGIN_LOCK_SECONDS = 5, 60
 login_failures = {}   # ip -> [falhas, inicio]
@@ -2937,6 +2950,13 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             if not use_account(name): return self.send_json({"error": "Nao da para entrar nessa conta."}, 400)
             cfg = load_config(); cfg["active_account"] = ACTIVE_ACCOUNT; save_config(cfg); log("CONTA", f"Conta ativa no PC: {ACTIVE_ACCOUNT or OWNER_NAME}", COLOR_GREEN)
             return self.send_json({"ok": True, "name": ACTIVE_ACCOUNT})
+        if p == '/api/config_import':
+            try: new_cfg, n, skipped = import_config(data.get("config"), load_config())
+            except ValueError as e: return self.send_json({"error": str(e)}, 400)
+            try: shutil.copy2(CONFIG_FILE, CONFIG_FILE + ".bak")   # copia de seguranca do que estava antes
+            except OSError: pass
+            save_config(new_cfg); log("CONFIG", f"config.json importado: {n} campo(s); {len(skipped)} ignorado(s)", COLOR_GREEN)
+            return self.send_json({"ok": True, "imported": n, "skipped": len(skipped)})
         if p == '/api/account_import':
             try: res = import_accounts(data.get("data"))
             except ValueError as e: return self.send_json({"error": str(e)}, 400)

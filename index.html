@@ -915,6 +915,8 @@
         /* conta (so no iPhone) */
         #acct-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 10px; padding: 10px 14px; border-radius: 14px; background: rgba(128,128,128,0.12); font-size: 0.92em; }
         #acct-row .btn { margin: 0; padding: 6px 16px; border-radius: 999px; }
+        #acct-row #acct-label::before { content: attr(data-initial); display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin-right: 9px; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 700; font-size: .85em; vertical-align: middle; }
+        @media (min-width: 761px) { body[data-ui="modern"] #settings-modal #acct-row { grid-column: 2; grid-row: 1; justify-self: end; align-self: center; margin: 0 64px 0 0; padding: 4px 6px 4px 12px; background: var(--seg-bg); z-index: 6; } }   /* no topo, ao lado do X (antes ficava solto no pe da lista) */
         .acct-ov { position: fixed; inset: 0; z-index: 6000; display: flex; align-items: flex-end; justify-content: center; background: rgba(0,0,0,0.55); }
         .acct-sheet { width: min(480px, 100%); max-height: 86%; overflow-y: auto; background: var(--bg-main); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 22px 22px 0 0; padding: 18px 18px calc(18px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 10px; }
         .acct-sheet h3 { margin: 0 0 2px; } .acct-sheet .hint { color: var(--text-muted); font-size: 0.85em; margin: 0; }
@@ -1784,6 +1786,7 @@
             'Comparar modelos': 'Compare models', 'Comparar': 'Compare', 'Escreva a pergunta que todos vão responder…': 'Write the question they will all answer…', 'Escolha pelo menos 2 modelos diferentes.': 'Pick at least 2 different models.', 'Preciso de pelo menos 2 modelos disponíveis. Configure uma chave ou ligue o Ollama.': 'I need at least 2 available models. Add a key or turn Ollama on.', 'palavras': 'words', 'erro': 'error', '(escolha)': '(choose)', '(nenhum)': '(none)', 'Copiar': 'Copy',
             'Filtros: modelo:gemini  desde:2026-10-01  ate:2026-10-31  pasta:trabalho  fixado  tudo (todas as abas)': 'Filters: modelo:gemini  desde:2026-10-01  ate:2026-10-31  pasta:work  fixado  tudo (all tabs)',
             "Jogos": "Games", "Jogo da velha": "Tic-tac-toe", "Forca": "Hangman", "20 perguntas": "20 questions", "Você é o X; o modelo joga de O.": "You are X; the model plays O.", "O modelo escolhe a palavra e uma dica.": "The model picks the word and a hint.", "O modelo pensa em algo; você descobre.": "The model thinks of something; you guess.", "Contra qualquer modelo, com análise e peças.": "Against any model, with analysis and piece sets.", "Novo jogo": "New game", "Nova palavra": "New word", "Enviar": "Send", "Sua vez (você é o X).": "Your turn (you are X).", "O modelo está pensando…": "The model is thinking…", "Você ganhou! 🎉": "You won! 🎉", "O modelo ganhou.": "The model won.", "Deu velha (empate).": "Draw.", "joguei por ele.": "I played for it.", "Erro do modelo: ": "Model error: ", "O modelo está escolhendo uma palavra…": "The model is picking a word…", "Dica: ": "Hint: ", "Escolha as letras.": "Pick letters.", "Você acertou! 🎉": "You got it! 🎉", "Perdeu! A palavra era: ": "You lost! The word was: ", "erros": "mistakes", "O modelo está pensando em algo…": "The model is thinking of something…", "Pensei em algo! Categoria: ": "I thought of something! Category: ", "Você tem 20 perguntas.": "You have 20 questions.", "Acertou! Era: ": "Correct! It was: ", "Você venceu em ": "You won in ", " perguntas!": " questions!", "Sim": "Yes", "Não": "No", "Talvez": "Maybe", "Acabaram as perguntas! Era: ": "Out of questions! It was: ", "Fim de jogo.": "Game over.", "Pergunta ": "Question ", "Erro: ": "Error: ", "Preciso de um modelo disponível. Configure uma chave ou ligue o Ollama.": "I need an available model. Add a key or turn Ollama on.",
+            'Importar o meu config.json': 'Import my config.json', 'Traz as chaves de API e as opções de outro Lume (a senha, as sessões e as portas nunca entram).': 'Brings the API keys and options from another Lume (the password, sessions and ports are never imported).', 'Esse arquivo não é um config.json do Lume.': 'That file is not a Lume config.json.', 'Importado: {n} configuração(ões). Ignorei {k} (senha, sessões, portas e acesso remoto nunca são importados).': 'Imported: {n} setting(s). Skipped {k} (password, sessions, ports and remote access are never imported).',
             'Bug ou sugestão': 'Bug or suggestion', 'Abrir os modelos de issue no GitHub': 'Open the issue templates on GitHub', 'Abre a página do GitHub com dois formulários prontos: um para relatar um bug e outro para sugerir uma ideia.': 'Opens the GitHub page with two ready forms: one to report a bug and one to suggest an idea.', 'Opções': 'Options', 'Mais': 'More', 'Voltar ao canto': 'Back to the corner',
             'Com isso ligado, cada modelo usa tudo o que suporta (ex.: 256K) e o valor acima é ignorado. Cuidado: contextos enormes ocupam MUITA VRAM e deixam tudo mais lento.': 'When on, each model uses everything it supports (e.g. 256K) and the value above is ignored. Careful: huge contexts take A LOT of VRAM and slow everything down.', 'Salvar': 'Save', 'Atualizações': 'Updates', 'Verificar atualizações': 'Check for updates', 'Atualizar agora': 'Update now',
             'Avisar quando houver versão nova ao abrir o app': 'Notify me when a new version is available at startup', 'Verificando...': 'Checking...', 'Atualizando...': 'Updating...',
@@ -4962,13 +4965,27 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             };
             inp.click();
         }
+        function importConfigFile() {   // o seu proprio config.json: so chaves e opcoes; senha, sessoes e portas nunca entram
+            const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
+            inp.onchange = async () => {
+                const f = inp.files && inp.files[0]; if (!f) return;
+                let cfg; try { cfg = JSON.parse(await f.text()); } catch (e) { showInfo(tr('Esse arquivo não é um JSON válido.')); return; }
+                if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) { showInfo(tr('Esse arquivo não é um config.json do Lume.')); return; }
+                try {
+                    const r = await (await fetch(API + '/api/config_import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ config: cfg }) })).json();
+                    if (r.error) { showInfo(tr(r.error)); return; }
+                    alert(tr('Importado: {n} configuração(ões). Ignorei {k} (senha, sessões, portas e acesso remoto nunca são importados).', { n: r.imported, k: r.skipped })); location.reload();
+                } catch (e) { showInfo(tr('Não deu para importar agora.')); }
+            };
+            inp.click();
+        }
         // conta (PC e iPhone): botao "Logar" no topo das configuracoes; sem senha
         async function initAccountRow() {
             const row = $('acct-row'), btn = $('acct-btn'), lab = $('acct-label'); if (!row || !auth.local || auth.guest) return;
             let info = {}; try { info = await (await fetch(API + '/api/account')).json(); } catch (e) { return; }
             if (info.error) return; row.style.display = '';
             const owner = info.owner || '', cur = info.name || '';
-            lab.textContent = cur ? tr('Conta: {n}', { n: cur }) : (owner ? tr('Conta: {n}', { n: owner }) : tr('Sem conta (conversas deste aparelho)')); btn.textContent = tr(cur || owner ? 'Trocar' : 'Logar');
+            lab.textContent = cur ? tr('Conta: {n}', { n: cur }) : (owner ? tr('Conta: {n}', { n: owner }) : tr('Sem conta (conversas deste aparelho)')); lab.dataset.initial = (cur || owner || '?').trim().charAt(0).toUpperCase() || '?'; btn.textContent = tr(cur || owner ? 'Trocar' : 'Logar');
             btn.onclick = () => {
                 const ov = document.createElement('div'); ov.className = 'acct-ov'; const sh = document.createElement('div'); sh.className = 'acct-sheet'; ov.appendChild(sh);
                 const mk = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
@@ -4985,6 +5002,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 const ex1 = mk('button', 'btn btn-secondary', tr('Exportar esta conta')); ex1.onclick = () => { ov.remove(); exportAccounts(false); }; sh.appendChild(ex1);
                 const ex2 = mk('button', 'btn btn-secondary', tr('Exportar todas as contas')); ex2.onclick = () => { ov.remove(); exportAccounts(true); }; sh.appendChild(ex2);
                 const im = mk('button', 'btn btn-secondary', tr('Importar contas de um arquivo')); im.onclick = () => { ov.remove(); importAccounts(); }; sh.appendChild(im);
+                const ic = mk('button', 'btn btn-secondary', tr('Importar o meu config.json')); ic.title = tr('Traz as chaves de API e as opções de outro Lume (a senha, as sessões e as portas nunca entram).'); ic.onclick = () => { ov.remove(); importConfigFile(); }; sh.appendChild(ic);
                 const cl = mk('button', 'btn btn-secondary', tr('Fechar')); cl.onclick = () => ov.remove(); sh.appendChild(cl);
                 ov.addEventListener('click', e => { if (e.target === ov) ov.remove(); }); document.body.appendChild(ov);
             };
