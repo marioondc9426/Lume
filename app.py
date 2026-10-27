@@ -55,6 +55,7 @@ def _env(name): return os.environ.get("LUME_" + name) or os.environ.get("QWEN_" 
 _data_root = os.environ.get("LOCALAPPDATA") or (os.environ.get("XDG_DATA_HOME") or os.path.join(os.path.expanduser("~"), ".local", "share") if sys.platform.startswith("linux") else os.path.dirname(sys.executable))   # Windows: %LOCALAPPDATA%; Linux: ~/.local/share
 OWNER_ONLY = os.path.exists(os.path.join(RES_DIR, "owner_only.flag")) or bool(_env("OWNER_ONLY"))   # versao so para o dono: nunca abre a porta para a rede (sem acesso remoto, amigos nem tunel)
 if sys.platform.startswith("linux") and not os.environ.get("PYWEBVIEW_GUI"): os.environ["PYWEBVIEW_GUI"] = "qt"   # o Linux usa a janela Qt (vem junto no binario)
+if sys.platform.startswith("linux") and os.environ.get("DISPLAY") and not os.environ.get("QT_QPA_PLATFORM"): os.environ["QT_QPA_PLATFORM"] = "xcb"   # janela X11 (o Wayland puro nao deixa o app mover nem redimensionar a propria janela sem moldura: arrastar a barra de titulo nao funcionava)
 if sys.platform.startswith("linux") and FROZEN and not _env("GPU"):   # binario empacotado: o Qt WebEngine embutido nao acha o EGL do sistema e aborta; sem GPU a janela abre em qualquer maquina (LUME_GPU=1 desliga isto)
     os.environ.setdefault("QT_QUICK_BACKEND", "software")
     _qf = os.environ.get("QTWEBENGINE_CHROMIUM_FLAGS", "")
