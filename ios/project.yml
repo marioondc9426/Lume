@@ -26,6 +26,8 @@ targets:
         UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         NSLocalNetworkUsageDescription: "O Lume usa a rede local para falar com o Ollama do seu PC."
         NSMicrophoneUsageDescription: "O Lume usa o microfone para transformar a sua fala em texto."
+        NSCameraUsageDescription: "O Lume usa a câmera para você tirar uma foto e enviar no chat."
+        NSPhotoLibraryUsageDescription: "O Lume acessa as suas fotos para você enviar uma imagem no chat."
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
           NSAllowsLocalNetworking: true
