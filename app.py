@@ -75,6 +75,8 @@ if FROZEN:
         sys.stdout = sys.stderr = open(_lp, "a", encoding="utf-8", buffering=1)
 try: import tls   # HTTPS local (precisa do pacote "cryptography")
 except Exception: tls = None
+try: import vcomp   # controle do computador em segundo plano (varios programas, mouse virtual)
+except Exception: vcomp = None
 CERTS_DIR = os.path.join(BASE_DIR, "certs")
 HTTPS_PORT = 8443
 APP_NAME = "Lume"
@@ -1131,7 +1133,7 @@ def execute_tool(tool_name, tool_args, workdir, lang="pt"):
 
 
 # ---------------------------------------------------------------- controle do computador (aba Code): ver a tela, mexer no mouse e no teclado (so Windows, e so se ligado nas opcoes)
-COMPUTER_TOOLS = ("screenshot", "mouse_move", "mouse_click", "scroll", "type_text", "press_key")
+COMPUTER_TOOLS = ("list_windows", "use_apps", "screenshot", "mouse_move", "mouse_click", "scroll", "type_text", "press_key")
 COMPUTER_GRANT_SECS = 600      # depois de aprovar uma vez, a IA pode agir por 10 minutos sem perguntar de novo (renova a cada uso)
 COMPUTER_USER_WAIT = 1.0       # se o dono estiver mexendo no mouse/teclado, a IA espera ele ficar parado 1 segundo
 _comp = {"grant": 0.0, "scale": 1.0, "origin": (0, 0), "shot": False, "ai_tick": 0}
@@ -1200,17 +1202,38 @@ def _find_window(title):
         return True
     ctypes.windll.user32.EnumWindows(EP(cb), 0); return found
 
+def _virtual_wanted(name, args):
+    """True quando a acao vai para um programa especifico (segundo plano, mouse virtual); False = a tela inteira com o mouse de verdade (modo antigo)."""
+    if not vcomp: return False
+    if name in ("list_windows", "use_apps"): return True
+    app = args.get("app"); apps = args.get("apps")
+    if str(app or "").strip().lower() in ("screen", "tela", "full", "fullscreen"): return False
+    return bool(apps) or str(app if app is not None else "").strip() != "" or bool(vcomp.workspace())
+
 def computer_execute(name, args, stop_check=None):
-    """Roda uma acao de controle do computador. Devolve (texto, imagem_base64_ou_None)."""
+    """Roda uma acao de controle do computador. Devolve (texto, imagem_base64 | lista de imagens | None)."""
     if not computer_supported(): return "Erro: o controle do computador so funciona no Windows por enquanto.", None
     import ctypes
     u = ctypes.windll.user32
     try:
+        if _virtual_wanted(name, args):   # segundo plano: o mouse e o teclado do dono ficam livres (nao espera nem mexe neles)
+            if stop_check and stop_check(): raise RuntimeError("parado pelo usuario")
+            if name != "screenshot": _failsafe()
+            if name == "list_windows": return vcomp.windows_text(), None
+            if name == "use_apps": return vcomp.use_apps(args.get("apps") or args.get("app")), None
+            if name == "screenshot":
+                _t, _imgs = vcomp.screenshot(args.get("apps") or args.get("app") or "all"); return _t, (_imgs or None)
+            if name in ("mouse_move", "mouse_click", "scroll"):
+                if args.get("x") is None or args.get("y") is None: return "Erro: faltam x e y.", None
+                return vcomp.mouse(name, args.get("app"), args.get("x"), args.get("y"), args.get("button"), bool(args.get("double")), args.get("amount") or -3), None
+            if name in ("type_text", "press_key"): return vcomp.keyboard(name, args.get("app"), args.get("text") or "", args.get("key") or ""), None
+        if name in ("list_windows", "use_apps"): return "Erro: esta ferramenta precisa do modulo de segundo plano.", None
         if name != "screenshot": _failsafe(); _wait_for_user(stop_check)
         elif stop_check and stop_check(): raise RuntimeError("parado pelo usuario")
         if name == "screenshot":
             from PIL import ImageGrab
             app = str(args.get("app") or "").strip(); where = "tela inteira"; box = None
+            if app.lower() in ("screen", "tela", "full", "fullscreen"): app = ""
             if app:
                 wins = _find_window(app)
                 if not wins: return f"Erro: nenhuma janela com \"{app}\" no titulo. Abra o app e tente de novo.", None
@@ -1259,26 +1282,33 @@ def computer_execute(name, args, stop_check=None):
         return f"Erro: {e}", None
 
 def describe_computer(name, args):
-    if name == "screenshot": return "Ver a tela" + (f" (janela: {args.get('app')})" if args.get("app") else " inteira")
-    if name in ("mouse_move", "mouse_click", "scroll"): return f"{name} em ({args.get('x')}, {args.get('y')})"
-    if name == "type_text": return "Digitar: " + str(args.get("text", ""))[:80]
-    return f"Apertar a tecla: {args.get('key', '')}"
+    _ap = f" [app {args.get('app')}]" if args.get("app") not in (None, "") else ""
+    if name == "list_windows": return "Ver quais programas estao abertos (so os titulos das janelas)"
+    if name == "use_apps": return "Usar estes programas em segundo plano: " + ", ".join(str(a) for a in (args.get("apps") if isinstance(args.get("apps"), list) else [args.get("apps") or args.get("app")]))
+    if name == "screenshot": return "Ver " + (("o(s) programa(s): " + ", ".join(str(a) for a in (args.get("apps") if isinstance(args.get("apps"), list) else [args.get("apps")])) ) if args.get("apps") else f"o programa {args.get('app')}" if args.get("app") not in (None, "") else "a tela inteira")
+    if name in ("mouse_move", "mouse_click", "scroll"): return f"{name} em ({args.get('x')}, {args.get('y')})" + _ap
+    if name == "type_text": return "Digitar: " + str(args.get("text", ""))[:80] + _ap
+    return f"Apertar a tecla: {args.get('key', '')}" + _ap
 
-COMPUTER_PROMPT_PT = """- screenshot {"app": "parte do titulo da janela (opcional)"} : tira uma foto da tela inteira ou de um app e mostra para voce
-- mouse_click {"x": 100, "y": 200, "button": "left", "double": false} : clica (x e y medidos na ultima foto)
-- mouse_move {"x": 100, "y": 200} : move o mouse
-- scroll {"x": 100, "y": 200, "amount": -3} : rola (negativo = para baixo)
-- type_text {"text": "texto"} : digita no que estiver com o foco
-- press_key {"key": "ctrl+s"} : aperta uma tecla ou combinacao (enter, tab, esc, ctrl+c, alt+tab...)
-Controle do computador: SEMPRE tire um screenshot antes de clicar e confira o resultado com outro depois. Se o dono estiver usando o mouse ou o teclado, voce espera sozinho. Ele para tudo movendo o mouse para o canto superior esquerdo.
+COMPUTER_PROMPT_PT = """- list_windows {} : lista os programas abertos (titulos das janelas)
+- use_apps {"apps": ["titulo1", "titulo2", "titulo3"]} : escolhe ate 3 programas para usar AO MESMO TEMPO, em segundo plano (parte do titulo da janela)
+- screenshot {"app": "all"} ou {"app": 2} ou {"apps": [1, 3]} : foto de todos os programas escolhidos, de um ou de alguns (so a imagem; sem app = a tela inteira)
+- mouse_click {"app": 1, "x": 100, "y": 200, "button": "left", "double": false} : clica no programa 1 (x e y medidos na ultima foto DELE)
+- mouse_move {"app": 1, "x": 100, "y": 200} : move o mouse virtual
+- scroll {"app": 1, "x": 100, "y": 200, "amount": -3} : rola (negativo = para baixo)
+- type_text {"app": 1, "text": "texto"} : digita no campo que estiver com o foco dentro do programa
+- press_key {"app": 1, "key": "enter"} : aperta uma tecla (enter, tab, esc, setas...). Atalhos com ctrl/alt podem nao funcionar em segundo plano
+Controle do computador: voce usa um MOUSE VIRTUAL (uma bolinha) que nao mexe no mouse nem no teclado do dono: ele continua usando o PC normalmente. Voce pode VER ate 3 programas de uma vez, mas so CONTROLA UM por chamada (diga sempre "app": numero). SEMPRE tire um screenshot do programa antes de clicar nele e confira o resultado com outro depois. Se a foto vier preta ou o clique nao fizer nada, o programa nao aceita controle em segundo plano: diga isso ao dono. Ele para tudo movendo o mouse para o canto superior esquerdo.
 """
-COMPUTER_PROMPT_EN = """- screenshot {"app": "part of the window title (optional)"} : take a picture of the whole screen or of an app and show it to you
-- mouse_click {"x": 100, "y": 200, "button": "left", "double": false} : click (x and y measured on the last picture)
-- mouse_move {"x": 100, "y": 200} : move the mouse
-- scroll {"x": 100, "y": 200, "amount": -3} : scroll (negative = down)
-- type_text {"text": "text"} : type into whatever has focus
-- press_key {"key": "ctrl+s"} : press a key or combination (enter, tab, esc, ctrl+c, alt+tab...)
-Computer control: ALWAYS take a screenshot before clicking and check the result with another afterwards. If the owner is using the mouse or keyboard you wait automatically. They stop everything by moving the mouse to the top-left corner of the screen.
+COMPUTER_PROMPT_EN = """- list_windows {} : list the open programs (window titles)
+- use_apps {"apps": ["title1", "title2", "title3"]} : pick up to 3 programs to use AT THE SAME TIME, in the background (part of the window title)
+- screenshot {"app": "all"} or {"app": 2} or {"apps": [1, 3]} : picture of all the chosen programs, one, or some (image only; no app = the whole screen)
+- mouse_click {"app": 1, "x": 100, "y": 200, "button": "left", "double": false} : click in program 1 (x and y measured on ITS last picture)
+- mouse_move {"app": 1, "x": 100, "y": 200} : move the virtual mouse
+- scroll {"app": 1, "x": 100, "y": 200, "amount": -3} : scroll (negative = down)
+- type_text {"app": 1, "text": "text"} : type into the focused field inside the program
+- press_key {"app": 1, "key": "enter"} : press a key (enter, tab, esc, arrows...). Ctrl/Alt shortcuts may not work in the background
+Computer control: you use a VIRTUAL MOUSE (a ball) that does not move the owner's mouse or keyboard: they keep using the PC normally. You can SEE up to 3 programs at once but only CONTROL ONE per call (always say "app": number). ALWAYS take a screenshot of the program before clicking in it and check the result with another afterwards. If the picture is black or a click does nothing, the program does not accept background control: tell the owner. They stop everything by moving the mouse to the top-left corner of the screen.
 """
 
 COMPUTER_CHAT_PT = """
@@ -1368,12 +1398,14 @@ NATIVE_TOOLS_ALL = [
     _schema("read_url", "Read the text of a web page", {"url": {"type": "string"}}, ["url"]),
 ]
 NATIVE_TOOLS_ALL += [
-    _schema("screenshot", "Take a picture of the screen (or of one app window) and see it", {"app": {"type": "string", "description": "part of the window title (optional)"}}, []),
-    _schema("mouse_click", "Click at x,y measured on the last screenshot", {"x": {"type": "integer"}, "y": {"type": "integer"}, "button": {"type": "string"}, "double": {"type": "boolean"}}, ["x", "y"]),
-    _schema("mouse_move", "Move the mouse to x,y of the last screenshot", {"x": {"type": "integer"}, "y": {"type": "integer"}}, ["x", "y"]),
-    _schema("scroll", "Scroll at x,y (negative = down)", {"x": {"type": "integer"}, "y": {"type": "integer"}, "amount": {"type": "integer"}}, ["x", "y"]),
-    _schema("type_text", "Type text into the focused field", {"text": {"type": "string"}}, ["text"]),
-    _schema("press_key", "Press a key or combination such as ctrl+s", {"key": {"type": "string"}}, ["key"]),
+    _schema("list_windows", "List the open programs (window titles)", {}, []),
+    _schema("use_apps", "Choose up to 3 programs to use at the same time in the background (part of each window title)", {"apps": {"type": "array", "items": {"type": "string"}}}, ["apps"]),
+    _schema("screenshot", "Take a picture of the chosen programs in the background: app 'all', a number (1-3) or a title; apps = a list of numbers. Without app it takes the whole screen", {"app": {"type": "string", "description": "'all', 1-3, or part of a window title (optional)"}, "apps": {"type": "array", "items": {"type": "string"}}}, []),
+    _schema("mouse_click", "Click in ONE program at x,y measured on that program's last screenshot (virtual mouse; the user's mouse does not move)", {"app": {"type": "string", "description": "program number 1-3"}, "x": {"type": "integer"}, "y": {"type": "integer"}, "button": {"type": "string"}, "double": {"type": "boolean"}}, ["app", "x", "y"]),
+    _schema("mouse_move", "Move the virtual mouse in ONE program to x,y of its last screenshot", {"app": {"type": "string"}, "x": {"type": "integer"}, "y": {"type": "integer"}}, ["app", "x", "y"]),
+    _schema("scroll", "Scroll in ONE program at x,y (negative = down)", {"app": {"type": "string"}, "x": {"type": "integer"}, "y": {"type": "integer"}, "amount": {"type": "integer"}}, ["app", "x", "y"]),
+    _schema("type_text", "Type text into the focused field of ONE program", {"app": {"type": "string"}, "text": {"type": "string"}}, ["app", "text"]),
+    _schema("press_key", "Press a key such as enter or tab in ONE program (Ctrl/Alt shortcuts may not work in the background)", {"app": {"type": "string"}, "key": {"type": "string"}}, ["app", "key"]),
 ]
 NATIVE_TOOLS = NATIVE_TOOLS_ALL
 NATIVE_TOOLS_WEB = [t for t in NATIVE_TOOLS_ALL if t["function"]["name"] in ("search_web", "read_url")]   # aba Chat: so a pesquisa
@@ -3936,7 +3968,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     if needs_permission(tool_name) and not auto and not blocked and not web_denied:
                         status("Aguardando permissão")
                         _desc = describe_tool(tool_name, tool_args)
-                        if comp: _desc = "CONTROLAR O MOUSE E O TECLADO por 10 minutos. Primeira acao: " + _desc + ". Para parar tudo, mova o mouse para o canto superior esquerdo da tela."
+                        if comp: _desc = "CONTROLAR PROGRAMAS em segundo plano (mouse virtual, sem mexer no seu mouse) por 10 minutos. Primeira acao: " + _desc + ". Para parar tudo, mova o mouse para o canto superior esquerdo da tela."
                         if not ask_permission(_desc, stopped, (tool_name, tool_args)):
                             send(L("\n\n[Acao negada pelo usuario]", "\n\n[Action denied by the user]"))
                             denied = True; break
@@ -3950,7 +3982,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     elif comp:
                         _comp["grant"] = time.time() + COMPUTER_GRANT_SECS
                         result, _img = computer_execute(tool_name, tool_args, stopped)
-                        if _img: shot_imgs.append(_img)
+                        if _img: shot_imgs.extend(_img if isinstance(_img, list) else [_img])
                     elif tool_name == "search_web":   # emite as fontes para a interface mostrar os cartoes
                         results, src = search_web_results(tool_args.get("query", ""), n=tool_args.get("results") or tool_args.get("num_results") or tool_args.get("max_results"))
                         result = format_search(results, src) if results else SEARCH_UNAVAILABLE
@@ -3973,7 +4005,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 joined = "\n\n".join((f"[{n}]\n{r}" if len(calls) > 1 else r) for n, r in results_txt)
                 pair = [{"role": "assistant", "content": full},
                         {"role": "user", "content": L(f"Resultado da ferramenta {tool_name}:\n{joined}", f"Tool result for {tool_name}:\n{joined}") if len(calls) == 1 else L(f"Resultados das ferramentas:\n{joined}", f"Tool results:\n{joined}")}]
-                if shot_imgs: pair[1]["images"] = shot_imgs[-1:]   # a captura de tela volta como imagem na mesma mensagem do resultado
+                if shot_imgs: pair[1]["images"] = shot_imgs[-3:]   # a captura de tela volta como imagem na mesma mensagem do resultado
                 messages.extend(pair); clean.extend(pair)
                 if denied: break
                 status("Pensando")
