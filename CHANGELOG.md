@@ -7,6 +7,10 @@ Como numerar:
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
 ## v4.0 (em desenvolvimento)
+- **Novo provedor: FreeTheAI** (Configurações > Chaves de API; chave em freetheai.org/dashboard/api-keys). Mostra **todos** os modelos dele, **sem teste de saúde** (o plano grátis tem só 50 pedidos por dia e o teste gastaria tudo). Antes de usar é preciso o check-in diário com captcha em freetheai.org/checkin, que o Lume não faz.
+- **Aichixia saiu** (o serviço fechou): sumiu do registro de provedores.
+- **Teste de saúde dos modelos mais rápido:** testa vários modelos ao mesmo tempo (um por vez só nos provedores com limite de 1 pedido a cada poucos segundos, como o LiteRouter) e grava cada resultado na hora, então um modelo que passou já aparece sem esperar o fim da rodada; enquanto o teste roda, a lista se atualiza a cada ~12 s. Se a lista de um provedor não carregar, o app mostra a última que funcionou (`provider_models_last.json`).
+- **O seletor de modelos não fecha mais quando a lista se atualiza sozinha:** a lista só é reconstruída se algum modelo mudou de verdade.
 - **Sonar voltou à lista de modelos.** Ele tinha saído por não ter logo; agora usa a marca da Perplexity (um desenho simples feito à mão em `icons/Perplexity.svg`, que pode ser trocado pelo oficial).
 - **iPhone: o app fechava ao tocar em tirar foto.** Faltavam no app as descrições de uso da câmera e da biblioteca de fotos (`NSCameraUsageDescription` e `NSPhotoLibraryUsageDescription`); sem elas o iOS encerra o app na hora. Precisa recompilar o app do iPhone para valer.
 - **Xadrez: o rei sumia do tabuleiro (e dava "empate").** No modo de lances ilegais, o modelo podia ignorar um xeque; aí o seu lance normal **capturava o rei** (o chess.js permite isso nessa situação), a posição ficava sem rei e o app dizia "Empate: material insuficiente". Agora: (1) nenhum lance legal captura rei (o rei só sai por xeque-mate); (2) um lance **ilegal** (ou peça criada) do modelo que deixe o **próprio rei em xeque** é recusado e o modelo joga um lance legal no lugar, com um aviso; (3) o modelo é avisado no pedido quando está em xeque.

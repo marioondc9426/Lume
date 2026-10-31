@@ -262,7 +262,7 @@ def load_config():
     cfg.setdefault("pollinations_api_key", "")   # Pollinations: modelos que gastam pollen
     cfg.setdefault("vercel_api_key", "")         # Vercel AI Gateway (modelos "-free")
     for _f, _u, _n, _s in X_PROVIDERS.values(): cfg.setdefault(_f, "")
-    cfg.setdefault("aichixia_api_key", ""); cfg.setdefault("aihubmix_api_key", ""); cfg.setdefault("literouter_api_key", "")   # Aichixia, AIHubMix e LiteRouter (so os modelos gratis)
+    cfg.setdefault("aihubmix_api_key", ""); cfg.setdefault("literouter_api_key", "")   # Aichixia, AIHubMix e LiteRouter (so os modelos gratis)
     cfg.setdefault("llm7_api_key", "")           # LLM7 (modelos do plano "turbo", sem saldo)
     cfg.setdefault("tomdacat_api_key", "")       # tomdacat (ai.tomdacat.com): gateway de modelos cobrado em creditos
     cfg.setdefault("workdir", "")
@@ -1495,6 +1495,7 @@ def vercel_models(cfg, force=False):
     out = [{"id": mid, "name": name, "ctx": (have[mid].get("context_window") or 128000)} for mid, name in VERCEL_MODELS if mid in have]
     _vc_cache.update(t=time.time(), models=out); return out
 
+LAST_FILE = os.path.join(BASE_DIR, "provider_models_last.json")   # ultima lista de modelos que cada provedor devolveu: {"ft": [...]}; vale quando o /models falha
 HEALTH_FILE = os.path.join(BASE_DIR, "provider_health.json")   # resultado do ultimo teste de cada modelo: {"lr:id": {ok, ts, ms, err}}
 HEALTH_EVERY = 600     # a cada 10 minutos
 HEALTH_BATCH = 12      # alem dos que falharam, quantos modelos "bons" conferir por rodada (assim todos passam pelo teste de tempos em tempos sem encher o limite gratis)
@@ -1529,27 +1530,39 @@ def health_test(prov, mid, cfg):
     except Exception as e:
         return False, int((time.time() - t0) * 1000), str(e)[:100]
 
+_health_state = {"on": False}   # True enquanto um teste esta rodando (a interface consulta a lista com mais frequencia nesse tempo)
+_health_lock = threading.Lock()
+HEALTH_WORKERS = 4     # modelos testados ao mesmo tempo (provedores com limite de 1 pedido a cada poucos segundos, como o LiteRouter, continuam um por vez)
+
 def health_cycle():
-    """Reconfere os modelos que falharam (para voltarem quando melhorarem) e um grupo dos outros; quem falha duas vezes seguidas some da lista."""
-    cfg = load_config(); changed = False
-    for prov in X_PROVIDERS:
-        if not cfg.get(X_PROVIDERS[prov][0]) or prov in X_SHOW_ALL: continue   # os que mostram tudo nao gastam pedidos (nem creditos) em teste de saude
-        try: ids = [m["id"] for m in extra_models(prov, cfg, force=True, raw=True)]
-        except Exception: continue
-        failed = [i for i in ids if not model_is_healthy(prov, i)]
-        rest = sorted([i for i in ids if i not in failed], key=lambda i: (_health.get(prov + ":" + i) or {}).get("ts", 0))[:HEALTH_BATCH]
-        for mid in failed + rest:
-            if gens_active: return   # o dono esta conversando: nao disputa o limite de pedidos, tenta na proxima rodada
-            ok, ms, err = health_test(prov, mid, cfg)
-            if ok is False:
-                time.sleep(HEALTH_SPACING[prov]); ok, ms, err = health_test(prov, mid, cfg)   # confirma antes de esconder
-            if ok is None: time.sleep(HEALTH_SPACING[prov] + 4); continue
-            was = model_is_healthy(prov, mid); _health[prov + ":" + mid] = {"ok": bool(ok), "ts": time.time(), "ms": ms, "err": err}
-            if was != bool(ok): changed = True; log("SAUDE", f"{prov}:{mid} " + ("voltou a funcionar" if ok else f"saiu da lista ({err[:60]})"), COLOR_GREEN if ok else COLOR_YELLOW)
-            time.sleep(HEALTH_SPACING[prov])
-        _x_cache[prov] = [0, []]
-    try: _write_json(HEALTH_FILE, _health)
-    except OSError: pass
+    """Reconfere os modelos que falharam (para voltarem quando melhorarem) e um grupo dos outros, VARIOS AO MESMO TEMPO; cada resultado e gravado na hora (quem falha duas vezes seguidas some da lista)."""
+    cfg = load_config(); changed = False; _health_state["on"] = True
+    try:
+        for prov in X_PROVIDERS:
+            if not cfg.get(X_PROVIDERS[prov][0]) or prov in X_SHOW_ALL: continue   # os que mostram tudo nao gastam pedidos (nem creditos) em teste de saude
+            try: ids = [m["id"] for m in extra_models(prov, cfg, force=True, raw=True)]
+            except Exception: continue
+            failed = [i for i in ids if not model_is_healthy(prov, i)]
+            rest = sorted([i for i in ids if i not in failed], key=lambda i: (_health.get(prov + ":" + i) or {}).get("ts", 0))[:HEALTH_BATCH]
+            def one(mid, prov=prov):
+                if gens_active: return mid, "skip", 0, ""   # o dono esta conversando: nao disputa o limite de pedidos, tenta na proxima rodada
+                ok, ms, err = health_test(prov, mid, cfg)
+                if ok is False:
+                    time.sleep(HEALTH_SPACING[prov]); ok, ms, err = health_test(prov, mid, cfg)   # confirma antes de esconder
+                if ok is None: time.sleep(HEALTH_SPACING[prov] + 4)
+                return mid, ok, ms, err
+            workers = 1 if HEALTH_SPACING[prov] >= 5 else HEALTH_WORKERS
+            with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as ex:
+                for fut in concurrent.futures.as_completed([ex.submit(one, m) for m in failed + rest]):
+                    mid, ok, ms, err = fut.result()
+                    if ok is None or ok == "skip": continue
+                    with _health_lock:   # o resultado ja vale e e salvo na hora: o modelo aparece (ou some) sem esperar o fim da rodada
+                        was = model_is_healthy(prov, mid); _health[prov + ":" + mid] = {"ok": bool(ok), "ts": time.time(), "ms": ms, "err": err}
+                        if was != bool(ok): changed = True; log("SAUDE", f"{prov}:{mid} " + ("voltou a funcionar" if ok else f"saiu da lista ({err[:60]})"), COLOR_GREEN if ok else COLOR_YELLOW)
+                        try: _write_json(HEALTH_FILE, _health)
+                        except OSError: pass
+            _x_cache[prov] = [0, []]
+    finally: _health_state["on"] = False
     return changed
 
 def health_loop():
@@ -1618,6 +1631,9 @@ def extra_models(prov, cfg, force=False, raw=False):
             caps = m.get("capabilities") or {}
             out.append({"id": mid, "name": m.get("display_name") or mid, "ctx": m.get("context_window") or 128000, "vision": bool(caps.get("vision"))})
     out.sort(key=lambda x: x["id"]); _x_cache[prov] = [time.time(), out]
+    if out:
+        try: last = _read_json(LAST_FILE, {}); last = last if isinstance(last, dict) else {}; last[prov] = out; _write_json(LAST_FILE, last)
+        except OSError: pass
     return out if raw else [m for m in out if model_is_healthy(prov, m["id"])]
 
 def llm7_models(cfg, force=False):
@@ -2880,7 +2896,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             for prov, (field, _u, _n, _s) in X_PROVIDERS.items():
                 if not cfg.get(field): out[prov] = {"saved": False, "models": []}; continue
                 try: out[prov] = {"saved": True, "models": extra_models(prov, cfg)}
-                except Exception as e: out[prov] = {"saved": True, "models": [], "error": str(e)[:200]}
+                except Exception as e:   # a lista nao veio agora: mostra a ultima que funcionou
+                    old = _read_json(LAST_FILE, {}); old = old.get(prov) if isinstance(old, dict) else None
+                    out[prov] = {"saved": True, "models": [m for m in (old or []) if model_is_healthy(prov, m["id"])], "error": str(e)[:200], "stale": bool(old)}
+            out["_checking"] = _health_state["on"]
             return self.send_json(out)
         if p == '/api/llm7_models':
             if not local: return self.send_json({"error": "local_only"}, 403)
