@@ -3419,6 +3419,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 cfg["auto_update_models"] = bool(data["auto_update_models"]); save_config(cfg)
             if "log_full" in data:
                 cfg["log_full"] = bool(data["log_full"]); save_config(cfg)
+            if "hw_accel" in data:
+                if data["hw_accel"] not in HW_MODES: return self.send_json({"error": "Opcao invalida."}, 400)
+                cfg["hw_accel"] = data["hw_accel"]; save_config(cfg)
             if "tray" in data:
                 cfg["tray_enabled"] = bool(data["tray"]); save_config(cfg)
                 if cfg["tray_enabled"] and not tray_start(): cfg["tray_enabled"] = False; save_config(cfg); return self.send_json({"error": "Nao consegui criar o icone da bandeja (falta o pacote pystray)."}, 500)
@@ -4265,10 +4268,59 @@ def tray_available():
     try: import pystray, PIL; return True
     except Exception: return False
 
+# ---------------------------------------------------------------- aceleracao por hardware (a janela do app usa a placa de video)
+HW_MODES = ("auto", "on", "off")
+HW_FLAGS_ON = "--ignore-gpu-blocklist --enable-gpu-rasterization --enable-zero-copy"   # forca a GPU mesmo que o Chromium ache o driver "ruim"
+HW_FLAGS_OFF = "--disable-gpu"
+_gpu_names_cache = None
+def gpu_names():
+    """Nomes das placas de video (Windows: WMI; Linux: lspci). Lista vazia se nao deu para saber."""
+    global _gpu_names_cache
+    if _gpu_names_cache is not None: return _gpu_names_cache
+    names = []
+    try:
+        if sys.platform == "win32":
+            out = subprocess.check_output(["powershell", "-NoProfile", "-Command", "(Get-CimInstance Win32_VideoController).Name"], stderr=subprocess.DEVNULL, timeout=8, creationflags=NO_WINDOW).decode("utf-8", "replace")
+            names = [l.strip() for l in out.splitlines() if l.strip()]
+        elif sys.platform.startswith("linux"):
+            out = subprocess.check_output(["lspci"], stderr=subprocess.DEVNULL, timeout=5).decode("utf-8", "replace")
+            names = [l.split(": ", 1)[-1].strip() for l in out.splitlines() if re.search(r"VGA|3D controller|Display controller", l)]
+    except Exception: pass
+    _gpu_names_cache = names
+    return names
+
+def hw_accel_decide(mode, names=None):
+    """Retorna 'on' | 'off' | 'default' (o que vai valer). No automatico: placa NVIDIA/AMD/Intel Arc liga a forca total; so adaptador basico/virtual desliga; o resto (Intel integrado) deixa o Chromium decidir."""
+    if mode in ("on", "off"): return mode
+    names = gpu_names() if names is None else names
+    if not names: return "default"
+    real = [n for n in names if not re.search(r"basic|hyper-v|vmware|virtualbox|virtio|qxl|remote|parsec|indirect|citrix|\bsvga\b", n, re.I)]
+    if not real: return "off"
+    if any(re.search(r"nvidia|geforce|quadro|rtx|radeon|\bamd\b|\barc\b", n, re.I) for n in real): return "on"
+    return "default"
+
+def hw_accel_apply():
+    """Poe as opcoes do navegador embutido (WebView2 / Qt WebEngine) a partir da configuracao. Precisa rodar antes da janela abrir."""
+    mode = load_config().get("hw_accel", "auto")
+    if mode not in HW_MODES: mode = "auto"
+    eff = hw_accel_decide(mode)
+    flags = HW_FLAGS_ON if eff == "on" else HW_FLAGS_OFF if eff == "off" else ""
+    if flags:
+        if sys.platform == "win32":
+            cur = os.environ.get("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "")
+            os.environ["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] = (cur + " " + flags).strip()
+        elif sys.platform.startswith("linux") and not (FROZEN and not _env("GPU")):   # o binario empacotado do Linux ja roda sem GPU de proposito (ver o topo do arquivo)
+            cur = os.environ.get("QTWEBENGINE_CHROMIUM_FLAGS", "")
+            os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = (cur + " " + flags).strip()
+    log("INICIO", f"Aceleracao de hardware: {mode} -> {eff}" + (f" ({', '.join(gpu_names())})" if gpu_names() else ""), COLOR_BLUE)
+    return eff
+
 def app_options():
     cfg = load_config()
+    _hw = cfg.get("hw_accel", "auto"); _hw = _hw if _hw in HW_MODES else "auto"
     return {"frozen": FROZEN, "start_with_terminal": bool(cfg.get("start_with_terminal")), "terminal_open": terminal_is_open(), "start_with_windows": autostart_get(), "remote_enabled": bool(cfg.get("remote_enabled")),
             "tray": bool(cfg.get("tray_enabled")), "tray_available": tray_available(), "auto_update_models": bool(cfg.get("auto_update_models")), "log_full": bool(cfg.get("log_full")),
+            "hw_accel": _hw, "hw_accel_auto": hw_accel_decide("auto"), "gpu_names": gpu_names(),
             "models_updated_at": cfg.get("models_updated_at", 0), "model_update": dict(model_update_state)}
 
 # ---------------------------------------------------------------- tunel para acessar de fora de casa
@@ -4485,6 +4537,7 @@ if __name__ == '__main__':
     tray_on = bool(load_config().get("tray_enabled")) and tray_start()
     start_gpu_stream(gpu_interval_ms)
     time.sleep(1)
+    hw_accel_apply()
     log("INICIO", "Abrindo janela...", COLOR_BLUE)
     api = WindowApi()
     api._window = webview.create_window(WINDOW_TITLE, f'http://127.0.0.1:{PORT}/index.html', width=1100, height=800, min_size=(800, 520), frameless=True, easy_drag=False, js_api=api, hidden=bool(tray_on and "--autostart" in sys.argv))

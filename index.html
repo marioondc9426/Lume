@@ -1934,7 +1934,7 @@
             'Arquivo binario nao suportado (use texto, codigo ou PDF).': 'Binary file not supported (use text, code or PDF).',
             'Este PDF nao tem texto selecionavel (talvez seja escaneado).': 'This PDF has no selectable text (it may be scanned).',
             'Para ler PDF instale o pypdf: pip install pypdf': 'To read PDFs install pypdf: pip install pypdf', 'Requisicao grande demais.': 'Request too large.',
-            'cortado': 'cut', '(cortado)': '(cut)',
+            'Aceleração de hardware': 'Hardware acceleration', 'Usa a placa de vídeo na janela do app. Automática escolhe pela sua placa. Vale ao reiniciar.': 'Uses the graphics card in the app window. Automatic picks based on your card. Takes effect after a restart.', 'Aceleração de hardware (usa a placa de vídeo na janela do app; vale ao reiniciar)': 'Hardware acceleration (uses the graphics card in the app window; takes effect after a restart)', 'Automática': 'Automatic', 'Ligada': 'On', 'Desligada': 'Off', 'liga': 'on', 'desliga': 'off', 'padrão': 'default', 'Salvo. Reinicie o Lume para valer.': 'Saved. Restart Lume to apply.', 'cortado': 'cut', '(cortado)': '(cut)',
             '[Arquivo anexado: {name}]': '[Attached file: {name}]', '[Fim do arquivo]': '[End of file]', '[arquivo: {name}] ': '[file: {name}] ',
             '[Arquivo anexado: {name}] (omitido: sem espaço no contexto)': '[Attached file: {name}] (omitted: no room in the context)',
             'Parte dos arquivos não coube no contexto e foi cortada ou omitida. Aumente o contexto em Configurações.': 'Some of the files did not fit in the context and were cut or omitted. Increase the context in Settings.',
@@ -2062,6 +2062,7 @@
             toggle('Iniciar com o Windows', 'Abre o Lume sozinho quando você entra no Windows. Só no Lume.exe.', ao.start_with_windows, async (on, el) => { const r = await post({ start_with_windows: on }); if (r.ok === undefined) el.checked = !on; }, !!ao.frozen);
             toggle('Ícone na bandeja do sistema', 'Fechar a janela só esconde o app: ele continua rodando ao lado do relógio e abre com um clique no ícone.', ao.tray, async (on, el) => { const r = await post({ tray: on }); if (r.ok === undefined) el.checked = !on; }, !!(auth.local && ao.tray_available));
             toggle('Instalar atualizações sozinho', 'Baixa e instala a versão nova em segundo plano; você só confirma o reinício.', config.autoInstall, on => { config.autoInstall = on; saveState(); if (on) checkUpdates(false); }, !!auth.local);
+            if (auth.local) select('Aceleração de hardware', 'Usa a placa de vídeo na janela do app. Automática escolhe pela sua placa. Vale ao reiniciar.', ao.hw_accel || 'auto', [['auto', 'Automática'], ['on', 'Ligada'], ['off', 'Desligada']], async v => { const r = await post({ hw_accel: v }); if (r.ok) showInfo(tr('Salvo. Reinicie o Lume para valer.'), 4000); });
             toggle('Atualizar modelos sozinho', 'Uma vez por semana confere se saiu versão nova dos modelos baixados e atualiza.', ao.auto_update_models, async (on, el) => { const r = await post({ auto_update_models: on }); if (r.ok === undefined) el.checked = !on; }, !!auth.local);
             toggle('Pesquisar na web nas respostas', 'A IA pesquisa na internet quando a pergunta pede dados atuais.', config.webSearch, on => { config.webSearch = on; saveState(); });
             toggle('Verificar atualizações ao abrir', 'Avisa quando há uma versão nova.', config.autoUpdate !== false, on => { config.autoUpdate = on; saveState(); });
@@ -4440,6 +4441,12 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 const sw = document.createElement('div'); sw.className = 'toggle-switch'; l.append(i, sw, document.createTextNode(' ' + tr(text))); box.appendChild(l);
             };
             tg('Ícone na bandeja do sistema: fechar a janela só esconde o app, que continua rodando ao lado do relógio', ao.tray, async (on, el) => { const r = await appOptPost({ tray: on }); if (r.ok === undefined) el.checked = !on; }, !!ao.tray_available);
+            { const l = document.createElement('div'); l.style.cssText = 'display:flex;gap:10px;align-items:center;justify-content:space-between;margin:8px 0;flex-wrap:wrap';
+              const t = document.createElement('span'); t.style.flex = '1 1 260px'; t.textContent = tr('Aceleração de hardware (usa a placa de vídeo na janela do app; vale ao reiniciar)');
+              const gpus = (ao.gpu_names || []).join(', '); const sm = document.createElement('small'); sm.style.cssText = 'display:block;opacity:.65'; sm.textContent = gpus ? gpus : ''; t.appendChild(sm);
+              const sel = document.createElement('select'); [['auto', tr('Automática') + (ao.hw_accel_auto ? ' (' + (ao.hw_accel_auto === 'on' ? tr('liga') : ao.hw_accel_auto === 'off' ? tr('desliga') : tr('padrão')) + ')' : '')], ['on', tr('Ligada')], ['off', tr('Desligada')]].forEach(([v, n]) => sel.add(new Option(n, v))); sel.value = ao.hw_accel || 'auto';
+              sel.onchange = async () => { const r = await appOptPost({ hw_accel: sel.value }); if (r.ok) showInfo(tr('Salvo. Reinicie o Lume para valer.'), 4000); };
+              l.append(t, sel); box.appendChild(l); }
             tg('Mostrar a mensagem completa da IA no terminal, sem esconder nada (raciocínio, chamadas de ferramenta e resultados)', ao.log_full, async (on, el) => { const r = await appOptPost({ log_full: on }); if (r.ok === undefined) el.checked = !on; });
             tg('Iniciar com o terminal (só no Lume.exe)', ao.start_with_terminal, async (on, el) => { const r = await appOptPost({ start_with_terminal: on }); if (r.ok === undefined) el.checked = !on; }, !!ao.frozen);
             tg('Iniciar com o Windows (só no Lume.exe)', ao.start_with_windows, async (on, el) => { const r = await appOptPost({ start_with_windows: on }); if (r.ok === undefined) el.checked = !on; }, !!ao.frozen);
