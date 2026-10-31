@@ -1098,7 +1098,7 @@
                 <span>Contexto</span>
                 <div class="ctx-track"><div class="ctx-fill" id="ctx-fill"></div></div>
                 <span id="ctx-text">0 / 4K</span>
-                <button class="btn btn-secondary ctx-btn" id="ctx-compact" onclick="compactChat()" title="Resume as mensagens antigas em 2 partes para liberar contexto">Compactar</button>
+                <button class="btn btn-secondary ctx-btn" id="ctx-compact" onclick="compactChat()" title="Resume as mensagens antigas para liberar contexto">Compactar</button>
                 <button class="btn btn-secondary ctx-btn" id="ctx-compact-img" onclick="compactImages()" style="display:none" title="Troca as imagens antigas por uma descrição em texto (modelos que aceitam poucas imagens)">Imagens</button>
             </div>
             <div id="chat-header">
@@ -5271,19 +5271,6 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             while (true) { const { done, value } = await reader.read(); if (done) break; buf += dec.decode(value, { stream: true }); const ls = buf.split('\n'); buf = ls.pop(); ls.forEach(handle); }
             handle(buf); return text;
         }
-        async function summarizeChunk(model, transcript, prev) {   // um resumo de UMA parte da conversa
-            const maxChars = ctxMax() * 3; if (transcript.length > maxChars) transcript = transcript.slice(-maxChars);
-            const text = (await collectChat({
-                model: selectedModel, stream: true, think: false, search_web: false, agent: false, lang: curLang(), num_ctx: model.cloud ? undefined : ctxMax(),
-                messages: [
-                    { role: 'system', content: tr('Você resume conversas. Escreva um resumo fiel e compacto, em português, preservando fatos, decisões, nomes, números, trechos de código importantes e o que o usuário pediu. Não invente nada. Responda apenas com o resumo.') },
-                    { role: 'user', content: (prev ? tr('Resumo da parte anterior (só para você entender o contexto; NÃO repita):\n') + prev + '\n\n' : '') + tr('Resuma a conversa abaixo:\n\n') + transcript }
-                ]
-            })).trim();
-            if (!text || /\[(Geracao parada|Generation stopped)\]/.test(text)) throw new Error('cancel');
-            if (/^\[(Erro|Error):/.test(text)) throw new Error(text.slice(0, 150));
-            return text;
-        }
         async function compactChat() {
             const chat = chats[currentChatId];
             if (busy || !chat) return;
@@ -5292,28 +5279,30 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             if (model.groq && !(await hasGroqKey())) { await noKeyDialog(); return; }
             if (!(await handleOverflow(model))) return;
             const KEEP = 2, old = chat.messages.slice(0, -KEEP), tail = chat.messages.slice(-KEEP);
-            const two = old.length >= 4;   // com pelo menos 4 mensagens antigas, 2 passos: uma metade de cada vez (cada uma cabe no contexto do modelo)
-            const r = await ask({ title: 'Compactar conversa?', body: tr(two ? '{n} mensagens mais antigas serão trocadas por um resumo gerado por {label}, em 2 passos (metade de cada vez). As {keep} últimas continuam como estão. Isso não pode ser desfeito.' : '{n} mensagens mais antigas serão trocadas por um resumo gerado por {label}. As {keep} últimas continuam como estão. Isso não pode ser desfeito.', { n: old.length, label: model.label, keep: KEEP }), buttons: ['Compactar', 'Cancelar'] });
+            const r = await ask({ title: 'Compactar conversa?', body: tr('{n} mensagens mais antigas serão trocadas por um resumo gerado por {label}. As {keep} últimas continuam como estão. Isso não pode ser desfeito.', { n: old.length, label: model.label, keep: KEEP }), buttons: ['Compactar', 'Cancelar'] });
             if (r.index !== 0) return;
             const before = ctxInfo(chat).used;
-            const lines = old.map(m => m.role === 'summary' ? tr('Resumo anterior: ') + m.content : `${whoOf(m)}: ${attachNote(m)}${plain(m.content)}`);
-            let cut = old.length; if (two) { const total = lines.reduce((a, l) => a + l.length, 0); let acc = 0; for (let k = 0; k < lines.length - 1; k++) { acc += lines[k].length; if (acc >= total / 2) { cut = k + 1; break; } } if (cut >= old.length) cut = Math.ceil(old.length / 2); }
-            const parts = two ? [lines.slice(0, cut), lines.slice(cut)] : [lines];
-            compacting = true; syncBusy(); setOverlayStatus('Compactando'); $('ctx-compact').disabled = true;
+            let transcript = old.map(m => m.role === 'summary' ? tr('Resumo anterior: ') + m.content : `${whoOf(m)}: ${attachNote(m)}${plain(m.content)}`).join('\n\n');
+            const maxChars = ctxMax() * 3; if (transcript.length > maxChars) transcript = transcript.slice(-maxChars);
+            compacting = true; syncBusy(); setOverlayStatus('Compactando'); $('ctx-compact').textContent = tr('Compactando...'); $('ctx-compact').disabled = true;
             try {
-                const sums = [];
-                for (let p = 0; p < parts.length; p++) {
-                    $('ctx-compact').textContent = tr('Compactando...') + (parts.length > 1 ? ` ${p + 1}/${parts.length}` : '');
-                    sums.push(await summarizeChunk(model, parts[p].join('\n\n'), sums[sums.length - 1]));
-                }
-                const text = sums.join('\n\n');
+                const text = (await collectChat({
+                    model: selectedModel, stream: true, think: false, search_web: false, agent: false, lang: curLang(), num_ctx: model.cloud ? undefined : ctxMax(),
+                    messages: [
+                        { role: 'system', content: tr('Você resume conversas. Escreva um resumo fiel e compacto, em português, preservando fatos, decisões, nomes, números, trechos de código importantes e o que o usuário pediu. Não invente nada. Responda apenas com o resumo.') },
+                        { role: 'user', content: tr('Resuma a conversa abaixo:\n\n') + transcript }
+                    ]
+                })).trim();
+                if (!text || /\[(Geracao parada|Generation stopped)\]/.test(text)) { showInfo('Compactação cancelada.'); return; }
+                if (/^\[(Erro|Error):/.test(text)) { showInfo(tr('Falha ao compactar: {x}', { x: text.slice(0, 150) })); return; }
                 const replaced = old.reduce((a, m) => a + (m.role === 'summary' ? (m.count || 1) : 1), 0);
                 chat.messages = [{ role: 'summary', content: text, count: replaced }, ...tail];
                 chat.ctxReal = null; saveToStorage(); loadChat(currentChatId);
                 showInfo(tr('Compactado: {n} mensagens viraram um resumo. Contexto {a} → {b}.', { n: replaced, a: fmtK(before), b: fmtK(ctxInfo(chat).used) }), 8000);
-            } catch (e) { showInfo(String(e && e.message) === 'cancel' ? 'Compactação cancelada.' : /^\[?(Erro|Error)/.test(String(e && e.message)) ? tr('Falha ao compactar: {x}', { x: String(e.message) }) : 'Não consegui compactar a conversa.'); }
+            } catch (e) { showInfo('Não consegui compactar a conversa.'); }
             finally { compacting = false; syncBusy(); setOverlayStatus('Ocioso'); $('ctx-compact').textContent = tr('Compactar'); updateCtxBar(); }
         }
+
         async function compactImages() {   // troca as imagens antigas por uma descricao em texto (alguns modelos aceitam so ~10 a 50 imagens)
             const chat = chats[currentChatId];
             if (busy || !chat) return;
