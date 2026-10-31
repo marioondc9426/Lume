@@ -1934,7 +1934,7 @@
             'Arquivo binario nao suportado (use texto, codigo ou PDF).': 'Binary file not supported (use text, code or PDF).',
             'Este PDF nao tem texto selecionavel (talvez seja escaneado).': 'This PDF has no selectable text (it may be scanned).',
             'Para ler PDF instale o pypdf: pip install pypdf': 'To read PDFs install pypdf: pip install pypdf', 'Requisicao grande demais.': 'Request too large.',
-            'cortado': 'cut', '(cortado)': '(cut)', 'Leia o(s) arquivo(s) anexado(s) e faça um resumo.': 'Read the attached file(s) and write a summary.',
+            'cortado': 'cut', '(cortado)': '(cut)',
             '[Arquivo anexado: {name}]': '[Attached file: {name}]', '[Fim do arquivo]': '[End of file]', '[arquivo: {name}] ': '[file: {name}] ',
             '[Arquivo anexado: {name}] (omitido: sem espaço no contexto)': '[Attached file: {name}] (omitted: no room in the context)',
             'Parte dos arquivos não coube no contexto e foi cortada ou omitida. Aumente o contexto em Configurações.': 'Some of the files did not fit in the context and were cut or omitted. Increase the context in Settings.',
@@ -3787,7 +3787,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             if (model.groq && !(await hasGroqKey())) { await noKeyDialog(); return; }
             if (!(await handleOverflow(model))) return;
 
-            if (!text && files.length) text = tr('Leia o(s) arquivo(s) anexado(s) e faça um resumo.'); else if (!text && imgs.length) text = tr('O usuário não enviou nenhuma descrição.');
+            if (!text && files.length) text = tr('O usuário não enviou nenhuma descrição.'); else if (!text && imgs.length) text = tr('O usuário não enviou nenhuma descrição.');
             clearPrompt(); pendingImages = []; pendingFiles = []; renderAttachments(); updateCostEst();
             const item = { id: newRid(), text, images: imgs, files, model: selectedModel, think: thinkingNow() };
             if (gens[chatId]) { (queues[chatId] = queues[chatId] || []).push(item); renderQueued(chatId); stickBottom = true; followBottom(); return; }
