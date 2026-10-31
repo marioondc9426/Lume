@@ -4,6 +4,7 @@
      key       nome do provedor no logo/tabela de logos (icons/prov-<key>.png)    name   nome mostrado
      field     campo da chave no config.json            url   base da API (termina em /v1)
      spacing   segundos entre testes de saude (limite de pedidos do plano)
+     dailyLimit  (opcional) pedidos gratis por dia do plano: o painel de provedores mostra quantos o Lume ja usou hoje
      showAll   true = mostra todos os modelos de chat, sem teste de saude; false = so os que passam no teste
      kind      como listar os modelos: "openai" (generico: tudo que o /models lista e e de chat) ou um dos especiais abaixo, que ja existem no codigo:
                ac (so tier free), ah (so ids terminados em free), lr (so ":free"), px, vd, tk (cada um com a regra do seu plano)
@@ -16,7 +17,7 @@ window.LUME_PROVIDERS = [
     "hint": "Só os modelos que terminam em \"free\". Chave em console.aihubmix.com." },
   { "id": "px", "key": "paxsenix", "name": "Paxsenix", "field": "paxsenix_api_key", "url": "https://api.paxsenix.org/v1", "spacing": 1.5, "showAll": true, "kind": "px", "placeholder": "sk-paxsenix-...", "letter": "P",
     "hint": "Mostra todos os modelos de chat. Chave em api.paxsenix.org." },
-  { "id": "ft", "key": "freetheai", "name": "FreeTheAI", "field": "freetheai_api_key", "url": "https://api.freetheai.org/v1", "spacing": 1.5, "showAll": true, "kind": "openai", "placeholder": "ftai_...", "letter": "F",
+  { "id": "ft", "key": "freetheai", "name": "FreeTheAI", "field": "freetheai_api_key", "url": "https://api.freetheai.org/v1", "spacing": 1.5, "showAll": true, "dailyLimit": 50, "kind": "openai", "placeholder": "ftai_...", "letter": "F",
     "hint": "Mostra todos os modelos, sem teste (o plano grátis tem só 50 pedidos por dia). Antes de usar, faça o check-in diário com captcha em freetheai.org/checkin. Chave em freetheai.org/dashboard/api-keys." },
   { "id": "vd", "key": "voidai", "name": "VoidAI", "field": "voidai_api_key", "url": "https://api.voidai.app/v1", "spacing": 1.5, "showAll": true, "kind": "vd", "placeholder": "sk-voidai-...", "logo": "prov-voidai.png",
     "hint": "Só os modelos que o plano grátis cobre. Os créditos diários do seu plano valem para todos. Chave em voidai.app/dashboard." },

@@ -91,6 +91,7 @@ def _load_provider_registry():
 PROVIDER_REGISTRY = _load_provider_registry()
 X_PROVIDERS = {p["id"]: (p["field"], p["url"], p["name"], float(p.get("spacing", 1.5))) for p in PROVIDER_REGISTRY}   # um lugar so para colocar outro provedor extra: libs/providers.js
 X_KIND = {p["id"]: p.get("kind", "openai") for p in PROVIDER_REGISTRY}
+X_LIMIT = {p["id"]: int(p["dailyLimit"]) for p in PROVIDER_REGISTRY if p.get("dailyLimit")}   # pedidos gratis por dia (so os que informam)
 X_KEY_FIELDS = tuple(f for f, _u, _n, _s in X_PROVIDERS.values()) + tuple(f + "_backup" for f, _u, _n, _s in X_PROVIDERS.values())   # campos de chave dos provedores extras (aceitos ao salvar as configuracoes)
 CLOUD_PREFIXES = ("groq", "or:", "cf:", "pol:", "tdc:", "vc:", "l7:") + tuple(p + ":" for p in X_PROVIDERS)
 ACCOUNTS_DIR = os.path.join(BASE_DIR, "accounts")   # uma pasta por conta, com o nome dela (a do dono e a dos amigos)
@@ -1033,12 +1034,13 @@ def normalize_args(name, args):
     return args
 
 def describe_tool(name, args):
+    if name in COMPUTER_TOOLS: return describe_computer(name, args)
     if name in ("cmd", "powershell"): return f"{name}: {args.get('command', '')}"
     if name == "write_file": return f"Escrever arquivo: {args.get('path', '')} ({len(args.get('content', ''))} caracteres)"
     return f"{name} {args}"
 
 def needs_permission(name):
-    return name in ("cmd", "powershell", "write_file")
+    return name in ("cmd", "powershell", "write_file") or name in COMPUTER_TOOLS
 
 # ---- "permitir sozinho": com o botao ligado, comandos comuns rodam sem perguntar, mas estes NUNCA rodam (nem perguntando)
 _ROOTS = r"(?:[a-z]:[\\/]?(?:\*|\s|$|[\"'])|%(?:systemroot|windir|systemdrive|programfiles|userprofile|appdata|homepath)%|[a-z]:[\\/](?:windows|program files|program files \(x86\)|programdata|users)(?:[\\/]?\s|[\\/]?$|[\\/]?[\"'])|[a-z]:[\\/]users[\\/][^\\/\s\"']+[\\/]?(?:\s|$|[\"'])|~[\\/]?(?:\s|$)|(?:^|[\s\x22'])/(?:\s|$)|\$env:(?:systemroot|windir|userprofile|appdata|programfiles))"
@@ -1127,7 +1129,159 @@ def execute_tool(tool_name, tool_args, workdir, lang="pt"):
     except Exception as e:
         return f"Erro: {e}"
 
-TOOL_NAMES = ("list_files", "read_file", "write_file", "cmd", "powershell", "search_web", "read_url")
+
+# ---------------------------------------------------------------- controle do computador (aba Code): ver a tela, mexer no mouse e no teclado (so Windows, e so se ligado nas opcoes)
+COMPUTER_TOOLS = ("screenshot", "mouse_move", "mouse_click", "scroll", "type_text", "press_key")
+COMPUTER_GRANT_SECS = 600      # depois de aprovar uma vez, a IA pode agir por 10 minutos sem perguntar de novo (renova a cada uso)
+COMPUTER_USER_WAIT = 1.0       # se o dono estiver mexendo no mouse/teclado, a IA espera ele ficar parado 1 segundo
+_comp = {"grant": 0.0, "scale": 1.0, "origin": (0, 0), "shot": False, "ai_tick": 0}
+_VK = {"ctrl": 0x11, "control": 0x11, "alt": 0x12, "shift": 0x10, "win": 0x5B, "windows": 0x5B, "enter": 0x0D, "return": 0x0D, "esc": 0x1B, "escape": 0x1B, "tab": 0x09, "backspace": 0x08, "delete": 0x2E, "del": 0x2E,
+       "space": 0x20, "up": 0x26, "down": 0x28, "left": 0x25, "right": 0x27, "home": 0x24, "end": 0x23, "pageup": 0x21, "pagedown": 0x22, "insert": 0x2D, **{f"f{i}": 0x6F + i for i in range(1, 13)}}
+
+def computer_supported(): return sys.platform == "win32"
+
+def _user_last_input_age_ms():
+    """Ha quantos ms o DONO mexeu no mouse/teclado (ignora o que a propria IA fez)."""
+    import ctypes
+    class LII(ctypes.Structure): _fields_ = [("cbSize", ctypes.c_uint), ("dwTime", ctypes.c_uint)]
+    li = LII(); li.cbSize = ctypes.sizeof(LII)
+    if not ctypes.windll.user32.GetLastInputInfo(ctypes.byref(li)): return 10**9
+    now = ctypes.windll.kernel32.GetTickCount()
+    if li.dwTime <= _comp["ai_tick"] + 60: return 10**9      # a ultima entrada foi a nossa (ou mais antiga): o dono esta parado
+    return (now - li.dwTime) & 0xFFFFFFFF
+
+def _wait_for_user(stop_check=None, max_wait=30):
+    """Espera o dono ficar 1 s sem mexer no mouse/teclado (no maximo 30 s)."""
+    t0 = time.time()
+    while _user_last_input_age_ms() < COMPUTER_USER_WAIT * 1000:
+        if stop_check and stop_check(): raise RuntimeError("parado pelo usuario")
+        if time.time() - t0 > max_wait: raise RuntimeError("o usuario esta usando o computador; tente de novo")
+        time.sleep(0.1)
+
+def _failsafe():
+    import ctypes
+    class PT(ctypes.Structure): _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
+    p = PT(); ctypes.windll.user32.GetCursorPos(ctypes.byref(p))
+    if p.x <= 1 and p.y <= 1: raise RuntimeError("parado: o mouse esta no canto superior esquerdo da tela (parada de emergencia)")
+
+def _mark_ai():
+    import ctypes
+    _comp["ai_tick"] = ctypes.windll.kernel32.GetTickCount()
+
+def _key_event(vk, up=False, unicode_char=None):
+    import ctypes
+    from ctypes import wintypes
+    class KI(ctypes.Structure): _fields_ = [("wVk", wintypes.WORD), ("wScan", wintypes.WORD), ("dwFlags", wintypes.DWORD), ("time", wintypes.DWORD), ("dwExtraInfo", ctypes.c_size_t)]
+    class MI(ctypes.Structure): _fields_ = [("dx", ctypes.c_long), ("dy", ctypes.c_long), ("mouseData", wintypes.DWORD), ("dwFlags", wintypes.DWORD), ("time", wintypes.DWORD), ("dwExtraInfo", ctypes.c_size_t)]
+    class U(ctypes.Union): _fields_ = [("ki", KI), ("mi", MI)]
+    class INP(ctypes.Structure): _fields_ = [("type", wintypes.DWORD), ("u", U)]
+    flags = (0x0002 if up else 0) | (0x0004 if unicode_char is not None else 0)
+    inp = INP(1, U(ki=KI(0 if unicode_char is not None else vk, ord(unicode_char) if unicode_char is not None else 0, flags, 0, 0)))
+    ctypes.windll.user32.SendInput(1, ctypes.byref(inp), ctypes.sizeof(INP))
+
+def _to_screen(x, y):
+    """Coordenadas da ULTIMA captura (reduzida) -> coordenadas reais da tela."""
+    if not _comp["shot"]: raise RuntimeError("tire um screenshot antes (as coordenadas vem dele)")
+    ox, oy = _comp["origin"]; return int(ox + float(x) / _comp["scale"]), int(oy + float(y) / _comp["scale"])
+
+def _find_window(title):
+    import ctypes
+    from ctypes import wintypes
+    found = []
+    EP = ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
+    def cb(h, _):
+        if not ctypes.windll.user32.IsWindowVisible(h): return True
+        n = ctypes.windll.user32.GetWindowTextLengthW(h)
+        if n:
+            buf = ctypes.create_unicode_buffer(n + 1); ctypes.windll.user32.GetWindowTextW(h, buf, n + 1)
+            if title.lower() in buf.value.lower():
+                r = wintypes.RECT(); ctypes.windll.user32.GetWindowRect(h, ctypes.byref(r))
+                if r.right - r.left > 50 and r.bottom - r.top > 50: found.append((h, buf.value, (r.left, r.top, r.right, r.bottom)))
+        return True
+    ctypes.windll.user32.EnumWindows(EP(cb), 0); return found
+
+def computer_execute(name, args, stop_check=None):
+    """Roda uma acao de controle do computador. Devolve (texto, imagem_base64_ou_None)."""
+    if not computer_supported(): return "Erro: o controle do computador so funciona no Windows por enquanto.", None
+    import ctypes
+    u = ctypes.windll.user32
+    try:
+        if name != "screenshot": _failsafe(); _wait_for_user(stop_check)
+        elif stop_check and stop_check(): raise RuntimeError("parado pelo usuario")
+        if name == "screenshot":
+            from PIL import ImageGrab
+            app = str(args.get("app") or "").strip(); where = "tela inteira"; box = None
+            if app:
+                wins = _find_window(app)
+                if not wins: return f"Erro: nenhuma janela com \"{app}\" no titulo. Abra o app e tente de novo.", None
+                h, title, box = max(wins, key=lambda w: (w[2][2] - w[2][0]) * (w[2][3] - w[2][1])); where = "janela \"" + title[:60] + "\""
+                u.ShowWindow(h, 9); u.SetForegroundWindow(h); time.sleep(0.4)
+            img = ImageGrab.grab(bbox=box) if box else ImageGrab.grab()
+            if box: _comp["origin"] = (max(0, box[0]), max(0, box[1]))
+            else: _comp["origin"] = (0, 0)
+            W, H = img.size; k = min(1.0, 1280 / max(W, H)); _comp["scale"] = k; _comp["shot"] = True
+            if k < 1: img = img.resize((int(W * k), int(H * k)))
+            buf = io.BytesIO(); img.convert("RGB").save(buf, "JPEG", quality=70)
+            return f"Captura de {where}: {img.size[0]}x{img.size[1]} pixels. As coordenadas x,y dos proximos cliques sao medidas nesta imagem (canto superior esquerdo = 0,0).", base64.b64encode(buf.getvalue()).decode()
+        if name in ("mouse_move", "mouse_click", "scroll"):
+            sx, sy = _to_screen(args.get("x"), args.get("y")); u.SetCursorPos(sx, sy); time.sleep(0.05)
+            if name == "mouse_click":
+                b = str(args.get("button") or "left").lower(); down, up = {"left": (0x2, 0x4), "right": (0x8, 0x10), "middle": (0x20, 0x40)}.get(b, (0x2, 0x4))
+                for _ in range(2 if args.get("double") else 1): u.mouse_event(down, 0, 0, 0, 0); u.mouse_event(up, 0, 0, 0, 0); time.sleep(0.06)
+                _mark_ai(); return f"Cliquei ({b}{', duplo' if args.get('double') else ''}) em {args.get('x')},{args.get('y')}.", None
+            if name == "scroll":
+                amt = int(args.get("amount") or -3); u.mouse_event(0x0800, 0, 0, amt * 120, 0); _mark_ai(); return f"Rolei {amt} em {args.get('x')},{args.get('y')}.", None
+            _mark_ai(); return f"Mouse movido para {args.get('x')},{args.get('y')}.", None
+        if name == "type_text":
+            text = str(args.get("text") or "")[:2000]
+            for ch in text:
+                _failsafe()
+                if ch == "\n": _key_event(0x0D); _key_event(0x0D, up=True)
+                else: _key_event(0, unicode_char=ch); _key_event(0, up=True, unicode_char=ch)
+                time.sleep(0.01)
+            _mark_ai(); return f"Digitei {len(text)} caracteres.", None
+        if name == "press_key":
+            keys = [k.strip().lower() for k in str(args.get("key") or "").replace(" ", "").split("+") if k.strip()]
+            if not keys: return "Erro: diga a tecla em \"key\" (ex.: \"enter\", \"ctrl+c\").", None
+            vks = []
+            for k in keys:
+                if k in _VK: vks.append(_VK[k])
+                elif len(k) == 1:
+                    v = ctypes.windll.user32.VkKeyScanW(ord(k)) & 0xFF
+                    if v == 0xFF: return f"Erro: tecla desconhecida: {k}", None
+                    vks.append(v)
+                else: return f"Erro: tecla desconhecida: {k}", None
+            for v in vks: _key_event(v)
+            for v in reversed(vks): _key_event(v, up=True)
+            _mark_ai(); return "Apertei " + "+".join(keys) + ".", None
+        return f"Ferramenta desconhecida: {name}", None
+    except Exception as e:
+        return f"Erro: {e}", None
+
+def describe_computer(name, args):
+    if name == "screenshot": return "Ver a tela" + (f" (janela: {args.get('app')})" if args.get("app") else " inteira")
+    if name in ("mouse_move", "mouse_click", "scroll"): return f"{name} em ({args.get('x')}, {args.get('y')})"
+    if name == "type_text": return "Digitar: " + str(args.get("text", ""))[:80]
+    return f"Apertar a tecla: {args.get('key', '')}"
+
+COMPUTER_PROMPT_PT = """- screenshot {"app": "parte do titulo da janela (opcional)"} : tira uma foto da tela inteira ou de um app e mostra para voce
+- mouse_click {"x": 100, "y": 200, "button": "left", "double": false} : clica (x e y medidos na ultima foto)
+- mouse_move {"x": 100, "y": 200} : move o mouse
+- scroll {"x": 100, "y": 200, "amount": -3} : rola (negativo = para baixo)
+- type_text {"text": "texto"} : digita no que estiver com o foco
+- press_key {"key": "ctrl+s"} : aperta uma tecla ou combinacao (enter, tab, esc, ctrl+c, alt+tab...)
+Controle do computador: SEMPRE tire um screenshot antes de clicar e confira o resultado com outro depois. Se o dono estiver usando o mouse ou o teclado, voce espera sozinho. Ele para tudo movendo o mouse para o canto superior esquerdo.
+"""
+COMPUTER_PROMPT_EN = """- screenshot {"app": "part of the window title (optional)"} : take a picture of the whole screen or of an app and show it to you
+- mouse_click {"x": 100, "y": 200, "button": "left", "double": false} : click (x and y measured on the last picture)
+- mouse_move {"x": 100, "y": 200} : move the mouse
+- scroll {"x": 100, "y": 200, "amount": -3} : scroll (negative = down)
+- type_text {"text": "text"} : type into whatever has focus
+- press_key {"key": "ctrl+s"} : press a key or combination (enter, tab, esc, ctrl+c, alt+tab...)
+Computer control: ALWAYS take a screenshot before clicking and check the result with another afterwards. If the owner is using the mouse or keyboard you wait automatically. They stop everything by moving the mouse to the top-left corner of the screen.
+"""
+
+TOOL_NAMES = ("list_files", "read_file", "write_file", "cmd", "powershell", "search_web", "read_url") + COMPUTER_TOOLS
 TOOL_MARK = re.compile(r'(?:\$\$\s*)?\[\s*TOOL\s*[:\s]\s*(\w+)[^\]]*\]', re.IGNORECASE)   # "$$" na frente e opcional
 TOOL_MARK_SHORT = re.compile(r'\$\$\s*\[\s*(' + "|".join(TOOL_NAMES) + r')\s*\]', re.IGNORECASE)   # "$$[cmd] {...}$$" (sem a palavra TOOL)
 TOOL_INLINE = re.compile(r'\$\$\s*\[\s*(cmd|powershell|search_web|read_url|read_file|list_files)\s*[:=]\s*(.+?)\s*\]\s*\$\$', re.IGNORECASE | re.DOTALL)   # "$$[cmd: "dir"]$$"
@@ -1197,6 +1351,14 @@ NATIVE_TOOLS_ALL = [
     _schema("powershell", "Run a command in PowerShell", {"command": {"type": "string"}}, ["command"]),
     _schema("search_web", "Search the web. Choose how many results you need (fewer = cheaper and faster)", {"query": {"type": "string"}, "results": {"type": "integer", "description": "how many results (1-25); 3 to 5 is enough for simple questions"}}, ["query"]),
     _schema("read_url", "Read the text of a web page", {"url": {"type": "string"}}, ["url"]),
+]
+NATIVE_TOOLS_ALL += [
+    _schema("screenshot", "Take a picture of the screen (or of one app window) and see it", {"app": {"type": "string", "description": "part of the window title (optional)"}}, []),
+    _schema("mouse_click", "Click at x,y measured on the last screenshot", {"x": {"type": "integer"}, "y": {"type": "integer"}, "button": {"type": "string"}, "double": {"type": "boolean"}}, ["x", "y"]),
+    _schema("mouse_move", "Move the mouse to x,y of the last screenshot", {"x": {"type": "integer"}, "y": {"type": "integer"}}, ["x", "y"]),
+    _schema("scroll", "Scroll at x,y (negative = down)", {"x": {"type": "integer"}, "y": {"type": "integer"}, "amount": {"type": "integer"}}, ["x", "y"]),
+    _schema("type_text", "Type text into the focused field", {"text": {"type": "string"}}, ["text"]),
+    _schema("press_key", "Press a key or combination such as ctrl+s", {"key": {"type": "string"}}, ["key"]),
 ]
 NATIVE_TOOLS = NATIVE_TOOLS_ALL
 NATIVE_TOOLS_WEB = [t for t in NATIVE_TOOLS_ALL if t["function"]["name"] in ("search_web", "read_url")]   # aba Chat: so a pesquisa
@@ -1479,6 +1641,15 @@ X_NONCHAT = re.compile(r"safety|guard|embed|whisper|tts|image", re.I)   # VoidAI
 X_SHOW_ALL = {p["id"] for p in PROVIDER_REGISTRY if p.get("showAll")}   # sem teste de saude e sem filtro de plano: aparecem todos (os que o plano nao cobrir respondem com erro na hora de usar)
 AH_EXCLUDE = re.compile(r"phi-|north-|mythomax|intern-|dots-|lfm|xing|flint|agents-a|step-|command-|compound|sarvam|nova-|seed-|hy4|gpt-3\.5|grok|safety|guard|embed|whisper|tts|image", re.I)   # sem Llama nem Grok, e sem modelos "aleatorios" que ninguem pediu
 _x_cache = {p: [0, []] for p in X_PROVIDERS}
+USAGE_FILE = os.path.join(BASE_DIR, "provider_usage.json"); _usage_lock = threading.Lock()   # quantos pedidos o Lume mandou a cada provedor extra HOJE: {"ft": {"day": "2026-10-30", "n": 12}}
+def quota_hit(prov):
+    with _usage_lock:
+        d = _read_json(USAGE_FILE, {}); d = d if isinstance(d, dict) else {}; today = time.strftime("%Y-%m-%d"); u = d.get(prov) or {}
+        d[prov] = {"day": today, "n": (u.get("n", 0) if u.get("day") == today else 0) + 1}
+        try: _write_json(USAGE_FILE, d)
+        except OSError: pass
+def quota_today(prov):
+    u = (_read_json(USAGE_FILE, {}) or {}).get(prov) or {}; return u.get("n", 0) if u.get("day") == time.strftime("%Y-%m-%d") else 0
 # Vercel: so os gratis que pediu. Eles so funcionam com um cartao cadastrado na conta Vercel (a Vercel exige, mesmo para os "-free").
 VERCEL_MODELS = [("poolside/laguna-s-2.1-free", "Laguna S 2.1"), ("nvidia/nemotron-3.5-lightning-free", "Nemotron 3.5 Lightning"), ("reflection/beam-free", "Beam")]
 _vc_cache = {"t": 0, "models": []}; _l7_cache = {"t": 0, "models": []}
@@ -2424,7 +2595,9 @@ def stream_model(model, messages, think, cfg, num_ctx=None, max_tokens=None, age
 
 def _stream_model_once(model, messages, think, cfg, num_ctx=None, max_tokens=None, agent=False, effort=None):
     for _p, (_f, _u, _n, _s) in X_PROVIDERS.items():
-        if model.startswith(_p + ":"): return stream_openai_compat(model[len(_p) + 1:], messages, _u, cfg.get(_f), "O " + _n, max_tokens)
+        if model.startswith(_p + ":"):
+            if _p in X_LIMIT: quota_hit(_p)
+            return stream_openai_compat(model[len(_p) + 1:], messages, _u, cfg.get(_f), "O " + _n, max_tokens)
     if model.startswith("pol:"): return stream_pollinations(model, messages, think, cfg, max_tokens, agent, effort)
     if model.startswith("tdc:"): return stream_tomdacat(model, messages, cfg, max_tokens)
     if model.startswith("vc:"): return stream_openai_compat(model[3:], messages, VERCEL_URL, cfg.get("vercel_api_key"), "A Vercel", max_tokens)
@@ -2959,11 +3132,11 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             cfg = load_config(); out = {}
             for prov, (field, _u, name, _s) in X_PROVIDERS.items():
                 mine = {k.split(":", 1)[1]: h for k, h in _health.items() if k.startswith(prov + ":")}
-                out[prov] = {"name": name, "key": bool(cfg.get(field)), "show_all": prov in X_SHOW_ALL, "failing": [i for i, h in mine.items() if not h.get("ok", True)][:30], "tested": len(mine), "last": max([h.get("ts", 0) for h in mine.values()] or [0])}
+                out[prov] = {"name": name, "key": bool(cfg.get(field)), "show_all": prov in X_SHOW_ALL, "failing": [i for i, h in mine.items() if not h.get("ok", True)][:30], "tested": len(mine), "last": max([h.get("ts", 0) for h in mine.values()] or [0]), "limit": X_LIMIT.get(prov), "used_today": quota_today(prov) if prov in X_LIMIT else None}
             return self.send_json(out)
         if p == '/api/config_status':
             cfg = load_config()
-            return self.send_json({"groq_key_saved": bool(cfg.get("groq_api_key")), "openrouter_key_saved": bool(cfg.get("openrouter_api_key")), "cloudflare_saved": all(cf_creds(cfg)), "pollinations_saved": bool(cfg.get("pollinations_api_key")), "tomdacat_saved": bool(cfg.get("tomdacat_api_key")), "vercel_saved": bool(cfg.get("vercel_api_key")), "llm7_saved": bool(cfg.get("llm7_api_key")), "x_saved": {p: bool(cfg.get(v[0])) for p, v in X_PROVIDERS.items()}, "aichixia_saved": bool(cfg.get("aichixia_api_key")), "aihubmix_saved": bool(cfg.get("aihubmix_api_key")), "literouter_saved": bool(cfg.get("literouter_api_key")),  "feedback_url": cfg.get("feedback_url", ""), "exa_key_saved": bool(exa_api_key(cfg)), "search_provider": cfg.get("search_provider", "auto"), "exa_type": cfg.get("exa_type", "lite"), "search_results": max_results(), "search_daily_limit": cfg.get("search_daily_limit", 100), "exa_today": exa_searches_today(), "auto_allow": bool(cfg.get("auto_allow")), "workdir": get_workdir(cfg) if local else "", "default_workdir": BASE_DIR if local else ""})
+            return self.send_json({"groq_key_saved": bool(cfg.get("groq_api_key")), "openrouter_key_saved": bool(cfg.get("openrouter_api_key")), "cloudflare_saved": all(cf_creds(cfg)), "pollinations_saved": bool(cfg.get("pollinations_api_key")), "tomdacat_saved": bool(cfg.get("tomdacat_api_key")), "vercel_saved": bool(cfg.get("vercel_api_key")), "llm7_saved": bool(cfg.get("llm7_api_key")), "x_saved": {p: bool(cfg.get(v[0])) for p, v in X_PROVIDERS.items()}, "aichixia_saved": bool(cfg.get("aichixia_api_key")), "aihubmix_saved": bool(cfg.get("aihubmix_api_key")), "literouter_saved": bool(cfg.get("literouter_api_key")),  "feedback_url": cfg.get("feedback_url", ""), "exa_key_saved": bool(exa_api_key(cfg)), "search_provider": cfg.get("search_provider", "auto"), "exa_type": cfg.get("exa_type", "lite"), "search_results": max_results(), "search_daily_limit": cfg.get("search_daily_limit", 100), "exa_today": exa_searches_today(), "auto_allow": bool(cfg.get("auto_allow")), "computer_control": bool(cfg.get("computer_control")) and computer_supported(), "computer_supported": computer_supported(), "workdir": get_workdir(cfg) if local else "", "default_workdir": BASE_DIR if local else ""})
         if p == '/api/models_status':
             tags = ollama_tags(); running = tags is not None
             used, total, _ = get_gpu_metrics()
@@ -3166,8 +3339,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 if k in data:
                     try: data[k] = max(lo, min(hi, int(data[k])))
                     except (TypeError, ValueError): return self.send_json({"error": "Opcao de pesquisa invalida."}, 400)
-            for k in ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "cloudflare_api_token", "cloudflare_account_id", "exa_api_key", "tomdacat_api_key", "vercel_api_key", "llm7_api_key", "aichixia_api_key", "aihubmix_api_key", "literouter_api_key", "aichixia_api_key_backup", "aihubmix_api_key_backup", "literouter_api_key_backup", "paxsenix_api_key", "paxsenix_api_key_backup", "voidai_api_key", "voidai_api_key_backup", "tokenreply_api_key", "tokenreply_api_key_backup", "groq_api_key_backup", "openrouter_api_key_backup", "pollinations_api_key_backup", "tomdacat_api_key_backup", "vercel_api_key_backup", "llm7_api_key_backup", "workdir", "search_provider", "exa_type", "search_results", "search_daily_limit", "auto_allow", "feedback_url", "feedback_key", *X_KEY_FIELDS):
-                if k in data: cfg[k] = bool(data[k]) if k == "auto_allow" else data[k].strip() if k.endswith(("_key", "_token", "_id", "_backup", "_url")) else data[k]
+            for k in ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "cloudflare_api_token", "cloudflare_account_id", "exa_api_key", "tomdacat_api_key", "vercel_api_key", "llm7_api_key", "aichixia_api_key", "aihubmix_api_key", "literouter_api_key", "aichixia_api_key_backup", "aihubmix_api_key_backup", "literouter_api_key_backup", "paxsenix_api_key", "paxsenix_api_key_backup", "voidai_api_key", "voidai_api_key_backup", "tokenreply_api_key", "tokenreply_api_key_backup", "groq_api_key_backup", "openrouter_api_key_backup", "pollinations_api_key_backup", "tomdacat_api_key_backup", "vercel_api_key_backup", "llm7_api_key_backup", "workdir", "search_provider", "exa_type", "search_results", "search_daily_limit", "auto_allow", "computer_control", "feedback_url", "feedback_key", *X_KEY_FIELDS):
+                if k in data: cfg[k] = bool(data[k]) if k in ("auto_allow", "computer_control") else data[k].strip() if k.endswith(("_key", "_token", "_id", "_backup", "_url")) else data[k]
             save_config(cfg)
             secrets_sent = [k for k in ("aichixia_api_key", "aihubmix_api_key", "literouter_api_key", "aichixia_api_key_backup", "aihubmix_api_key_backup", "literouter_api_key_backup", "paxsenix_api_key", "paxsenix_api_key_backup", "voidai_api_key", "voidai_api_key_backup", "tokenreply_api_key", "tokenreply_api_key_backup", "groq_api_key_backup", "openrouter_api_key_backup", "pollinations_api_key_backup", "tomdacat_api_key_backup", "vercel_api_key_backup", "llm7_api_key_backup", "groq_api_key", "openrouter_api_key", "pollinations_api_key", "tomdacat_api_key", "vercel_api_key", "llm7_api_key", "cloudflare_api_token", "exa_api_key", *X_KEY_FIELDS) if k in data]
             log("CONFIG", "Configuracoes salvas (" + ", ".join([k for k in data if k not in secrets_sent] + [f"chave {k.split('_')[0]}" for k in secrets_sent]) + ")", COLOR_GREEN)
@@ -3648,7 +3821,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             if not messages or messages[0].get("role") != "system":
                 messages.insert(0, {"role": "system", "content": ""})
             if agent:
-                messages[0]["content"] += (TOOL_PROMPT_EN if lang == 'en' else TOOL_PROMPT).replace("{workdir}", workdir)
+                _tp = (TOOL_PROMPT_EN if lang == 'en' else TOOL_PROMPT).replace("{workdir}", workdir)
+                if load_config().get("computer_control") and computer_supported():   # controle do mouse/teclado: so aparece para a IA se o dono ligou nas opcoes
+                    _cut = _tp.index("Make ONE call" if lang == 'en' else "Faca UMA chamada"); _tp = _tp[:_cut] + (COMPUTER_PROMPT_EN if lang == 'en' else COMPUTER_PROMPT_PT) + _tp[_cut:]
+                messages[0]["content"] += _tp
             elif web_tool:
                 messages[0]["content"] += WEB_TOOL_PROMPT_EN if lang == 'en' else WEB_TOOL_PROMPT
             corrections = 0; native_tries = 0
@@ -3719,26 +3895,38 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     if not nxt: break
                     calls.append((nxt[0], nxt[1], rest_from + nxt[2])); rest_from = rest_from + nxt[2]
                 failed_pending = False; corrections = 0; native_tries = 0   # cada passo ganha as suas tentativas
-                full = full[:calls[-1][2]]; denied = False; results_txt = []
+                full = full[:calls[-1][2]]; denied = False; results_txt = []; shot_imgs = []
                 for tool_name, tool_args, _end in calls:
                     tool_args = normalize_args(tool_name, tool_args)
                     log("TOOL", f"{tool_name} {tool_args}", COLOR_CYAN)
                     web_denied = web_tool and tool_name not in ("search_web", "read_url")   # aba Chat: so a pesquisa
                     blocked = None; auto = False
-                    if needs_permission(tool_name) and load_config().get("auto_allow"):   # "permitir sozinho": roda sem perguntar, exceto o que e perigoso (esse e bloqueado)
+                    comp = tool_name in COMPUTER_TOOLS
+                    if comp and not (load_config().get("computer_control") and computer_supported()):
+                        web_denied = True   # desligado nas opcoes: a ferramenta nao existe
+                    if needs_permission(tool_name) and not comp and load_config().get("auto_allow"):   # "permitir sozinho": roda sem perguntar, exceto o que e perigoso (esse e bloqueado)
                         blocked = dangerous_reason(tool_name, tool_args); auto = not blocked
                         if blocked: log("PERMISSAO", f"Bloqueado ({blocked}): {describe_tool(tool_name, tool_args)}", COLOR_RED)
                         else: log("PERMISSAO", f"Permitido sozinho: {describe_tool(tool_name, tool_args)}", COLOR_YELLOW)
+                    if comp and not web_denied and time.time() < _comp["grant"]: auto = True   # o dono ja liberou o controle nesta sessao (10 min, renova a cada uso)
                     if needs_permission(tool_name) and not auto and not blocked and not web_denied:
                         status("Aguardando permissão")
-                        if not ask_permission(describe_tool(tool_name, tool_args), stopped, (tool_name, tool_args)):
+                        _desc = describe_tool(tool_name, tool_args)
+                        if comp: _desc = "CONTROLAR O MOUSE E O TECLADO por 10 minutos. Primeira acao: " + _desc + ". Para parar tudo, mova o mouse para o canto superior esquerdo da tela."
+                        if not ask_permission(_desc, stopped, (tool_name, tool_args)):
                             send(L("\n\n[Acao negada pelo usuario]", "\n\n[Action denied by the user]"))
                             denied = True; break
                     status("Pesquisando na web" if web_tool else f"Executando: {tool_name}")
-                    if web_denied:
+                    if web_denied and comp:
+                        result = L("Erro: o controle do mouse e do teclado esta desligado nas opcoes do Code (ou este PC nao e Windows).", "Error: mouse and keyboard control is turned off in the Code options (or this PC is not Windows).")
+                    elif web_denied:
                         result = L("Erro: aqui so existem as ferramentas search_web e read_url.", "Error: only search_web and read_url exist here.")
                     elif blocked:
                         result = L(f"Erro: comando BLOQUEADO por seguranca ({blocked}). O modo \"permitir sozinho\" nunca roda isso. Nao tente de novo: explique ao usuario ou use outra forma.", f"Error: command BLOCKED for safety ({blocked}). Auto-allow mode never runs this. Do not retry: explain it to the user or find another way.")
+                    elif comp:
+                        _comp["grant"] = time.time() + COMPUTER_GRANT_SECS
+                        result, _img = computer_execute(tool_name, tool_args, stopped)
+                        if _img: shot_imgs.append(_img)
                     elif tool_name == "search_web":   # emite as fontes para a interface mostrar os cartoes
                         results, src = search_web_results(tool_args.get("query", ""), n=tool_args.get("results") or tool_args.get("num_results") or tool_args.get("max_results"))
                         result = format_search(results, src) if results else SEARCH_UNAVAILABLE
@@ -3761,6 +3949,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 joined = "\n\n".join((f"[{n}]\n{r}" if len(calls) > 1 else r) for n, r in results_txt)
                 pair = [{"role": "assistant", "content": full},
                         {"role": "user", "content": L(f"Resultado da ferramenta {tool_name}:\n{joined}", f"Tool result for {tool_name}:\n{joined}") if len(calls) == 1 else L(f"Resultados das ferramentas:\n{joined}", f"Tool results:\n{joined}")}]
+                if shot_imgs: pair[1]["images"] = shot_imgs[-1:]   # a captura de tela volta como imagem na mesma mensagem do resultado
                 messages.extend(pair); clean.extend(pair)
                 if denied: break
                 status("Pensando")

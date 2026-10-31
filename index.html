@@ -1295,7 +1295,7 @@
         </div>
 
         <div class="section-title">Chat</div>
-        <div class="form-group"><div class="srv-actions"><button class="btn btn-secondary" type="button" onclick="lumeRouter.openSettings()">Lume Auto…</button><button class="btn btn-secondary" type="button" onclick="lumeRouter.openLog()">Log do Lume Auto</button></div><span class="hint">O Lume Auto é um modelo especial do seletor: a cada pedido ele escolhe o modelo mais apropriado, estável e rápido, e passa para o próximo sozinho se um falhar. Tudo que ele faz fica no log.</span></div>
+        <div class="form-group"><div class="srv-actions"><button class="btn btn-secondary" type="button" onclick="lumeRouter.openSettings()">Troca automática de modelo…</button></div><span class="hint">Quando um modelo falha, o Lume pode passar sozinho para outro (desligado por padrão).</span></div>
         <div class="form-group">
             <label>System Prompt (aba Chat)</label>
             <textarea id="system-prompt-input" rows="2"></textarea>
@@ -1360,6 +1360,8 @@
             <label>Pasta de trabalho</label>
             <input type="text" id="workdir-input" placeholder="Pasta do programa (padrão)" spellcheck="false">
             <label class="toggle-container"><input type="checkbox" id="opt-autoallow"><div class="toggle-switch"></div> Permitir sozinho (sem perguntar), mas bloquear comandos perigosos</label>
+            <label class="toggle-container" id="opt-computer-row"><input type="checkbox" id="opt-computer"><div class="toggle-switch"></div> Deixar a IA ver a tela e controlar o mouse e o teclado (Windows)</label>
+            <span class="hint" id="opt-computer-hint">Pergunta antes da primeira ação e vale por 10 minutos. Se você estiver mexendo no mouse ou no teclado, a IA espera 1 segundo parado. Para parar tudo, mova o mouse para o canto superior esquerdo da tela. O modelo precisa enxergar imagens.</span>
             <span class="hint">Com isso ligado a IA grava arquivos e roda comandos sem o popup, MENOS o que é perigoso: diskpart, format, apagar pastas do sistema ou do seu usuário, mexer no registro, em contas, serviços, boot, desligar o PC, baixar e executar código da internet. Esses são bloqueados de vez (nem perguntam). Não é uma garantia: confira o que a IA faz.</span>
             <span class="hint">É onde a IA lista, lê e escreve arquivos e roda comandos. Escrever e executar sempre pedem sua permissão.</span>
         </div>
@@ -1645,7 +1647,6 @@
         // gb = tamanho aproximado na memoria (usado para prever estouro de VRAM)
         // fam/famName/params agrupam por familia; rec = tamanho sugerido ao escolher a familia; gb = tamanho aproximado
         const MODELS = [
-            { id: 'lume:auto', fam: 'lume-auto', famName: 'Lume Auto', params: '', label: 'Lume Auto', icon: 'zap', tabs: ['chat', 'code'], auto: true, vision: true, rec: true },   // roteador: escolhe o modelo a cada pedido (libs/lume-router.js)
             { id: 'qwen3.5:2b', fam: 'qwen3.5', famName: 'Qwen 3.5', params: '2B', label: 'Qwen 3.5 2B (Básico)', icon: 'zap', tabs: ['chat'], gb: 2.7, vision: true, ctx: 262144 },
             { id: 'qwen3.5:4b', fam: 'qwen3.5', famName: 'Qwen 3.5', params: '4B', rec: true, label: 'Qwen 3.5 4B (Local)', icon: 'zap', tabs: ['chat', 'code'], gb: 3.3, vision: true, ctx: 262144 },
             { id: 'qwen3.5:9b', fam: 'qwen3.5', famName: 'Qwen 3.5', params: '9B', label: 'Qwen 3.5 9B (Pesado)', icon: 'triangle-alert', tabs: ['chat', 'code'], gb: 6.6, heavy: true, vision: true, ctx: 262144 },
@@ -2504,7 +2505,7 @@
             { re: /kimi|moonshot|(^|[\s:/])k\d(\.\d)?-/i, img: 'Kimi.png' },
             { re: /mimo|xiaomi/i, img: 'Xiaomi.png' },
             { re: /mercury|inception/i, img: 'Inception.svg', mono: true },
-            { re: /sonar|perplexity/i, img: 'Perplexity.svg', mono: true },
+            { re: /sonar|perplexity/i, img: 'Perplexity.png' },
             { re: /thinkingmachines|inkling/i, img: 'ThinkingMachines.png' },
             { re: /openrouter/i, img: 'OpenRouter.png' },
         ];
@@ -4142,7 +4143,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             try {
                 const st = await (await fetch(API + '/api/config_status')).json();
                 $('workdir-input').value = st.workdir === st.default_workdir ? '' : st.workdir;
-                $('workdir-input').placeholder = st.default_workdir; $('opt-autoallow').checked = !!st.auto_allow;
+                $('workdir-input').placeholder = st.default_workdir; $('opt-autoallow').checked = !!st.auto_allow; $('opt-computer').checked = !!st.computer_control; $('opt-computer-row').style.display = $('opt-computer-hint').style.display = st.computer_supported === false ? 'none' : '';
                 $('groq-status').textContent = tr(st.groq_key_saved ? 'chave salva ✓' : 'não salva');
                 $('groq-status').classList.toggle('ok', st.groq_key_saved);
                 $('or-status').textContent = tr(st.openrouter_key_saved ? 'chave salva ✓' : 'não salva'); $('or-status').classList.toggle('ok', st.openrouter_key_saved);
@@ -4334,7 +4335,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             config.numCtx = +$('opt-ctx').value; config.maxCtx = $('opt-maxctx').checked; config.ctxDivide = $('opt-ctxdiv').checked; config.ctxDivisor = Math.min(1000, Math.max(1, parseFloat($('opt-ctxdiv-num').value) || 4)); config.showCtxBar = $('opt-ctxbar').checked; config.webSearch = $('opt-web').checked; if (window.lumeVoiceSave) lumeVoiceSave(); config.starToDot = $('opt-star').checked; config.autoStopPrev = $('opt-autostop').checked;
             saveState();
             if (auth.local) {
-                const body = { workdir: $('workdir-input').value.trim(), auto_allow: $('opt-autoallow').checked, search_provider: $('opt-provider').value, exa_type: $('opt-exatype').value };
+                const body = { workdir: $('workdir-input').value.trim(), auto_allow: $('opt-autoallow').checked, computer_control: $('opt-computer').checked, search_provider: $('opt-provider').value, exa_type: $('opt-exatype').value };
                 const sr = parseInt($('opt-sresults').value, 10), sl = parseInt($('opt-slimit').value, 10);
                 if (sr >= 1) body.search_results = sr; if (sl >= 0) body.search_daily_limit = sl;
                 const key = $('groq-key-input').value.trim();

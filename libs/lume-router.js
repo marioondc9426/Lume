@@ -124,8 +124,8 @@
         flush(); setTimeout(load, 350);
     }
     function openSettings() {
-        if (document.getElementById('lr-set')) return; const U = window.LumeUI, w = U.modal({ title: 'Lume Auto', id: 'lr-set', width: 560 });
-        w.body.appendChild(U.el('div', 'lu-hint', T('Escolha "Lume Auto" no seletor de modelos. A cada pedido ele separa os modelos mais apropriados, usa o mais estável e rápido e, se ele falhar, passa para o próximo sozinho. Tudo fica no log.')));
+        if (document.getElementById('lr-set')) return; const U = window.LumeUI, w = U.modal({ title: 'Troca automática de modelo', id: 'lr-set', width: 560 });
+        w.body.appendChild(U.el('div', 'lu-hint', T('Quando o modelo escolhido falha, o Lume pode passar sozinho para outro parecido, o mais estável e rápido. Ligue em "Trocar sozinho quando falhar". Tudo fica no log.')));
         let s = U.section(w.body, 'Quem pode ser escolhido', { open: true });
         U.toggle(s, 'Modelos pagos (gastam saldo)', cfg.paid, v => { cfg.paid = v; save(); }); U.toggle(s, 'Modelos locais (Ollama)', cfg.local, v => { cfg.local = v; save(); });
         U.toggle(s, 'Modelos que registram as conversas (privacidade)', cfg.registra, v => { cfg.registra = v; save(); });

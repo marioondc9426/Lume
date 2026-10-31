@@ -37,3 +37,5 @@ lume-feedback/feedback_password.txt
 router.log
 router.log.1
 model_scores.json
+provider_usage.json
+provider_models_last.json

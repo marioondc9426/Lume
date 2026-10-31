@@ -53,6 +53,7 @@
             chips.appendChild(u.el('span', 'pv-chip', ms.length + ' ' + T('modelos'))); total += ms.length;
             if (o.failing && o.failing.length) { const c = u.el('span', 'pv-chip bad', o.failing.length + ' ' + T('fora do ar')); c.title = o.failing.join('\n'); chips.appendChild(c); down += o.failing.length; }
             if (code && o.show_all) chips.appendChild(u.el('span', 'pv-chip', T('mostra todos')));
+            if (code && o.limit) { const c = u.el('span', 'pv-chip ' + (o.used_today >= o.limit ? 'bad' : o.used_today >= o.limit * 0.8 ? 'warn' : 'ok'), '📊 ' + (o.used_today || 0) + ' / ' + o.limit + ' ' + T('hoje')); c.title = T('Pedidos que o Lume mandou hoje. O painel do provedor pode mostrar mais se você usar a chave em outro lugar.'); chips.appendChild(c); }
             if (code === 'vd' && vd && vd.credits != null) chips.appendChild(u.el('span', 'pv-chip warn', '💳 ' + fmt(vd.credits) + (vd.limit ? ' / ' + fmt(vd.limit) : '')));
             if (code === 'tk' && tk && tk.available != null) chips.appendChild(u.el('span', 'pv-chip warn', '💵 US$ ' + Number(tk.available).toFixed(3) + ' / ' + Number(tk.granted).toFixed(2)));
             const res = u.el('span', 'pv-chip'); res.style.display = 'none'; chips.appendChild(res);
