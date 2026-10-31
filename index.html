@@ -2064,7 +2064,7 @@
             toggle('Instalar atualizações sozinho', 'Baixa e instala a versão nova em segundo plano; você só confirma o reinício.', config.autoInstall, on => { config.autoInstall = on; saveState(); if (on) checkUpdates(false); }, !!auth.local);
             if (auth.local) select('Aceleração de hardware', 'Usa a placa de vídeo na janela do app. Automática escolhe pela sua placa. Vale ao reiniciar.', ao.hw_accel || 'auto', [['auto', 'Automática'], ['on', 'Ligada'], ['off', 'Desligada']], async v => { const r = await post({ hw_accel: v }); if (r.ok) showInfo(tr('Salvo. Reinicie o Lume para valer.'), 4000); });
             toggle('Atualizar modelos sozinho', 'Uma vez por semana confere se saiu versão nova dos modelos baixados e atualiza.', ao.auto_update_models, async (on, el) => { const r = await post({ auto_update_models: on }); if (r.ok === undefined) el.checked = !on; }, !!auth.local);
-            toggle('Pesquisar na web nas respostas', 'A IA pesquisa na internet quando a pergunta pede dados atuais.', config.webSearch, on => { config.webSearch = on; saveState(); });
+            if (!window.__LUME_IOS) toggle('Pesquisar na web nas respostas', 'A IA pesquisa na internet quando a pergunta pede dados atuais.', config.webSearch, on => { config.webSearch = on; saveState(); });
             toggle('Verificar atualizações ao abrir', 'Avisa quando há uma versão nova.', config.autoUpdate !== false, on => { config.autoUpdate = on; saveState(); });
             toggle('Animações', 'Desligue se a interface pesar na placa de vídeo.', config.animations !== false, on => { config.animations = on; applyAnim(); }, true);
             toggle('Painel de desempenho', 'Mostra a VRAM e a velocidade no canto da tela.', config.perfEnabled, on => setPerfEnabled(on));
@@ -2322,7 +2322,7 @@
             $('guest-chip').style.display = ''; $('guest-chip-name').textContent = '👤 ' + g.name;
             $('guest-chip-use').textContent = g.daily_limit ? `${g.used_today}/${g.daily_limit} ${tr('hoje')}` : '';
             const think = $('use-thinking').closest('label'); if (think) think.style.display = blockedFeature('think') ? 'none' : '';
-            $('opt-web').closest('label').style.display = blockedFeature('web') ? 'none' : '';
+            $('opt-web').closest('label').style.display = (blockedFeature('web') || window.__LUME_IOS) ? 'none' : '';   // no iPhone nao ha pesquisa (a automatica foi removida)
             const ab = document.querySelector('.attach-btn'); if (ab) ab.style.display = (blockedFeature('files') && blockedFeature('images')) ? 'none' : '';
             const n = g.notice || {}, bn = $('guest-banner'); let text = '';
             if (n.shutdown_in != null) text = tr('Seu acesso será desligado em {s} s.', { s: n.shutdown_in }) + (n.shutdown_msg ? ' ' + n.shutdown_msg : '');

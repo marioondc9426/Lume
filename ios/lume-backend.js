@@ -487,20 +487,6 @@ class ThinkSplitter {
     flush() { const o = this.buf ? [[this.inThink ? 'thinking' : 'content', this.buf]] : []; this.buf = ''; return o; }
 }
 
-// ---------------------------------------------------------------- pesquisa na web (DuckDuckGo, sem chave)
-async function searchWeb(query, n) {
-    try {
-        const r = await fetchT('https://html.duckduckgo.com/html/?q=' + encodeURIComponent(query), { headers: { Accept: 'text/html' } }, 15000, 'O DuckDuckGo');
-        const doc = new DOMParser().parseFromString(await r.text(), 'text/html'), out = [];
-        doc.querySelectorAll('.result').forEach(el => {
-            const a = el.querySelector('.result__a'); if (!a || out.length >= (n || 5)) return;
-            let href = a.getAttribute('href') || ''; const m = /[?&]uddg=([^&]+)/.exec(href); if (m) href = decodeURIComponent(m[1]); if (href.startsWith('//')) href = 'https:' + href;
-            const sn = el.querySelector('.result__snippet'); if (/^https?:/.test(href)) out.push([a.textContent.trim(), (sn ? sn.textContent.trim() : ''), href]);
-        });
-        return out;
-    } catch (e) { return []; }
-}
-const needsWeb = q => { const t = String(q || '').trim(); return t.length >= 15 && !t.includes('```') && t.split(/\s+/).length >= 3; };
 
 // ---------------------------------------------------------------- /api/chat (uma linha JSON por evento, como o servidor Python)
 const stops = {};
@@ -518,17 +504,6 @@ function handleChat(req) {
                 if (!messages.length || messages[0].role !== 'system') messages.unshift({ role: 'system', content: '' });
                 if (CLOUD_PREFIX.test(model)) emit({ status: model.startsWith('vc:') ? 'Esperando a Vercel responder' : model.startsWith('l7:') ? 'Esperando o LLM7 responder' : model.startsWith('tdc:') ? 'Esperando o tomdacat responder' : model.startsWith('pol:') ? 'Esperando o Pollinations responder' : 'Conectando' });
                 else emit({ status: isOllamaCloud(model) ? 'Conectando a nuvem do Ollama' : 'Conectando ao Ollama do PC' });
-                if (req.search_web) {
-                    const query = String([...messages].reverse().find(m => m.role === 'user' && m.content) ?.content || '').slice(0, 200);
-                    if (needsWeb(query)) {
-                        emit({ status: 'Pesquisando na web' }); const results = await searchWeb(query, Math.min(cfg.search_results || 5, 8));
-                        if (results.length) {
-                            emit({ sources: results.map(([t, , u]) => ({ title: t, url: u })), provider: 'duckduckgo', query });
-                            messages[0].content += L(`\n\n[PESQUISA NA WEB - use se for relevante e cite os links. Quem pesquisou foi o app Lume, automaticamente, com o texto da ultima mensagem: "${query}"]\n`, `\n\n[WEB SEARCH - use it if relevant and cite the links. The Lume app searched automatically with the last message: "${query}"]\n`)
-                                + results.map(([t, s, u], i) => `${i + 1}. ${t}\n${s}\n${u}`).join('\n\n');
-                        } else messages[0].content += L('\n\n[A pesquisa na web falhou: voce NAO tem dados atuais. Se a pergunta depender de informacao recente, diga isso em vez de inventar.]', '\n\n[The web search failed: you do NOT have current data. If the question depends on recent information, say so instead of making things up.]');
-                    }
-                }
                 if (!messages[0].content) messages.shift();
                 const sp = new ThinkSplitter(); let full = '';
                 for await (const [kind, piece] of streamModel(model, messages, { think: !!req.think, cfg, numCtx: req.num_ctx, maxTokens: null, effort: String(req.effort || '') || null, signal: ctl.signal })) {
