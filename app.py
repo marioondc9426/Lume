@@ -1281,6 +1281,21 @@ COMPUTER_PROMPT_EN = """- screenshot {"app": "part of the window title (optional
 Computer control: ALWAYS take a screenshot before clicking and check the result with another afterwards. If the owner is using the mouse or keyboard you wait automatically. They stop everything by moving the mouse to the top-left corner of the screen.
 """
 
+COMPUTER_CHAT_PT = """
+
+CONTROLE DO COMPUTADOR (ferramenta): voce pode ver a tela do dono e mexer no mouse e no teclado, MAS SO quando ele pedir isso (ver a tela, abrir algo, clicar, digitar). NAO use em conversa comum.
+Para chamar uma ferramenta, escreva EXATAMENTE neste formato e PARE de escrever logo depois: $$[TOOL: nome] {"argumento": "valor"}$$
+Ferramentas:
+""" + COMPUTER_PROMPT_PT + """Faca UMA chamada por vez; o resultado volta na proxima mensagem. Quando terminar, responda normalmente, sem ferramentas.
+"""
+COMPUTER_CHAT_EN = """
+
+COMPUTER CONTROL (tool): you can see the owner's screen and use the mouse and keyboard, BUT ONLY when they ask for it (look at the screen, open something, click, type). Do NOT use it in normal conversation.
+To call a tool, write EXACTLY this format and STOP writing right after it: $$[TOOL: name] {"argument": "value"}$$
+Tools:
+""" + COMPUTER_PROMPT_EN + """Make ONE call at a time; the result comes back in the next message. When you are done, answer normally, without tools.
+"""
+
 TOOL_NAMES = ("list_files", "read_file", "write_file", "cmd", "powershell", "search_web", "read_url") + COMPUTER_TOOLS
 TOOL_MARK = re.compile(r'(?:\$\$\s*)?\[\s*TOOL\s*[:\s]\s*(\w+)[^\]]*\]', re.IGNORECASE)   # "$$" na frente e opcional
 TOOL_MARK_SHORT = re.compile(r'\$\$\s*\[\s*(' + "|".join(TOOL_NAMES) + r')\s*\]', re.IGNORECASE)   # "$$[cmd] {...}$$" (sem a palavra TOOL)
@@ -1362,6 +1377,7 @@ NATIVE_TOOLS_ALL += [
 ]
 NATIVE_TOOLS = NATIVE_TOOLS_ALL
 NATIVE_TOOLS_WEB = [t for t in NATIVE_TOOLS_ALL if t["function"]["name"] in ("search_web", "read_url")]   # aba Chat: so a pesquisa
+NATIVE_TOOLS_COMP = [t for t in NATIVE_TOOLS_ALL if t["function"]["name"] in ("search_web", "read_url") + COMPUTER_TOOLS]   # aba Chat com o controle do computador ligado
 
 def _clean_arg(v):
     return v.strip().strip('"\'`') if isinstance(v, str) and not v.startswith(("\n", " ")) and len(v) < 4096 and "\n" not in v else v
@@ -2401,7 +2417,7 @@ def stream_pollinations(model, messages, think, cfg, max_tokens=None, agent=Fals
             want = effort if effort in EFFORT_ORDER else ("medium" if think else "none")
             known = _pol_effort_ok.get(cand) or (cfg.get("pol_effort_ok") or {}).get(cand)
             payload["reasoning_effort"] = (_near_effort(want, known) if known else want) or want
-        if agent and (caps is None or caps["tools"]): payload["tools"] = NATIVE_TOOLS_WEB if agent == "web" else NATIVE_TOOLS   # aba Code: chamada de ferramenta nativa (so se o modelo tem a capacidade)
+        if agent and (caps is None or caps["tools"]): payload["tools"] = NATIVE_TOOLS_WEB if agent == "web" else NATIVE_TOOLS_COMP if agent == "comp" else NATIVE_TOOLS   # aba Code: chamada de ferramenta nativa (so se o modelo tem a capacidade)
         t0 = time.time()
         hdr = {"Authorization": "Bearer " + key, "Content-Type": "application/json", "User-Agent": "lume-app"}
         try:
@@ -3806,8 +3822,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
         total_chars = 0
         web_tool = bool(req_json.get("search_web")) and not agent   # a IA decide quando pesquisar (ferramenta)
-        use_tools = agent or web_tool; max_steps = MAX_AGENT_STEPS if agent else 4
-        kw_model = {k: v for k, v in (("agent", ("web" if web_tool else True) if use_tools else None), ("effort", str(req_json.get("effort") or "") or None)) if v}   # so manda o que foi pedido
+        comp_chat = (not agent) and bool(load_config().get("computer_control")) and computer_supported() and local   # Chat com o controle do computador (ligado nas opcoes); so no PC do dono
+        use_tools = agent or web_tool or comp_chat; max_steps = MAX_AGENT_STEPS if (agent or comp_chat) else 4
+        kw_model = {k: v for k, v in (("agent", ("comp" if comp_chat else "web" if web_tool else True) if use_tools else None), ("effort", str(req_json.get("effort") or "") or None)) if v}   # so manda o que foi pedido
         try:
             if not model.startswith(CLOUD_PREFIXES):
                 if not ollama_is_running():
@@ -3825,8 +3842,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 if load_config().get("computer_control") and computer_supported():   # controle do mouse/teclado: so aparece para a IA se o dono ligou nas opcoes
                     _cut = _tp.index("Make ONE call" if lang == 'en' else "Faca UMA chamada"); _tp = _tp[:_cut] + (COMPUTER_PROMPT_EN if lang == 'en' else COMPUTER_PROMPT_PT) + _tp[_cut:]
                 messages[0]["content"] += _tp
-            elif web_tool:
-                messages[0]["content"] += WEB_TOOL_PROMPT_EN if lang == 'en' else WEB_TOOL_PROMPT
+            elif web_tool or comp_chat:
+                if web_tool: messages[0]["content"] += WEB_TOOL_PROMPT_EN if lang == 'en' else WEB_TOOL_PROMPT
+                if comp_chat: messages[0]["content"] += COMPUTER_CHAT_EN if lang == 'en' else COMPUTER_CHAT_PT
             corrections = 0; native_tries = 0
             req_tokens = req_prompt = 0; req_seconds = 0.0   # para as estatisticas
             clean = list(messages)   # conversa sem as tentativas falhas e sem os pedidos de correcao (o plano B usa esta)
@@ -3899,11 +3917,14 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 for tool_name, tool_args, _end in calls:
                     tool_args = normalize_args(tool_name, tool_args)
                     log("TOOL", f"{tool_name} {tool_args}", COLOR_CYAN)
-                    web_denied = web_tool and tool_name not in ("search_web", "read_url")   # aba Chat: so a pesquisa
+                    _allowed = (("search_web", "read_url") if web_tool else ()) + (COMPUTER_TOOLS if comp_chat else ())   # aba Chat: so o que ela liga (pesquisa e/ou controle do computador)
+                    web_denied = (web_tool or comp_chat) and tool_name not in _allowed
                     blocked = None; auto = False
                     comp = tool_name in COMPUTER_TOOLS
                     if comp and not (load_config().get("computer_control") and computer_supported()):
                         web_denied = True   # desligado nas opcoes: a ferramenta nao existe
+                    elif comp and not agent and not comp_chat:
+                        web_denied = True
                     if needs_permission(tool_name) and not comp and load_config().get("auto_allow"):   # "permitir sozinho": roda sem perguntar, exceto o que e perigoso (esse e bloqueado)
                         blocked = dangerous_reason(tool_name, tool_args); auto = not blocked
                         if blocked: log("PERMISSAO", f"Bloqueado ({blocked}): {describe_tool(tool_name, tool_args)}", COLOR_RED)
@@ -3916,11 +3937,11 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                         if not ask_permission(_desc, stopped, (tool_name, tool_args)):
                             send(L("\n\n[Acao negada pelo usuario]", "\n\n[Action denied by the user]"))
                             denied = True; break
-                    status("Pesquisando na web" if web_tool else f"Executando: {tool_name}")
+                    status("Pesquisando na web" if (web_tool and not comp_chat) else f"Executando: {tool_name}")
                     if web_denied and comp:
                         result = L("Erro: o controle do mouse e do teclado esta desligado nas opcoes do Code (ou este PC nao e Windows).", "Error: mouse and keyboard control is turned off in the Code options (or this PC is not Windows).")
                     elif web_denied:
-                        result = L("Erro: aqui so existem as ferramentas search_web e read_url.", "Error: only search_web and read_url exist here.")
+                        result = L("Erro: essa ferramenta nao existe aqui.", "Error: that tool does not exist here.")
                     elif blocked:
                         result = L(f"Erro: comando BLOQUEADO por seguranca ({blocked}). O modo \"permitir sozinho\" nunca roda isso. Nao tente de novo: explique ao usuario ou use outra forma.", f"Error: command BLOCKED for safety ({blocked}). Auto-allow mode never runs this. Do not retry: explain it to the user or find another way.")
                     elif comp:

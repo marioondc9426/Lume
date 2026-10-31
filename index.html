@@ -1360,8 +1360,8 @@
             <label>Pasta de trabalho</label>
             <input type="text" id="workdir-input" placeholder="Pasta do programa (padrão)" spellcheck="false">
             <label class="toggle-container"><input type="checkbox" id="opt-autoallow"><div class="toggle-switch"></div> Permitir sozinho (sem perguntar), mas bloquear comandos perigosos</label>
-            <label class="toggle-container" id="opt-computer-row"><input type="checkbox" id="opt-computer"><div class="toggle-switch"></div> Deixar a IA ver a tela e controlar o mouse e o teclado (Windows)</label>
-            <span class="hint" id="opt-computer-hint">Pergunta antes da primeira ação e vale por 10 minutos. Se você estiver mexendo no mouse ou no teclado, a IA espera 1 segundo parado. Para parar tudo, mova o mouse para o canto superior esquerdo da tela. O modelo precisa enxergar imagens.</span>
+            <label class="toggle-container" id="opt-computer-row"><input type="checkbox" id="opt-computer"><div class="toggle-switch"></div> Deixar a IA ver a tela e controlar o mouse e o teclado (Windows; vale para as abas Code e Chat)</label>
+            <span class="hint" id="opt-computer-hint">Pergunta antes da primeira ação e vale por 10 minutos. Se você estiver mexendo no mouse ou no teclado, a IA espera 1 segundo parado. Para parar tudo, mova o mouse para o canto superior esquerdo da tela. No Chat ela só usa isso quando você pedir. O modelo precisa enxergar imagens.</span>
             <span class="hint">Com isso ligado a IA grava arquivos e roda comandos sem o popup, MENOS o que é perigoso: diskpart, format, apagar pastas do sistema ou do seu usuário, mexer no registro, em contas, serviços, boot, desligar o PC, baixar e executar código da internet. Esses são bloqueados de vez (nem perguntam). Não é uma garantia: confira o que a IA faz.</span>
             <span class="hint">É onde a IA lista, lê e escreve arquivos e roda comandos. Escrever e executar sempre pedem sua permissão.</span>
         </div>
