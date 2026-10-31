@@ -1880,7 +1880,7 @@
             'Este modelo não lê imagens': 'This model cannot read images', 'Enviar só o texto': 'Send text only',
             '{label} não lê imagens: as imagens foram ignoradas e só o texto foi enviado. Troque para um modelo com o selo "visão" para analisá-las.': '{label} cannot read images: the images were ignored and only the text was sent. Switch to a model with the "vision" badge to analyze them.',
             '{label} só entende texto. Troque para um modelo com o selo "visão" na lista.': '{label} only understands text. Switch to a model with the "vision" badge in the list.',
-            'Trocar para {label}': 'Switch to {label}', 'Descreva esta imagem.': 'Describe this image.',
+            'Trocar para {label}': 'Switch to {label}', 'O usuário não enviou nenhuma descrição.': 'The user did not provide a description.',
             '\n\nRESUMO DA CONVERSA ANTERIOR (as mensagens antigas foram compactadas):\n': '\n\nSUMMARY OF THE PREVIOUS CONVERSATION (older messages were compacted):\n',
             '\n\nFATOS QUE VOCÊ DEVE LEMBRAR:\n': '\n\nFACTS YOU MUST REMEMBER:\n',
             '(sem resposta)': '(no answer)', 'Erro de conexão com o servidor.': 'Connection error with the server.',
@@ -3787,7 +3787,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             if (model.groq && !(await hasGroqKey())) { await noKeyDialog(); return; }
             if (!(await handleOverflow(model))) return;
 
-            if (!text && files.length) text = tr('Leia o(s) arquivo(s) anexado(s) e faça um resumo.'); else if (!text && imgs.length) text = tr('Descreva esta imagem.');
+            if (!text && files.length) text = tr('Leia o(s) arquivo(s) anexado(s) e faça um resumo.'); else if (!text && imgs.length) text = tr('O usuário não enviou nenhuma descrição.');
             clearPrompt(); pendingImages = []; pendingFiles = []; renderAttachments(); updateCostEst();
             const item = { id: newRid(), text, images: imgs, files, model: selectedModel, think: thinkingNow() };
             if (gens[chatId]) { (queues[chatId] = queues[chatId] || []).push(item); renderQueued(chatId); stickBottom = true; followBottom(); return; }
