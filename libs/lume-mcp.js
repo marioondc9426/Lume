@@ -13,6 +13,10 @@
     function open() {
         const w = LumeUI.modal({ title: 'Servidores MCP', width: 640 }), el = LumeUI.el;
         const hint = el('div', 'lu-hint', T('MCP liga ferramentas externas à IA do modo Code (arquivos, GitHub, bancos de dados...). Cole aqui a configuração no formato do Claude Desktop. Cada servidor é um programa que roda no seu PC; só ligue os que você confia. A IA sempre pede permissão antes de usar uma ferramenta (vale 10 minutos por servidor).'));
+        const autoRow = LumeUI.toggle(w.body, 'Aceitar sozinho as ferramentas MCP (sem perguntar)', false, async on => {
+            const d = await api('/api/mcp_auto', { on }); if (d.error) { msg.textContent = d.error; msg.style.color = '#e5484d'; return; }
+            msg.textContent = on ? T('Ligado: a IA usa as ferramentas MCP sem pedir permissão. Só deixe assim com servidores que você confia.') : T('Desligado: a IA pede permissão antes de usar uma ferramenta MCP.'); msg.style.color = on ? '#f0b429' : '';
+        });
         const box = el('textarea'); box.rows = 11; box.spellcheck = false; box.placeholder = EX;
         box.style.cssText = 'width:100%;box-sizing:border-box;font-family:Consolas,monospace;font-size:.82em;resize:vertical;border-radius:10px;padding:10px;background:var(--bg-input,rgba(128,128,128,.12));color:var(--text-main);border:1px solid var(--border-color)';
         const list = el('div'); list.style.cssText = 'display:flex;flex-direction:column;gap:6px';
@@ -28,7 +32,7 @@
             });
             if (!(status || []).length) list.appendChild(el('div', 'lu-hint', T('Nenhum servidor configurado.')));
         };
-        const load = async () => { const d = await api('/api/mcp'); if (d.error) { msg.textContent = T('Só no PC do dono.'); return; } box.value = (d.status || []).length ? d.json : ''; draw(d.status); };
+        const load = async () => { const d = await api('/api/mcp'); if (d.error) { msg.textContent = T('Só no PC do dono.'); return; } const ck = w.body.querySelector('.lu-tog input'); if (ck) ck.checked = !!d.auto; box.value = (d.status || []).length ? d.json : ''; draw(d.status); };
         const save = async restart => {
             msg.textContent = T('Conectando... (a primeira vez pode baixar o servidor, isso demora)'); msg.style.color = '';
             const d = await api('/api/mcp_save', { json: box.value.trim() || '{}', restart: !!restart });

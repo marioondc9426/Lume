@@ -265,6 +265,7 @@ def load_config():
     cfg.setdefault("openrouter_api_key", "")     # chave do OpenRouter (so modelos gratis)
     cfg.setdefault("cloudflare_api_token", "")   # Cloudflare Workers AI: token + id da conta
     cfg.setdefault("cloudflare_account_id", "")
+    cfg.setdefault("mcp_auto_allow", False)      # aceitar sozinho as ferramentas MCP (sem perguntar)
     cfg.setdefault("mcp_servers", {})            # servidores MCP: {nome: {command, args, env, enabled}}
     cfg.setdefault("pollinations_api_key", "")   # Pollinations: modelos que gastam pollen
     cfg.setdefault("vercel_api_key", "")         # Vercel AI Gateway (modelos "-free")
@@ -2746,7 +2747,7 @@ LOCAL_HOSTS = ("127.0.0.1", "localhost")
 STATIC_PAGES = ("/", "/index.html")
 PAGE_ALIAS = {"/share": "/share.html", "/dashboard": "/dashboard.html", "/feedback": "/feedback.html"}
 # So o proprio PC (janela do app) pode usar estas rotas
-LOCAL_ONLY_POST = ("/api/mcp_save", "/api/save_config", "/api/save_key", "/api/server_config", "/api/perf_interval",
+LOCAL_ONLY_POST = ("/api/mcp_auto", "/api/mcp_save", "/api/save_config", "/api/save_key", "/api/server_config", "/api/perf_interval",
                    "/api/custom_theme", "/api/custom_theme_delete", "/api/account_import", "/api/config_import", "/api/pol_effort_probe", "/api/account/login", "/api/account/logout", "/api/resolve_pending", "/api/export", "/api/ios_profile_save", "/api/undo", "/api/stats_clear", "/api/open_url", "/api/update_apply", "/api/restart_app", "/api/run_code", "/api/run_stop", "/api/tunnel_start", "/api/tunnel_stop", "/api/tunnel_install", "/api/app_options", "/api/model_pull", "/api/model_delete", "/api/models_update_now", "/api/cloudflare_usage_set")
 PUBLIC_POST = ("/api/auth/login", "/api/auth/logout", "/api/guest/register", "/api/guest/code")
 LOGIN_MAX_FAILS, LOGIN_LOCK_SECONDS = 5, 60
@@ -3082,7 +3083,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         if p == '/api/mcp':
             if not local or not lumemcp: return self.send_json({"error": "local_only"}, 403)
             _c = load_config().get("mcp_servers") or {}
-            return self.send_json({"json": lumemcp.to_json(_c), "status": lumemcp.status(_c)})
+            return self.send_json({"json": lumemcp.to_json(_c), "status": lumemcp.status(_c), "auto": bool(load_config().get("mcp_auto_allow"))})
         if p == '/api/tunnel':
             if not local: return self.send_json({"error": "local_only"}, 403)
             return self.send_json({**tunnel_state, "cloudflared": bool(find_cloudflared()), "tailscale": tailscale_status(), "port": PORT})
@@ -3494,6 +3495,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return self.send_json(run_code(data.get("lang"), data.get("code"), bool(data.get("analyze")), bool(data.get("install")), str(data.get("rid") or "") or None))
         if p == '/api/run_stop':
             return self.send_json({"ok": stop_code(str(data.get("rid") or ""))})
+        if p == '/api/mcp_auto':
+            cfg = load_config(); cfg["mcp_auto_allow"] = bool(data.get("on")); save_config(cfg)
+            return self.send_json({"ok": True, "auto": cfg["mcp_auto_allow"]})
         if p == '/api/mcp_save':
             if not lumemcp: return self.send_json({"error": "MCP indisponivel"}, 500)
             try: new = lumemcp.parse_config(data.get("json", ""))
@@ -4031,6 +4035,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     if is_mcp and not web_denied:
                         _md = lumemcp.find_tool(tool_name)
                         if _md and time.time() < _mcp_grant.get(_md["server"], 0): auto = True   # o dono ja liberou este servidor (10 min, renova a cada uso)
+                        if _md and load_config().get("mcp_auto_allow"):   # "aceitar sozinho" ligado no painel MCP: roda sem perguntar
+                            auto = True; log("PERMISSAO", f"MCP permitido sozinho: {describe_tool(tool_name, tool_args)}", COLOR_YELLOW)
                     if needs_permission(tool_name) and not comp and not is_mcp and load_config().get("auto_allow"):   # "permitir sozinho": roda sem perguntar, exceto o que e perigoso (esse e bloqueado)
                         blocked = dangerous_reason(tool_name, tool_args); auto = not blocked
                         if blocked: log("PERMISSAO", f"Bloqueado ({blocked}): {describe_tool(tool_name, tool_args)}", COLOR_RED)
