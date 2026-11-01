@@ -53,7 +53,7 @@
     const PVAL = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 }, wp = cp => 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * cp)) - 1);   // wp: chance de ganhar (0..100)
     const cname = k => (typeof curLang === 'function' && curLang() === 'en') ? CLS[k].en : CLS[k].n;
     function startDuel(host) {
-        const u = window.LumeUI, kit = window.lumeGamesKit; let game = null, running = false, token = 0, engine = null, log = [], last = null, delay = 700, rank = false, cls = [], an = {}, planCards = [];
+        const u = window.LumeUI, kit = window.lumeGamesKit; let game = null, running = false, token = 0, engine = null, log = [], last = null, delay = 700, rank = false, cls = [], an = {}, planCards = [], startFen = '';   // startFen: posicao montada no editor de tabuleiro ('' = a inicial)
         const show = { brilliant: true, great: true, best: true, excellent: false, good: false, inaccuracy: true, mistake: true, blunder: true };
         const side = { w: { kind: 'model', level: 8, pick: null }, b: { kind: 'engine', level: 5, pick: null } };
         const sides = el('div', 'dl-sides'), board = el('div', 'dl-board'), status = el('div', 'gm-status', ''), bar = el('div', 'dl-bar'), moves = el('div', 'dl-moves', '');
@@ -83,7 +83,8 @@
                 if (p) { const img = document.createElement('img'); img.alt = p.type; img.src = (window.CHESS_PIECES || {})[p.color + p.type.toUpperCase()] || ''; sq.appendChild(img); } board.appendChild(sq);
             }
             moves.textContent = ''; if (!log.length) moves.textContent = T('(sem lances ainda)');
-            log.forEach((m, i) => { if (i % 2 === 0) moves.appendChild(document.createTextNode((i / 2 + 1) + '. ')); moves.appendChild(document.createTextNode(m)); const c = cls[i]; if (rank && c && show[c.key]) { const ic = el('i', 'dl-cl', CLS[c.key].sym); ic.style.color = CLS[c.key].c; ic.title = cname(c.key); moves.appendChild(ic); } moves.appendChild(document.createTextNode(' ')); }); moves.scrollTop = moves.scrollHeight;
+            const off = startFen && startFen.split(' ')[1] === 'b' ? 1 : 0;   // posicao que comeca com as pretas: o 1o lance e "1..."
+            log.forEach((m, i) => { if ((i + off) % 2 === 0) moves.appendChild(document.createTextNode((Math.floor((i + off) / 2) + 1) + '. ')); else if (i === 0) moves.appendChild(document.createTextNode('1... ')); moves.appendChild(document.createTextNode(m)); const c = cls[i]; if (rank && c && show[c.key]) { const ic = el('i', 'dl-cl', CLS[c.key].sym); ic.style.color = CLS[c.key].c; ic.title = cname(c.key); moves.appendChild(ic); } moves.appendChild(document.createTextNode(' ')); }); moves.scrollTop = moves.scrollHeight;
         }
         const parseModel = (text, legal) => {   // aceita SAN (Nf3) ou coordenadas (g1f3)
             const t = String(text || '').replace(/[*`]/g, ' '); for (const m of legal) { const re = new RegExp('(^|[\\s,.;:()])' + m.san.replace(/[+#]/g, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '[+#]?($|[\\s,.;:!?)])'); if (re.test(t)) return m; }
@@ -123,7 +124,7 @@
         }
         function addPlan(c, san, plan, pollen) {   // cartao com o plano da IA para este lance (o mais novo fica destacado, no fim da lista)
             plans.querySelectorAll('.dl-plan.new').forEach(e => e.classList.remove('new'));
-            const card = el('div', 'dl-plan new'), no = Math.ceil(log.length / 2);
+            const card = el('div', 'dl-plan new'), no = Math.floor((log.length - 1 + (startFen && startFen.split(' ')[1] === 'b' ? 1 : 0)) / 2) + 1;
             card.appendChild(el('small', '', no + (c === 'w' ? '. ' : '... ') + who(c) + ' (' + T(c === 'w' ? 'Brancas' : 'Pretas') + ')'));
             const b = el('b', '', san); card.append(b, document.createTextNode(' — ' + (plan || T('(a IA não explicou este lance)')))); if (pollen) card.querySelector('small').appendChild(document.createTextNode('  🌸 ' + pollen.toFixed(6))); plans.appendChild(card); planCards[log.length - 1] = card; plans.scrollTop = plans.scrollHeight;
         }
@@ -146,15 +147,17 @@
                 if (game.in_checkmate() && side.w.kind === 'model' && side.b.kind === 'model' && window.lumeScores) { const win = game.turn() === 'w' ? side.b.pick.get() : side.w.pick.get(), lose = game.turn() === 'w' ? side.w.pick.get() : side.b.pick.get(); if (win && lose && win.id !== lose.id) { lumeScores.vote(win.id, [lose.id], false); status.textContent += ' ' + T('(contou no seu ranking)'); } }
             }
         }
-        let paused = false; const bPlay = u.button(bar, 'Começar', () => begin()), bPause = u.button(bar, 'Pausar', () => { paused = !paused; bPause.textContent = T(paused ? 'Continuar' : 'Pausar'); }), bCopy = u.button(bar, 'Copiar PGN', () => { const h = '[White "' + who('w') + '"]\n[Black "' + who('b') + '"]\n[Result "' + (game.in_checkmate() ? (game.turn() === 'w' ? '0-1' : '1-0') : game.game_over() ? '1/2-1/2' : '*') + '"]\n\n'; let o = ''; log.forEach((m, i) => { if (i % 2 === 0) o += (i / 2 + 1) + '. '; o += m + ' '; }); try { navigator.clipboard.writeText(h + o.trim()); status.textContent = T('PGN copiado.'); } catch (e) { /* sem area de transferencia */ } });
+        let paused = false; const bPlay = u.button(bar, 'Começar', () => begin()), bPause = u.button(bar, 'Pausar', () => { paused = !paused; bPause.textContent = T(paused ? 'Continuar' : 'Pausar'); }), bCopy = u.button(bar, 'Copiar PGN', () => { const h = '[White "' + who('w') + '"]\n[Black "' + who('b') + '"]\n' + (startFen ? '[SetUp "1"]\n[FEN "' + startFen + '"]\n' : '') + '[Result "' + (game.in_checkmate() ? (game.turn() === 'w' ? '0-1' : '1-0') : game.game_over() ? '1/2-1/2' : '*') + '"]\n\n'; let o = ''; log.forEach((m, i) => { if (i % 2 === 0) o += (i / 2 + 1) + '. '; o += m + ' '; }); try { navigator.clipboard.writeText(h + o.trim()); status.textContent = T('PGN copiado.'); } catch (e) { /* sem area de transferencia */ } });
         const spd = u.select([['1400', 'Devagar'], ['700', 'Normal'], ['200', 'Rápido']], '700', v => { delay = +v; }); bar.appendChild(spd);
         function syncBtns() { bPlay.textContent = T(running ? 'Reiniciar' : 'Começar'); bPause.style.display = running ? '' : 'none'; bCopy.style.display = log.length ? '' : 'none'; }
         async function begin() {
-            token++; const my = token; running = false; paused = false; bPause.textContent = T('Pausar'); game = new Chess(); log = []; last = null; plans.textContent = ''; cls = []; an = {}; planCards = []; if (cost) cost.reset(); draw();
+            token++; const my = token; running = false; paused = false; bPause.textContent = T('Pausar'); game = new Chess(); if (startFen) game.load(startFen); log = []; last = null; plans.textContent = ''; cls = []; an = {}; planCards = []; if (cost) cost.reset(); draw();
             const needEngine = side.w.kind === 'engine' || side.b.kind === 'engine';
             if (needEngine && !engine) { status.textContent = T('Ligando o Stockfish…'); try { engine = await startEngine(); } catch (e) { status.textContent = T('Não consegui ligar o Stockfish: ') + String(e.message || e).slice(0, 80); return; } }
             if (my !== token) return; running = true; syncBtns(); loop(my);
         }
+        const bEdit = u.button(bar, 'Editar tabuleiro', () => { if (running) { status.textContent = T('Pare a partida (Reiniciar) antes de editar o tabuleiro.'); return; } window.lumeBoardEditor && lumeBoardEditor.open({ fen: startFen || game.fen(), onApply: fen => { startFen = fen; token++; running = false; game = new Chess(); game.load(fen); log = []; last = null; plans.textContent = ''; cls = []; an = {}; planCards = []; draw(); syncBtns(); status.textContent = T('Posição montada. Escolha quem joga de cada lado e aperte Começar.'); } }); });
+        bar.insertBefore(bEdit, bar.firstChild); u.button(bar, 'Posição inicial', () => { if (!startFen) return; startFen = ''; token++; running = false; game = new Chess(); log = []; last = null; plans.textContent = ''; cls = []; an = {}; planCards = []; draw(); syncBtns(); status.textContent = T('Escolha quem joga de cada lado e aperte Começar.'); }).title = T('Volta ao tabuleiro normal');
         game = new Chess(); draw(); syncBtns(); status.textContent = T('Escolha quem joga de cada lado e aperte Começar.');
         // limpa ao fechar a janela de jogos / voltar ao menu: o host sai do documento
         const mo = new MutationObserver(() => { if (!host.isConnected) { token++; running = false; if (engine) engine.stop(); if (card) card.style.removeProperty('--lu-w'); mo.disconnect(); } }); mo.observe(document.body, { childList: true, subtree: true });

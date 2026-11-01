@@ -70,7 +70,7 @@
     const uciOf = m => m.from + m.to + (m.promotion || '');
     function models() { return (typeof MODELS !== 'undefined' ? MODELS : []).filter(m => { try { return isAvail(m); } catch (e) { return false; } }); }   // qualquer modelo disponivel, de qualquer aba
     // numeracao: os lances seguidos do jogador ("extras") nao contam como lance novo (ficam colados no anterior, com um +)
-    function numLabels() { let n = 0; return st.log.map(e => { if (e.extra) return ''; const l = n % 2 === 0 ? (n / 2 + 1) + '. ' : ''; n++; return l; }); }
+    function numLabels() { let n = st.startTurn === 'b' ? 1 : 0; return st.log.map((e, i) => { if (e.extra) return ''; const l = n % 2 === 0 ? (Math.floor(n / 2) + 1) + '. ' : (i === 0 ? (Math.floor(n / 2) + 1) + '... ' : ''); n++; return l; }); }
     function movesText() { const lab = numLabels(); let o = ''; st.log.forEach((e, i) => { o += lab[i] + (e.extra ? '+' : '') + e.san + ' '; }); return o.trim(); }
     const trailingHuman = () => { let n = 0; for (let i = st.log.length - 1; i >= 0 && st.log[i].color === st.human && !st.log[i].illegal; i--) n++; return n; };   // lances seguidos do jogador no fim da partida
 
@@ -164,8 +164,8 @@
     // ---------------------------------------------------------------- jogo
     function newGame(o) {
         const human = o.color === 'random' ? (Math.random() < 0.5 ? 'w' : 'b') : o.color, opts = st ? st.opts : { illegal: false, rank: false, noSpawn: true, multi: Math.max(1, Math.min(8, parseInt(localStorage.getItem('lume_chess_multi')) || 1)) };
-        game = new Chess(); st = { human, model: o.model, flip: human === 'b', sel: null, targets: [], last: null, illegal: [], arrows: [], marks: [], thinking: false, over: '', note: '', rid: null, token: Math.random(), log: [], an: {}, cls: {}, opts, review: null, busy: '', rk: 0, pre: null, psel: null };
-        if (costBar) costBar.reset(); render(); if (human === 'b') aiMove();
+        game = new Chess(); if (o.fen) game.load(o.fen); st = { startFen: o.fen || '', startTurn: o.fen ? o.fen.split(' ')[1] : 'w', human, model: o.model, flip: human === 'b', sel: null, targets: [], last: null, illegal: [], arrows: [], marks: [], thinking: false, over: '', note: '', rid: null, token: Math.random(), log: [], an: {}, cls: {}, opts, review: null, busy: '', rk: 0, pre: null, psel: null };
+        if (costBar) costBar.reset(); render(); if (game.turn() !== human) aiMove();   // (numa posicao montada no editor, quem joga primeiro pode ser qualquer um)
     }
     function mateOk() {   // xeque-mate de verdade: posicao possivel e quem da o mate tem alguma peca alem do rei
         if (!game.in_checkmate() || !fenSafe(game.fen())) return false; const winner = game.turn() === 'w' ? 'b' : 'w';
@@ -382,8 +382,9 @@
         const d = new Date(), pad = n => String(n).padStart(2, '0'), me = st.human === 'w', mdl = st.model.label || st.model.id, over = st.over || '';
         let res = '*'; if (game.in_checkmate()) res = game.turn() === 'w' ? '0-1' : '1-0'; else if (game.in_draw() || game.in_stalemate()) res = '1/2-1/2'; else if (/desistiu|modelo ganhou/i.test(over)) res = me ? '0-1' : '1-0'; else if (/você capturou|você ganhou/i.test(over)) res = me ? '1-0' : '0-1';
         const hasIll = st.log.some(e => e.illegal || e.extra), H = { Event: 'Lume: Xadrez contra um modelo', Site: 'Lume', Date: d.getFullYear() + '.' + pad(d.getMonth() + 1) + '.' + pad(d.getDate()), Round: '1', White: me ? 'Voce' : mdl, Black: me ? mdl : 'Voce', Result: res };
+        if (st.startFen && !hasIll) { H.SetUp = '1'; H.FEN = st.startFen; }
         if (hasIll) { H.SetUp = '1'; H.FEN = game.fen(); H.Variant = 'Lume (lances ilegais)'; }
-        let mt = '', prevIll = false, k = 0;   // k = lances "normais" ate agora (os seguidos entram como comentario e nao contam)
+        let mt = '', prevIll = false, k = st.startTurn === 'b' ? 1 : 0;   // k = lances "normais" ate agora (os seguidos entram como comentario e nao contam)
         st.log.forEach(e => {
             if (e.extra) { mt += '{lance seguido ' + e.san + '} '; prevIll = true; return; }
             const w = k % 2 === 0, no = Math.floor(k / 2) + 1; mt += (w ? no + '. ' : (prevIll || k === 0 ? no + '... ' : '')) + (e.illegal ? '{lance ILEGAL ' + e.san.replace('⚠', '') + '} ' : e.san + ' '); prevIll = !!e.illegal; k++;
@@ -491,6 +492,7 @@
         mb.onclick = e => { e.stopPropagation(); menu.classList.toggle('on'); }; ov.addEventListener('click', () => menu.classList.remove('on'));
         const mi = (txt, fn) => { const b = mk('button', '', T(txt)); b.type = 'button'; b.onclick = () => { menu.classList.remove('on'); fn(); }; menu.appendChild(b); };
         mi('Desistir', () => { if (game && !game.game_over() && !st.over) { st.token = Math.random(); st.thinking = false; st.over = T('Você desistiu.'); st.pre = null; st.psel = null; render(); } });
+        mi('Editar tabuleiro', () => { if (!window.lumeBoardEditor) return; lumeBoardEditor.open({ fen: game.fen(), onApply: fen => { st.token = Math.random(); if (st.rid) { try { fetch(API + '/api/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rid: st.rid }) }); } catch (e) { /* ok */ } } newGame({ model: pk.get(), color: st.human, fen }); } }); });
         mi('Analisar partida', analyzeGame); mi('Exportar PGN', exportPgn);
         const xb = mk('button', 'chess-x', '✕'); xb.type = 'button'; xb.title = T('Fechar'); xb.setAttribute('aria-label', T('Fechar')); ov.appendChild(xb);
         xb.onclick = () => { if (st) st.token = Math.random(); if (st && st.rid) { try { fetch(API + '/api/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rid: st.rid }) }); } catch (e) { /* ok */ } } const o = ov; ov = null; o.classList.add('out'); setTimeout(() => o.remove(), 190); };
