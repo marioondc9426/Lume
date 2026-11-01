@@ -980,7 +980,8 @@ $$[TOOL: nome] {"argumento": "valor"}$$
 Ferramentas:
 - list_files {"path": "."} : lista os arquivos de uma pasta
 - read_file {"path": "arquivo.txt"} : le um arquivo
-- write_file {"path": "arquivo.txt", "content": "texto"} : cria ou sobrescreve um arquivo (pede permissao)
+- write_file {"path": "arquivo.txt", "content": "texto"} : cria ou sobrescreve um arquivo INTEIRO (pede permissao)
+- edit_file {"path": "arquivo.txt", "old": "trecho exato", "new": "trecho novo"} : troca SO um trecho do arquivo (pede permissao). Prefira esta para mudancas pequenas: leia o arquivo antes e copie o trecho "old" exatamente como esta; ele precisa aparecer uma unica vez (inclua linhas ao redor se precisar). Opcional: "replace_all": true
 - cmd {"command": "dir"} : executa no CMD (pede permissao)
 - powershell {"command": "Get-Date"} : executa no PowerShell (pede permissao)
 - search_web {"query": "texto"} : pesquisa na web
@@ -1017,7 +1018,8 @@ $$[TOOL: name] {"argument": "value"}$$
 Tools:
 - list_files {"path": "."} : list the files in a folder
 - read_file {"path": "file.txt"} : read a file
-- write_file {"path": "file.txt", "content": "text"} : create or overwrite a file (asks permission)
+- write_file {"path": "file.txt", "content": "text"} : create or overwrite a WHOLE file (asks permission)
+- edit_file {"path": "file.txt", "old": "exact snippet", "new": "new snippet"} : replace ONLY a part of the file (asks permission). Prefer this for small changes: read the file first and copy "old" exactly as it is; it must appear exactly once (include surrounding lines if needed). Optional: "replace_all": true
 - cmd {"command": "dir"} : run in CMD (asks permission)
 - powershell {"command": "Get-Date"} : run in PowerShell (asks permission)
 - search_web {"query": "text"} : search the web
@@ -1025,7 +1027,7 @@ Tools:
 Make ONE call at a time; the result comes back in the next message. When you are done, answer normally, without tools.
 """
 
-PATH_TOOLS = ("list_files", "read_file", "write_file")
+PATH_TOOLS = ("list_files", "read_file", "write_file", "edit_file")
 
 def normalize_args(name, args):
     """Aceita argumentos mal formados (chave errada) pegando o primeiro valor."""
@@ -1039,10 +1041,11 @@ def describe_tool(name, args):
     if name in COMPUTER_TOOLS: return describe_computer(name, args)
     if name in ("cmd", "powershell"): return f"{name}: {args.get('command', '')}"
     if name == "write_file": return f"Escrever arquivo: {args.get('path', '')} ({len(args.get('content', ''))} caracteres)"
+    if name == "edit_file": return f"Editar arquivo: {args.get('path', '')} (trocar {len(str(args.get('old', '')))} por {len(str(args.get('new', '')))} caracteres)"
     return f"{name} {args}"
 
 def needs_permission(name):
-    return name in ("cmd", "powershell", "write_file") or name in COMPUTER_TOOLS
+    return name in ("cmd", "powershell", "write_file", "edit_file") or name in COMPUTER_TOOLS
 
 # ---- "permitir sozinho": com o botao ligado, comandos comuns rodam sem perguntar, mas estes NUNCA rodam (nem perguntando)
 _ROOTS = r"(?:[a-z]:[\\/]?(?:\*|\s|$|[\"'])|%(?:systemroot|windir|systemdrive|programfiles|userprofile|appdata|homepath)%|[a-z]:[\\/](?:windows|program files|program files \(x86\)|programdata|users)(?:[\\/]?\s|[\\/]?$|[\\/]?[\"'])|[a-z]:[\\/]users[\\/][^\\/\s\"']+[\\/]?(?:\s|$|[\"'])|~[\\/]?(?:\s|$)|(?:^|[\s\x22'])/(?:\s|$)|\$env:(?:systemroot|windir|userprofile|appdata|programfiles))"
@@ -1073,7 +1076,7 @@ _SYSTEM_PATH_RE = re.compile(r"^[a-z]:[\\/](?:windows|program files|program file
 
 def dangerous_reason(name, args):
     """Motivo (texto) se esta chamada nunca deve rodar no modo "permitir sozinho"; None se pode."""
-    if name == "write_file":
+    if name in ("write_file", "edit_file"):
         path = str(args.get("path", "")).replace("/", "\\")
         full = path if os.path.isabs(path) else ""
         if full and _SYSTEM_PATH_RE.search(full): return "gravar em pasta do sistema"
@@ -1111,6 +1114,26 @@ def execute_tool(tool_name, tool_args, workdir, lang="pt"):
             diff = list(difflib.unified_diff(old_bytes.decode("utf-8", "replace").splitlines(), new.splitlines(), L("antes", "before") if existed else L("(novo arquivo)", "(new file)"), L("depois", "after"), lineterm="", n=2))
             shown = ("\n".join(diff[:120]) + (L(f"\n... (+{len(diff) - 120} linhas)", f"\n... (+{len(diff) - 120} lines)") if len(diff) > 120 else "")) or L("(sem alteracoes)", "(no changes)")
             return f"{L('Arquivo escrito com sucesso.', 'File written successfully.')} [undo:{uid}]\n```diff\n{shown}\n```"
+        if tool_name == "edit_file":
+            path = full(tool_args["path"]); old = str(tool_args.get("old", "")); new = str(tool_args.get("new", ""))
+            if not os.path.isfile(path): return L("Erro: o arquivo nao existe. Para criar um arquivo novo use write_file.", "Error: the file does not exist. To create a new file use write_file.")
+            if not old: return L("Erro: \"old\" esta vazio. Passe o trecho exato que deve ser trocado.", "Error: \"old\" is empty. Pass the exact snippet to replace.")
+            with open(path, "rb") as f: raw = f.read()
+            if b"\x00" in raw[:8000]: return L("Erro: esse arquivo e binario; nao da para editar um trecho.", "Error: this file is binary; a snippet cannot be edited.")
+            text = raw.decode("utf-8", "replace"); crlf = "\r\n" in text; work = text.replace("\r\n", "\n")   # compara com quebras de linha iguais; CRLF volta ao gravar
+            o = old.replace("\r\n", "\n"); n = new.replace("\r\n", "\n"); count = work.count(o)
+            if count == 0:
+                first = next((ln.strip() for ln in o.split("\n") if ln.strip()), "")
+                hint = L(f" A primeira linha do trecho (\"{first[:60]}\") ", f" The first line of the snippet (\"{first[:60]}\") ") + (L("existe no arquivo: confira espacos e linhas em volta.", "exists in the file: check the spaces and surrounding lines.") if first and first in work else L("nao aparece no arquivo.", "does not appear in the file."))
+                return L("Erro: o trecho \"old\" nao foi encontrado no arquivo. Leia o arquivo de novo e copie o trecho exatamente.", "Error: the \"old\" snippet was not found in the file. Read the file again and copy the snippet exactly.") + hint
+            if count > 1 and not tool_args.get("replace_all"): return L(f"Erro: o trecho aparece {count} vezes. Inclua mais linhas em volta para ele ser unico, ou use \"replace_all\": true.", f"Error: the snippet appears {count} times. Include more surrounding lines to make it unique, or use \"replace_all\": true.")
+            out = work.replace(o, n) if tool_args.get("replace_all") else work.replace(o, n, 1)
+            if crlf: out = out.replace("\n", "\r\n")
+            with open(path, "w", encoding="utf-8", newline="") as f: f.write(out)
+            uid = save_undo(path, True, raw)
+            diff = list(difflib.unified_diff(work.splitlines(), out.replace("\r\n", "\n").splitlines(), L("antes", "before"), L("depois", "after"), lineterm="", n=2))
+            shown = ("\n".join(diff[:120]) + (L(f"\n... (+{len(diff) - 120} linhas)", f"\n... (+{len(diff) - 120} lines)") if len(diff) > 120 else "")) or L("(sem alteracoes)", "(no changes)")
+            return f"{L('Trecho trocado com sucesso', 'Snippet replaced successfully')}{L(f' ({count} lugares)', f' ({count} places)') if count > 1 and tool_args.get('replace_all') else ''}. [undo:{uid}]\n```diff\n{shown}\n```"
         if tool_name in ("cmd", "powershell"):
             cmd = tool_args["command"]
             argv = cmd if tool_name == "cmd" else ["powershell", "-NoProfile", "-Command", cmd]
@@ -1326,13 +1349,13 @@ Tools:
 """ + COMPUTER_PROMPT_EN + """Make ONE call at a time; the result comes back in the next message. When you are done, answer normally, without tools.
 """
 
-TOOL_NAMES = ("list_files", "read_file", "write_file", "cmd", "powershell", "search_web", "read_url") + COMPUTER_TOOLS
+TOOL_NAMES = ("list_files", "read_file", "write_file", "edit_file", "cmd", "powershell", "search_web", "read_url") + COMPUTER_TOOLS
 TOOL_MARK = re.compile(r'(?:\$\$\s*)?\[\s*TOOL\s*[:\s]\s*(\w+)[^\]]*\]', re.IGNORECASE)   # "$$" na frente e opcional
 TOOL_MARK_SHORT = re.compile(r'\$\$\s*\[\s*(' + "|".join(TOOL_NAMES) + r')\s*\]', re.IGNORECASE)   # "$$[cmd] {...}$$" (sem a palavra TOOL)
 TOOL_INLINE = re.compile(r'\$\$\s*\[\s*(cmd|powershell|search_web|read_url|read_file|list_files)\s*[:=]\s*(.+?)\s*\]\s*\$\$', re.IGNORECASE | re.DOTALL)   # "$$[cmd: "dir"]$$"
 INLINE_KEY = {"cmd": "command", "powershell": "command", "search_web": "query", "read_url": "url", "read_file": "path", "list_files": "path"}   # write_file nunca (precisa do conteudo)
 FENCE_MARK = re.compile(r'```[ \t]*(' + "|".join(TOOL_NAMES) + r')\b', re.IGNORECASE)    # modelos pequenos as vezes usam ```powershell {...}```
-ARG_KEYS = {"command", "path", "content", "query", "url"}
+ARG_KEYS = {"command", "path", "content", "query", "url", "old", "new", "replace_all"}
 
 def _decode_json(rest):
     for candidate in (rest, rest.replace("'", '"')):
@@ -1397,7 +1420,8 @@ def _schema(name, desc, props, required):
 NATIVE_TOOLS_ALL = [
     _schema("list_files", "List the files in a folder", {"path": {"type": "string"}}, []),
     _schema("read_file", "Read a text file", {"path": {"type": "string"}}, ["path"]),
-    _schema("write_file", "Create or overwrite a file", {"path": {"type": "string"}, "content": {"type": "string"}}, ["path", "content"]),
+    _schema("write_file", "Create or overwrite a WHOLE file", {"path": {"type": "string"}, "content": {"type": "string"}}, ["path", "content"]),
+    _schema("edit_file", "Replace ONLY a snippet of an existing file: copy 'old' exactly as it is in the file (it must appear once; add surrounding lines if needed) and give the 'new' text. Prefer this to write_file for small changes", {"path": {"type": "string"}, "old": {"type": "string"}, "new": {"type": "string"}, "replace_all": {"type": "boolean"}}, ["path", "old", "new"]),
     _schema("cmd", "Run a command in the Windows CMD", {"command": {"type": "string"}}, ["command"]),
     _schema("powershell", "Run a command in PowerShell", {"command": {"type": "string"}}, ["command"]),
     _schema("search_web", "Search the web. Choose how many results you need (fewer = cheaper and faster)", {"query": {"type": "string"}, "results": {"type": "integer", "description": "how many results (1-25); 3 to 5 is enough for simple questions"}}, ["query"]),
@@ -1443,7 +1467,7 @@ def native_tool_call(model, messages, num_ctx=None, workdir=None):
             try: args = json.loads(args)
             except ValueError: args = None
         if name in TOOL_NAMES and isinstance(args, dict):
-            return name, {k: (_clean_arg(v) if k != "content" else v) for k, v in args.items()}
+            return name, {k: (_clean_arg(v) if k not in ("content", "old", "new") else v) for k, v in args.items()}
     c = find_tool_call(msg.get("content") or "")   # alguns modelos respondem com o formato de texto mesmo assim
     return (c[0], c[1]) if c else None
 
@@ -1457,7 +1481,7 @@ def ask_permission(description, stop_check=None, call=None):
     if call:   # o que a bolinha analisa: a regra de comandos perigosos e o conteudo (do comando ou do arquivo a escrever)
         try: pending_command["rule"] = dangerous_reason(call[0], call[1]) or ""
         except Exception: pass
-        pending_command["detail"] = str(call[1].get("content") if call[0] == "write_file" else call[1].get("command", ""))[:6000]
+        pending_command["detail"] = str(call[1].get("content") if call[0] == "write_file" else call[1].get("new") if call[0] == "edit_file" else call[1].get("command", ""))[:6000]
     pending_command["resolve"] = resolve
     log("PERMISSAO", f"Aguardando o usuario: {description}", COLOR_YELLOW)
     while not event.wait(1):

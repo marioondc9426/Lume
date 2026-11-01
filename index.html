@@ -3243,7 +3243,7 @@
         }
 
         // ---------- agente: chamadas e resultados de ferramentas como cartoes (em vez do texto cru) ----------
-        const TOOL_RE = '(?:list_files|read_file|write_file|cmd|powershell|search_web|read_url)';
+        const TOOL_RE = '(?:list_files|read_file|write_file|edit_file|cmd|powershell|search_web|read_url)';
         const INLINE_KEYS = { cmd: 'command', powershell: 'command', search_web: 'query', read_url: 'url', read_file: 'path', list_files: 'path' };
         function matchBrace(text, k) {
             let depth = 0, inStr = false, esc = false;
@@ -3281,7 +3281,7 @@
         function callHtml(c) {
             const a = c.args || {}, arg = a.command ?? a.path ?? a.query ?? a.url ?? '';
             const pre = c.name === 'cmd' ? '$ ' : c.name === 'powershell' ? 'PS> ' : '';
-            const extra = c.name === 'write_file' && a.content != null ? ' (' + tr('{n} caracteres', { n: String(a.content).length }) + ')' : '';
+            const extra = c.name === 'edit_file' && a.old != null ? ' (' + tr('{n} caracteres', { n: String(a.old).length }) + ' → ' + tr('{n} caracteres', { n: String(a.new == null ? '' : a.new).length }) + ')' : c.name === 'write_file' && a.content != null ? ' (' + tr('{n} caracteres', { n: String(a.content).length }) + ')' : '';
             return `<div class="tool-call"><span class="tc-name">${esc(c.name)}</span><code>${esc(pre + String(arg) + extra)}</code></div>`;
         }
         function colorDiff(d) {
