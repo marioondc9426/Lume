@@ -149,7 +149,7 @@
     window.LUME_GAMES = GAMES;
     window.openGames = function (only) {
         if (document.getElementById('gm-modal')) return;
-        const u = window.LumeUI, w = u.modal({ title: 'Jogos', id: 'gm-modal', width: 560 });
+        const u = window.LumeUI, w = u.modal({ title: 'Jogos', id: 'gm-modal', width: 560, sticky: true });
         if (!(window.lumeModels && lumeModels().length)) { w.body.appendChild(el('div', 'lu-hint', T('Preciso de um modelo disponível. Configure uma chave ou ligue o Ollama.'))); return; }
         const hub = () => { w.body.textContent = ''; const g = el('div', 'gm-hub'); w.body.appendChild(g);
             GAMES.forEach(x => { const c = el('div', 'gm-card'); c.append(el('b', '', T(x.name)), el('span', '', T(x.desc))); c.onclick = () => open(x); g.appendChild(c); });

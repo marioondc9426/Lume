@@ -52,7 +52,7 @@
             let closed = false, esc;
             const close = () => { if (closed) return; closed = true; document.removeEventListener('keydown', esc); ov.remove(); if (o.onClose) o.onClose(); };
             esc = e => { if (e.key === 'Escape') close(); };
-            x.onclick = close; ov.addEventListener('mousedown', e => { if (e.target === ov) close(); }); document.addEventListener('keydown', esc);
+            x.onclick = close; if (!o.sticky) ov.addEventListener('mousedown', e => { if (e.target === ov) close(); });   // sticky: so fecha no X ou no Esc (um clique sem querer fora da janela nao perde a partida) document.addEventListener('keydown', esc);
             card.append(head, x, body, foot); ov.appendChild(card); document.body.appendChild(ov);
             return { ov, card, head, body, foot, close, aside(node) { node.classList.add('lu-aside'); head.appendChild(node); return node; } };
         },

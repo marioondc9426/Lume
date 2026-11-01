@@ -10,7 +10,7 @@
         excellent: { n: 'Excelente', en: 'Excellent', sym: '✓', c: '#96bc4b' }, good: { n: 'Bom', en: 'Good', sym: '✓', c: '#a3b27a' }, inaccuracy: { n: 'Imprecisão', en: 'Inaccuracy', sym: '?!', c: '#f7c631' },
         mistake: { n: 'Erro', en: 'Mistake', sym: '?', c: '#e58f2a' }, blunder: { n: 'Erro grave', en: 'Blunder', sym: '??', c: '#ca3431' }, miss: { n: 'Perdeu', en: 'Miss', sym: '✕', c: '#ff7769' },
     };
-    let game = null, st = null, ov = null, engine = null, engQ = Promise.resolve();
+    let game = null, st = null, ov = null, engine = null, engQ = Promise.resolve(), costBar = null;
 
     const css = document.createElement('style');
     css.textContent = `
@@ -137,7 +137,7 @@
     function newGame(o) {
         const human = o.color === 'random' ? (Math.random() < 0.5 ? 'w' : 'b') : o.color, opts = st ? st.opts : { illegal: false, rank: false, noSpawn: true, multi: Math.max(1, Math.min(8, parseInt(localStorage.getItem('lume_chess_multi')) || 1)) };
         game = new Chess(); st = { human, model: o.model, flip: human === 'b', sel: null, targets: [], last: null, illegal: [], arrows: [], marks: [], thinking: false, over: '', note: '', rid: null, token: Math.random(), log: [], an: {}, cls: {}, opts, review: null, busy: '', rk: 0, pre: null, psel: null };
-        render(); if (human === 'b') aiMove();
+        if (costBar) costBar.reset(); render(); if (human === 'b') aiMove();
     }
     function mateOk() {   // xeque-mate de verdade: posicao possivel e quem da o mate tem alguma peca alem do rei
         if (!game.in_checkmate() || !fenSafe(game.fen())) return false; const winner = game.turn() === 'w' ? 'b' : 'w';
@@ -266,13 +266,13 @@
         const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '', out = '';
         for (;;) {
             const { value, done } = await rd.read(); if (done) break; buf += dec.decode(value, { stream: true });
-            let nl; while ((nl = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1); if (!line) continue; try { const o = JSON.parse(line); if (o.message && o.message.content) out += o.message.content; } catch (e) { /* linha parcial */ } }
+            let nl; while ((nl = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1); if (!line) continue; try { const o = JSON.parse(line); if (o.stats && window.lumePollenOf) { const pl = window.lumePollenOf(st && st.model, o.stats); if (pl && st) st.moveCost = (st.moveCost || 0) + pl; } if (o.message && o.message.content) out += o.message.content; } catch (e) { /* linha parcial */ } }
         }
         return out;
     }
     async function aiMove() {
         if (!game || game.game_over() || st.over || game.turn() === st.human) return;
-        const my = st.token; st.thinking = true; st.since = Date.now(); st.note = ''; const tick = setInterval(() => { if (!st.thinking || my !== st.token) { clearInterval(tick); return; } const el = ov && ov.querySelector('.chess-status'); if (el && el.textContent.startsWith(T('O modelo está pensando…'))) el.textContent = thinkTxt() + (st.note ? ' ' + st.note : ''); }, 1000); render();   // o contador de segundos mostra que ele nao travou
+        const my = st.token; st.moveCost = 0; st.thinking = true; st.since = Date.now(); st.note = ''; const tick = setInterval(() => { if (!st.thinking || my !== st.token) { clearInterval(tick); return; } const el = ov && ov.querySelector('.chess-status'); if (el && el.textContent.startsWith(T('O modelo está pensando…'))) el.textContent = thinkTxt() + (st.note ? ' ' + st.note : ''); }, 1000); render();   // o contador de segundos mostra que ele nao travou
         const color = game.turn() === 'w' ? 'brancas' : 'pretas', legal = gmv().map(m => m.san), free = st.opts.illegal, fen0 = game.fen(), inCheck = game.in_check();
         const sys = free ? 'Você joga xadrez de verdade e quer ganhar. Em cada vez, responda SOMENTE com o seu lance em coordenadas (exemplos: e2e4, g1f3, e7e8q). Nada de explicação, nada de outro texto.' + (st.opts.noSpawn ? '' : ' Em vez de mover, você também pode CRIAR uma peça sua do nada numa casa, escrevendo +peça@casa (exemplo: +Q@d5 cria uma dama sua em d5).')
             : 'Você joga xadrez de verdade e quer ganhar. Em cada vez, responda SOMENTE com um lance da lista de lances legais, exatamente como está escrito (notação SAN, por exemplo: Nf3, exd5, O-O, e8=Q). Nada de explicação, nada de outro texto.';
@@ -295,6 +295,8 @@
         if (spawn) { const r = spawnPiece(spawn.type, spawn.sq); st.note = r ? T('⚠ O modelo CRIOU uma peça do nada.') : rejNote(); if (!r) { const rnd = legal[Math.floor(Math.random() * legal.length)]; const mv = game.move(rnd); pushLegal(fen0, mv); } }
         else if (forced) { const r = forceMove(forced.from, forced.to, forced.promo); st.note = T('⚠ O modelo jogou um lance ILEGAL.'); if (!r) { st.note = rejNote(); const rnd = legal[Math.floor(Math.random() * legal.length)]; const mv = game.move(rnd); pushLegal(fen0, mv); } }
         else if (chosen) { const mv = game.move(chosen); pushLegal(fen0, mv); }
+        if (st.moveCost) { st.pollen = (st.pollen || 0) + st.moveCost; if (st.log.length) st.log[st.log.length - 1].pollen = st.moveCost; st.note = ((st.note || '') + ' 🌸 ' + st.moveCost.toFixed(6) + ' ' + T('neste lance')).trim(); }
+        if (costBar) { costBar.spend(T('modelo'), st.moveCost || 0); try { if (st.moveCost && window.lumeSpend) lumeSpend.add(st.model, st.moveCost, 0, 0); } catch (e) { /* ok */ } }
         st.arrows = []; st.marks = []; render(); afterMove(); runPremove();
     }
     function runPremove() {   // jogada adiantada: executa assim que o modelo responde, se ainda for legal
@@ -458,7 +460,7 @@
         mi('Analisar partida', analyzeGame); mi('Exportar PGN', exportPgn);
         const xb = mk('button', 'chess-x', '✕'); xb.type = 'button'; xb.title = T('Fechar'); xb.setAttribute('aria-label', T('Fechar')); ov.appendChild(xb);
         xb.onclick = () => { if (st) st.token = Math.random(); if (st && st.rid) { try { fetch(API + '/api/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rid: st.rid }) }); } catch (e) { /* ok */ } } const o = ov; ov = null; o.classList.add('out'); setTimeout(() => o.remove(), 190); };
-        side.appendChild(mk('div', 'chess-status', '')); side.appendChild(mk('div', 'chess-moves', '')); const sum = mk('div', 'chess-sum', ''); sum.style.whiteSpace = 'pre-line'; side.appendChild(sum);
+        side.appendChild(mk('div', 'chess-status', '')); if (window.lumeCostBar) { costBar = window.lumeCostBar(); side.appendChild(costBar.el); } side.appendChild(mk('div', 'chess-moves', '')); const sum = mk('div', 'chess-sum', ''); sum.style.whiteSpace = 'pre-line'; side.appendChild(sum);
         const navRow = mk('div', 'chess-row chess-nav'); [['⏮', 'start'], ['◀', -1], ['▶', 1], ['⏭', 'end']].forEach(([t, d]) => { const b = mk('button', 'btn btn-secondary', t); b.type = 'button'; b.onclick = () => nav(d); navRow.appendChild(b); }); const ex = mk('button', 'btn btn-secondary', T('Sair da análise')); ex.type = 'button'; ex.onclick = () => { st.review = null; render(); }; navRow.appendChild(ex); side.appendChild(navRow);
         optBox.appendChild(mk('div', 'chess-hint', T('Botão direito: segure e arraste para desenhar uma seta (Shift vermelha, Ctrl azul, Alt amarela); clique direito numa casa marca a casa; clique esquerdo limpa. No celular: segure o dedo numa casa e arraste.')));
         side.appendChild(optBox);
