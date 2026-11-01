@@ -214,7 +214,28 @@ def set_ui_lang(l):
         if cfg.get("ui_lang") != l: cfg["ui_lang"] = l; save_config(cfg)
     except Exception: pass
 
+# ---- streaming no terminal: a resposta (e o raciocinio) da IA aparece AO VIVO, pedaco por pedaco, em vez de so no fim
+_term = {"owner": None, "tag": None}; _term_lock = threading.RLock()
+def term_stream_end():
+    """Fecha a linha que esta sendo escrita ao vivo (chamado antes de qualquer outro log e no fim da resposta)."""
+    with _term_lock:
+        if _term["tag"] is None: return
+        _term["tag"] = _term["owner"] = None
+        try: sys.stdout.write("\n"); sys.stdout.flush()
+        except Exception: pass
+def term_stream(owner, tag, text, color=COLOR_RESET):
+    if not text: return
+    with _term_lock:
+        try:
+            if _term["tag"] != tag or _term["owner"] != owner:   # comecou outra coisa (ou outra conversa): fecha a linha anterior e poe um cabecalho novo
+                term_stream_end(); t2 = LOG_TAGS_EN.get(tag, tag) if UI_LANG == "en" else tag
+                head = f"{COLOR_GRAY}{time.strftime('%H:%M:%S')}{COLOR_RESET} {color}[{t2}]{COLOR_RESET} "
+                sys.stdout.write(head if sys.stdout.isatty() else _ANSI.sub("", head)); _term["tag"], _term["owner"] = tag, owner
+            sys.stdout.write(f"{color}{text}{COLOR_RESET}" if sys.stdout.isatty() else text); sys.stdout.flush()
+        except Exception: pass
+
 def log(tag, msg, color=COLOR_RESET):
+    if _term["tag"] is not None: term_stream_end()
     if UI_LANG == "en":
         try: tag, msg = _log_en(tag, str(msg))
         except Exception: pass
@@ -4044,25 +4065,26 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                         if stopped(): break
                         if kind == "status": status(piece); continue
                         if kind == "thinking":
-                            send(piece, "thinking"); continue
+                            send(piece, "thinking")
+                            if verbose: term_stream(rid, "IA · RACIOCINIO", str(piece), COLOR_GRAY)
+                            continue
                         if kind == "stats":
                             ptps = piece['prompt_tokens'] / piece['prompt_seconds'] if piece['prompt_seconds'] else 0
                             log("OLLAMA", f"{piece['tokens']} tokens em {piece['seconds']:.1f}s = {piece['tokens'] / piece['seconds']:.1f} t/s | prompt {piece['prompt_tokens']} tokens ({ptps:.0f} t/s) | carga do modelo {piece['load_seconds']:.1f}s | total {piece['total_seconds']:.1f}s", COLOR_GREEN)
                             req_tokens += piece["tokens"]; req_seconds += piece["seconds"]; req_prompt += piece["prompt_tokens"]
                             emit({"stats": piece}); continue
                         for k2, p2 in splitter.feed(piece):
-                            if k2 == "thinking": send(p2, "thinking")
-                            else: full += p2; send(p2)
+                            if k2 == "thinking": send(p2, "thinking"); verbose and term_stream(rid, "IA · RACIOCINIO", p2, COLOR_GRAY)
+                            else: full += p2; send(p2); verbose and term_stream(rid, "IA · RESPOSTA", p2, COLOR_CYAN)
                         if use_tools and ('}' in piece or '$' in piece) and find_tool_call(full): break
                     for k2, p2 in splitter.flush():   # sobras do buffer (uma tag que nunca terminou de chegar)
-                        if k2 == "thinking": send(p2, "thinking")
-                        else: full += p2; send(p2)
+                        if k2 == "thinking": send(p2, "thinking"); verbose and term_stream(rid, "IA · RACIOCINIO", p2, COLOR_GRAY)
+                        else: full += p2; send(p2); verbose and term_stream(rid, "IA · RESPOSTA", p2, COLOR_CYAN)
                 finally:
                     gen.close()
                 total_chars += len(full)
-                if verbose:
-                    if think_buf: log("IA · RACIOCINIO", "".join(think_buf), COLOR_GRAY); think_buf.clear()
-                    log("IA · RESPOSTA", full, COLOR_CYAN)
+                if verbose:   # o texto ja saiu ao vivo (term_stream): so fecha a linha
+                    think_buf.clear(); term_stream_end()
                 if stopped():
                     send(L("\n\n[Geracao parada]", "\n\n[Generation stopped]"))
                     break
