@@ -1373,10 +1373,14 @@ def find_tool_call(text):
     return name, args, end
 
 ANNOUNCE_RE = re.compile(r"(?i)\b(vou|vamos|irei|farei|i'?ll|i will|let me)\s+(agora\s+)?(atualizar|criar|escrever|editar|rodar|executar|salvar|gravar|ler|abrir|instalar|update|create|write|edit|run|save|read|open|install)\b[^?]{0,200}$")
+# "i'm rewriting the whole thing", "estou reescrevendo tudo", "give it a sec", "um segundo": o modelo diz que esta agindo e para sem chamar nada
+ANNOUNCE_ING_RE = re.compile(r"(?i)\b(i'?m|i am|im|estou|t[oô])\s+(gonna\s+|going to\s+|now\s+|agora\s+)?(re)?(writ|patch|updat|fix|edit|creat|build|redo|read|run|sav|rewrit|criand|escrevend|reescrevend|atualizand|corrigind|salvand|lendo|rodand|execut|ajustand|refazend|mexend)\w*")
+ANNOUNCE_WAIT_RE = re.compile(r"(?i)(give (it|me) a (sec|second|moment|minute)|one (sec|moment|second)\b|hold on\b|bear with me|working on it|\bbrb\b|um (segundo|momento|instante|instantinho)|j[aá] volto|s[oó] um (segundo|momento)|aguarde)")
 def announces_action(text):
     """O modelo disse que ia fazer algo (\"vou atualizar o arquivo\") mas terminou sem chamar nenhuma ferramenta."""
     tail = (text or "").strip()[-300:]
-    return bool(ANNOUNCE_RE.search(tail) or re.search(r"(?i)need (a |the )?tool call", tail))   # alguns modelos vazam "need tool call" no texto em vez de chamar
+    if tail.endswith("?"): return False   # terminou perguntando: nao e uma promessa
+    return bool(ANNOUNCE_RE.search(tail) or ANNOUNCE_ING_RE.search(tail) or ANNOUNCE_WAIT_RE.search(tail) or re.search(r"(?i)need (a |the )?tool call", tail))   # alguns modelos vazam "need tool call" no texto em vez de chamar
 
 def looks_like_failed_call(text):
     """A IA tentou chamar uma ferramenta mas errou o formato (nada foi reconhecido)."""
@@ -1384,6 +1388,8 @@ def looks_like_failed_call(text):
 
 CORRECTION_PT = 'Formato invalido: nenhuma ferramenta foi executada. Para usar uma ferramenta escreva EXATAMENTE $$[TOOL: nome] {"argumento": "valor"}$$ (sem bloco de codigo) e pare de escrever. Tente de novo.'
 CORRECTION_EN = 'Invalid format: no tool was run. To use a tool write EXACTLY $$[TOOL: name] {"argument": "value"}$$ (no code block) and stop writing. Try again.'
+NUDGE_PT = 'Voce disse que ia agir, mas nenhuma ferramenta foi chamada e a tarefa NAO foi feita. Faca a chamada AGORA, escrevendo EXATAMENTE $$[TOOL: nome] {"argumento": "valor"}$$ (sem bloco de codigo) e pare. Se ja terminou, responda ao usuario sem prometer mais nada.'
+NUDGE_EN = 'You said you were going to act, but no tool was called and the task was NOT done. Make the call NOW, writing EXACTLY $$[TOOL: name] {"argument": "value"}$$ (no code block) and stop. If you are already done, answer the user without promising anything else.'
 
 def _schema(name, desc, props, required):
     return {"type": "function", "function": {"name": name, "description": desc, "parameters": {"type": "object", "properties": props, "required": required}}}
@@ -3920,9 +3926,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     if use_tools and corrections < 2 and (looks_like_failed_call(full) or (agent and announces_action(full))):   # errou o formato (ou disse que ia agir e nao chamou nada): pede para repetir (ate 2 vezes)
                         corrections += 1; failed_pending = True
                         log("AGENTE", "Chamada de ferramenta fora do formato; pedindo para a IA repetir.", COLOR_YELLOW)
-                        send(L("\n\n[formato de ferramenta invalido, pedindo para a IA tentar de novo]", "\n\n[invalid tool format, asking the AI to try again]"))
+                        send(L("\n\n[a IA disse que ia agir mas nao chamou nenhuma ferramenta; pedindo para ela continuar]", "\n\n[the AI said it would act but called no tool; asking it to continue]") if (agent and announces_action(full) and not looks_like_failed_call(full)) else L("\n\n[formato de ferramenta invalido, pedindo para a IA tentar de novo]", "\n\n[invalid tool format, asking the AI to try again]"))
                         messages.append({"role": "assistant", "content": full})
-                        messages.append({"role": "user", "content": L(CORRECTION_PT, CORRECTION_EN)})
+                        messages.append({"role": "user", "content": L(NUDGE_PT, NUDGE_EN) if (agent and announces_action(full) and not looks_like_failed_call(full)) else L(CORRECTION_PT, CORRECTION_EN)})
                         status("Pensando")
                         continue
                     if use_tools and looks_like_failed_call(full): failed_pending = True   # sem tentativas de correcao sobrando
