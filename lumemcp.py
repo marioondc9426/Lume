@@ -234,6 +234,9 @@ def tool_defs():
             for kind, desc, schema in extra:
                 full = _full(sname, kind)
                 if full not in names: out.append({"full": full, "server": sname, "tool": kind, "kind": kind, "description": desc, "schema": schema})
+    try:
+        import lumebrowser; out += lumebrowser.defs()   # ferramentas do navegador (extensao do Lume), so quando conectada
+    except Exception: pass
     return out
 
 def resolve(name):
@@ -254,6 +257,8 @@ def call_full(full, args):
     """Roda uma ferramenta MCP. Devolve (texto, [imagens base64])."""
     d = find_tool(full)
     if not d: return "Erro: ferramenta MCP desconhecida (ou o servidor nao esta rodando): " + str(full), []
+    if d.get("kind") == "browser":
+        import lumebrowser; return lumebrowser.call(d["tool"], args if isinstance(args, dict) else {})
     with _lock: s = _servers.get(d["server"])
     if not s or not s.ready: return f"Erro: o servidor MCP \"{d['server']}\" nao esta pronto.", []
     a = args if isinstance(args, dict) else {}

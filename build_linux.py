@@ -11,7 +11,7 @@ import sys
 ROOT = os.path.dirname(os.path.abspath(__file__))
 BUILD = os.path.join(ROOT, "build")
 DIST = os.path.join(ROOT, "dist")
-DATA = ["index.html", "share.html", "dashboard.html", "feedback.html", "quick.html", "CHANGELOG.md", "CHANGELOG-EN.md", "icons", "fonts", "libs"] + (["sounds"] if os.path.isdir(os.path.join(ROOT, "sounds")) else [])
+DATA = ["index.html", "share.html", "dashboard.html", "feedback.html", "quick.html", "browser-extension", "CHANGELOG.md", "CHANGELOG-EN.md", "icons", "fonts", "libs"] + (["sounds"] if os.path.isdir(os.path.join(ROOT, "sounds")) else [])
 
 
 def main():

@@ -81,6 +81,8 @@ try: import vcomp   # controle do computador em segundo plano (varios programas,
 except Exception: vcomp = None
 try: import lumemcp   # cliente MCP (servidores de ferramentas externos, por stdio)
 except Exception: lumemcp = None
+try: import lumebrowser   # ponte com a extensao do navegador (a IA usa as abas do navegador do dono)
+except Exception: lumebrowser = None
 CERTS_DIR = os.path.join(BASE_DIR, "certs")
 HTTPS_PORT = 8443
 APP_NAME = "Lume"
@@ -1124,6 +1126,7 @@ def describe_tool(name, args):
     if name == "write_file": return f"Escrever arquivo: {args.get('path', '')} ({len(args.get('content', ''))} caracteres)"
     if str(name).startswith("mcp__"):
         d = lumemcp.find_tool(name) if lumemcp else None
+        if d and d.get("kind") == "browser": return f"Navegador: {d['tool']} {json.dumps(args, ensure_ascii=False)[:300]}"
         return f"Ferramenta MCP \"{d['tool'] if d else name}\" do servidor \"{d['server'] if d else '?'}\" com: {json.dumps(args, ensure_ascii=False)[:300]}"
     if name == "edit_file": return f"Editar arquivo: {args.get('path', '')} (trocar {len(str(args.get('old', '')))} por {len(str(args.get('new', '')))} caracteres)"
     return f"{name} {args}"
@@ -1549,6 +1552,15 @@ NUDGE_EN = 'You said you were going to act, but no tool was called and the task 
 
 def _schema(name, desc, props, required):
     return {"type": "function", "function": {"name": name, "description": desc, "parameters": {"type": "object", "properties": props, "required": required}}}
+
+def browser_chat_prompt(lang="pt"):
+    """Aba Chat com a extensao do navegador conectada: as ferramentas mcp__browser__* (o texto vem de lumebrowser)."""
+    if not (lumebrowser and lumemcp): return ""
+    names = [d for d in lumebrowser.defs()]
+    if not names: return ""
+    head = ("\nVoce tambem controla o NAVEGADOR do dono (as abas dele, com os logins dele) por estas ferramentas. Chame UMA por vez no formato $$[TOOL: nome] {json}$$. Comece com read_page para ver a pagina; use o numero dos elementos em click e type; depois de cada acao leia a pagina de novo. Diga ao dono o nome REAL do navegador que o resultado informar. Nao clique em comprar/pagar/enviar sem o dono pedir.\n" if lang != "en" else
+            "\nYou also control the owner's BROWSER (their tabs, with their logins) through these tools. Call ONE at a time as $$[TOOL: name] {json}$$. Start with read_page to see the page; use the element numbers in click and type; read the page again after each action. Tell the owner the REAL browser name the result gives. Do not click buy/pay/send unless the owner asked.\n")
+    return head + "\n".join(f"- {x['full']} {lumemcp.signature(x['schema'])} : {x['description'][len(lumebrowser.DESC_PREFIX):][:200]}" for x in names) + "\n"
 
 NATIVE_TOOLS_ALL = [
     _schema("list_files", "List the files in a folder", {"path": {"type": "string"}}, []),
@@ -2619,7 +2631,7 @@ def stream_pollinations(model, messages, think, cfg, max_tokens=None, agent=Fals
             want = effort if effort in EFFORT_ORDER else ("medium" if think else "none")
             known = _pol_effort_ok.get(cand) or (cfg.get("pol_effort_ok") or {}).get(cand)
             payload["reasoning_effort"] = (_near_effort(want, known) if known else want) or want
-        if agent and (caps is None or caps["tools"]): payload["tools"] = NATIVE_TOOLS_WEB if agent == "web" else NATIVE_TOOLS_COMP if agent == "comp" else (NATIVE_TOOLS + (lumemcp.native_tools() if lumemcp else []))   # aba Code: chamada de ferramenta nativa (so se o modelo tem a capacidade)
+        if agent and (caps is None or caps["tools"]): payload["tools"] = NATIVE_TOOLS_WEB if agent == "web" else (NATIVE_TOOLS_COMP + [t for t in (lumemcp.native_tools() if lumemcp else []) if t["function"]["name"].startswith("mcp__browser__")]) if agent == "comp" else (NATIVE_TOOLS + (lumemcp.native_tools() if lumemcp else []))   # aba Code: chamada de ferramenta nativa (so se o modelo tem a capacidade)
         t0 = time.time()
         hdr = {"Authorization": "Bearer " + key, "Content-Type": "application/json", "User-Agent": "lume-app"}
         try:
@@ -3201,6 +3213,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return self.send_json(app_options())
         if p == '/api/ui_rev':   # a interface pergunta daqui a pouco se algum arquivo dela mudou (so rodando do codigo-fonte)
             return self.send_json({"dev": bool(local and dev_enabled()), "rev": ui_rev() if local and dev_enabled() else "", "busy": bool(gens_active)})
+        if p == '/api/browser/status':
+            if not local or not lumebrowser: return self.send_json({"error": "local_only"}, 403)
+            return self.send_json(lumebrowser.info())
         if p == '/api/mcp':
             if not local or not lumemcp: return self.send_json({"error": "local_only"}, 403)
             _c = load_config().get("mcp_servers") or {}
@@ -3423,7 +3438,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         if length > MAX_BODY_BYTES: return self.send_json({"error": "Requisicao grande demais."}, 413)
         post_data = self.rfile.read(length)
         origin = self.headers.get('Origin')
-        if origin and urllib.parse.urlsplit(origin).netloc != (self.headers.get('Host') or ''):
+        if origin and urllib.parse.urlsplit(origin).netloc != (self.headers.get('Host') or '') and not (p.startswith('/api/browser/') and lumebrowser and lumebrowser.ext_origin(origin)):   # (a extensao do navegador tem origem propria, mas so nas rotas /api/browser/)
             log("SEGURANCA", f"Requisicao bloqueada: origem {origin} diferente do host", COLOR_RED)
             return self.send_json({"error": "origin"}, 403)   # outro site tentando usar o servidor
         local = self.is_local()
@@ -3435,7 +3450,18 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         if p in LOCAL_ONLY_POST and not local:
             log("SEGURANCA", f"Rota {p} recusada para dispositivo remoto {self.client_address[0]}", COLOR_RED)
             return self.send_json({"error": "local_only"}, 403)
-        quiet = ('/api/chat', '/api/history', '/api/state')
+        if p.startswith('/api/browser/'):   # a extensao do navegador (so o proprio PC; parear exige Origin de extensao)
+            if not local or not lumebrowser: return self.send_json({"error": "local_only"}, 403)
+            try: _d = json.loads(post_data or b"{}")
+            except Exception: _d = {}
+            if p == '/api/browser/pair':
+                tk = lumebrowser.pair(self.headers.get("Origin", ""))
+                if not tk: return self.send_json({"error": "origin"}, 403)
+                return self.send_json({"token": tk, "app": "lume"})
+            if p == '/api/browser/poll': return self.send_json(lumebrowser.poll(_d.get("token"), _d.get("info")))
+            if p == '/api/browser/result': return self.send_json({"ok": bool(lumebrowser.deliver(_d.get("token"), _d.get("id"), _d.get("result")))})
+            return self.send_json({"error": "not_found"}, 404)
+        quiet = ('/api/chat', '/api/history', '/api/state', '/api/browser/poll', '/api/browser/result')
         if p not in quiet: log("API", f"POST {p}", COLOR_BLUE)
         try:
             data = {} if p == '/api/chat' else json.loads(post_data or b'{}')
@@ -3617,7 +3643,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         if p == '/api/run_stop':
             return self.send_json({"ok": stop_code(str(data.get("rid") or ""))})
         if p == '/api/open_path':   # abre a pasta de dados ou o arquivo de log no Explorer
-            _w = data.get("what"); _t = BASE_DIR if _w == "data" else os.path.join(BASE_DIR, "lume.log") if _w == "log" else None
+            _w = data.get("what"); _t = BASE_DIR if _w == "data" else os.path.join(BASE_DIR, "lume.log") if _w == "log" else os.path.join(RES_DIR, "browser-extension") if _w == "extension" else None
             if not _t or not os.path.exists(_t): return self.send_json({"error": "Nao existe."}, 404)
             try: os.startfile(_t)
             except AttributeError: subprocess.Popen(["xdg-open", _t])
@@ -3644,6 +3670,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 cfg["auto_update_models"] = bool(data["auto_update_models"]); save_config(cfg)
             if "ui_lang" in data: set_ui_lang(data["ui_lang"]); cfg = load_config()
             if data.get("quick_style") in QUICK_STYLES: cfg["quick_style"] = data["quick_style"]; save_config(cfg); quick_style_apply()
+            if "browser_ai" in data: cfg["browser_ai"] = bool(data["browser_ai"]); save_config(cfg)
             if "quick_hotkey" in data: cfg["quick_hotkey"] = bool(data["quick_hotkey"]); save_config(cfg)
             if "log_full" in data:
                 cfg["log_full"] = bool(data["log_full"]); save_config(cfg)
@@ -4056,8 +4083,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         total_chars = 0
         web_tool = bool(req_json.get("search_web")) and not agent   # a IA decide quando pesquisar (ferramenta)
         comp_chat = (not agent) and bool(load_config().get("computer_control")) and computer_supported() and local   # Chat com o controle do computador (ligado nas opcoes); so no PC do dono
-        use_tools = agent or web_tool or comp_chat; max_steps = max(1, min(200, int(load_config().get("max_agent_steps") or MAX_AGENT_STEPS))) if (agent or comp_chat) else 4
-        kw_model = {k: v for k, v in (("agent", ("comp" if comp_chat else "web" if web_tool else True) if use_tools else None), ("effort", str(req_json.get("effort") or "") or None)) if v}   # so manda o que foi pedido
+        browser_chat = (not agent) and local and bool(lumebrowser and lumebrowser.connected()) and bool(load_config().get("browser_ai", True))   # Chat com a extensao do navegador conectada
+        use_tools = agent or web_tool or comp_chat or browser_chat; max_steps = max(1, min(200, int(load_config().get("max_agent_steps") or MAX_AGENT_STEPS))) if (agent or comp_chat or browser_chat) else 4
+        kw_model = {k: v for k, v in (("agent", ("comp" if (comp_chat or browser_chat) else "web" if web_tool else True) if use_tools else None), ("effort", str(req_json.get("effort") or "") or None)) if v}   # so manda o que foi pedido
         try:
             if not model.startswith(CLOUD_PREFIXES):
                 if not ollama_is_running():
@@ -4078,9 +4106,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 if _mcp_txt:   # ferramentas dos servidores MCP ligados
                     _cut = _tp.index("Make ONE call" if lang == 'en' else "Faca UMA chamada"); _tp = _tp[:_cut] + _mcp_txt + _tp[_cut:]
                 messages[0]["content"] += _tp
-            elif web_tool or comp_chat:
+            elif web_tool or comp_chat or browser_chat:
                 if web_tool: messages[0]["content"] += WEB_TOOL_PROMPT_EN if lang == 'en' else WEB_TOOL_PROMPT
                 if comp_chat: messages[0]["content"] += COMPUTER_CHAT_EN if lang == 'en' else COMPUTER_CHAT_PT
+                if browser_chat: messages[0]["content"] += browser_chat_prompt(lang)
             corrections = 0; native_tries = 0
             req_tokens = req_prompt = 0; req_seconds = 0.0   # para as estatisticas
             clean = list(messages)   # conversa sem as tentativas falhas e sem os pedidos de correcao (o plano B usa esta)
@@ -4156,8 +4185,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     if lumemcp and tool_name not in TOOL_NAMES: tool_name = lumemcp.resolve(tool_name)
                     tool_args = normalize_args(tool_name, tool_args)
                     log("TOOL", f"{tool_name} {tool_args}", COLOR_CYAN)
-                    _allowed = (("search_web", "read_url") if web_tool else ()) + (COMPUTER_TOOLS if comp_chat else ())   # aba Chat: so o que ela liga (pesquisa e/ou controle do computador)
-                    web_denied = (web_tool or comp_chat) and tool_name not in _allowed
+                    if lumemcp and browser_chat and tool_name not in TOOL_NAMES: tool_name = lumemcp.resolve(tool_name)
+                    _allowed = (("search_web", "read_url") if web_tool else ()) + (COMPUTER_TOOLS if comp_chat else ()) + (tuple(d["full"] for d in lumebrowser.defs()) if browser_chat else ())   # aba Chat: so o que ela liga (pesquisa, controle do computador e/ou o navegador)
+                    web_denied = (web_tool or comp_chat or browser_chat) and tool_name not in _allowed
                     blocked = None; auto = False
                     comp = tool_name in COMPUTER_TOOLS
                     if comp and not (load_config().get("computer_control") and computer_supported()):
@@ -4165,7 +4195,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     elif comp and not agent and not comp_chat:
                         web_denied = True
                     is_mcp = str(tool_name).startswith("mcp__")
-                    if is_mcp and (not agent or not lumemcp or not lumemcp.find_tool(tool_name)): web_denied = True
+                    if is_mcp and ((not agent and not (browser_chat and str(tool_name).startswith("mcp__browser__"))) or not lumemcp or not lumemcp.find_tool(tool_name)): web_denied = True
                     if is_mcp and not web_denied:
                         _md = lumemcp.find_tool(tool_name)
                         if _md and time.time() < _mcp_grant.get(_md["server"], 0): auto = True   # o dono ja liberou este servidor (10 min, renova a cada uso)
@@ -4179,7 +4209,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     if needs_permission(tool_name) and not auto and not blocked and not web_denied:
                         status("Aguardando permissão")
                         _desc = describe_tool(tool_name, tool_args)
-                        if is_mcp: _desc = "USAR UM SERVIDOR MCP (programa externo) por 10 minutos. Primeira acao: " + _desc
+                        if is_mcp: _desc = ("USAR O SEU NAVEGADOR (abas, paginas, cliques e digitacao, com os seus logins) por 10 minutos. Primeira acao: " if str(tool_name).startswith("mcp__browser__") else "USAR UM SERVIDOR MCP (programa externo) por 10 minutos. Primeira acao: ") + _desc
                         if comp: _desc = "CONTROLAR PROGRAMAS em segundo plano (mouse virtual, sem mexer no seu mouse) por 10 minutos. Primeira acao: " + _desc + ". Para parar tudo, mova o mouse para o canto superior esquerdo da tela."
                         if not ask_permission(_desc, stopped, (tool_name, tool_args)):
                             send(L("\n\n[Acao negada pelo usuario]", "\n\n[Action denied by the user]"))
@@ -4464,7 +4494,7 @@ def restart_app():
     if window_api and window_api._window: window_api._window.destroy()
 
 # ---------------------------------------------------------------- atualizar sozinho quando os arquivos do programa mudam (so rodando do codigo-fonte, nao no .exe)
-DEV_PY = ("app.py", "lumemcp.py", "vcomp.py", "tls.py", "guests.py")
+DEV_PY = ("app.py", "lumemcp.py", "lumebrowser.py", "vcomp.py", "tls.py", "guests.py")
 def _dev_files():
     py = [os.path.join(RES_DIR, f) for f in DEV_PY if os.path.isfile(os.path.join(RES_DIR, f))]
     ui = [os.path.join(RES_DIR, "index.html")] + [os.path.join(RES_DIR, "libs", f) for f in (os.listdir(os.path.join(RES_DIR, "libs")) if os.path.isdir(os.path.join(RES_DIR, "libs")) else []) if f.endswith((".js", ".css"))]
@@ -4613,7 +4643,7 @@ def app_options():
     cfg = load_config()
     _hw = cfg.get("hw_accel", "auto"); _hw = _hw if _hw in HW_MODES else "auto"
     return {"frozen": FROZEN, "start_with_terminal": bool(cfg.get("start_with_terminal")), "terminal_open": terminal_is_open(), "start_with_windows": autostart_get(), "remote_enabled": bool(cfg.get("remote_enabled")),
-            "tray": bool(cfg.get("tray_enabled")), "tray_available": tray_available(), "auto_update_models": bool(cfg.get("auto_update_models")), "log_full": bool(cfg.get("log_full")), "quick_hotkey": bool(cfg.get("quick_hotkey", True)), "quick_style": cfg.get("quick_style", "mica"), "quick_available": sys.platform == "win32",
+            "tray": bool(cfg.get("tray_enabled")), "tray_available": tray_available(), "auto_update_models": bool(cfg.get("auto_update_models")), "log_full": bool(cfg.get("log_full")), "quick_hotkey": bool(cfg.get("quick_hotkey", True)), "browser_ai": bool(cfg.get("browser_ai", True)), "browser_ext": (lumebrowser.info() if lumebrowser else {}), "browser_ext_dir": os.path.join(RES_DIR, "browser-extension"), "quick_style": cfg.get("quick_style", "mica"), "quick_available": sys.platform == "win32",
             "hw_accel": _hw, "hw_accel_auto": hw_accel_decide("auto"), "gpu_names": gpu_names(), "auto_reload": bool(cfg.get("auto_reload", True)), "dev": not FROZEN,
             "version": VERSION, "platform": platform.platform(), "python": sys.version.split()[0], "data_dir": BASE_DIR, "has_log": os.path.exists(os.path.join(BASE_DIR, "lume.log")),
             "models_updated_at": cfg.get("models_updated_at", 0), "model_update": dict(model_update_state)}

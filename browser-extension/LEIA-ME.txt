@@ -1,0 +1,15 @@
+Lume - IA no navegador
+======================
+Esta extensao liga a IA do Lume (que roda no seu PC) as abas do navegador que voce ja usa, com os seus logins.
+Ela so conversa com o Lume em 127.0.0.1 (o proprio PC). Cada acao da IA (ler pagina, clicar, digitar...) pede a sua permissao no Lume.
+
+Instalar no Comet / Chrome / Edge / Brave / Opera / Vivaldi (uma vez):
+  1. Abra a pagina de extensoes (chrome://extensions, edge://extensions ...).
+  2. Ligue o "Modo do desenvolvedor".
+  3. Clique em "Carregar sem compactacao" e escolha esta pasta (browser-extension).
+  4. Deixe o Lume aberto. O icone da extensao mostra ON quando conecta.
+
+Firefox: about:debugging > Este Firefox > Carregar extensao temporaria > escolha manifest.json (some ao fechar o Firefox).
+
+O que a IA consegue: listar abas, abrir enderecos, ler a pagina (texto + botoes/campos numerados), clicar, digitar, rolar,
+tirar foto da aba, trocar/fechar aba e voltar. Paginas internas do navegador (chrome://...) e a loja de extensoes nao podem ser lidas.

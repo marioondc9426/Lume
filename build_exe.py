@@ -18,7 +18,7 @@ LOCK = os.path.join(BUILD, ".lock")
 AGAIN = os.path.join(BUILD, ".again")
 LOG = os.path.join(BUILD, "build.log")
 NOWIN = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-DATA = ["index.html", "share.html", "dashboard.html", "feedback.html", "quick.html", "CHANGELOG.md", "CHANGELOG-EN.md", "icons", "fonts", "libs"] + (["sounds"] if os.path.isdir(os.path.join(ROOT, "sounds")) else [])   # o que vai dentro do .exe (pasta de destino: a raiz)
+DATA = ["index.html", "share.html", "dashboard.html", "feedback.html", "quick.html", "browser-extension", "CHANGELOG.md", "CHANGELOG-EN.md", "icons", "fonts", "libs"] + (["sounds"] if os.path.isdir(os.path.join(ROOT, "sounds")) else [])   # o que vai dentro do .exe (pasta de destino: a raiz)
 
 
 def say(msg):
@@ -76,7 +76,7 @@ def build():
     version = app_version(); ico = make_icon(); vfile = version_file(version)
     cmd = [sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean", "--onefile", "--windowed", "--name", "Lume",
            "--icon", ico, "--version-file", vfile, "--distpath", DIST, "--workpath", os.path.join(BUILD, "work"), "--specpath", BUILD,
-           "--collect-all", "webview", "--hidden-import", "clr", "--hidden-import", "clr_loader", "--hidden-import", "tls", "--hidden-import", "vcomp", "--hidden-import", "lumemcp", "--hidden-import", "guests", "--hidden-import", "pystray._win32",
+           "--collect-all", "webview", "--hidden-import", "clr", "--hidden-import", "clr_loader", "--hidden-import", "tls", "--hidden-import", "vcomp", "--hidden-import", "lumemcp", "--hidden-import", "lumebrowser", "--hidden-import", "guests", "--hidden-import", "pystray._win32",
            "--exclude-module", "tkinter", "--exclude-module", "matplotlib", "--exclude-module", "numpy"]
     for item in DATA:
         src = os.path.join(ROOT, item)
