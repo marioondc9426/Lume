@@ -457,6 +457,9 @@
         .tool-call .tc-name { font-weight: bold; color: var(--accent); white-space: nowrap; }
         .tool-call code { font-family: Consolas, monospace; word-break: break-all; white-space: pre-wrap; }
         .tool-call.running code { opacity: .6; animation: pulse 1s ease-in-out infinite; }
+        details.tool-call { display: block; }
+        details.tool-call > summary { display: flex; align-items: baseline; gap: 8px; cursor: pointer; list-style: none; }
+        details.tool-call > summary::-webkit-details-marker { display: none; }
         .tool-result { margin: 4px 0 10px; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; font-size: 0.82em; }
         .tool-result summary { cursor: pointer; padding: 6px 10px; background: rgba(128,128,128,0.1); color: var(--text-muted); display: flex; align-items: center; gap: 6px; user-select: none; }
         .tool-result.err summary { color: #ff6b6b; }
@@ -3528,7 +3531,12 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             while ((m = re.exec(text))) {
                 if (m.index < i) continue;
                 if (m[0].startsWith('$$')) {
-                    const c = parseCallAt(text, m.index); if (!c) continue;
+                    const c = parseCallAt(text, m.index);
+                    if (!c) {   // chamada ainda chegando (o JSON nao fechou): em vez do texto cru, um cartao "executando"; o texto fica numa seta (aparece inteiro quando fecha)
+                        const hd = text.slice(m.index).match(/^\$\$\s*\[\s*(?:TOOL\s*[:\s]\s*)?(\w+)[^\]\n]*\]?\s*(?=\{|$)/i);
+                        if (hd && hd[1] && !/^(?:resultado|result)$/i.test(hd[1])) { out += richPart(text.slice(i, m.index)) + `<details class="tool-call running"><summary><span class="tc-name">${esc(hd[1].toLowerCase())}</span><code>…</code></summary><pre style="white-space:pre-wrap;max-height:200px;overflow:auto;margin:6px 0 0">${esc(text.slice(m.index))}</pre></details>`; i = text.length; break; }
+                        continue;
+                    }
                     out += richPart(text.slice(i, m.index)) + callHtml(c); i = re.lastIndex = c.end;
                 } else {
                     let endIdx = -1, endLen = 0;
