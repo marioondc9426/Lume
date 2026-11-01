@@ -3205,6 +3205,14 @@
             loadChat(id, true);
             promptInput.focus();
         }
+        // ---- ao abrir uma conversa, fica colado no fim enquanto as imagens e o conteudo terminam de carregar (a pagina cresce depois da primeira rolagem); solta assim que voce mexe na rolagem
+        let _pinSeq = 0;
+        function pinBottom(ms = 3000) {
+            const seq = ++_pinSeq, t0 = Date.now(); let moved = false; const stop = () => { moved = true; };
+            ['wheel', 'touchstart', 'pointerdown', 'keydown'].forEach(ev => chatBox.addEventListener(ev, stop, { once: true, passive: true }));
+            const tick = () => { if (moved || seq !== _pinSeq || Date.now() - t0 > ms) return; chatBox.scrollTop = chatBox.scrollHeight; requestAnimationFrame(tick); };
+            tick();
+        }
         function loadChat(id, isNew = false) {
             currentChatId = id; unread.delete(id);
             renderSidebar(isNew ? id : null);
@@ -3216,7 +3224,7 @@
             (g && g.view ? g.view : chats[id].messages).forEach((m, i) => addMessageToUI(m.role, m.content, { animate: false, index: i, vars: m.vars, vi: m.vi, images: m.images, imgGone: m.imgNotes ? (m.imgGone || 1) : 0, files: m.files, sources: m.sources, memSuggest: m.memSuggest, count: m.count, model: m.role === 'ai' ? m.model : undefined, tps: m.tps, pollen: m.pollen, credits: m.credits, usd: m.usd }));
             if (g) { g.aiDiv.classList.add('noanim'); chatBox.appendChild(g.aiDiv); }
             renderQueued(id);
-            chatBox.scrollTop = chatBox.scrollHeight;
+            chatBox.scrollTop = chatBox.scrollHeight; pinBottom();
             syncBusy(); updateCtxBar(); updateEmpty();
             if (isNew) { chatBox.classList.remove('fresh'); void chatBox.offsetWidth; chatBox.classList.add('fresh'); }
         }
