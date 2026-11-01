@@ -1238,7 +1238,7 @@ def execute_tool(tool_name, tool_args, workdir, lang="pt"):
 
 
 # ---------------------------------------------------------------- controle do computador (aba Code): ver a tela, mexer no mouse e no teclado (so Windows, e so se ligado nas opcoes)
-COMPUTER_TOOLS = ("list_windows", "use_apps", "launch_app", "close_app", "screenshot", "mouse_move", "mouse_click", "scroll", "type_text", "press_key")
+COMPUTER_TOOLS = ("take_screenshot", "list_windows", "use_apps", "launch_app", "close_app", "screenshot", "mouse_move", "mouse_click", "scroll", "type_text", "press_key")
 COMPUTER_GRANT_SECS = 600      # depois de aprovar uma vez, a IA pode agir por 10 minutos sem perguntar de novo (renova a cada uso)
 COMPUTER_USER_WAIT = 1.0       # se o dono estiver mexendo no mouse/teclado, a IA espera ele ficar parado 1 segundo
 _mcp_grant = {}   # servidor MCP -> ate quando o dono liberou sem perguntar de novo
@@ -1308,10 +1308,24 @@ def _find_window(title):
         return True
     ctypes.windll.user32.EnumWindows(EP(cb), 0); return found
 
+# ---- a caixinha do Alt+Espaco (janela flutuante): o print da tela pode esconde-la por um instante, ou incluir
+QUICK = {"win": None, "visible": False}
+def quick_hide():
+    w = QUICK["win"]
+    if w and QUICK["visible"]:
+        try: w.hide(); QUICK["visible"] = False; return True
+        except Exception: pass
+    return False
+def quick_show():
+    w = QUICK["win"]
+    if w:
+        try: w.show(); QUICK["visible"] = True
+        except Exception: pass
+
 def _virtual_wanted(name, args):
     """True quando a acao vai para um programa especifico (segundo plano, mouse virtual); False = a tela inteira com o mouse de verdade (modo antigo)."""
     if not vcomp: return False
-    if name in ("list_windows", "use_apps", "launch_app", "close_app"): return True
+    if name in ("take_screenshot", "list_windows", "use_apps", "launch_app", "close_app"): return True
     app = args.get("app"); apps = args.get("apps")
     if str(app or "").strip().lower() in ("screen", "tela", "full", "fullscreen"): return False
     return bool(apps) or str(app if app is not None else "").strip() != "" or bool(vcomp.workspace())
@@ -1334,6 +1348,9 @@ def computer_execute(name, args, stop_check=None):
             if stop_check and stop_check(): raise RuntimeError("parado pelo usuario")
             if name != "screenshot": _failsafe()
             if name == "list_windows": return vcomp.windows_text(), None
+            if name == "take_screenshot":   # print de UM alvo: app, titulo, .exe, PID ou "desktop" (o Lume usa o mais parecido e avisa se o nome exato nao existe)
+                _tg = next((args.get(k) for k in ("target", "app", "name", "exe", "pid", "title", "window") if args.get(k) not in (None, "")), "desktop")
+                _t, _imgs = vcomp.take_screenshot(_tg, bool(args.get("include_overlay")), quick_hide, quick_show); return _t, (_imgs or None)
             if name == "use_apps": return vcomp.use_apps(args.get("apps") or args.get("app")), None
             if name == "launch_app": return vcomp.launch(args.get("path") or args.get("app") or args.get("exe"), args.get("args") if isinstance(args.get("args"), list) else ([args["args"]] if args.get("args") else []), args.get("wait") or 15), None
             if name == "close_app": return vcomp.close(args.get("app"), bool(args.get("force"))), None
@@ -1400,6 +1417,7 @@ def computer_execute(name, args, stop_check=None):
 def describe_computer(name, args):
     _ap = f" [app {args.get('app')}]" if args.get("app") not in (None, "") else ""
     if name == "list_windows": return "Ver quais programas estao abertos (so os titulos das janelas)"
+    if name == "take_screenshot": return "TIRAR UM PRINT de: " + str(next((args.get(k) for k in ("target", "app", "name", "exe", "pid", "title", "window") if args.get(k) not in (None, "")), "a tela inteira")) + (" (incluindo a caixa do Alt+Espaco)" if args.get("include_overlay") else "")
     if name == "launch_app": return "ABRIR O PROGRAMA: " + str(args.get("path") or args.get("app") or args.get("exe") or "?") + ((" " + " ".join(str(a) for a in args["args"])) if isinstance(args.get("args"), list) and args["args"] else "")
     if name == "close_app": return "Fechar o programa" + _ap + (" (encerrando o processo se nao fechar)" if args.get("force") else "")
     if name == "use_apps": return "Usar estes programas em segundo plano: " + ", ".join(str(a) for a in (args.get("apps") if isinstance(args.get("apps"), list) else [args.get("apps") or args.get("app")]))
@@ -1408,7 +1426,8 @@ def describe_computer(name, args):
     if name == "type_text": return "Digitar: " + str(args.get("text", ""))[:80] + _ap
     return f"Apertar a tecla: {args.get('key', '')}" + _ap
 
-COMPUTER_PROMPT_PT = """- list_windows {} : lista os programas abertos (titulos das janelas)
+COMPUTER_PROMPT_PT = """- take_screenshot {"target": "Roblox.exe", "include_overlay": false} : tira UM print (so a imagem) do alvo: nome do app, parte do titulo da janela, nome do .exe, PID (numero) ou "desktop" (a tela toda). Se o nome exato nao existir, o Lume usa o mais parecido (ex.: Roblox.exe -> RobloxPlayerBeta.exe) e avisa o dono. include_overlay=true inclui a caixinha do Alt+Espaco no print do desktop (padrao: ela some por um instante)
+- list_windows {} : lista os programas abertos (titulos das janelas)
 - use_apps {"apps": ["titulo1", "titulo2", "titulo3"]} : escolhe ate 3 programas para usar AO MESMO TEMPO, em segundo plano (parte do titulo da janela)
 - launch_app {"path": "C:\\caminho\\programa.exe", "args": ["arg1"], "wait": 15} : ABRE um programa (.exe, .bat) e espera a janela; ja o poe entre os usados (jogos, DOSBox com um programa de DOS, VirtualBox...). Pede permissao
 - close_app {"app": 1, "force": false} : fecha o programa (force encerra o processo se ele nao fechar)
@@ -1421,7 +1440,8 @@ COMPUTER_PROMPT_PT = """- list_windows {} : lista os programas abertos (titulos 
 - press_key {"app": 1, "key": "enter"} : aperta uma tecla (enter, tab, esc, setas...). Atalhos com ctrl/alt podem nao funcionar em segundo plano
 Controle do computador: voce usa um MOUSE VIRTUAL (uma bolinha) que nao mexe no mouse nem no teclado do dono: ele continua usando o PC normalmente. Voce pode VER ate 3 programas de uma vez, mas so CONTROLA UM por chamada (diga sempre "app": numero). SEMPRE tire um screenshot do programa antes de clicar nele e confira o resultado com outro depois. Se a foto vier preta ou o clique nao fizer nada, o programa nao aceita controle em segundo plano: diga isso ao dono. Ele para tudo movendo o mouse para o canto superior esquerdo.
 """
-COMPUTER_PROMPT_EN = """- list_windows {} : list the open programs (window titles)
+COMPUTER_PROMPT_EN = """- take_screenshot {"target": "Roblox.exe", "include_overlay": false} : takes ONE screenshot (image only) of the target: app name, part of a window title, .exe name, PID (number) or "desktop" (the whole screen). If the exact name does not exist, Lume uses the closest one (e.g. Roblox.exe -> RobloxPlayerBeta.exe) and tells the owner. include_overlay=true includes the Alt+Space box in the desktop screenshot (default: it disappears for a moment)
+- list_windows {} : list the open programs (window titles)
 - use_apps {"apps": ["title1", "title2", "title3"]} : pick up to 3 programs to use AT THE SAME TIME, in the background (part of the window title)
 - launch_app {"path": "C:\\path\\program.exe", "args": ["arg1"], "wait": 15} : OPENS a program (.exe, .bat) and waits for its window; it is added to the ones in use (games, DOSBox with a DOS program, VirtualBox...). Asks permission
 - close_app {"app": 1, "force": false} : closes the program (force kills the process if it will not close)
@@ -1539,6 +1559,7 @@ NATIVE_TOOLS_ALL = [
     _schema("read_url", "Read the text of a web page", {"url": {"type": "string"}}, ["url"]),
 ]
 NATIVE_TOOLS_ALL += [
+    _schema("take_screenshot", "Take ONE screenshot (image only) of a target: app name, part of a window title, .exe name, PID (a number) or 'desktop' (the whole screen). If the exact name does not exist Lume uses the closest match and tells the owner", {"target": {"type": "string", "description": "app name, window title, .exe name, PID, or 'desktop'"}, "include_overlay": {"type": "boolean", "description": "include the Alt+Space box in a desktop screenshot (default false)"}}, ["target"]),
     _schema("list_windows", "List the open programs (window titles)", {}, []),
     _schema("launch_app", "OPEN a program (.exe/.bat) and wait for its window; it becomes one of the programs in use (up to 3). Use for games, DOSBox with a DOS program, VirtualBox, etc.", {"path": {"type": "string", "description": "full path to the .exe or a name on PATH"}, "args": {"type": "array", "items": {"type": "string"}}, "wait": {"type": "integer", "description": "seconds to wait for the window (default 15)"}}, ["path"]),
     _schema("close_app", "Close one of the programs in use (force=true kills the process if it will not close)", {"app": {"type": "string"}, "force": {"type": "boolean"}}, ["app"]),
@@ -4175,6 +4196,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                         _comp["grant"] = time.time() + COMPUTER_GRANT_SECS
                         result, _img = computer_execute(tool_name, tool_args, stopped)
                         if _img: shot_imgs.extend(_img if isinstance(_img, list) else [_img])
+                        _nt = vcomp.pop_note() if vcomp else {}
+                        if _nt.get("pt"): send(L("\n\n[" + _nt["pt"] + "]\n\n", "\n\n[" + _nt["en"] + "]\n\n"))   # aviso leve: "A IA tentou X, mas so achou Y; tirando print de Y..."
                     elif tool_name == "search_web":   # emite as fontes para a interface mostrar os cartoes
                         results, src = search_web_results(tool_args.get("query", ""), n=tool_args.get("results") or tool_args.get("num_results") or tool_args.get("max_results"))
                         result = format_search(results, src) if results else SEARCH_UNAVAILABLE

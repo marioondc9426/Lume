@@ -175,6 +175,84 @@ def activate(spec):
 def screen_point(spec, x, y):
     i, a = _target(spec); return _screen_pt(a, x, y)
 
+# ---------------------------------------------------------------- take_screenshot: print de UM alvo pelo nome do app, titulo, exe, PID ou a tela inteira
+NOTE = {}   # aviso para o chat quando o alvo pedido nao existe e outro parecido foi usado: {"pt": ..., "en": ...}
+def pop_note():
+    n = dict(NOTE); NOTE.clear(); return n
+
+def _exe_of(pid):
+    try:
+        h = ctypes.windll.kernel32.OpenProcess(0x1000, False, pid)   # PROCESS_QUERY_LIMITED_INFORMATION
+        if not h: return ""
+        try:
+            buf = ctypes.create_unicode_buffer(520); size = wintypes.DWORD(520)
+            return os_basename(buf.value) if ctypes.windll.kernel32.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(size)) else ""
+        finally: ctypes.windll.kernel32.CloseHandle(h)
+    except Exception: return ""
+def os_basename(p): return str(p).replace("/", "\\").split("\\")[-1]
+
+def windows_info():
+    """Janelas visiveis com titulo: [{hwnd, title, pid, exe, area}]."""
+    out = []
+    for h, t, r in list_windows():
+        pid = _pid_of(h); out.append({"hwnd": h, "title": t, "pid": pid, "exe": _exe_of(pid), "area": max(0, (r[2] - r[0]) * (r[3] - r[1]))})
+    return out
+
+_DESK = ("", "desktop", "tela", "tela inteira", "screen", "full", "fullscreen", "all", "todos", "area de trabalho", "monitor")
+def resolve_target(target):
+    """Acha a janela do alvo. Devolve (info | None, nota_ou_None, candidatos). A nota diz quando foi usado um alvo PARECIDO (ex.: Roblox.exe -> RobloxPlayerBeta.exe)."""
+    import difflib, re as _re
+    t = str(target or "").strip().strip("\"'"); low = t.lower(); infos = windows_info(); big = lambda l: max(l, key=lambda w: w["area"]) if l else None
+    if low.isdigit():
+        hit = [w for w in infos if w["pid"] == int(low)]
+        return (big(hit), None, infos) if hit else (None, None, infos)
+    stem = low[:-4] if low.endswith(".exe") else low
+    is_exe = low.endswith(".exe") or bool(_re.fullmatch(r"[\w.\-]+\.exe", low))
+    exact_exe = [w for w in infos if w["exe"].lower() == low or (not is_exe and w["exe"].lower() == stem + ".exe")]
+    if exact_exe: return big(exact_exe), None, infos
+    exact_title = [w for w in infos if w["title"].lower() == low]
+    if exact_title: return big(exact_title), None, infos
+    in_title = [w for w in infos if low and low in w["title"].lower()]
+    if in_title and not is_exe: return big(in_title), None, infos
+    like_exe = [w for w in infos if stem and (stem in w["exe"].lower()[:-4] or (len(w["exe"]) > 4 and w["exe"].lower()[:-4] in stem))]
+    if like_exe:   # "Roblox.exe" nao existe, mas "RobloxPlayerBeta.exe" sim
+        best = sorted(like_exe, key=lambda w: (not w["exe"].lower().startswith(stem), len(w["exe"])))[0]["exe"]; w = big([x for x in like_exe if x["exe"] == best])
+        return w, (t, w["exe"]), infos
+    if in_title: return big(in_title), (t, in_title[0]["title"]) if is_exe else None, infos
+    names = {}; [names.setdefault(w["exe"][:-4].lower() if w["exe"].lower().endswith(".exe") else w["exe"].lower(), w) for w in infos if w["exe"]]
+    [names.setdefault(w["title"].lower(), w) for w in infos]
+    close = difflib.get_close_matches(stem, list(names), n=1, cutoff=0.8)   # so erro de digitacao (chromee -> chrome); nada de trocar um app por outro so parecido
+    if close: w = names[close[0]]; return w, (t, w["exe"] or w["title"]), infos
+    return None, None, infos
+
+def take_screenshot(target, include_overlay=False, hide_overlay=None, show_overlay=None):
+    """Print de UM alvo. Devolve (texto, [jpeg_base64]). Define NOTE se usou um alvo parecido."""
+    from PIL import ImageGrab
+    NOTE.clear(); t = str(target or "").strip().strip("\"'"); desk = t.lower() in _DESK
+    def pack(img, where):
+        W, H = img.size; k = min(1.0, 1280 / max(W, H))
+        if k < 1: img = img.resize((int(W * k), int(H * k)))
+        b = io.BytesIO(); img.convert("RGB").save(b, "JPEG", quality=72); return f"Captura de {where}: {img.size[0]}x{img.size[1]} pixels.", [base64.b64encode(b.getvalue()).decode()]
+    if desk:
+        hid = False
+        try:
+            if hide_overlay and not include_overlay: hid = bool(hide_overlay()); time.sleep(0.25 if hid else 0)   # a caixa do Alt+Espaco some um instante para nao sair no print
+            img = ImageGrab.grab(all_screens=True)
+        finally:
+            if hid and show_overlay: show_overlay()
+        txt, imgs = pack(img, "a area de trabalho inteira" + (" (com a caixa do Alt+Espaco)" if include_overlay else "")); return txt, imgs
+    w, sub, infos = resolve_target(t)
+    if not w:
+        lst = "\n".join(f"- {x['title'][:60]} ({x['exe'] or '?'}, PID {x['pid']})" for x in sorted(infos, key=lambda x: -x["area"])[:15])
+        return f"Erro: nao achei nenhum app, janela, exe ou PID parecido com \"{t}\". Abertos agora:\n{lst}\nTente um desses ou use target=\"desktop\".", []
+    if sub: NOTE.update({"pt": f'A IA tentou tirar print de "{sub[0]}", mas so achou "{sub[1]}"; tirando print de {sub[1]}...', "en": f'The AI tried to take a screenshot of "{sub[0]}" but only "{sub[1]}" was found; taking a screenshot of {sub[1]}...'})
+    try: img = _capture(w["hwnd"])
+    except Exception as e:   # PrintWindow falhou (ex.: foto preta): tenta a area da janela na tela
+        r = wintypes.RECT(); u32.GetWindowRect(w["hwnd"], ctypes.byref(r)); img = ImageGrab.grab(bbox=(max(0, r.left), max(0, r.top), r.right, r.bottom), all_screens=True)
+    txt, imgs = pack(img, f"\"{w['title'][:60]}\" ({w['exe'] or 'PID ' + str(w['pid'])}, PID {w['pid']})")
+    if sub: txt += f" Voce pediu \"{sub[0]}\", mas so existe \"{sub[1]}\": e dele este print."
+    return txt, imgs
+
 # ---------------------------------------------------------------- ver (PrintWindow)
 def _capture(hwnd):
     from PIL import Image
