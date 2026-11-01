@@ -28,7 +28,9 @@
         .chess-sq.sel { box-shadow: inset 0 0 0 4px rgba(255, 214, 10, .85); } .chess-sq.last { background-image: linear-gradient(rgba(255, 238, 90, .45), rgba(255, 238, 90, .45)); }
         .chess-sq.ill { background-image: linear-gradient(rgba(220, 60, 60, .45), rgba(220, 60, 60, .45)); }
         .chess-sq.chk { background-image: radial-gradient(circle, rgba(255, 40, 40, .9) 0%, rgba(255, 40, 40, 0) 70%); }
-        .chess-sq.pre { background-image: linear-gradient(rgba(40, 120, 255, .5), rgba(40, 120, 255, .5)); }
+        .chess-sq.pre { background-image: linear-gradient(var(--pc, rgba(40, 120, 255, .5)), var(--pc, rgba(40, 120, 255, .5))); } .chess-sq.pre.pghost img.chess-pc, .chess-sq.pre.pghost span.chess-pc { opacity: .78; }
+        .chess-pn { position: absolute; bottom: 2px; left: 3px; min-width: 1.35em; height: 1.35em; border-radius: 999px; z-index: 2; display: flex; align-items: center; justify-content: center; font: 700 11px system-ui, sans-serif; color: #fff; background: var(--pcs, #2878ff); box-shadow: 0 1px 3px rgba(0,0,0,.45); pointer-events: none; }
+        .chess-sq.bad { background-image: linear-gradient(rgba(225, 35, 35, .75), rgba(225, 35, 35, .75)); animation: chBad 1.4s ease-out; } @keyframes chBad { 0%, 40% { box-shadow: inset 0 0 0 5px #ff3030; } 100% { box-shadow: inset 0 0 0 0 #ff3030; } }
         .chess-sq.mark { box-shadow: inset 0 0 0 100px rgba(235, 64, 52, .5); }
         .chess-sq.tgt::after { content: ''; position: absolute; width: 28%; height: 28%; border-radius: 50%; background: rgba(20, 20, 20, .28); }
         .chess-sq.tgt.cap::after { width: 86%; height: 86%; background: none; border: 5px solid rgba(20, 20, 20, .28); }
@@ -71,6 +73,24 @@
     const uciOf = m => m.from + m.to + (m.promotion || '');
     function models() { return (typeof MODELS !== 'undefined' ? MODELS : []).filter(m => { try { return isAvail(m); } catch (e) { return false; } }); }   // qualquer modelo disponivel, de qualquer aba
     // numeracao: os lances seguidos do jogador ("extras") nao contam como lance novo (ficam colados no anterior, com um +)
+    // ---- premoves: ate 10 jogadas adiantadas na fila, cada uma de uma cor (do azul ao vermelho) e numerada; o tabuleiro mostra a posicao PREVISTA
+    const PRE_MAX = 10, preHue = i => Math.round(215 * (1 - i / (PRE_MAX - 1))), preColor = (i, a) => 'hsla(' + preHue(i) + ', 88%, 52%, ' + a + ')';
+    function predGrid() {   // o tabuleiro com os premoves ja aplicados (o adversario fica como esta)
+        const grid = game.board().map(row => row.map(p => (p ? (p.color === 'w' ? p.type.toUpperCase() : p.type) : ''))), rc = sq => ({ r: 8 - +sq[1], f: FILES.indexOf(sq[0]) });
+        (st.pres || []).forEach(m => {
+            const a = rc(m.from), z = rc(m.to), pc = grid[a.r][a.f]; if (!pc) return; const low = pc.toLowerCase();
+            if (low === 'k' && Math.abs(z.f - a.f) === 2) { const rf = z.f > a.f ? 7 : 0, nf = z.f > a.f ? 5 : 3; grid[a.r][nf] = grid[a.r][rf]; grid[a.r][rf] = ''; }   // roque
+            if (low === 'p' && a.f !== z.f && !grid[z.r][z.f]) grid[a.r][z.f] = '';   // en passant
+            grid[z.r][z.f] = low === 'p' && (z.r === 0 || z.r === 7) ? (pc === pc.toUpperCase() ? 'Q' : 'q') : pc; grid[a.r][a.f] = '';
+        });
+        return grid;
+    }
+    function predFen() { const grid = predGrid(), parts = game.fen().split(' '), place = grid.map(r => { let o = '', n = 0; r.forEach(ch => { if (!ch) n++; else { if (n) { o += n; n = 0; } o += ch; } }); return o + (n || ''); }).join('/'); return place + ' ' + st.human + ' ' + rightsAfter(parts[2], grid) + ' - 0 1'; }
+    const predMine = ch => !!ch && (ch === ch.toUpperCase()) === (st.human === 'w');
+    function predTargets(from) {   // casas para onde a peca pode ir na posicao prevista (sem contar o que o adversario vai fazer)
+        try { const fen = predFen(), g = new Chess(); if (fenSafe(fen) && g.load(fen)) return g.moves({ square: from, verbose: true }).filter(m => m.captured !== 'k').map(m => m.to); } catch (e) { /* cai no padrao */ }
+        const pg = predGrid(); const out = []; for (let r = 0; r < 8; r++) for (let f = 0; f < 8; f++) { const sq = FILES[f] + (8 - r); if (sq !== from && !predMine(pg[r][f])) out.push(sq); } return out;
+    }
     function numLabels() { let n = st.startTurn === 'b' ? 1 : 0; return st.log.map((e, i) => { if (e.extra) return ''; const l = n % 2 === 0 ? (Math.floor(n / 2) + 1) + '. ' : (i === 0 ? (Math.floor(n / 2) + 1) + '... ' : ''); n++; return l; }); }
     function movesText() { const lab = numLabels(); let o = ''; st.log.forEach((e, i) => { o += lab[i] + (e.extra ? '+' : '') + e.san + ' '; }); return o.trim(); }
     const trailingHuman = () => { let n = 0; for (let i = st.log.length - 1; i >= 0 && st.log[i].color === st.human && !st.log[i].illegal; i--) n++; return n; };   // lances seguidos do jogador no fim da partida
@@ -165,7 +185,7 @@
     // ---------------------------------------------------------------- jogo
     function newGame(o) {
         const human = o.color === 'random' ? (Math.random() < 0.5 ? 'w' : 'b') : o.color, opts = st ? st.opts : { illegal: false, rank: false, noSpawn: true, multi: Math.max(1, Math.min(8, parseInt(localStorage.getItem('lume_chess_multi')) || 1)) };
-        game = new Chess(); if (o.fen) game.load(o.fen); st = { startFen: o.fen || '', startTurn: o.fen ? o.fen.split(' ')[1] : 'w', human, model: o.model, flip: human === 'b', sel: null, targets: [], last: null, illegal: [], arrows: [], marks: [], thinking: false, over: '', note: '', rid: null, token: Math.random(), log: [], an: {}, cls: {}, opts, review: null, busy: '', rk: 0, pre: null, psel: null };
+        game = new Chess(); if (o.fen) game.load(o.fen); st = { startFen: o.fen || '', startTurn: o.fen ? o.fen.split(' ')[1] : 'w', human, model: o.model, flip: human === 'b', sel: null, targets: [], last: null, illegal: [], arrows: [], marks: [], thinking: false, over: '', note: '', rid: null, token: Math.random(), log: [], an: {}, cls: {}, opts, review: null, busy: '', rk: 0, pres: [], psel: null };
         if (costBar) costBar.reset(); render(); if (game.turn() !== human) aiMove();   // (numa posicao montada no editor, quem joga primeiro pode ser qualquer um)
     }
     function mateOk() {   // xeque-mate de verdade: posicao possivel e quem da o mate tem alguma peca alem do rei
@@ -215,11 +235,17 @@
         const board = ov.querySelector('.chess-board'), kingSq = (() => { if (!g.in_check()) return null; for (let r = 0; r < 8; r++) for (let f = 0; f < 8; f++) { const p = b[7 - r][f]; if (p && p.type === 'k' && p.color === g.turn()) return sqName(f, r); } return null; })();
         const last = rv !== null && rv !== undefined ? (rv > 0 ? { from: st.log[rv - 1].from, to: st.log[rv - 1].to } : null) : st.last, lastIdx = rv !== null && rv !== undefined ? rv - 1 : st.log.length - 1, lastCls = st.cls[lastIdx];
         board.querySelectorAll('.chess-sq').forEach(e => e.remove());
+        const live = rv === null || rv === undefined, pg = live && st.pres && st.pres.length ? predGrid() : null, preMap = {}, bad = live && st.bad && Date.now() < st.badUntil ? st.bad : [];
+        if (live && st.pres) { st.pres.forEach((m, i) => { if (!preMap[m.from]) preMap[m.from] = { i, to: false }; }); st.pres.forEach((m, i) => { preMap[m.to] = { i, to: true }; }); }   // o destino de um premove sempre aparece (cor e numero), mesmo que seja a origem do seguinte
+        if (bad.length && !st.badTimer) st.badTimer = setTimeout(() => { st.badTimer = null; if (ov) render(); }, Math.max(100, st.badUntil - Date.now() + 50));
         for (let row = 0; row < 8; row++) for (let col = 0; col < 8; col++) {
-            const f = st.flip ? 7 - col : col, r = st.flip ? row : 7 - row, name = sqName(f, r), p = b[7 - r][f], d = mk('div', 'chess-sq ' + ((f + r) % 2 === 0 ? 'd' : 'l')); d.dataset.sq = name;
-            if (st.sel === name || st.psel === name) d.classList.add('sel'); if (st.pre && (st.pre.from === name || st.pre.to === name)) d.classList.add('pre'); if (last && (last.from === name || last.to === name)) d.classList.add('last'); if (st.illegal.includes(name) && !rv && rv !== 0) d.classList.add('ill'); if (kingSq === name) d.classList.add('chk'); if (st.marks.includes(name)) d.classList.add('mark');
+            const f = st.flip ? 7 - col : col, r = st.flip ? row : 7 - row, name = sqName(f, r), pch = pg ? pg[7 - r][f] : null, p = pg ? (pch ? { color: pch === pch.toUpperCase() ? 'w' : 'b', type: pch.toLowerCase() } : null) : b[7 - r][f], d = mk('div', 'chess-sq ' + ((f + r) % 2 === 0 ? 'd' : 'l')); d.dataset.sq = name;
+            if (preMap[name]) { d.classList.add('pre'); d.style.setProperty('--pc', preColor(preMap[name].i, preMap[name].to ? 0.66 : 0.34)); if (preMap[name].to) { d.classList.add('pghost'); d.style.setProperty('--pcs', 'hsl(' + preHue(preMap[name].i) + ', 80%, 42%)'); } }
+            if (bad.includes(name)) d.classList.add('bad');
+            if (st.sel === name || st.psel === name) d.classList.add('sel'); if (last && (last.from === name || last.to === name)) d.classList.add('last'); if (st.illegal.includes(name) && !rv && rv !== 0) d.classList.add('ill'); if (kingSq === name) d.classList.add('chk'); if (st.marks.includes(name)) d.classList.add('mark');
             if (st.targets.includes(name)) { d.classList.add('tgt'); if (p) d.classList.add('cap'); }
             if (p) d.appendChild(pieceEl(p));
+            if (preMap[name] && preMap[name].to) d.appendChild(mk('span', 'chess-pn', String(preMap[name].i + 1)));
             if (col === 0) d.appendChild(mk('span', 'chess-co r', String(r + 1))); if (row === 7) d.appendChild(mk('span', 'chess-co f', FILES[f]));
             if (lastCls && last && last.to === name && (st.opts.rank || rv !== null)) { const bd = mk('span', 'chess-badge', CLS[lastCls.key].sym); bd.style.background = CLS[lastCls.key].c; bd.title = T(CLS[lastCls.key].n) + ' (' + CLS[lastCls.key].en + ')'; d.appendChild(bd); }
             board.insertBefore(d, board.querySelector('.chess-arrows'));
@@ -264,6 +290,7 @@
 
     function drawArrows() {
         const svg = ov.querySelector('.chess-arrows'); svg.innerHTML = ''; let arrows = st.arrows.slice();
+        if ((st.review === null || st.review === undefined) && st.pres) st.pres.forEach((m, i) => arrows.push({ from: m.from, to: m.to, color: preColor(i, 0.85) }));
         if (st.review !== null && st.review !== undefined) { const fen = st.review < st.log.length ? st.log[st.review].fen : game.fen(), A = st.an[fen]; if (A && A.best && A.best.length >= 4) arrows.push({ from: A.best.slice(0, 2), to: A.best.slice(2, 4), color: '#3692e7' }); }
         const c = sq => { const { f, r } = sqXY(sq); return { x: (st.flip ? 7 - f : f) + 0.5, y: (st.flip ? r : 7 - r) + 0.5 }; };
         arrows.forEach(a => {
@@ -339,8 +366,11 @@
         st.arrows = []; st.marks = []; render(); afterMove(); runPremove();
     }
     function runPremove() {   // jogada adiantada: executa assim que o modelo responde, se ainda for legal
-        const p = st.pre; st.pre = null; st.psel = null; if (!p || game.game_over() || st.over || game.turn() !== st.human) { render(); return; }
-        const mv = gmv().find(m => m.from === p.from && m.to === p.to); if (!mv) { render(); return; }
+        const q = st.pres || [], p = q.shift(); st.psel = null; st.targets = [];
+        if (!p) { render(); return; }
+        if (game.game_over() || st.over || game.turn() !== st.human) { st.pres = []; render(); return; }
+        const mv = gmv().find(m => m.from === p.from && m.to === p.to);
+        if (!mv) { st.bad = [p.from, p.to].concat(q.flatMap(m => [m.from, m.to])); st.badUntil = Date.now() + 1500; st.pres = []; st.note = T('Premove ilegal agora: a fila foi cancelada.'); render(); return; }   // vermelho: o premove nao e mais possivel
         tryMove(p.from, p.to, mv.promotion ? 'q' : undefined);
     }
     function afterMove() { if (st.opts.rank && !st.over) rankNow(); }
@@ -427,10 +457,14 @@
         const act = s => {
             if (st.review === null || st.review === undefined) {
                 if (st.thinking && !game.game_over() && !st.over) {   // vez do modelo: clique monta uma jogada adiantada
-                    const p = game.get(s);
-                    if (st.psel && s !== st.psel) { st.pre = { from: st.psel, to: s }; st.psel = null; }
-                    else if (p && p.color === st.human && s !== st.psel) { st.psel = s; st.pre = null; }
-                    else { st.psel = null; st.pre = null; }
+                    const pg = predGrid(), at = sq => pg[8 - +sq[1]][FILES.indexOf(sq[0])]; st.pres = st.pres || [];
+                    if (st.psel && s !== st.psel) {
+                        const ok = st.targets.includes(s);
+                        if (ok) { if (st.pres.length < PRE_MAX) st.pres.push({ from: st.psel, to: s }); else st.note = T('Limite de 10 jogadas adiantadas (premoves).'); st.psel = null; st.targets = []; }
+                        else if (predMine(at(s))) { st.psel = s; st.targets = predTargets(s); }
+                        else { st.psel = null; st.targets = []; }
+                    } else if (predMine(at(s)) && s !== st.psel) { st.psel = s; st.targets = predTargets(s); }
+                    else { st.psel = null; st.targets = []; st.pres = []; }   // clicar fora de tudo limpa a fila
                     render(); return;
                 }
                 if (!st.thinking && !game.game_over() && !st.over && game.turn() !== st.human) { aiMove(); return; }   // o modelo nao jogou (erro): clicar tenta de novo
@@ -501,7 +535,7 @@
         const mb = mk('button', 'btn btn-secondary', '⋯'); mb.type = 'button'; mb.title = T('Mais'); mb.setAttribute('aria-label', T('Mais')); mw.append(mb, menu);
         mb.onclick = e => { e.stopPropagation(); menu.classList.toggle('on'); }; ov.addEventListener('click', () => menu.classList.remove('on'));
         const mi = (txt, fn) => { const b = mk('button', '', T(txt)); b.type = 'button'; b.onclick = () => { menu.classList.remove('on'); fn(); }; menu.appendChild(b); };
-        mi('Desistir', () => { if (game && !game.game_over() && !st.over) { st.token = Math.random(); st.thinking = false; st.over = T('Você desistiu.'); st.pre = null; st.psel = null; render(); } });
+        mi('Desistir', () => { if (game && !game.game_over() && !st.over) { st.token = Math.random(); st.thinking = false; st.over = T('Você desistiu.'); st.pres = []; st.psel = null; render(); } });
         mi('Editar tabuleiro', () => { if (!window.lumeBoardEditor) return; lumeBoardEditor.open({ fen: game.fen(), onApply: fen => { st.token = Math.random(); if (st.rid) { try { fetch(API + '/api/stop', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rid: st.rid }) }); } catch (e) { /* ok */ } } newGame({ model: pk.get(), color: st.human, fen }); } }); });
         mi('Analisar partida', analyzeGame); mi('Exportar PGN', exportPgn);
         const xb = mk('button', 'chess-x', '✕'); xb.type = 'button'; xb.title = T('Fechar'); xb.setAttribute('aria-label', T('Fechar')); ov.appendChild(xb);
@@ -510,6 +544,8 @@
         const navRow = mk('div', 'chess-row chess-nav'); [['⏮', 'start'], ['◀', -1], ['▶', 1], ['⏭', 'end']].forEach(([t, d]) => { const b = mk('button', 'btn btn-secondary', t); b.type = 'button'; b.onclick = () => nav(d); navRow.appendChild(b); }); const ex = mk('button', 'btn btn-secondary', T('Sair da análise')); ex.type = 'button'; ex.onclick = () => { st.review = null; render(); }; navRow.appendChild(ex); side.appendChild(navRow);
         optBox.appendChild(mk('div', 'chess-hint', T('Botão direito: segure e arraste para desenhar uma seta (Shift vermelha, Ctrl azul, Alt amarela); clique direito numa casa marca a casa; clique esquerdo limpa. No celular: segure o dedo numa casa e arraste.')));
         side.appendChild(optBox);
+        const onKey = e => { if (!ov || !ov.isConnected) { removeEventListener('keydown', onKey); return; } if (e.key === 'Escape' && st && st.pres && st.pres.length) { st.pres = []; st.psel = null; st.targets = []; render(); } };   // Esc limpa a fila de premoves
+        addEventListener('keydown', onKey);
         applyBoard(); wire(board); document.body.appendChild(ov);
         newGame({ model: pk.get(), color: 'w' });
     }
