@@ -14,7 +14,7 @@ class McpError(Exception): pass
 class Server:
     def __init__(self, name, cfg):
         self.name, self.cfg = name, cfg
-        self.proc = None; self.tools = []; self.error = ""; self.ready = False; self.starting = False
+        self.proc = None; self.tools = []; self.error = ""; self.ready = False; self.starting = False; self.caps = {}
         self._id = 0; self._pending = {}; self._wlock = threading.Lock(); self.log_tail = []
 
     # ---- baixo nivel
@@ -76,10 +76,11 @@ class Server:
                 self.proc = subprocess.Popen([exe] + args, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, cwd=self.cfg.get("cwd") or None, creationflags=NO_WINDOW)
             except FileNotFoundError: raise McpError(f"programa nao encontrado: {cmd} (instale-o ou use o caminho completo)")
             threading.Thread(target=self._read_out, daemon=True).start(); threading.Thread(target=self._read_err, daemon=True).start()
-            self.request("initialize", {"protocolVersion": PROTOCOL, "capabilities": {}, "clientInfo": {"name": "Lume", "version": "1"}}, START_TIMEOUT)
+            init = self.request("initialize", {"protocolVersion": PROTOCOL, "capabilities": {}, "clientInfo": {"name": "Lume", "version": "1"}}, START_TIMEOUT)
+            self.caps = init.get("capabilities") if isinstance(init.get("capabilities"), dict) else {}
             self.notify("notifications/initialized")
             tools, cursor = [], None
-            while True:
+            while "tools" in self.caps or not self.caps:
                 res = self.request("tools/list", {"cursor": cursor} if cursor else {}, START_TIMEOUT)
                 tools += [t for t in (res.get("tools") or []) if isinstance(t, dict) and t.get("name")]
                 cursor = res.get("nextCursor")
@@ -96,21 +97,58 @@ class Server:
             try: p.terminate()
             except Exception: pass
 
-    def call(self, tool, args, timeout=CALL_TIMEOUT):
-        res = self.request("tools/call", {"name": tool, "arguments": args if isinstance(args, dict) else {}}, timeout)
-        parts = []
-        for c in res.get("content") or []:
+    def _content(self, content, structured=None):
+        """Lista de conteudos MCP (texto, imagem, audio, recurso) -> (texto, [imagens base64])."""
+        parts, imgs = [], []
+        for c in content or []:
             if not isinstance(c, dict): continue
             t = c.get("type")
             if t == "text": parts.append(str(c.get("text", "")))
-            elif t in ("image", "audio"): parts.append(f"[{t} omitido: o Lume so mostra texto de ferramentas MCP]")
+            elif t == "image" and c.get("data"):
+                if len(imgs) < 3: imgs.append(str(c["data"])); parts.append(f"[imagem {len(imgs)} anexada a esta mensagem]")
+                else: parts.append("[imagem omitida: so as 3 primeiras sao anexadas]")
+            elif t == "audio": parts.append("[audio omitido: o Lume nao toca audio de ferramentas MCP]")
             elif t == "resource":
-                r = c.get("resource") or {}; parts.append(str(r.get("text") or f"[recurso {r.get('uri', '')}]"))
+                r = c.get("resource") or {}; parts.append(str(r.get("text") or f"[recurso binario {r.get('uri', '')} ({r.get('mimeType', '?')})]"))
             else: parts.append(json.dumps(c, ensure_ascii=False)[:500])
-        if not parts and res.get("structuredContent") is not None: parts.append(json.dumps(res["structuredContent"], ensure_ascii=False))
+        if not parts and structured is not None: parts.append(json.dumps(structured, ensure_ascii=False))
         out = "\n".join(parts).strip() or "(sem saida)"
         if len(out) > MAX_RESULT: out = out[:MAX_RESULT] + f"\n...[cortado, {len(out) - MAX_RESULT} caracteres omitidos]"
-        return ("Erro: " + out) if res.get("isError") else out
+        return out, imgs
+
+    def call(self, tool, args, timeout=CALL_TIMEOUT):
+        res = self.request("tools/call", {"name": tool, "arguments": args if isinstance(args, dict) else {}}, timeout)
+        out, imgs = self._content(res.get("content"), res.get("structuredContent"))
+        return (("Erro: " + out) if res.get("isError") else out), imgs
+
+    def list_resources(self):
+        items = []
+        for method, key in (("resources/list", "resources"), ("resources/templates/list", "resourceTemplates")):
+            try: items += (self.request(method, {}, 30).get(key) or [])
+            except McpError: pass
+        if not items: return "(nenhum recurso)", []
+        return "\n".join(f"- {r.get('uri') or r.get('uriTemplate')}  {r.get('name', '')}" + (f": {str(r.get('description'))[:120]}" if r.get("description") else "") for r in items[:80]), []
+
+    def read_resource(self, uri):
+        res = self.request("resources/read", {"uri": str(uri)}, CALL_TIMEOUT)
+        out = []
+        for c in res.get("contents") or []:
+            out.append({"type": "resource", "resource": c})
+        return self._content(out)
+
+    def list_prompts(self):
+        items = self.request("prompts/list", {}, 30).get("prompts") or []
+        if not items: return "(nenhum prompt)", []
+        return "\n".join(f"- {p.get('name')}" + (f" ({', '.join(a.get('name', '') + ('' if a.get('required') else '?') for a in p.get('arguments') or [])})" if p.get("arguments") else "") + (f": {str(p.get('description'))[:120]}" if p.get("description") else "") for p in items[:80]), []
+
+    def get_prompt(self, name, args):
+        res = self.request("prompts/get", {"name": str(name), "arguments": {k: str(v) for k, v in (args or {}).items()} if isinstance(args, dict) else {}}, CALL_TIMEOUT)
+        lines, imgs = [], []
+        for msg in res.get("messages") or []:
+            c = msg.get("content")
+            text, im = self._content([c] if isinstance(c, dict) else [{"type": "text", "text": str(c)}]); imgs += im
+            lines.append(f"[{msg.get('role', '?')}] {text}")
+        return "\n".join(lines) or "(prompt vazio)", imgs[:3]
 
 # ---------------------------------------------------------------- varios servidores
 _servers = {}      # nome -> Server
@@ -170,16 +208,32 @@ def status(configs=None):
 
 def _safe(s): return re.sub(r"\W+", "_", str(s)).strip("_") or "x"
 
+def _full(sname, tname):
+    full = f"mcp__{_safe(sname)}__{_safe(tname)}"
+    return full if len(full) <= 64 else full[:55] + "_" + hashlib.md5(full.encode()).hexdigest()[:8]
+
+_NOARGS = {"type": "object", "properties": {}}
 def tool_defs():
-    """Ferramentas de todos os servidores prontos: [{full, server, tool, description, schema}] (o nome completo e mcp__servidor__ferramenta)."""
+    """Ferramentas de todos os servidores prontos: [{full, server, tool, kind, description, schema}] (o nome completo e mcp__servidor__ferramenta).
+    Servidores com recursos e/ou prompts ganham ferramentas extras: list_resources, read_resource, list_prompts, get_prompt."""
     out = []
     with _lock:
         for sname, s in _servers.items():
             if not s.ready: continue
+            names = set()
             for t in s.tools:
-                full = f"mcp__{_safe(sname)}__{_safe(t['name'])}"
-                if len(full) > 64: full = full[:55] + "_" + hashlib.md5(full.encode()).hexdigest()[:8]
-                out.append({"full": full, "server": sname, "tool": t["name"], "description": str(t.get("description") or "")[:400], "schema": t.get("inputSchema") if isinstance(t.get("inputSchema"), dict) else {"type": "object", "properties": {}}})
+                full = _full(sname, t["name"]); names.add(full)
+                out.append({"full": full, "server": sname, "tool": t["name"], "kind": "tool", "description": str(t.get("description") or "")[:400], "schema": t.get("inputSchema") if isinstance(t.get("inputSchema"), dict) else _NOARGS})
+            extra = []
+            if "resources" in s.caps:
+                extra += [("list_resources", "Lista os recursos (arquivos, dados) que este servidor oferece", _NOARGS),
+                          ("read_resource", "Le um recurso deste servidor pelo uri", {"type": "object", "properties": {"uri": {"type": "string"}}, "required": ["uri"]})]
+            if "prompts" in s.caps:
+                extra += [("list_prompts", "Lista os prompts prontos que este servidor oferece", _NOARGS),
+                          ("get_prompt", "Pega um prompt pronto deste servidor (com seus argumentos)", {"type": "object", "properties": {"name": {"type": "string"}, "arguments": {"type": "object"}}, "required": ["name"]})]
+            for kind, desc, schema in extra:
+                full = _full(sname, kind)
+                if full not in names: out.append({"full": full, "server": sname, "tool": kind, "kind": kind, "description": desc, "schema": schema})
     return out
 
 def find_tool(full):
@@ -188,13 +242,21 @@ def find_tool(full):
     return None
 
 def call_full(full, args):
+    """Roda uma ferramenta MCP. Devolve (texto, [imagens base64])."""
     d = find_tool(full)
-    if not d: return "Erro: ferramenta MCP desconhecida (ou o servidor nao esta rodando): " + str(full)
+    if not d: return "Erro: ferramenta MCP desconhecida (ou o servidor nao esta rodando): " + str(full), []
     with _lock: s = _servers.get(d["server"])
-    if not s or not s.ready: return f"Erro: o servidor MCP \"{d['server']}\" nao esta pronto."
-    try: return s.call(d["tool"], args)
-    except McpError as e: return "Erro: " + str(e)
-    except Exception as e: return f"Erro: {type(e).__name__}: {e}"
+    if not s or not s.ready: return f"Erro: o servidor MCP \"{d['server']}\" nao esta pronto.", []
+    a = args if isinstance(args, dict) else {}
+    try:
+        k = d["kind"]
+        if k == "list_resources": return s.list_resources()
+        if k == "read_resource": return s.read_resource(a.get("uri", ""))
+        if k == "list_prompts": return s.list_prompts()
+        if k == "get_prompt": return s.get_prompt(a.get("name", ""), a.get("arguments"))
+        return s.call(d["tool"], a)
+    except McpError as e: return "Erro: " + str(e), []
+    except Exception as e: return f"Erro: {type(e).__name__}: {e}", []
 
 def signature(schema):
     """Resumo curto dos argumentos para o prompt de texto: {"a": "string", "b?": "number"}."""

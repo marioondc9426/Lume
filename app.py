@@ -1407,10 +1407,18 @@ ANNOUNCE_RE = re.compile(r"(?i)\b(vou|vamos|irei|farei|i'?ll|i will|let me)\s+(a
 # "i'm rewriting the whole thing", "estou reescrevendo tudo", "give it a sec", "um segundo": o modelo diz que esta agindo e para sem chamar nada
 ANNOUNCE_ING_RE = re.compile(r"(?i)\b(i'?m|i am|im|estou|t[oô])\s+(gonna\s+|going to\s+|now\s+|agora\s+)?(re)?(writ|patch|updat|fix|edit|creat|build|redo|read|run|sav|rewrit|criand|escrevend|reescrevend|atualizand|corrigind|salvand|lendo|rodand|execut|ajustand|refazend|mexend)\w*")
 ANNOUNCE_WAIT_RE = re.compile(r"(?i)(give (it|me) a (sec|second|moment|minute)|one (sec|moment|second)\b|hold on\b|bear with me|working on it|\bbrb\b|um (segundo|momento|instante|instantinho)|j[aá] volto|s[oó] um (segundo|momento)|aguarde)")
+ANNOUNCE_LEMME_RE = re.compile(r"(?i)\b(lemme|let me|let'?s|gimme|i'?ll|i will|i'?m gonna|gonna|deixa eu|deixe-me|me deixa|vou|vamos|primeiro vou)\s+(just\s+|first\s+|now\s+|quickly\s+|s[oó]\s+|primeiro\s+|agora\s+)?(see|check|look|read|peek|grab|take|open|view|print|show|find|inspect|fix|patch|try|get|ver|olhar|checar|conferir|verificar|abrir|pegar|mostrar|achar|procurar|tentar|consertar|corrigir)\b")
+INVENTED_RE = re.compile(r"(?i)(\[\s*(?:resultado de|result of)\s+\w+\s*\]|[\u2713\u2717]\s*(?:result of|resultado de)\b|tool result missing|oops,? tool|\[\s*/(?:resultado|result)\s*\])")
+def invented_result(text):
+    """A IA escreveu um \"resultado\" de ferramenta por conta propria (nada rodou de verdade)."""
+    return bool(INVENTED_RE.search(text or ""))
+
 def announces_action(text):
     """O modelo disse que ia fazer algo (\"vou atualizar o arquivo\") mas terminou sem chamar nenhuma ferramenta."""
     tail = (text or "").strip()[-300:]
     if tail.endswith("?"): return False   # terminou perguntando: nao e uma promessa
+    if tail.endswith(":") and not tail.endswith("::"): return True   # "...pra eu escolher a ancora certa:" e para: prometeu mostrar/fazer algo e nao chamou nada
+    if ANNOUNCE_LEMME_RE.search(tail) and not re.search(r"(?i)\b(let me know|lemme know|me avise|me diga|me fala)\b", tail): return True
     return bool(ANNOUNCE_RE.search(tail) or ANNOUNCE_ING_RE.search(tail) or ANNOUNCE_WAIT_RE.search(tail) or re.search(r"(?i)need (a |the )?tool call", tail))   # alguns modelos vazam "need tool call" no texto em vez de chamar
 
 def looks_like_failed_call(text):
@@ -1419,6 +1427,8 @@ def looks_like_failed_call(text):
 
 CORRECTION_PT = 'Formato invalido: nenhuma ferramenta foi executada. Para usar uma ferramenta escreva EXATAMENTE $$[TOOL: nome] {"argumento": "valor"}$$ (sem bloco de codigo) e pare de escrever. Tente de novo.'
 CORRECTION_EN = 'Invalid format: no tool was run. To use a tool write EXACTLY $$[TOOL: name] {"argument": "value"}$$ (no code block) and stop writing. Try again.'
+SCOLD_PT = 'PARE. Voce acabou de INVENTAR o resultado de uma ferramenta: nada disso rodou de verdade, voce escreveu um resultado falso. NUNCA escreva "[resultado de ...]", "result of", "(no output)" nem nada parecido: quem devolve resultado e o Lume, so DEPOIS que voce fizer a chamada e PARAR de escrever. Refaca agora: escreva so a chamada, EXATAMENTE $$[TOOL: nome] {"argumento": "valor"}$$ (sem bloco de codigo), e pare.'
+SCOLD_EN = 'STOP. You just MADE UP a tool result: none of that actually ran, you wrote a fake result. NEVER write "[result of ...]", "result of", "(no output)" or anything like it: the result is returned by Lume, only AFTER you make the call and STOP writing. Redo it now: write only the call, EXACTLY $$[TOOL: name] {"argument": "value"}$$ (no code block), and stop.'
 NUDGE_PT = 'Voce disse que ia agir, mas nenhuma ferramenta foi chamada e a tarefa NAO foi feita. Faca a chamada AGORA, escrevendo EXATAMENTE $$[TOOL: nome] {"argumento": "valor"}$$ (sem bloco de codigo) e pare. Se ja terminou, responda ao usuario sem prometer mais nada.'
 NUDGE_EN = 'You said you were going to act, but no tool was called and the task was NOT done. Make the call NOW, writing EXACTLY $$[TOOL: name] {"argument": "value"}$$ (no code block) and stop. If you are already done, answer the user without promising anything else.'
 
@@ -3972,13 +3982,13 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     break
                 call = find_tool_call(full) if use_tools else None
                 if not call:
-                    if use_tools and corrections < 2 and (looks_like_failed_call(full) or (agent and announces_action(full))):   # errou o formato (ou disse que ia agir e nao chamou nada): pede para repetir (ate 2 vezes)
+                    if use_tools and corrections < 2 and (invented_result(full) or looks_like_failed_call(full) or (agent and announces_action(full))):   # errou o formato (ou disse que ia agir e nao chamou nada): pede para repetir (ate 2 vezes)
                         corrections += 1; failed_pending = True
-                        log("AGENTE", "A IA " + ("disse que ia agir mas nao chamou nenhuma ferramenta" if (agent and announces_action(full) and not looks_like_failed_call(full)) else "errou o formato da chamada") + "; pedindo para ela continuar. Mensagem COMPLETA dela, sem filtro:", COLOR_YELLOW)
+                        log("AGENTE", "A IA " + ("INVENTOU o resultado de uma ferramenta" if invented_result(full) else "disse que ia agir mas nao chamou nenhuma ferramenta" if (agent and announces_action(full) and not looks_like_failed_call(full)) else "errou o formato da chamada") + "; chamando a atencao dela. Mensagem COMPLETA dela, sem filtro:", COLOR_YELLOW)
                         if not verbose: log("IA · MENSAGEM COMPLETA", full, COLOR_CYAN)
-                        send(L("\n\n[a IA disse que ia agir mas nao chamou nenhuma ferramenta; pedindo para ela continuar]", "\n\n[the AI said it would act but called no tool; asking it to continue]") if (agent and announces_action(full) and not looks_like_failed_call(full)) else L("\n\n[formato de ferramenta invalido, pedindo para a IA tentar de novo]", "\n\n[invalid tool format, asking the AI to try again]"))
+                        send(L("\n\n[a IA inventou o resultado de uma ferramenta; dando uma bronca nela]", "\n\n[the AI made up a tool result; scolding it]") if invented_result(full) else L("\n\n[a IA disse que ia agir mas nao chamou nenhuma ferramenta; pedindo para ela continuar]", "\n\n[the AI said it would act but called no tool; asking it to continue]") if (agent and announces_action(full) and not looks_like_failed_call(full)) else L("\n\n[formato de ferramenta invalido, pedindo para a IA tentar de novo]", "\n\n[invalid tool format, asking the AI to try again]"))
                         messages.append({"role": "assistant", "content": full})
-                        messages.append({"role": "user", "content": L(NUDGE_PT, NUDGE_EN) if (agent and announces_action(full) and not looks_like_failed_call(full)) else L(CORRECTION_PT, CORRECTION_EN)})
+                        messages.append({"role": "user", "content": L(SCOLD_PT, SCOLD_EN) if invented_result(full) else L(NUDGE_PT, NUDGE_EN) if (agent and announces_action(full) and not looks_like_failed_call(full)) else L(CORRECTION_PT, CORRECTION_EN)})
                         status("Pensando")
                         continue
                     if use_tools and looks_like_failed_call(full): failed_pending = True   # sem tentativas de correcao sobrando
@@ -4044,7 +4054,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     elif is_mcp:
                         _md = lumemcp.find_tool(tool_name)
                         if _md: _mcp_grant[_md["server"]] = time.time() + COMPUTER_GRANT_SECS
-                        result = lumemcp.call_full(tool_name, tool_args)
+                        result, _mimgs = lumemcp.call_full(tool_name, tool_args)
+                        if _mimgs: shot_imgs.extend(_mimgs)   # imagens devolvidas pela ferramenta voltam para a IA como imagens
                     elif comp:
                         _comp["grant"] = time.time() + COMPUTER_GRANT_SECS
                         result, _img = computer_execute(tool_name, tool_args, stopped)
