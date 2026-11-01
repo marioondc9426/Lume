@@ -4,7 +4,7 @@
    A escolha fica em localStorage ('lume_pet'). Arraste o flutuante para mudar de lugar; clique para ele falar. */
 (() => {
     'use strict';
-    const KEY = 'lume_pet', T = s => (typeof tr === 'function' ? tr(s) : s);
+    const KEY = 'lume_pet', T = s => (typeof tr === 'function' ? tr(s) : s), EN = () => typeof curLang === 'function' && curLang() === 'en';
     const DEF = { on: false, avatar: true, name: 'Lume', color: '#2f8bff', eyeColor: '#ffffff', style: 'orb', eyes: 'oval', expr: 'neutral', shape: 'circle', acc: 'none', blush: false, glow: 60, size: 64, avSize: 30, bubble: true, tips: true, safety: true, safetyModel: '', model: '', follow: true, blinking: true, bob: true, react: true, x: null, y: null };
     const load = () => { try { return Object.assign({}, DEF, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { return Object.assign({}, DEF); } };
     const save = () => { try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch (e) { /* sem armazenamento */ } };
@@ -203,10 +203,10 @@
         return all.sort((a, b) => score(b) - score(a))[0] || null;
     }
     async function tipFor(err, failed) {
-        const k = KNOWN.find(([re]) => re.test(err)); if (k) return k[1];
-        const sig = sigOf(err), s = seen(); if (s[sig]) return s[sig];
+        const k = KNOWN.find(([re]) => re.test(err)); if (k) return T(k[1]);
+        const sig = (EN() ? 'en:' : 'pt:') + sigOf(err), s = seen();   // a dica guardada vale so no idioma em que foi escrita if (s[sig]) return s[sig];
         const m = pickModel(failed); if (!m || !window.lumeAsk) return T('Não conheço esse erro ainda. Tente de novo ou escolha outro modelo.');
-        const tip = await lumeAsk({ model: m, timeoutMs: 40000, system: 'Você é ' + cfg.name + ', o mascote simpático do Lume (um app de chat com IA). Explique em NO MÁXIMO duas frases curtas o que provavelmente causou o erro abaixo e dê UMA ação concreta (trocar de modelo, conferir a chave, esperar, tentar de novo). Responda em português, sem markdown, sem lista.', user: 'Erro: ' + err + '\nModelo que falhou: ' + (failed ? (failed.label || failed.id) : '?') });
+        const tip = await lumeAsk({ model: m, timeoutMs: 40000, system: EN() ? 'You are ' + cfg.name + ', the friendly mascot of Lume (an AI chat app). Explain in AT MOST two short sentences what probably caused the error below and give ONE concrete action (switch model, check the key, wait, try again). Answer in English, no markdown, no list.' : 'Você é ' + cfg.name + ', o mascote simpático do Lume (um app de chat com IA). Explique em NO MÁXIMO duas frases curtas o que provavelmente causou o erro abaixo e dê UMA ação concreta (trocar de modelo, conferir a chave, esperar, tentar de novo). Responda em português, sem markdown, sem lista.', user: (EN() ? 'Error: ' : 'Erro: ') + err + (EN() ? '\nModel that failed: ' : '\nModelo que falhou: ') + (failed ? (failed.label || failed.id) : '?') });
         const clean = String(tip || '').replace(/\s+/g, ' ').trim().slice(0, 320); if (!clean) throw new Error('vazio'); remember(sig, clean); return clean;
     }
     function showTip(div, text, thinking) {
