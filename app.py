@@ -3176,6 +3176,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         if p == '/api/app_options':
             if not local: return self.send_json({"error": "local_only"}, 403)
             return self.send_json(app_options())
+        if p == '/api/ui_rev':   # a interface pergunta daqui a pouco se algum arquivo dela mudou (so rodando do codigo-fonte)
+            return self.send_json({"dev": bool(local and dev_enabled()), "rev": ui_rev() if local and dev_enabled() else "", "busy": bool(gens_active)})
         if p == '/api/mcp':
             if not local or not lumemcp: return self.send_json({"error": "local_only"}, 403)
             _c = load_config().get("mcp_servers") or {}
@@ -3620,6 +3622,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             if "ui_lang" in data: set_ui_lang(data["ui_lang"]); cfg = load_config()
             if "log_full" in data:
                 cfg["log_full"] = bool(data["log_full"]); save_config(cfg)
+            if "auto_reload" in data: cfg["auto_reload"] = bool(data["auto_reload"]); save_config(cfg)
             if "hw_accel" in data:
                 if data["hw_accel"] not in HW_MODES: return self.send_json({"error": "Opcao invalida."}, 400)
                 cfg["hw_accel"] = data["hw_accel"]; save_config(cfg)
@@ -4433,6 +4436,47 @@ def restart_app():
     else: subprocess.Popen(f'cmd /c "ping -n 4 127.0.0.1 >nul & "{sys.executable}" app.py"', cwd=BASE_DIR, shell=True, creationflags=flags)
     if window_api and window_api._window: window_api._window.destroy()
 
+# ---------------------------------------------------------------- atualizar sozinho quando os arquivos do programa mudam (so rodando do codigo-fonte, nao no .exe)
+DEV_PY = ("app.py", "lumemcp.py", "vcomp.py", "tls.py", "guests.py")
+def _dev_files():
+    py = [os.path.join(RES_DIR, f) for f in DEV_PY if os.path.isfile(os.path.join(RES_DIR, f))]
+    ui = [os.path.join(RES_DIR, "index.html")] + [os.path.join(RES_DIR, "libs", f) for f in (os.listdir(os.path.join(RES_DIR, "libs")) if os.path.isdir(os.path.join(RES_DIR, "libs")) else []) if f.endswith((".js", ".css"))]
+    return py, [f for f in ui if os.path.isfile(f)]
+def _sig(files):
+    out = []
+    for f in files:
+        try: st_ = os.stat(f); out.append((f, st_.st_mtime_ns, st_.st_size))
+        except OSError: pass
+    return out
+def dev_enabled(): return (not FROZEN) and bool(load_config().get("auto_reload", True))
+_ui_rev = {"rev": "", "since": 0.0}
+def ui_rev():
+    """Identifica a versao da interface (index.html + libs): muda quando um desses arquivos muda."""
+    return hashlib.md5(repr(_sig(_dev_files()[1])).encode()).hexdigest()[:12]
+def dev_watch_loop(poll=2.0, stable=2.5, restart=None):
+    """Se um arquivo .py mudar (e compilar), reinicia o Lume quando nao houver resposta em andamento nem permissao pendente."""
+    restart = restart or restart_app; py0 = _sig(_dev_files()[0]); changed_at = 0.0; last = py0
+    while True:
+        time.sleep(poll)
+        try:
+            if not dev_enabled(): py0 = last = _sig(_dev_files()[0]); changed_at = 0.0; continue
+            cur = _sig(_dev_files()[0])
+            if cur != last: last = cur; changed_at = time.time()   # ainda mexendo: espera ficar parado
+            if cur == py0 or not changed_at or time.time() - changed_at < stable: continue
+            import py_compile
+            old = set(py0); bad = [f for (f, m, sz) in cur if (f, m, sz) not in old and not _compiles(f, py_compile)]
+            if bad:
+                log("ATUALIZACAO", "Arquivo com erro de sintaxe, nao reiniciei: " + ", ".join(os.path.basename(b) for b in bad), COLOR_RED); py0 = cur; changed_at = 0.0; continue
+            if gens_active or pending_command.get("resolve"): continue   # o dono esta conversando ou ha uma permissao esperando: tenta de novo daqui a pouco
+            log("ATUALIZACAO", "Arquivos do programa mudaram: reiniciando o Lume.", COLOR_YELLOW); restart(); return
+        except Exception as e:
+            log("ATUALIZACAO", f"Vigia de arquivos: {e}", COLOR_RED)
+def _compiles(path, py_compile):
+    try:   # so confere a sintaxe, em memoria (nao grava .pyc)
+        with open(path, "rb") as f: compile(f.read(), path, "exec")
+        return True
+    except Exception as e: log("ATUALIZACAO", f"{os.path.basename(path)}: {str(e)[:200]}", COLOR_RED); return False
+
 def restart_server():
     """Reinicia o servidor HTTP (troca entre 'so neste PC' e 'rede local') sem fechar o app."""
     def work():
@@ -4543,7 +4587,7 @@ def app_options():
     _hw = cfg.get("hw_accel", "auto"); _hw = _hw if _hw in HW_MODES else "auto"
     return {"frozen": FROZEN, "start_with_terminal": bool(cfg.get("start_with_terminal")), "terminal_open": terminal_is_open(), "start_with_windows": autostart_get(), "remote_enabled": bool(cfg.get("remote_enabled")),
             "tray": bool(cfg.get("tray_enabled")), "tray_available": tray_available(), "auto_update_models": bool(cfg.get("auto_update_models")), "log_full": bool(cfg.get("log_full")),
-            "hw_accel": _hw, "hw_accel_auto": hw_accel_decide("auto"), "gpu_names": gpu_names(),
+            "hw_accel": _hw, "hw_accel_auto": hw_accel_decide("auto"), "gpu_names": gpu_names(), "auto_reload": bool(cfg.get("auto_reload", True)), "dev": not FROZEN,
             "version": VERSION, "platform": platform.platform(), "python": sys.version.split()[0], "data_dir": BASE_DIR, "has_log": os.path.exists(os.path.join(BASE_DIR, "lume.log")),
             "models_updated_at": cfg.get("models_updated_at", 0), "model_update": dict(model_update_state)}
 
@@ -4760,6 +4804,7 @@ if __name__ == '__main__':
     threading.Thread(target=monitor_loop, daemon=True).start()
     threading.Thread(target=model_updater_loop, daemon=True).start()
     if lumemcp: threading.Thread(target=lambda: lumemcp.sync(load_config().get("mcp_servers") or {}), daemon=True).start()   # liga os servidores MCP salvos
+    if not FROZEN: threading.Thread(target=dev_watch_loop, daemon=True).start()   # reinicia sozinho quando os .py mudam (desligavel em Configuracoes > App)
     tray_on = bool(load_config().get("tray_enabled")) and tray_start()
     start_gpu_stream(gpu_interval_ms)
     time.sleep(1)
