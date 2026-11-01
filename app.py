@@ -336,6 +336,8 @@ def load_config():
     cfg.setdefault("openrouter_api_key", "")     # chave do OpenRouter (so modelos gratis)
     cfg.setdefault("cloudflare_api_token", "")   # Cloudflare Workers AI: token + id da conta
     cfg.setdefault("cloudflare_account_id", "")
+    cfg.setdefault("quick_style", "mica")         # fundo da caixinha: solid | mica | aero | acrylic
+    cfg.setdefault("quick_hotkey", True)         # Alt+Espaco abre a caixinha rapida (janela flutuante)
     cfg.setdefault("log_full", True)              # o terminal mostra cada mensagem crua da IA, o raciocinio e os resultados (desligue em Configuracoes se for muito)
     cfg.setdefault("ui_lang", "pt")
     cfg.setdefault("mcp_auto_allow", False)      # aceitar sozinho as ferramentas MCP (sem perguntar)
@@ -2862,7 +2864,7 @@ LOOPBACK_IPS = ("127.0.0.1", "::1", "::ffff:127.0.0.1")
 LOCAL_HOSTS = ("127.0.0.1", "localhost")
 # So estes arquivos sao servidos (nunca config.json, history.json, app.py...)
 STATIC_PAGES = ("/", "/index.html")
-PAGE_ALIAS = {"/share": "/share.html", "/dashboard": "/dashboard.html", "/feedback": "/feedback.html"}
+PAGE_ALIAS = {"/share": "/share.html", "/dashboard": "/dashboard.html", "/feedback": "/feedback.html", "/quick": "/quick.html"}
 # So o proprio PC (janela do app) pode usar estas rotas
 LOCAL_ONLY_POST = ("/api/open_path", "/api/mcp_auto", "/api/mcp_save", "/api/save_config", "/api/save_key", "/api/server_config", "/api/perf_interval",
                    "/api/custom_theme", "/api/custom_theme_delete", "/api/account_import", "/api/config_import", "/api/pol_effort_probe", "/api/account/login", "/api/account/logout", "/api/resolve_pending", "/api/export", "/api/ios_profile_save", "/api/undo", "/api/stats_clear", "/api/open_url", "/api/update_apply", "/api/restart_app", "/api/run_code", "/api/run_stop", "/api/tunnel_start", "/api/tunnel_stop", "/api/tunnel_install", "/api/app_options", "/api/model_pull", "/api/model_delete", "/api/models_update_now", "/api/cloudflare_usage_set")
@@ -3641,6 +3643,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             if "auto_update_models" in data:
                 cfg["auto_update_models"] = bool(data["auto_update_models"]); save_config(cfg)
             if "ui_lang" in data: set_ui_lang(data["ui_lang"]); cfg = load_config()
+            if data.get("quick_style") in QUICK_STYLES: cfg["quick_style"] = data["quick_style"]; save_config(cfg); quick_style_apply()
+            if "quick_hotkey" in data: cfg["quick_hotkey"] = bool(data["quick_hotkey"]); save_config(cfg)
             if "log_full" in data:
                 cfg["log_full"] = bool(data["log_full"]); save_config(cfg)
             if "auto_reload" in data: cfg["auto_reload"] = bool(data["auto_reload"]); save_config(cfg)
@@ -4609,7 +4613,7 @@ def app_options():
     cfg = load_config()
     _hw = cfg.get("hw_accel", "auto"); _hw = _hw if _hw in HW_MODES else "auto"
     return {"frozen": FROZEN, "start_with_terminal": bool(cfg.get("start_with_terminal")), "terminal_open": terminal_is_open(), "start_with_windows": autostart_get(), "remote_enabled": bool(cfg.get("remote_enabled")),
-            "tray": bool(cfg.get("tray_enabled")), "tray_available": tray_available(), "auto_update_models": bool(cfg.get("auto_update_models")), "log_full": bool(cfg.get("log_full")),
+            "tray": bool(cfg.get("tray_enabled")), "tray_available": tray_available(), "auto_update_models": bool(cfg.get("auto_update_models")), "log_full": bool(cfg.get("log_full")), "quick_hotkey": bool(cfg.get("quick_hotkey", True)), "quick_style": cfg.get("quick_style", "mica"), "quick_available": sys.platform == "win32",
             "hw_accel": _hw, "hw_accel_auto": hw_accel_decide("auto"), "gpu_names": gpu_names(), "auto_reload": bool(cfg.get("auto_reload", True)), "dev": not FROZEN,
             "version": VERSION, "platform": platform.platform(), "python": sys.version.split()[0], "data_dir": BASE_DIR, "has_log": os.path.exists(os.path.join(BASE_DIR, "lume.log")),
             "models_updated_at": cfg.get("models_updated_at", 0), "model_update": dict(model_update_state)}
@@ -4811,6 +4815,113 @@ class WindowApi:
         if tray_icon and load_config().get("tray_enabled"): self._window.hide(); return "hidden"   # com a bandeja ligada, fechar so esconde
         self._window.destroy()
 
+class QuickApi:
+    """A caixinha do Alt+Espaco: a pagina (quick.html) so pede para esconder ou mudar a altura."""
+    def hide(self):   # (a pagina pede ao perder o foco; logo depois de abrir o foco ainda esta chegando, entao ignora)
+        if time.time() - QUICK.get("t", 0) > 0.6: quick_hide()
+        return True
+    def open_in_lume(self, msgs):
+        """Leva a conversa da caixinha para o Lume: abre um chat novo com tudo e traz a janela principal para a frente."""
+        quick_hide()
+        try:
+            w = window_api._window; w.show(); w.restore()
+            w.evaluate_js("window.lumeImportChat && lumeImportChat(" + json.dumps(msgs, ensure_ascii=False) + ")")
+            hw = ctypes.windll.user32.FindWindowW(None, WINDOW_TITLE)
+            if hw: ctypes.windll.user32.SetForegroundWindow(hw)
+        except Exception as e: log("RAPIDO", f"Nao consegui abrir no Lume: {e}", COLOR_YELLOW)
+        return True
+    def resize(self, h):
+        try: quick_place(int(h))
+        except Exception as e: log("RAPIDO", f"resize: {e}", COLOR_YELLOW)
+        return True
+
+QUICK_W, QUICK_TITLE = 680, "Lume Rapido"
+def _quick_hwnd(): return ctypes.windll.user32.FindWindowW(None, QUICK_TITLE)
+def quick_place(h_css=None):
+    """Poe a caixinha no alto e no meio do monitor onde esta o mouse (tamanho em pixels da pagina)."""
+    u = ctypes.windll.user32; hwnd = _quick_hwnd()
+    if not hwnd: return
+    try: k = u.GetDpiForWindow(hwnd) / 96.0
+    except Exception: k = 1.0
+    pt = wintypes.POINT(); u.GetCursorPos(ctypes.byref(pt))
+    class MI(ctypes.Structure): _fields_ = [("cbSize", wintypes.DWORD), ("rcMonitor", wintypes.RECT), ("rcWork", wintypes.RECT), ("dwFlags", wintypes.DWORD)]
+    mi = MI(); mi.cbSize = ctypes.sizeof(mi); u.GetMonitorInfoW(u.MonitorFromPoint(pt, 2), ctypes.byref(mi)); w = mi.rcWork
+    if h_css is None: r = wintypes.RECT(); u.GetWindowRect(hwnd, ctypes.byref(r)); h_css = round((r.bottom - r.top) / k)
+    W, H = round(QUICK_W * k), round(max(70, h_css) * k)
+    u.SetWindowPos(hwnd, ctypes.c_void_p(-1), w.left + (w.right - w.left - W) // 2, w.top + round((w.bottom - w.top) * 0.2), W, H, 0x0010)   # -1 = HWND_TOPMOST, 0x10 = NOACTIVATE
+
+QUICK_STYLES = ("solid", "mica", "aero", "acrylic")
+def quick_style_apply():
+    """Fundo da caixinha: mica / acrylic (Windows 11, via DWM), aero (vidro desfocado classico) ou solido."""
+    try:
+        hw = _quick_hwnd()
+        if not hw: return
+        st = load_config().get("quick_style", "mica"); dwm = ctypes.windll.dwmapi
+        class ACCENT(ctypes.Structure): _fields_ = [("State", ctypes.c_int), ("Flags", ctypes.c_int), ("Color", ctypes.c_uint), ("Anim", ctypes.c_int)]
+        class WCA(ctypes.Structure): _fields_ = [("Attr", ctypes.c_int), ("Data", ctypes.c_void_p), ("Size", ctypes.c_size_t)]
+        def accent(state, color=0):
+            a = ACCENT(state, 2, color, 0); d = WCA(19, ctypes.cast(ctypes.pointer(a), ctypes.c_void_p), ctypes.sizeof(a)); ctypes.windll.user32.SetWindowCompositionAttribute(hw, ctypes.byref(d))
+        try:
+            import winreg; dark = winreg.QueryValueEx(winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"), "AppsUseLightTheme")[0] == 0
+        except Exception: dark = True
+        dwm.DwmSetWindowAttribute(hw, 20, ctypes.byref(ctypes.c_int(1 if dark else 0)), 4)   # vidro escuro ou claro
+        dwm.DwmSetWindowAttribute(hw, 33, ctypes.byref(ctypes.c_int(2)), 4)                    # cantos arredondados
+        accent(0)
+        if st == "solid": dwm.DwmSetWindowAttribute(hw, 38, ctypes.byref(ctypes.c_int(1)), 4)
+        else:
+            dwm.DwmExtendFrameIntoClientArea(hw, ctypes.byref((ctypes.c_int * 4)(-1, -1, -1, -1)))   # deixa o efeito aparecer atras da pagina transparente
+            if st == "mica": dwm.DwmSetWindowAttribute(hw, 38, ctypes.byref(ctypes.c_int(2)), 4)
+            elif st == "acrylic": dwm.DwmSetWindowAttribute(hw, 38, ctypes.byref(ctypes.c_int(3)), 4)
+            else: dwm.DwmSetWindowAttribute(hw, 38, ctypes.byref(ctypes.c_int(1)), 4); accent(3, 0x66201E1C if dark else 0x66F5F5F5)   # aero: vidro desfocado (blur-behind)
+        if QUICK["win"]: threading.Thread(target=lambda: QUICK["win"].evaluate_js("window.qstyle && qstyle(" + json.dumps(st) + ", " + json.dumps(dark) + ")"), daemon=True).start()   # em outra thread: evaluate_js numa janela escondida pode ficar esperando
+    except Exception as e: log("RAPIDO", f"estilo: {e}", COLOR_YELLOW)
+
+def quick_focus(w):
+    """Da o foco do teclado ao controle do navegador dentro da janela (so SetForegroundWindow nao basta no WebView2)."""
+    try:
+        from System import Action
+        n = w.native; n.Invoke(Action(lambda: n.webview.Focus()))
+    except Exception as e: log("RAPIDO", f"foco: {e}", COLOR_YELLOW)
+
+def quick_toggle():
+    if QUICK["visible"]: quick_hide(); return
+    w = QUICK["win"]
+    if not w: return
+    try:
+        quick_style_apply(); w.show(); QUICK["visible"] = True; QUICK["t"] = time.time(); quick_place(86)
+        u = ctypes.windll.user32; hwnd = _quick_hwnd()
+        u.keybd_event(0x12, 0, 0, 0); u.keybd_event(0x12, 0, 2, 0)   # um toque no Alt libera o SetForegroundWindow (o Windows nega foco a quem nao foi o ultimo a receber tecla)
+        u.SetForegroundWindow(hwnd); quick_focus(w); w.evaluate_js("window.qshown && qshown()")
+        threading.Timer(0.15, lambda: (quick_focus(w), w.evaluate_js("window.qshown && qshown()"))).start()   # de novo: o foco do teclado dentro da pagina as vezes so chega depois da janela
+    except Exception as e: log("RAPIDO", f"Nao consegui abrir a caixinha: {e}", COLOR_YELLOW)
+
+def quick_hotkey_loop():
+    """Alt+Espaco global (RegisterHotKey). Liga e desliga sozinho conforme a opcao em Configuracoes > App."""
+    u = ctypes.windll.user32; reg = False; msg = wintypes.MSG(); warned = False
+    while True:
+        want = bool(load_config().get("quick_hotkey", True))
+        if want and not reg:
+            reg = bool(u.RegisterHotKey(None, 0x4C55, 0x0001 | 0x4000, 0x20))   # MOD_ALT | MOD_NOREPEAT, VK_SPACE
+            if not reg and not warned: warned = True; log("RAPIDO", "Alt+Espaco ja esta em uso por outro programa (ex.: PowerToys Run); a caixinha rapida nao abre por atalho.", COLOR_YELLOW)
+        elif reg and not want: u.UnregisterHotKey(None, 0x4C55); reg = False
+        while u.PeekMessageW(ctypes.byref(msg), None, 0x0312, 0x0312, 1):   # WM_HOTKEY
+            if msg.wParam == 0x4C55:
+                threading.Thread(target=quick_toggle, daemon=True).start()   # fora do laco do atalho: uma chamada lenta nao pode travar o proximo Alt+Espaco
+        time.sleep(0.05)
+
+def quick_setup():
+    if sys.platform != "win32": return
+    try:
+        w = webview.create_window(QUICK_TITLE, f"http://127.0.0.1:{PORT}/quick", width=QUICK_W, height=86, frameless=True, on_top=True, hidden=True, easy_drag=False, transparent=True, js_api=QuickApi())
+        def _loaded():   # o pywebview as vezes mostra a janela mesmo criada escondida
+            try:
+                hw = _quick_hwnd(); ctypes.windll.user32.ShowWindow(hw, 0)
+                quick_style_apply()
+            except Exception: pass
+        w.events.loaded += _loaded
+        QUICK["win"] = w; threading.Thread(target=quick_hotkey_loop, daemon=True).start()
+    except Exception as e: log("RAPIDO", f"Caixinha Alt+Espaco indisponivel: {e}", COLOR_YELLOW)
+
 if __name__ == '__main__':
     if "--feedback-window" in sys.argv:   # processo so da janela de feedback (aberto pelo Lume no Linux): nao sobe servidor, so mostra a pagina do Lume que ja esta rodando
         _i = sys.argv.index("--feedback-window")
@@ -4837,6 +4948,7 @@ if __name__ == '__main__':
     api._window = webview.create_window(WINDOW_TITLE, f'http://127.0.0.1:{PORT}/index.html', width=1100, height=800, min_size=(800, 520), frameless=True, easy_drag=False, js_api=api, hidden=bool(tray_on and "--autostart" in sys.argv))
     # private_mode=False: sem isso o localStorage some toda vez que o app fecha
     window_api = api
+    quick_setup()
     webview.start(private_mode=False, storage_path=os.path.join(BASE_DIR, "webview_data"), icon=custom_icon_ico())
     log("SAIDA", "Janela fechada. Desligando as IAs...", COLOR_YELLOW)
     shutdown_all()
