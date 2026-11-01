@@ -58,6 +58,7 @@ Como numerar:
 - **Trocar a fonte:** Aparência > **Fonte da interface** (Inter, Segoe UI, Roboto, Arial, Georgia, Consolas, Atkinson Hyperlegible... ou "Outra..." com o nome de qualquer fonte instalada) e **Fonte do código**; vale na hora para o app todo e fica salva.
 - **IA abre programas (.exe):** novas ferramentas `launch_app` (abre um .exe/.bat, espera a janela e já o coloca entre os programas em uso: jogos, DOSBox com um programa de DOS, VirtualBox...) e `close_app`. Programas que ignoram o controle em segundo plano (jogos, DOSBox, janelas Tk) aceitam `"focus": true`, que traz o programa para a frente e usa o mouse e o teclado de verdade (esperando o dono parar de mexer).
 - **Janela de feedback** não fica mais "sempre por cima".
+- **FPS no overlay de desempenho:** Configurações > Overlay de desempenho > "Mostrar o FPS". Mostra os quadros por segundo da interface do Lume (verde a partir de 50, amarelo de 30 a 49, vermelho abaixo). O contador só roda com o overlay e a opção ligados (ele mantém a tela redesenhando, então gasta um pouco).
 - **Gastos** (Estatísticas > 💰 Gastos): quanto cada modelo pago custou **por semana, por mês e no total** (pollen 🌸, US$ do TokenReply 💵 e créditos do VoidAI 💳), o **saldo** de cada serviço com uma estimativa de quantos dias ele dura no seu ritmo, e um **aviso quando o saldo está acabando** (você escolhe o limite; no máximo um aviso por dia). O caderno fica só neste aparelho, guarda apenas data, modelo e valor, e conta a partir desta versão.
 
 ## v3.1.01
