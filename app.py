@@ -12,6 +12,7 @@ import os
 import sys
 import atexit
 import traceback
+import platform
 import base64
 import html as html_mod
 import io
@@ -1215,7 +1216,7 @@ def execute_tool(tool_name, tool_args, workdir, lang="pt"):
 
 
 # ---------------------------------------------------------------- controle do computador (aba Code): ver a tela, mexer no mouse e no teclado (so Windows, e so se ligado nas opcoes)
-COMPUTER_TOOLS = ("list_windows", "use_apps", "screenshot", "mouse_move", "mouse_click", "scroll", "type_text", "press_key")
+COMPUTER_TOOLS = ("list_windows", "use_apps", "launch_app", "close_app", "screenshot", "mouse_move", "mouse_click", "scroll", "type_text", "press_key")
 COMPUTER_GRANT_SECS = 600      # depois de aprovar uma vez, a IA pode agir por 10 minutos sem perguntar de novo (renova a cada uso)
 COMPUTER_USER_WAIT = 1.0       # se o dono estiver mexendo no mouse/teclado, a IA espera ele ficar parado 1 segundo
 _mcp_grant = {}   # servidor MCP -> ate quando o dono liberou sem perguntar de novo
@@ -1288,7 +1289,7 @@ def _find_window(title):
 def _virtual_wanted(name, args):
     """True quando a acao vai para um programa especifico (segundo plano, mouse virtual); False = a tela inteira com o mouse de verdade (modo antigo)."""
     if not vcomp: return False
-    if name in ("list_windows", "use_apps"): return True
+    if name in ("list_windows", "use_apps", "launch_app", "close_app"): return True
     app = args.get("app"); apps = args.get("apps")
     if str(app or "").strip().lower() in ("screen", "tela", "full", "fullscreen"): return False
     return bool(apps) or str(app if app is not None else "").strip() != "" or bool(vcomp.workspace())
@@ -1299,18 +1300,28 @@ def computer_execute(name, args, stop_check=None):
     import ctypes
     u = ctypes.windll.user32
     try:
-        if _virtual_wanted(name, args):   # segundo plano: o mouse e o teclado do dono ficam livres (nao espera nem mexe neles)
+        _focus_real = False
+        if vcomp and args.get("focus") and name in ("mouse_move", "mouse_click", "scroll", "type_text", "press_key") and (args.get("app") not in (None, "") or vcomp.workspace()):
+            # modo "focus": para programas que ignoram o controle em segundo plano. Traz o programa para a frente e usa o mouse/teclado de VERDADE (espera o dono parar de mexer)
+            if stop_check and stop_check(): raise RuntimeError("parado pelo usuario")
+            _failsafe(); _wait_for_user(stop_check); vcomp.activate(args.get("app"))
+            if name != "type_text" and name != "press_key":
+                _sx, _sy = vcomp.screen_point(args.get("app"), args.get("x"), args.get("y")); _comp.update(origin=(_sx, _sy), scale=1.0, shot=True); args = dict(args, x=0, y=0)
+            _focus_real = True
+        if not _focus_real and _virtual_wanted(name, args):   # segundo plano: o mouse e o teclado do dono ficam livres (nao espera nem mexe neles)
             if stop_check and stop_check(): raise RuntimeError("parado pelo usuario")
             if name != "screenshot": _failsafe()
             if name == "list_windows": return vcomp.windows_text(), None
             if name == "use_apps": return vcomp.use_apps(args.get("apps") or args.get("app")), None
+            if name == "launch_app": return vcomp.launch(args.get("path") or args.get("app") or args.get("exe"), args.get("args") if isinstance(args.get("args"), list) else ([args["args"]] if args.get("args") else []), args.get("wait") or 15), None
+            if name == "close_app": return vcomp.close(args.get("app"), bool(args.get("force"))), None
             if name == "screenshot":
                 _t, _imgs = vcomp.screenshot(args.get("apps") or args.get("app") or "all"); return _t, (_imgs or None)
             if name in ("mouse_move", "mouse_click", "scroll"):
                 if args.get("x") is None or args.get("y") is None: return "Erro: faltam x e y.", None
                 return vcomp.mouse(name, args.get("app"), args.get("x"), args.get("y"), args.get("button"), bool(args.get("double")), args.get("amount") or -3), None
             if name in ("type_text", "press_key"): return vcomp.keyboard(name, args.get("app"), args.get("text") or "", args.get("key") or ""), None
-        if name in ("list_windows", "use_apps"): return "Erro: esta ferramenta precisa do modulo de segundo plano.", None
+        if name in ("list_windows", "use_apps", "launch_app", "close_app"): return "Erro: esta ferramenta precisa do modulo de segundo plano.", None
         if name != "screenshot": _failsafe(); _wait_for_user(stop_check)
         elif stop_check and stop_check(): raise RuntimeError("parado pelo usuario")
         if name == "screenshot":
@@ -1367,6 +1378,8 @@ def computer_execute(name, args, stop_check=None):
 def describe_computer(name, args):
     _ap = f" [app {args.get('app')}]" if args.get("app") not in (None, "") else ""
     if name == "list_windows": return "Ver quais programas estao abertos (so os titulos das janelas)"
+    if name == "launch_app": return "ABRIR O PROGRAMA: " + str(args.get("path") or args.get("app") or args.get("exe") or "?") + ((" " + " ".join(str(a) for a in args["args"])) if isinstance(args.get("args"), list) and args["args"] else "")
+    if name == "close_app": return "Fechar o programa" + _ap + (" (encerrando o processo se nao fechar)" if args.get("force") else "")
     if name == "use_apps": return "Usar estes programas em segundo plano: " + ", ".join(str(a) for a in (args.get("apps") if isinstance(args.get("apps"), list) else [args.get("apps") or args.get("app")]))
     if name == "screenshot": return "Ver " + (("o(s) programa(s): " + ", ".join(str(a) for a in (args.get("apps") if isinstance(args.get("apps"), list) else [args.get("apps")])) ) if args.get("apps") else f"o programa {args.get('app')}" if args.get("app") not in (None, "") else "a tela inteira")
     if name in ("mouse_move", "mouse_click", "scroll"): return f"{name} em ({args.get('x')}, {args.get('y')})" + _ap
@@ -1375,8 +1388,11 @@ def describe_computer(name, args):
 
 COMPUTER_PROMPT_PT = """- list_windows {} : lista os programas abertos (titulos das janelas)
 - use_apps {"apps": ["titulo1", "titulo2", "titulo3"]} : escolhe ate 3 programas para usar AO MESMO TEMPO, em segundo plano (parte do titulo da janela)
+- launch_app {"path": "C:\\caminho\\programa.exe", "args": ["arg1"], "wait": 15} : ABRE um programa (.exe, .bat) e espera a janela; ja o poe entre os usados (jogos, DOSBox com um programa de DOS, VirtualBox...). Pede permissao
+- close_app {"app": 1, "force": false} : fecha o programa (force encerra o processo se ele nao fechar)
 - screenshot {"app": "all"} ou {"app": 2} ou {"apps": [1, 3]} : foto de todos os programas escolhidos, de um ou de alguns (so a imagem; sem app = a tela inteira)
 - mouse_click {"app": 1, "x": 100, "y": 200, "button": "left", "double": false} : clica no programa 1 (x e y medidos na ultima foto DELE)
+  Em mouse_click, mouse_move, scroll, type_text e press_key voce pode somar "focus": true: traz o programa para a frente e usa o mouse e o teclado de VERDADE (espera o dono parar de mexer). Use so quando o modo normal nao funcionar: jogos, DOSBox, janelas que ignoram o controle em segundo plano.
 - mouse_move {"app": 1, "x": 100, "y": 200} : move o mouse virtual
 - scroll {"app": 1, "x": 100, "y": 200, "amount": -3} : rola (negativo = para baixo)
 - type_text {"app": 1, "text": "texto"} : digita no campo que estiver com o foco dentro do programa
@@ -1385,8 +1401,11 @@ Controle do computador: voce usa um MOUSE VIRTUAL (uma bolinha) que nao mexe no 
 """
 COMPUTER_PROMPT_EN = """- list_windows {} : list the open programs (window titles)
 - use_apps {"apps": ["title1", "title2", "title3"]} : pick up to 3 programs to use AT THE SAME TIME, in the background (part of the window title)
+- launch_app {"path": "C:\\path\\program.exe", "args": ["arg1"], "wait": 15} : OPENS a program (.exe, .bat) and waits for its window; it is added to the ones in use (games, DOSBox with a DOS program, VirtualBox...). Asks permission
+- close_app {"app": 1, "force": false} : closes the program (force kills the process if it will not close)
 - screenshot {"app": "all"} or {"app": 2} or {"apps": [1, 3]} : picture of all the chosen programs, one, or some (image only; no app = the whole screen)
 - mouse_click {"app": 1, "x": 100, "y": 200, "button": "left", "double": false} : click in program 1 (x and y measured on ITS last picture)
+  On mouse_click, mouse_move, scroll, type_text and press_key you can add "focus": true: it brings the program to the front and uses the REAL mouse and keyboard (waits for the owner to stop). Use it only when the normal mode does not work: games, DOSBox, windows that ignore background control.
 - mouse_move {"app": 1, "x": 100, "y": 200} : move the virtual mouse
 - scroll {"app": 1, "x": 100, "y": 200, "amount": -3} : scroll (negative = down)
 - type_text {"app": 1, "text": "text"} : type into the focused field inside the program
@@ -1499,6 +1518,8 @@ NATIVE_TOOLS_ALL = [
 ]
 NATIVE_TOOLS_ALL += [
     _schema("list_windows", "List the open programs (window titles)", {}, []),
+    _schema("launch_app", "OPEN a program (.exe/.bat) and wait for its window; it becomes one of the programs in use (up to 3). Use for games, DOSBox with a DOS program, VirtualBox, etc.", {"path": {"type": "string", "description": "full path to the .exe or a name on PATH"}, "args": {"type": "array", "items": {"type": "string"}}, "wait": {"type": "integer", "description": "seconds to wait for the window (default 15)"}}, ["path"]),
+    _schema("close_app", "Close one of the programs in use (force=true kills the process if it will not close)", {"app": {"type": "string"}, "force": {"type": "boolean"}}, ["app"]),
     _schema("use_apps", "Choose up to 3 programs to use at the same time in the background (part of each window title)", {"apps": {"type": "array", "items": {"type": "string"}}}, ["apps"]),
     _schema("screenshot", "Take a picture of the chosen programs in the background: app 'all', a number (1-3) or a title; apps = a list of numbers. Without app it takes the whole screen", {"app": {"type": "string", "description": "'all', 1-3, or part of a window title (optional)"}, "apps": {"type": "array", "items": {"type": "string"}}}, []),
     _schema("mouse_click", "Click in ONE program at x,y measured on that program's last screenshot (virtual mouse; the user's mouse does not move)", {"app": {"type": "string", "description": "program number 1-3"}, "x": {"type": "integer"}, "y": {"type": "integer"}, "button": {"type": "string"}, "double": {"type": "boolean"}}, ["app", "x", "y"]),
@@ -2800,7 +2821,7 @@ LOCAL_HOSTS = ("127.0.0.1", "localhost")
 STATIC_PAGES = ("/", "/index.html")
 PAGE_ALIAS = {"/share": "/share.html", "/dashboard": "/dashboard.html", "/feedback": "/feedback.html"}
 # So o proprio PC (janela do app) pode usar estas rotas
-LOCAL_ONLY_POST = ("/api/mcp_auto", "/api/mcp_save", "/api/save_config", "/api/save_key", "/api/server_config", "/api/perf_interval",
+LOCAL_ONLY_POST = ("/api/open_path", "/api/mcp_auto", "/api/mcp_save", "/api/save_config", "/api/save_key", "/api/server_config", "/api/perf_interval",
                    "/api/custom_theme", "/api/custom_theme_delete", "/api/account_import", "/api/config_import", "/api/pol_effort_probe", "/api/account/login", "/api/account/logout", "/api/resolve_pending", "/api/export", "/api/ios_profile_save", "/api/undo", "/api/stats_clear", "/api/open_url", "/api/update_apply", "/api/restart_app", "/api/run_code", "/api/run_stop", "/api/tunnel_start", "/api/tunnel_stop", "/api/tunnel_install", "/api/app_options", "/api/model_pull", "/api/model_delete", "/api/models_update_now", "/api/cloudflare_usage_set")
 PUBLIC_POST = ("/api/auth/login", "/api/auth/logout", "/api/guest/register", "/api/guest/code")
 LOGIN_MAX_FAILS, LOGIN_LOCK_SECONDS = 5, 60
@@ -3548,6 +3569,12 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return self.send_json(run_code(data.get("lang"), data.get("code"), bool(data.get("analyze")), bool(data.get("install")), str(data.get("rid") or "") or None))
         if p == '/api/run_stop':
             return self.send_json({"ok": stop_code(str(data.get("rid") or ""))})
+        if p == '/api/open_path':   # abre a pasta de dados ou o arquivo de log no Explorer
+            _w = data.get("what"); _t = BASE_DIR if _w == "data" else os.path.join(BASE_DIR, "lume.log") if _w == "log" else None
+            if not _t or not os.path.exists(_t): return self.send_json({"error": "Nao existe."}, 404)
+            try: os.startfile(_t)
+            except AttributeError: subprocess.Popen(["xdg-open", _t])
+            return self.send_json({"ok": True})
         if p == '/api/mcp_auto':
             cfg = load_config(); cfg["mcp_auto_allow"] = bool(data.get("on")); save_config(cfg)
             return self.send_json({"ok": True, "auto": cfg["mcp_auto_allow"]})
@@ -4494,6 +4521,7 @@ def app_options():
     return {"frozen": FROZEN, "start_with_terminal": bool(cfg.get("start_with_terminal")), "terminal_open": terminal_is_open(), "start_with_windows": autostart_get(), "remote_enabled": bool(cfg.get("remote_enabled")),
             "tray": bool(cfg.get("tray_enabled")), "tray_available": tray_available(), "auto_update_models": bool(cfg.get("auto_update_models")), "log_full": bool(cfg.get("log_full")),
             "hw_accel": _hw, "hw_accel_auto": hw_accel_decide("auto"), "gpu_names": gpu_names(),
+            "version": VERSION, "platform": platform.platform(), "python": sys.version.split()[0], "data_dir": BASE_DIR, "has_log": os.path.exists(os.path.join(BASE_DIR, "lume.log")),
             "models_updated_at": cfg.get("models_updated_at", 0), "model_update": dict(model_update_state)}
 
 # ---------------------------------------------------------------- tunel para acessar de fora de casa
@@ -4641,7 +4669,7 @@ class WindowApi:
             if w is not None:
                 try: w.show(); w.restore(); return True
                 except Exception: self._fb_win = None
-            w = webview.create_window("Lume Feedback", f"http://127.0.0.1:{PORT}/feedback?v={urllib.parse.quote(VERSION)}", width=440, height=720, min_size=(360, 480), on_top=True)
+            w = webview.create_window("Lume Feedback", f"http://127.0.0.1:{PORT}/feedback?v={urllib.parse.quote(VERSION)}", width=440, height=720, min_size=(360, 480))   # nao fica mais "sempre por cima": e uma janela normal para anotar enquanto testa
             w.events.closed += lambda: setattr(self, "_fb_win", None)
             self._fb_win = w; return True
         except Exception as e:

@@ -3,7 +3,7 @@
 - agir: manda as mensagens de mouse/teclado direto para a janela (PostMessage), entao o mouse de verdade nao se mexe;
 - a IA controla UM programa por vez (as fotos podem ser de todos); o "mouse virtual" e uma bolinha transparente, sem clique, que desliza ate o ponto.
 Limites: jogos, programas "elevados" (administrador) e alguns apps modernos ignoram mensagens enviadas assim; atalhos com Ctrl/Alt nao valem em segundo plano."""
-import base64, ctypes, io, queue, sys, threading, time
+import base64, ctypes, io, queue, shutil, subprocess, sys, threading, time
 from ctypes import wintypes
 
 MAX_APPS = 3
@@ -105,6 +105,75 @@ def _slot(spec, auto_add=True):
         if a["hwnd"] == w[0]: return i
     if not auto_add or len(ws) >= MAX_APPS: raise RuntimeError(f"ja ha {MAX_APPS} programas em uso; troque a lista com use_apps.")
     with _lock: _apps.append({"hwnd": w[0], "title": w[1], "scale": 1.0, "shot": False}); return len(_apps) - 1
+
+# ---------------------------------------------------------------- abrir e fechar programas (.exe: jogos, DOSBox, VirtualBox...)
+_launched = {}   # hwnd -> Popen: so os programas que o Lume abriu podem ser encerrados a forca
+_RUNNABLE = (".exe", ".com", ".bat", ".cmd")
+
+def _pid_of(h):
+    pid = wintypes.DWORD(0); u32.GetWindowThreadProcessId(h, ctypes.byref(pid)); return pid.value
+
+def launch(path, args=None, wait=15):
+    """Abre um programa e espera a janela dele aparecer. Devolve o texto para a IA (e ja poe a janela entre os programas em uso, se couber)."""
+    import os as _os
+    p = str(path or "").strip().strip('"')
+    if not p: return "Erro: diga o programa em \"path\" (caminho do .exe ou o nome, ex.: dosbox)."
+    exe = p if _os.path.isfile(p) else (shutil.which(p) or "")
+    if not exe or not _os.path.isfile(exe): return f"Erro: nao encontrei o programa \"{p}\". Use o caminho completo do .exe."
+    ext = _os.path.splitext(exe)[1].lower()
+    if ext not in _RUNNABLE: return f"Erro: so abro {', '.join(_RUNNABLE)} (isto e {ext or 'sem extensao'})."
+    argv = [str(a) for a in (args or [])]
+    before = {w[0] for w in list_windows()}
+    try:
+        cmd = ["cmd", "/c", exe] + argv if ext in (".bat", ".cmd") else [exe] + argv
+        proc = subprocess.Popen(cmd, cwd=_os.path.dirname(exe) or None, creationflags=0x00000010 if ext in (".bat", ".cmd") else 0)   # 0x10 = janela de console propria p/ .bat
+    except Exception as e: return f"Erro ao abrir: {e}"
+    wait = max(2, min(60, int(wait or 15))); t0 = time.time(); found = None
+    while time.time() - t0 < wait:
+        time.sleep(0.4)
+        cand = [w for w in list_windows() if w[0] not in before or _pid_of(w[0]) == proc.pid]
+        if cand: found = max(cand, key=lambda w: (w[2][2] - w[2][0]) * (w[2][3] - w[2][1])); time.sleep(0.6); break
+        if proc.poll() is not None and proc.returncode not in (0, None) and not cand: return f"Erro: o programa fechou logo ao abrir (codigo {proc.returncode})."
+    if not found:
+        return f"Abri {_os.path.basename(exe)} (pid {proc.pid}), mas nenhuma janela apareceu em {wait} s. Pode ser um programa sem janela, ou ainda carregando: use list_windows daqui a pouco."
+    h, title, _ = found; _launched[h] = proc
+    with _lock:
+        ws = workspace()
+        if all(a["hwnd"] != h for a in ws) and len(ws) < MAX_APPS: _apps.append({"hwnd": h, "title": title, "scale": 1.0, "shot": False}); slot = len(_apps)
+        else: slot = next((i + 1 for i, a in enumerate(ws) if a["hwnd"] == h), 0)
+    return f"Abri {_os.path.basename(exe)}. Janela: \"{title[:80]}\"" + (f" = app {slot}. Tire um screenshot dele antes de agir." if slot else f". Ja ha {MAX_APPS} programas em uso: troque a lista com use_apps para controlar este.")
+
+def close(spec, force=False):
+    i = _slot(spec, auto_add=False); a = _apps[i]; h = a["hwnd"]; name = _label(i)
+    _post(h, 0x0010, 0, 0)   # WM_CLOSE: pede para fechar do jeito normal (o programa pode perguntar se quer salvar)
+    for _ in range(25):
+        time.sleep(0.2)
+        if not u32.IsWindow(h): break
+    msg = f"Pedi para fechar o {name}."
+    p = _launched.get(h)
+    if u32.IsWindow(h):
+        if force and p and p.poll() is None:
+            try: p.terminate(); msg += " Nao fechou sozinho: encerrei o processo que o Lume abriu."
+            except Exception as e: msg += f" Nao consegui encerrar: {e}"
+        else: msg += " A janela continua aberta (talvez esteja perguntando algo, como salvar). Veja com um screenshot." + (" Use \"force\": true para encerrar o processo." if p else "")
+    else: msg += " Fechou."
+    _launched.pop(h, None); return msg
+
+def activate(spec):
+    """Traz a janela do programa para a frente (para os que so aceitam teclado/mouse de verdade: jogos, DOSBox, janelas Tk). Devolve o hwnd."""
+    i = _slot(spec, auto_add=False); h = _apps[i]["hwnd"]
+    if u32.IsIconic(h): u32.ShowWindow(h, 9)
+    fg = u32.GetForegroundWindow(); me = ctypes.windll.kernel32.GetCurrentThreadId(); t1 = u32.GetWindowThreadProcessId(fg, None) if fg else 0
+    if t1 and t1 != me: u32.AttachThreadInput(me, t1, True)   # o Windows so deixa trocar o foco quem esta ligado a thread da janela da frente
+    try: u32.BringWindowToTop(h); u32.SetForegroundWindow(h)
+    finally:
+        if t1 and t1 != me: u32.AttachThreadInput(me, t1, False)
+    time.sleep(0.35)
+    if u32.GetForegroundWindow() != h: raise RuntimeError("o Windows nao deixou trazer o programa para a frente")
+    return h
+
+def screen_point(spec, x, y):
+    i, a = _target(spec); return _screen_pt(a, x, y)
 
 # ---------------------------------------------------------------- ver (PrintWindow)
 def _capture(hwnd):
