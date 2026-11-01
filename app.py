@@ -11,6 +11,7 @@ import subprocess
 import os
 import sys
 import atexit
+import traceback
 import base64
 import html as html_mod
 import io
@@ -3949,7 +3950,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 if not call:
                     if use_tools and corrections < 2 and (looks_like_failed_call(full) or (agent and announces_action(full))):   # errou o formato (ou disse que ia agir e nao chamou nada): pede para repetir (ate 2 vezes)
                         corrections += 1; failed_pending = True
-                        log("AGENTE", "Chamada de ferramenta fora do formato; pedindo para a IA repetir.", COLOR_YELLOW)
+                        log("AGENTE", "A IA " + ("disse que ia agir mas nao chamou nenhuma ferramenta" if (agent and announces_action(full) and not looks_like_failed_call(full)) else "errou o formato da chamada") + "; pedindo para ela continuar. Mensagem COMPLETA dela, sem filtro:", COLOR_YELLOW)
+                        if not verbose: log("IA · MENSAGEM COMPLETA", full, COLOR_CYAN)
                         send(L("\n\n[a IA disse que ia agir mas nao chamou nenhuma ferramenta; pedindo para ela continuar]", "\n\n[the AI said it would act but called no tool; asking it to continue]") if (agent and announces_action(full) and not looks_like_failed_call(full)) else L("\n\n[formato de ferramenta invalido, pedindo para a IA tentar de novo]", "\n\n[invalid tool format, asking the AI to try again]"))
                         messages.append({"role": "assistant", "content": full})
                         messages.append({"role": "user", "content": L(NUDGE_PT, NUDGE_EN) if (agent and announces_action(full) and not looks_like_failed_call(full)) else L(CORRECTION_PT, CORRECTION_EN)})
@@ -4027,7 +4029,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     else:
                         result = execute_tool(tool_name, tool_args, workdir, lang)
                     log("TOOL", f"resultado de {tool_name}: {len(result)} caracteres", COLOR_GREEN if not result.startswith("Erro") else COLOR_RED)
-                    if verbose: log("TOOL · RESULTADO", result, COLOR_GRAY)
+                    if verbose or result.startswith("Erro") or result.startswith("Error"): log("TOOL · RESULTADO", result, COLOR_RED if result.startswith(("Erro", "Error")) else COLOR_GRAY)
                     send(L(f"\n\n[resultado de {tool_name}]\n{result}\n[/resultado]\n\n", f"\n\n[result of {tool_name}]\n{result}\n[/result]\n\n"))
                     results_txt.append((tool_name, result))
                 if denied and not results_txt: break
@@ -4059,6 +4061,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             log("CHAT", f"concluido: {total_chars} caracteres em {time.time() - started:.1f}s", COLOR_GREEN)
         except Exception as e:
             log("ERRO", f"{type(e).__name__}: {e}", COLOR_RED)
+            try: log("ERRO · DETALHES", traceback.format_exc(), COLOR_RED)
+            except Exception: pass
             try: send(L(f"\n[Erro: {localize_error(e, lang)}]", f"\n[Error: {localize_error(e, lang)}]"))
             except Exception: pass
         finally:
