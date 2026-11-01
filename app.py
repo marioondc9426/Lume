@@ -1306,7 +1306,7 @@ def computer_execute(name, args, stop_check=None):
             if stop_check and stop_check(): raise RuntimeError("parado pelo usuario")
             _failsafe(); _wait_for_user(stop_check); vcomp.activate(args.get("app"))
             if name != "type_text" and name != "press_key":
-                _sx, _sy = vcomp.screen_point(args.get("app"), args.get("x"), args.get("y")); _comp.update(origin=(_sx, _sy), scale=1.0, shot=True); args = dict(args, x=0, y=0)
+                _sx, _sy = vcomp.screen_point(args.get("app"), args.get("x"), args.get("y")); _comp.update(origin=(_sx - int(float(args.get('x'))), _sy - int(float(args.get('y')))), scale=1.0, shot=True)   # escala 1: _to_screen(x, y) cai no ponto certo e a mensagem mostra o x,y original
             _focus_real = True
         if not _focus_real and _virtual_wanted(name, args):   # segundo plano: o mouse e o teclado do dono ficam livres (nao espera nem mexe neles)
             if stop_check and stop_check(): raise RuntimeError("parado pelo usuario")
