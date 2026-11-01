@@ -225,8 +225,51 @@ def resolve_target(target):
     if close: w = names[close[0]]; return w, (t, w["exe"] or w["title"]), infos
     return None, None, infos
 
+# ---- categorias ("browser", "terminal"...) e navegadores pelo nome: exe -> (nome de verdade, familia)
+BROWSERS = {"chrome.exe": ("Google Chrome", "chromium"), "msedge.exe": ("Microsoft Edge", "chromium"), "comet.exe": ("Comet", "chromium"), "brave.exe": ("Brave", "chromium"), "opera.exe": ("Opera", "chromium"),
+            "vivaldi.exe": ("Vivaldi", "chromium"), "chromium.exe": ("Chromium", "chromium"), "arc.exe": ("Arc", "chromium"), "browser.exe": ("Yandex Browser", "chromium"), "duckduckgo.exe": ("DuckDuckGo", "chromium"),
+            "firefox.exe": ("Firefox", "gecko"), "librewolf.exe": ("LibreWolf", "gecko"), "waterfox.exe": ("Waterfox", "gecko"), "zen.exe": ("Zen", "gecko"), "iexplore.exe": ("Internet Explorer", "trident")}
+BROWSER_WORDS = {"chrome": "chrome.exe", "google chrome": "chrome.exe", "googlechrome": "chrome.exe", "edge": "msedge.exe", "msedge": "msedge.exe", "microsoft edge": "msedge.exe", "comet": "comet.exe", "brave": "brave.exe", "opera": "opera.exe",
+                 "vivaldi": "vivaldi.exe", "chromium": "chromium.exe", "arc": "arc.exe", "yandex": "browser.exe", "firefox": "firefox.exe", "mozilla": "firefox.exe", "mozilla firefox": "firefox.exe", "librewolf": "librewolf.exe", "waterfox": "waterfox.exe", "zen": "zen.exe"}
+CATEGORIES = {
+    ("browser", "browsers", "navegador", "navegadores", "web browser"): ("navegador", set(BROWSERS)),
+    ("terminal", "terminais", "console", "shell", "prompt"): ("terminal", {"windowsterminal.exe", "wt.exe", "cmd.exe", "powershell.exe", "pwsh.exe", "conhost.exe", "alacritty.exe", "wezterm-gui.exe", "mintty.exe", "conemu64.exe", "conemu.exe", "hyper.exe", "tabby.exe", "kitty.exe"}),
+    ("editor", "ide", "code editor", "editor de codigo"): ("editor de codigo", {"code.exe", "cursor.exe", "windsurf.exe", "notepad++.exe", "notepad.exe", "sublime_text.exe", "devenv.exe", "pycharm64.exe", "idea64.exe", "zed.exe"}),
+    ("explorer", "file manager", "arquivos", "gerenciador de arquivos", "files"): ("explorador de arquivos", {"explorer.exe", "filepilot.exe", "files.exe"}),
+    ("chat", "messenger", "mensagens"): ("chat", {"discord.exe", "telegram.exe", "whatsapp.exe", "slack.exe", "ms-teams.exe", "teams.exe", "signal.exe"}),
+}
+CAT_MAX = 3   # no maximo 3 prints por pedido de categoria (a IA recebe as 3 imagens mais recentes)
+
+def _friendly(w):
+    return BROWSERS.get(w["exe"].lower(), (None,))[0] or (w["exe"][:-4] if w["exe"].lower().endswith(".exe") else w["exe"]) or w["title"][:40]
+
+def resolve_group(target, infos):
+    """"browser"/"terminal"/... ou um navegador pelo nome. Devolve (janelas, rotulo, aviso_ou_None) ou None se nao for um grupo.
+    Um navegador pedido que NAO esta aberto mas e da mesma familia de outro que esta (chrome -> comet) devolve o aberto, com um aviso que diz o nome verdadeiro."""
+    low = str(target or "").strip().strip("\"'").lower(); low = low[:-4] if low.endswith(".exe") else low
+    def pick(exes, skip_titles=("Program Manager",)):
+        best = {}
+        for w in infos:
+            if w["exe"].lower() in exes and w["title"] not in skip_titles and (w["exe"].lower() not in best or w["area"] > best[w["exe"].lower()]["area"]): best[w["exe"].lower()] = w
+        return sorted(best.values(), key=lambda w: -w["area"])[:CAT_MAX]
+    for words, (label, exes) in CATEGORIES.items():
+        if low in words:
+            ws = pick(exes)
+            if ws: return ws, label, None
+            return [], label, None
+    req = BROWSER_WORDS.get(low)
+    if req:
+        have = pick({req})
+        if have: return have, BROWSERS[req][0], None
+        fam = BROWSERS[req][1]; alt = pick({e for e, (_, f) in BROWSERS.items() if f == fam})
+        if alt:
+            names = " e ".join(_friendly(w) for w in alt); rq = BROWSERS[req][0]
+            warn = f'ATENCAO: o {rq} NAO esta aberto. O navegador aberto e o {names} (baseado em {fam.capitalize()}, como o {rq}). Chame-o de {names}, NUNCA de {rq}: o {rq} nao foi detectado.'
+            return alt, names, (rq, names, warn)
+    return None
+
 def take_screenshot(target, include_overlay=False, hide_overlay=None, show_overlay=None):
-    """Print de UM alvo. Devolve (texto, [jpeg_base64]). Define NOTE se usou um alvo parecido."""
+    """Print de UM alvo (ou de varios, se for uma categoria como "browser"). Devolve (texto, [jpeg_base64]). Define NOTE se usou um alvo parecido."""
     from PIL import ImageGrab
     NOTE.clear(); t = str(target or "").strip().strip("\"'"); desk = t.lower() in _DESK
     def pack(img, where):
@@ -241,15 +284,32 @@ def take_screenshot(target, include_overlay=False, hide_overlay=None, show_overl
         finally:
             if hid and show_overlay: show_overlay()
         txt, imgs = pack(img, "a area de trabalho inteira" + (" (com a caixa do Alt+Espaco)" if include_overlay else "")); return txt, imgs
+    def shoot(w):
+        try: img = _capture(w["hwnd"])
+        except Exception:   # PrintWindow falhou (ex.: foto preta): tenta a area da janela na tela
+            r = wintypes.RECT(); u32.GetWindowRect(w["hwnd"], ctypes.byref(r)); img = ImageGrab.grab(bbox=(max(0, r.left), max(0, r.top), r.right, r.bottom), all_screens=True)
+        return pack(img, f"{_friendly(w)} - \"{w['title'][:60]}\" ({w['exe'] or 'PID ' + str(w['pid'])}, PID {w['pid']})")
+    infos = windows_info(); grp = resolve_group(t, infos)
+    if grp is not None:
+        ws, label, sub = grp
+        if not ws:
+            lst = "\n".join(f"- {x['title'][:60]} ({x['exe'] or '?'}, PID {x['pid']})" for x in sorted(infos, key=lambda x: -x["area"])[:15])
+            return f"Erro: nenhum {label} aberto agora. Abertos:\n{lst}\nTente um desses ou use target=\"desktop\".", []
+        texts, imgs = [], []
+        for w in ws:
+            try: tx, im = shoot(w); texts.append(tx); imgs += im
+            except Exception as e: texts.append(f"Falhou em {_friendly(w)}: {e}")
+        head = (f"{len(ws)} janelas de {label} abertas ({', '.join(_friendly(w) for w in ws)}): um print de cada, na mesma ordem." if len(ws) > 1 else f"Aberto agora ({label}): {_friendly(ws[0])}." if label == "navegador" else "")
+        if sub:
+            head = (sub[2] + " " + head).strip()
+            NOTE.update({"pt": f'A IA tentou tirar print do {sub[0]}, mas o {sub[0]} nao esta aberto; so o {sub[1]} esta. Tirando print do {sub[1]}...', "en": f'The AI tried to take a screenshot of {sub[0]} but {sub[0]} is not open; only {sub[1]} is. Taking a screenshot of {sub[1]}...'})
+        return (head + "\n" if head else "") + "\n".join(texts), imgs
     w, sub, infos = resolve_target(t)
     if not w:
         lst = "\n".join(f"- {x['title'][:60]} ({x['exe'] or '?'}, PID {x['pid']})" for x in sorted(infos, key=lambda x: -x["area"])[:15])
         return f"Erro: nao achei nenhum app, janela, exe ou PID parecido com \"{t}\". Abertos agora:\n{lst}\nTente um desses ou use target=\"desktop\".", []
     if sub: NOTE.update({"pt": f'A IA tentou tirar print de "{sub[0]}", mas so achou "{sub[1]}"; tirando print de {sub[1]}...', "en": f'The AI tried to take a screenshot of "{sub[0]}" but only "{sub[1]}" was found; taking a screenshot of {sub[1]}...'})
-    try: img = _capture(w["hwnd"])
-    except Exception as e:   # PrintWindow falhou (ex.: foto preta): tenta a area da janela na tela
-        r = wintypes.RECT(); u32.GetWindowRect(w["hwnd"], ctypes.byref(r)); img = ImageGrab.grab(bbox=(max(0, r.left), max(0, r.top), r.right, r.bottom), all_screens=True)
-    txt, imgs = pack(img, f"\"{w['title'][:60]}\" ({w['exe'] or 'PID ' + str(w['pid'])}, PID {w['pid']})")
+    txt, imgs = shoot(w)
     if sub: txt += f" Voce pediu \"{sub[0]}\", mas so existe \"{sub[1]}\": e dele este print."
     return txt, imgs
 
