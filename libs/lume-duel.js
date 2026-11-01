@@ -13,6 +13,8 @@
         .dl-lvl { display: flex; align-items: center; gap: 10px; font-size: .85em; } .dl-lvl input { flex: 1; }
         .dl-board { display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); width: min(620px, 100%, calc(100vh - 230px)); min-width: 260px; aspect-ratio: 1; margin: 0 auto; border-radius: 8px; overflow: hidden; box-shadow: 0 6px 24px rgba(0,0,0,.35); }
         .dl-sq { aspect-ratio: 1; min-width: 0; min-height: 0; position: relative; display: flex; align-items: center; justify-content: center; } .dl-sq.l { background: #eeeed2; } .dl-sq.d { background: #769656; } .dl-sq.mv::after { content: ''; position: absolute; inset: 0; background: rgba(255, 220, 60, .42); } .dl-sq img { width: 92%; height: 92%; object-fit: contain; z-index: 1; pointer-events: none; }
+        .dl-sq.mv.from::after { background: rgba(255, 200, 60, .30); } .dl-sq.mv.to::after { animation: dlFlash 1.2s ease-out; } .dl-sq img.sliding { position: relative; z-index: 4; filter: drop-shadow(0 6px 8px rgba(0,0,0,.45)); }
+        @keyframes dlFlash { 0% { background: rgba(255, 238, 70, .95); box-shadow: inset 0 0 0 5px rgba(255,255,255,.95); } 100% { background: rgba(255, 220, 60, .42); box-shadow: inset 0 0 0 0 rgba(255,255,255,0); } } @media (prefers-reduced-motion: reduce) { .dl-sq.mv.to::after { animation: none; } }
         .dl-bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: center; } .dl-bar .btn { margin: 0; } .dl-bar select { width: auto; }
         .dl-moves { font-size: .82em; line-height: 1.6; max-height: 120px; overflow-y: auto; padding: 8px 12px; border-radius: 12px; background: rgba(128,128,128,.10); color: var(--text-muted); }
         .dl-plans { display: none; flex-direction: column; gap: 6px; max-height: 260px; overflow-y: auto; padding: 8px; border-radius: 14px; background: rgba(128,128,128,.08); } .dl-plans.on { display: flex; }
@@ -53,7 +55,7 @@
     const PVAL = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 0 }, wp = cp => 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * cp)) - 1);   // wp: chance de ganhar (0..100)
     const cname = k => (typeof curLang === 'function' && curLang() === 'en') ? CLS[k].en : CLS[k].n;
     function startDuel(host) {
-        const u = window.LumeUI, kit = window.lumeGamesKit; let game = null, running = false, token = 0, engine = null, log = [], last = null, delay = 700, rank = false, cls = [], an = {}, planCards = [], startFen = '';   // startFen: posicao montada no editor de tabuleiro ('' = a inicial)
+        const u = window.LumeUI, kit = window.lumeGamesKit; let game = null, running = false, token = 0, engine = null, log = [], last = null, delay = 700, rank = false, cls = [], an = {}, planCards = [], startFen = '', slide = false;   // startFen: posicao montada no editor de tabuleiro ('' = a inicial)
         const show = { brilliant: true, great: true, best: true, excellent: false, good: false, inaccuracy: true, mistake: true, blunder: true };
         const side = { w: { kind: 'model', level: 8, pick: null }, b: { kind: 'engine', level: 5, pick: null } };
         const sides = el('div', 'dl-sides'), board = el('div', 'dl-board'), status = el('div', 'gm-status', ''), bar = el('div', 'dl-bar'), moves = el('div', 'dl-moves', '');
@@ -78,10 +80,14 @@
         function draw() {
             board.textContent = ''; const b = game.board();
             for (let r = 0; r < 8; r++) for (let f = 0; f < 8; f++) {
-                const sq = el('div', 'dl-sq ' + ((r + f) % 2 ? 'd' : 'l') + (last && (last.from === files[f] + (8 - r) || last.to === files[f] + (8 - r)) ? ' mv' : '')), p = b[r][f];
+                const name = files[f] + (8 - r), sq = el('div', 'dl-sq ' + ((r + f) % 2 ? 'd' : 'l') + (last && last.from === name ? ' mv from' : last && last.to === name ? ' mv to' : '')), p = b[r][f]; sq.dataset.sq = name;
                 if (rank && last && last.to === files[f] + (8 - r)) { const c = cls[log.length - 1]; if (c && show[c.key]) { const bd = el('span', 'dl-badge', CLS[c.key].sym); bd.style.background = CLS[c.key].c; bd.title = cname(c.key); sq.appendChild(bd); } }
                 if (p) { const img = document.createElement('img'); img.alt = p.type; img.src = (window.CHESS_PIECES || {})[p.color + p.type.toUpperCase()] || ''; sq.appendChild(img); } board.appendChild(sq);
             }
+            if (slide && last) {   // a peca desliza da casa de origem ate a de destino (so uma vez, logo depois do lance)
+                const a = board.querySelector('[data-sq="' + last.from + '"]'), z = board.querySelector('[data-sq="' + last.to + '"]'), im = z && z.querySelector('img');
+                if (a && im && im.animate) { const ra = a.getBoundingClientRect(), rz = z.getBoundingClientRect(); im.classList.add('sliding'); const an = im.animate([{ transform: 'translate(' + (ra.left - rz.left) + 'px,' + (ra.top - rz.top) + 'px) scale(1.08)' }, { transform: 'none' }], { duration: 300, easing: 'cubic-bezier(.2,.8,.2,1)' }); an.onfinish = an.oncancel = () => im.classList.remove('sliding'); }
+            } slide = false;
             moves.textContent = ''; if (!log.length) moves.textContent = T('(sem lances ainda)');
             const off = startFen && startFen.split(' ')[1] === 'b' ? 1 : 0;   // posicao que comeca com as pretas: o 1o lance e "1..."
             log.forEach((m, i) => { if ((i + off) % 2 === 0) moves.appendChild(document.createTextNode((Math.floor((i + off) / 2) + 1) + '. ')); else if (i === 0) moves.appendChild(document.createTextNode('1... ')); moves.appendChild(document.createTextNode(m)); const c = cls[i]; if (rank && c && show[c.key]) { const ic = el('i', 'dl-cl', CLS[c.key].sym); ic.style.color = CLS[c.key].c; ic.title = cname(c.key); moves.appendChild(ic); } moves.appendChild(document.createTextNode(' ')); }); moves.scrollTop = moves.scrollHeight;
@@ -135,7 +141,7 @@
                 const c = game.turn(); status.textContent = who(c) + ' ' + T('está pensando…') + ' (' + (c === 'w' ? T('Brancas') : T('Pretas')) + ')';
                 let res; try { res = await pickMove(c, my); } catch (e) { status.textContent = T('Erro: ') + String(e.message || e).slice(0, 100); running = false; break; }
                 if (!res || my !== token) return;
-                const fen0 = game.fen(), mv = game.move(res.m.san); log.push(mv.san); last = { from: mv.from, to: mv.to }; draw(); status.textContent = who(c) + ': ' + mv.san + (res.note ? ' — ' + T(res.note) : '');
+                const fen0 = game.fen(), mv = game.move(res.m.san); log.push(mv.san); last = { from: mv.from, to: mv.to }; slide = true; draw(); status.textContent = who(c) + ': ' + mv.san + (res.note ? ' — ' + T(res.note) : '');
                 if (cost && side[c].kind === 'model') { cost.spend((c === 'w' ? T('Brancas') : T('Pretas')), lastUse); if (lastUse) status.textContent += ' · 🌸 ' + lastUse.toFixed(6); }
                 if (explain && side[c].kind === 'model') addPlan(c, mv.san, res.plan, lastUse);
                 if (rank) { try { await classifyPly(log.length - 1, mv, fen0, my); } catch (e) { status.textContent = T('Motor de análise indisponível: ') + String(e.message || e).slice(0, 60); } }

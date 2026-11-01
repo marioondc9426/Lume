@@ -24,6 +24,7 @@
         .chess-board { position: relative; width: var(--cb, 520px); height: var(--cb, 520px); display: grid; grid-template-columns: repeat(8, 1fr); grid-template-rows: repeat(8, 1fr); border-radius: 8px; overflow: hidden; user-select: none; -webkit-user-select: none; touch-action: none; }
         .chess-sq { position: relative; display: flex; align-items: center; justify-content: center; font-size: calc(var(--cb, 520px) / 8 * 0.78); line-height: 1; cursor: pointer; }
         .chess-sq.l { background: var(--cl, #eeeed2); } .chess-sq.d { background: var(--cd, #769656); }
+        .chess-sq.flash { animation: chFlash 1.1s ease-out; } @keyframes chFlash { 0% { box-shadow: inset 0 0 0 100px rgba(255, 238, 70, .75), inset 0 0 0 5px rgba(255,255,255,.9); } 100% { box-shadow: inset 0 0 0 100px rgba(255, 238, 70, 0), inset 0 0 0 0 rgba(255,255,255,0); } } @media (prefers-reduced-motion: reduce) { .chess-sq.flash { animation: none; } }
         .chess-sq.sel { box-shadow: inset 0 0 0 4px rgba(255, 214, 10, .85); } .chess-sq.last { background-image: linear-gradient(rgba(255, 238, 90, .45), rgba(255, 238, 90, .45)); }
         .chess-sq.ill { background-image: linear-gradient(rgba(220, 60, 60, .45), rgba(220, 60, 60, .45)); }
         .chess-sq.chk { background-image: radial-gradient(circle, rgba(255, 40, 40, .9) 0%, rgba(255, 40, 40, 0) 70%); }
@@ -184,7 +185,7 @@
     function leavesKingInCheck(newFen, color) {   // depois de um lance ILEGAL, o rei de quem jogou nao pode ficar em xeque (senao o outro lado o capturaria e a posicao ficaria impossivel)
         try { const t = new Chess(); return t.load(newFen.replace(/ [wb] /, ' ' + color + ' ')) && t.in_check(); } catch (e) { return false; }
     }
-    function pushLegal(fen0, mv) { st.log.push({ san: mv.san, uci: uciOf(mv), fen: fen0, color: mv.color, from: mv.from, to: mv.to }); st.last = { from: mv.from, to: mv.to }; st.illegal = []; }
+    function pushLegal(fen0, mv) { st.anim = { from: mv.from, to: mv.to }; st.log.push({ san: mv.san, uci: uciOf(mv), fen: fen0, color: mv.color, from: mv.from, to: mv.to }); st.last = { from: mv.from, to: mv.to }; st.illegal = []; }
     function rightsAfter(rights, grid) {   // so mantem o roque se o rei e a torre ainda estao nas casas de origem
         const ok = { K: grid[7][4] === 'K' && grid[7][7] === 'R', Q: grid[7][4] === 'K' && grid[7][0] === 'R', k: grid[0][4] === 'k' && grid[0][7] === 'r', q: grid[0][4] === 'k' && grid[0][0] === 'r' };
         return [...(rights === '-' ? '' : rights)].filter(c => ok[c]).join('') || '-';
@@ -222,6 +223,15 @@
             if (col === 0) d.appendChild(mk('span', 'chess-co r', String(r + 1))); if (row === 7) d.appendChild(mk('span', 'chess-co f', FILES[f]));
             if (lastCls && last && last.to === name && (st.opts.rank || rv !== null)) { const bd = mk('span', 'chess-badge', CLS[lastCls.key].sym); bd.style.background = CLS[lastCls.key].c; bd.title = T(CLS[lastCls.key].n) + ' (' + CLS[lastCls.key].en + ')'; d.appendChild(bd); }
             board.insertBefore(d, board.querySelector('.chess-arrows'));
+        }
+        if (st.anim) { st.slide = { from: st.anim.from, to: st.anim.to, t0: Date.now() }; st.anim = null; }
+        if (st.slide && (rv === null || rv === undefined)) {   // acabou de mover: a peca desliza da origem ate o destino e as casas piscam; se o tabuleiro for redesenhado no meio, continua de onde estava
+            const S = st.slide, el = Date.now() - S.t0;
+            if (el > 1200) st.slide = null; else {
+                const a = board.querySelector('.chess-sq[data-sq="' + S.from + '"]'), z = board.querySelector('.chess-sq[data-sq="' + S.to + '"]'), im = z && z.querySelector('.chess-pc');
+                if (a && z) [a, z].forEach(e => { e.classList.add('flash'); e.style.animationDelay = -el + 'ms'; });
+                if (el < 300 && a && z && im && im.animate) { const ra = a.getBoundingClientRect(), rz = z.getBoundingClientRect(); im.style.zIndex = 5; const an = im.animate([{ transform: 'translate(' + (ra.left - rz.left) + 'px,' + (ra.top - rz.top) + 'px) scale(1.08)' }, { transform: 'none' }], { duration: 300, easing: 'cubic-bezier(.2,.8,.2,1)' }); an.currentTime = el; an.onfinish = an.oncancel = () => { im.style.zIndex = ''; }; }
+            }
         }
         drawArrows();
         const over = game.game_over() ? result() : st.over; st.over = over || st.over;
