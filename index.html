@@ -460,25 +460,32 @@
         .msg-files .file-chip { height: 30px; background: rgba(0,0,0,0.25); border-color: rgba(255,255,255,0.2); color: #fff; animation: none; }
 
         /* Ferramentas do agente: chamada, resultado, diff */
-        .tool-call { display: flex; align-items: baseline; gap: 8px; margin: 8px 0; padding: 6px 10px; border-radius: 8px; background: rgba(128,128,128,0.12); border-left: 3px solid var(--accent); font-size: 0.85em; }
-        .tool-call .tc-name { font-weight: bold; color: var(--accent); white-space: nowrap; }
-        .tool-call code { font-family: Consolas, monospace; word-break: break-all; white-space: pre-wrap; }
-        .tool-call.running code { opacity: .6; animation: pulse 1s ease-in-out infinite; }
+        /* ---- chamadas de ferramenta: cartao com icone, nome e alvo; o resultado vem num cartao ligado a ele ---- */
+        .tool-call { display: flex; align-items: center; gap: 10px; margin: 10px 0 0; padding: 8px 12px; border-radius: 12px 12px 4px 4px; background: color-mix(in srgb, var(--text-main) 5%, transparent); border: 1px solid var(--border-color); font-size: 0.85em; position: relative; overflow: hidden; }
+        .tool-call .tc-ico { flex: none; width: 26px; height: 26px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); } .tool-call .tc-ico svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+        .tool-call .tc-name { font-weight: 600; color: var(--text-main); white-space: nowrap; letter-spacing: .01em; }
+        .tool-call code { font-family: Consolas, monospace; font-size: .95em; color: var(--text-muted); word-break: break-all; white-space: pre-wrap; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; min-width: 0; }
+        .tool-call.running::after { content: ''; position: absolute; left: 0; bottom: 0; height: 2px; width: 40%; background: linear-gradient(90deg, transparent, var(--accent), transparent); animation: tcSweep 1.4s ease-in-out infinite; } @keyframes tcSweep { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+        .tool-call.running .tc-ico { animation: pulse 1.2s ease-in-out infinite; } @media (prefers-reduced-motion: reduce) { .tool-call.running::after, .tool-call.running .tc-ico { animation: none; } }
         .tool-call.tc-live { display: block; }
-        .tc-live .tc-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-        .tc-live .tc-head small { opacity: .55; margin-left: auto; }
-        .tc-live .tc-prev { margin: 6px 0 0; padding: 6px 8px; max-height: 120px; overflow: hidden; white-space: pre-wrap; word-break: break-all; font-size: .82em; line-height: 1.35; border-radius: 6px; background: rgba(0,0,0,.22); opacity: .85; }
+        .tc-live .tc-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .tc-live .tc-head small { color: var(--text-muted); margin-left: auto; font-variant-numeric: tabular-nums; }
+        .tc-live .tc-prev { margin: 8px 0 0; padding: 8px 10px; max-height: 120px; overflow: hidden; white-space: pre-wrap; word-break: break-all; font-size: .82em; line-height: 1.4; border-radius: 8px; background: color-mix(in srgb, var(--bg-main) 70%, #000); color: var(--text-muted); }
         details.tool-call { display: block; }
-        details.tool-call > summary { display: flex; align-items: baseline; gap: 8px; cursor: pointer; list-style: none; }
+        details.tool-call > summary { display: flex; align-items: center; gap: 10px; cursor: pointer; list-style: none; }
         details.tool-call > summary::-webkit-details-marker { display: none; }
-        .tool-result { margin: 4px 0 10px; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; font-size: 0.82em; }
-        .tool-result summary { cursor: pointer; padding: 6px 10px; background: rgba(128,128,128,0.1); color: var(--text-muted); display: flex; align-items: center; gap: 6px; user-select: none; }
-        .tool-result.err summary { color: #ff6b6b; }
-        .tool-result pre { margin: 0; padding: 8px 10px; font-family: Consolas, monospace; white-space: pre-wrap; word-break: break-word; max-height: 260px; overflow: auto; }
+        .tool-result { margin: 0 0 10px; border: 1px solid var(--border-color); border-top: none; border-radius: 4px 4px 12px 12px; overflow: hidden; font-size: 0.82em; background: color-mix(in srgb, var(--text-main) 3%, transparent); }
+        .tool-call + .tool-result { margin-top: 0; } .tool-result:not(.tool-call + .tool-result) { border-top: 1px solid var(--border-color); border-radius: 12px; margin-top: 8px; }
+        .tool-result summary { cursor: pointer; padding: 7px 12px; color: var(--text-muted); display: flex; align-items: center; gap: 8px; user-select: none; list-style: none; } .tool-result summary::-webkit-details-marker { display: none; }
+        .tool-result summary::after { content: '›'; margin-left: auto; font-size: 1.3em; line-height: 1; transition: transform .15s; } .tool-result[open] summary::after { transform: rotate(90deg); } .tool-result summary:has(.undo-btn)::after { display: none; }
+        .tool-result summary:hover { color: var(--text-main); }
+        .tool-result .tr-st { flex: none; width: 17px; height: 17px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: #fff; background: #2fa84f; } .tool-result.err .tr-st { background: #e5484d; }
+        .tool-result.err summary { color: #ff7b7b; }
+        .tool-result pre { margin: 0; padding: 10px 12px; font-family: Consolas, monospace; white-space: pre-wrap; word-break: break-word; max-height: 260px; overflow: auto; background: color-mix(in srgb, var(--bg-main) 70%, #000); border-top: 1px solid var(--border-color); }
         .tool-result pre.diff { border-top: 1px solid var(--border-color); }
         .d-add { color: #3fb950; background: rgba(63,185,80,0.12); display: block; } .d-del { color: #ff6b6b; background: rgba(255,107,107,0.12); display: block; }
         .d-hunk { color: #4da3ff; display: block; } .d-meta { color: var(--text-muted); display: block; }
-        .undo-btn { margin-left: auto; padding: 2px 10px; border-radius: 6px; border: 1px solid var(--border-color); background: var(--bg-main); color: var(--text-main); cursor: pointer; font-size: 0.95em; }
+        .undo-btn { margin-left: auto; padding: 2px 12px; border-radius: 999px; border: 1px solid var(--border-color); background: var(--bg-main); color: var(--text-main); cursor: pointer; font-size: 0.95em; }
         .undo-btn:hover:not(:disabled) { background: var(--accent); color: #fff; } .undo-btn:disabled { opacity: .6; cursor: default; }
         .tool-note { color: var(--text-muted); font-style: italic; font-size: 0.9em; }
 
@@ -3380,11 +3387,16 @@
             }
             return null;
         }
+        const TC_ICONS = { terminal: '<path d="M4 17l6-6-6-6M12 19h8"/>', file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/>', edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>', search: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>', globe: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>', folder: '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>', camera: '<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>', mouse: '<path d="M5 3l14 7-6 2-2 6z"/>', keyboard: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/>', window: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18"/>', plug: '<path d="M9 2v6M15 2v6M7 8h10v4a5 5 0 0 1-10 0zM12 17v5"/>', tool: '<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.4-.6-.6-2.4z"/>' };
+        function tcIcon(name) {
+            const n = String(name || '').toLowerCase(), k = /^(cmd|powershell|run_|bash|shell)/.test(n) ? 'terminal' : /edit_file|write_file/.test(n) ? 'edit' : /read_file/.test(n) ? 'file' : /list_files|^ls$/.test(n) ? 'folder' : /search/.test(n) ? 'search' : /read_url|fetch|url|web/.test(n) ? 'globe' : /screenshot/.test(n) ? 'camera' : /mouse|click|scroll/.test(n) ? 'mouse' : /type_text|press_key|key/.test(n) ? 'keyboard' : /window|use_apps|launch_app|close_app/.test(n) ? 'window' : /^mcp|__/.test(n) ? 'plug' : 'tool';
+            return `<span class="tc-ico"><svg viewBox="0 0 24 24" aria-hidden="true">${TC_ICONS[k]}</svg></span>`;
+        }
         function callHtml(c) {
             const a = c.args || {}, arg = a.command ?? a.path ?? a.query ?? a.url ?? '';
             const pre = c.name === 'cmd' ? '$ ' : c.name === 'powershell' ? 'PS> ' : '';
             const extra = c.name === 'edit_file' && a.old != null ? ' (' + tr('{n} caracteres', { n: String(a.old).length }) + ' → ' + tr('{n} caracteres', { n: String(a.new == null ? '' : a.new).length }) + ')' : c.name === 'write_file' && a.content != null ? ' (' + tr('{n} caracteres', { n: String(a.content).length }) + ')' : '';
-            return `<div class="tool-call"><span class="tc-name">${esc(c.name)}</span><code>${esc(pre + String(arg) + extra)}</code></div>`;
+            return `<div class="tool-call">${tcIcon(c.name)}<span class="tc-name">${esc(c.name)}</span><code>${esc(pre + String(arg) + extra)}</code></div>`;
         }
         function colorDiff(d) {
             return d.split('\n').map(l => { const c = /^(\+\+\+|---)/.test(l) ? 'd-meta' : l.startsWith('@@') ? 'd-hunk' : l.startsWith('+') ? 'd-add' : l.startsWith('-') ? 'd-del' : ''; return c ? `<span class="${c}">${esc(l)}</span>` : esc(l) + '\n'; }).join('');
@@ -3396,7 +3408,7 @@
             const txt = body.trim(), err = /^(Erro|Error)\b/.test(txt);
             const open = (diff || txt.split('\n').length <= 12) ? ' open' : '';
             const undo = undoId && auth.local ? `<button class="undo-btn" data-undo="${undoId}">${esc(tr('Desfazer'))}</button>` : '';
-            return `<details class="tool-result${err ? ' err' : ''}"${open}><summary>${err ? '✗' : '✓'} ${esc(tr('resultado de'))} <b>${esc(name)}</b>${undo}</summary>` +
+            return `<details class="tool-result${err ? ' err' : ''}"${open}><summary><span class="tr-st">${err ? '✕' : '✓'}</span><span>${esc(tr('resultado de'))} <b>${esc(name)}</b></span>${undo}</summary>` +
                 (txt ? `<pre>${esc(txt)}</pre>` : '') + (diff ? `<pre class="diff">${colorDiff(diff)}</pre>` : '') + '</details>';
         }
         const NOTE_RE = /\[((?:A IA tentou|The AI tried|a IA inventou|the AI made up|Acao negada|Action denied|Nenhuma ferramenta|No tool was run|formato de ferramenta|invalid tool format|plano B|fallback: native|Geracao parada|Generation stopped|Limite de \d+|Limit of \d+)[^\]]*)\]/g;
@@ -3640,7 +3652,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             const lines = body ? body.split('\n') : [], tail = lines.slice(-6).join('\n'), cut = tail.length > 700 ? '…' + tail.slice(-700) : tail;
             const stat = body ? lines.length + ' ' + tr(lines.length === 1 ? 'linha' : 'linhas') + ' · ' + tr('{n} caracteres', { n: body.length }) : '';
             const pre = name === 'edit_file' && a.new == null && a.old != null ? '− ' : '';
-            return `<div class="tool-call running tc-live"><div class="tc-head"><span class="tc-name">${esc(name)}</span><code>${esc(target || '…')}</code>${stat ? `<small>${esc(stat)}</small>` : ''}</div>` + (cut ? `<pre class="tc-prev">${esc(pre + cut)}</pre>` : '') + '</div>';
+            return `<div class="tool-call running tc-live"><div class="tc-head">${tcIcon(name)}<span class="tc-name">${esc(name)}</span><code>${esc(target || '…')}</code>${stat ? `<small>${esc(stat)}</small>` : ''}</div>` + (cut ? `<pre class="tc-prev">${esc(pre + cut)}</pre>` : '') + '</div>';
         }
         function renderRich(text) {
             if (!text.includes('$$[') && !/\[(?:resultado de|result of) \w+\]/.test(text)) return richPart(text) || fmt(text);
@@ -3659,7 +3671,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                     let endIdx = -1, endLen = 0;
                     for (const em of ['\n[/resultado]', '\n[/result]']) { const p = text.indexOf(em, re.lastIndex); if (p !== -1 && (endIdx === -1 || p < endIdx)) { endIdx = p; endLen = em.length; } }
                     out += richPart(text.slice(i, m.index));
-                    if (endIdx === -1) { out += `<div class="tool-call running"><span class="tc-name">${esc(m[1])}</span><code>…</code></div>`; i = text.length; break; }   // resultado ainda chegando
+                    if (endIdx === -1) { out += `<div class="tool-call running">${tcIcon(m[1])}<span class="tc-name">${esc(m[1])}</span><code>…</code></div>`; i = text.length; break; }   // resultado ainda chegando
                     out += resultHtml(m[1], text.slice(re.lastIndex, endIdx)); i = re.lastIndex = endIdx + endLen;
                 }
             }
