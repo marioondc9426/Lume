@@ -12,7 +12,7 @@
         .cp-col { display: flex; flex-direction: column; min-width: 0; border-radius: 14px; background: rgba(128,128,128,.10); overflow: hidden; }
         .cp-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 12px; font-size: .85em; font-weight: 600; border-bottom: 1px solid var(--border-color); } .cp-head span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .cp-time { font-weight: 400; color: var(--text-muted); font-size: .9em; flex: none; } .cp-time.ok { color: #3fb950; } .cp-time.bad { color: #e5484d; }
-        .cp-text { padding: 10px 12px; font-size: .9em; line-height: 1.5; white-space: pre-wrap; overflow-y: auto; max-height: 46vh; flex: 1; word-break: break-word; }
+        .cp-text { padding: 10px 12px; font-size: .9em; line-height: 1.5; white-space: normal; overflow-y: auto; max-height: 46vh; flex: 1; word-break: break-word; }
         .cp-foot { padding: 6px 10px 10px; display: flex; gap: 6px; } .cp-foot .btn { margin: 0; padding: 4px 11px; font-size: .8em; }
         .cp-q { width: 100%; box-sizing: border-box; min-height: 70px; resize: vertical; }
         .cp-vote { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 12px; border-radius: 14px; background: rgba(128,128,128,.10); } .cp-vote b { font-size: .9em; } .cp-vote .btn { margin: 0; }
@@ -69,16 +69,18 @@
             let chosen = sels.map(s => s.value).filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).map(id => lumeModelById(id)).filter(Boolean);
             if (chosen.length < 2) { if (typeof showInfo === 'function') showInfo(T('Escolha pelo menos 2 modelos diferentes.'), 4000); return; }
             if (blind) chosen = lumeScores.order(chosen, 'random');   // as cegas: a ordem e sorteada, e os nomes ficam escondidos
-            if (ctl) ctl.abort(); ctl = new AbortController(); cols.textContent = ''; voteBox.textContent = ''; cols.style.setProperty('--n', chosen.length);
+            if (ctl) ctl.abort(); ctl = new AbortController(); const my = ctl; stopBtn.style.display = ''; runBtn.disabled = true; cols.textContent = ''; voteBox.textContent = ''; cols.style.setProperty('--n', chosen.length);
             const names = [], pending = []; let finished = 0;
             chosen.forEach((m, i) => {
                 const col = u.el('div', 'cp-col'), head = u.el('div', 'cp-head'), nm = u.el('span', '', blind ? T('Modelo') + ' ' + 'ABC'[i] : label(m)), tm = u.el('span', 'cp-time', '…'); head.append(nm, tm); names.push(nm);
-                const body = u.el('div', 'cp-text', ''), foot = u.el('div', 'cp-foot'); u.button(foot, 'Copiar', () => { try { navigator.clipboard.writeText(body.textContent); } catch (e) { /* sem area de transferencia */ } }); col.append(head, body, foot); cols.appendChild(col);
+                const body = u.el('div', 'cp-text', ''), foot = u.el('div', 'cp-foot'); let raw = '', pt = 0;   // raw = o markdown como veio; a coluna mostra renderizado (como no chat), no maximo ~8x por segundo
+                const paint = () => { pt = 0; body.innerHTML = typeof renderRich === 'function' ? (renderRich(raw) || '') : ''; if (typeof renderRich !== 'function') body.textContent = raw; };
+                u.button(foot, 'Copiar', () => { try { navigator.clipboard.writeText(raw); } catch (e) { /* sem area de transferencia */ } }); col.append(head, body, foot); cols.appendChild(col);
                 const t0 = performance.now(), tick = setInterval(() => { tm.textContent = ((performance.now() - t0) / 1000).toFixed(1) + ' s'; }, 200);
-                const fin = () => { if (++finished === chosen.length) showVote(chosen, names); };
-                lumeAsk({ model: m, user: text, system: '', signal: ctl.signal, onText: t => { body.textContent = t; } })
-                    .then(t => { clearInterval(tick); const s = (performance.now() - t0) / 1000, words = (t.match(/\S+/g) || []).length; body.textContent = t; tm.className = 'cp-time ok'; tm.textContent = s.toFixed(1) + ' s · ' + words + ' ' + T('palavras'); fin(); })
-                    .catch(e => { clearInterval(tick); tm.className = 'cp-time bad'; tm.textContent = T('erro'); if (!body.textContent) body.textContent = String(e.message || e); fin(); });
+                const fin = () => { if (++finished === chosen.length && ctl === my) { stopBtn.style.display = 'none'; runBtn.disabled = false; if (!my.signal.aborted) showVote(chosen, names); } };
+                lumeAsk({ model: m, user: text, system: '', signal: ctl.signal, onText: t => { raw = t; if (!pt) pt = setTimeout(paint, 120); } })
+                    .then(t => { clearInterval(tick); const s = (performance.now() - t0) / 1000, words = (t.match(/\S+/g) || []).length; raw = t; clearTimeout(pt); paint(); tm.className = 'cp-time ok'; tm.textContent = s.toFixed(1) + ' s · ' + words + ' ' + T('palavras'); fin(); })
+                    .catch(e => { clearInterval(tick); const stopped = my.signal.aborted; tm.className = stopped ? 'cp-time' : 'cp-time bad'; tm.textContent = stopped ? T('parado') : T('erro'); clearTimeout(pt); if (!raw) body.textContent = String(e.message || e); else paint(); fin(); });
             });
         };
         function showVote(chosen, names) {   // quando todos terminam: voto -> ranking pessoal (e revela os nomes nas cegas)
@@ -87,6 +89,7 @@
             chosen.forEach((m, i) => u.button(box, blind ? T('Modelo') + ' ' + 'ABC'[i] : label(m), () => done(m, false)));
             u.button(box, 'Empate', () => done(null, true)); voteBox.appendChild(box);
         }
+        const stopBtn = u.button(w.foot, 'Parar', () => { if (ctl) ctl.abort(); }); stopBtn.style.display = 'none';
         runBtn = u.button(w.foot, 'Comparar', run, 'primary');
         q.addEventListener('keydown', e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); run(); } });
         setTimeout(() => q.focus(), 50);
@@ -95,12 +98,14 @@
         let sortBy = 'ms', dir = 1, inclPaid = false, inclLocal = false;
         const bar = u.el('div', 'cp-bar'), status = u.el('div', 'cp-note', ''), tblw = u.el('div', 'cp-tblw');
         const mBtn = u.button(bar, 'Medir velocidade', () => startBench()), xBtn = u.button(bar, 'Parar', () => { if (bench) bench.abort(); }); xBtn.style.display = 'none';
+        let sampleN = 10; bar.appendChild(u.select([['10', '10 modelos'], ['20', '20 modelos'], ['40', '40 modelos']], '10', v => { sampleN = +v; })); u.button(bar, 'Sortear e medir', () => startBench(sampleN));
         u.toggle(bar, 'Incluir pagos', false, v => { inclPaid = v; }); u.toggle(bar, 'Incluir locais', false, v => { inclLocal = v; });
         u.button(bar, 'Atualizar notas de inteligência', async () => { status.textContent = T('Baixando…'); const ok = await lumeScores.load(true); status.textContent = ok ? T('Notas atualizadas.') : T('Não consegui: ') + lumeScores.error; drawTable(); });
         pageB.append(bar, status, tblw);
         pageB.appendChild(u.el('div', 'cp-note', T('O tempo é de uma pergunta minúscula ("responda só: ok"), então mostra a espera até a primeira resposta, não a velocidade de textos longos. "~" = estimativa pela velocidade do Gratisfy, ainda não medido aqui. Modelos pagos gastam um pouquinho do seu saldo; os locais carregam na GPU na primeira vez, por isso ficam de fora por padrão. Inteligência: Artificial Analysis, pelo Gratisfy.')));
-        function startBench() {
-            if (bench) return; const todo = models.filter(m => (inclLocal || lumeScores.cloud(m)) && (inclPaid || !lumeScores.paid(m)) && !m.heavy);
+        function startBench(sample) {   // sample: mede so N modelos sorteados (em vez de todos)
+            if (bench) return; let todo = models.filter(m => (inclLocal || lumeScores.cloud(m)) && (inclPaid || !lumeScores.paid(m)) && !m.heavy);
+            if (sample && todo.length > sample) todo = lumeScores.order(todo, 'random').slice(0, sample);
             if (!todo.length) { status.textContent = T('Nenhum modelo para medir com essas opções.'); return; }
             bench = new AbortController(); mBtn.disabled = true; xBtn.style.display = '';
             lumeScores.measure(todo, { signal: bench.signal, concurrency: 3, onProgress: (d, t, m, r) => { status.textContent = T('Medindo…') + ' ' + d + '/' + t + ' · ' + (m.label || m.id) + ' · ' + (r.ok ? (r.ms / 1000).toFixed(1) + ' s' : T('falhou')); if (d % 4 === 0 || d === t) drawTable(); } })

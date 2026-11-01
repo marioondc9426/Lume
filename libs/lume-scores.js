@@ -11,6 +11,9 @@
     const SPEED_KEY = 'lume_speed_v1', VOTE_KEY = 'lume_arena_v1';
     const rd = k => { try { return JSON.parse(localStorage.getItem(k) || '{}') || {}; } catch (e) { return {}; } };
     const wr = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* sem armazenamento */ } };
+    // cada leitura decodificava o JSON inteiro do localStorage (varias vezes por modelo, e de novo em cada comparacao do sort): a tabela de velocidade e o ranking travavam. Agora fica em memoria.
+    const cache = {}, store = k => cache[k] || (cache[k] = rd(k));
+    window.addEventListener('storage', e => { delete cache[e.key]; });
 
     // ---- inteligencia (Gratisfy). As chaves sao o nome do modelo so com letras e numeros (o mesmo calculo do servidor).
     let table = null, loading = null, loadErr = '';
@@ -43,7 +46,7 @@
     const tps = m => { const e = entry(m); return e && e[1] ? e[1] : null; };
 
     // ---- velocidade medida aqui
-    const speed = () => rd(SPEED_KEY);
+    const speed = () => store(SPEED_KEY);
     const cloud = m => !!(m.cloud || m.pol || m.or || m.cf || m.groq || m.tdc || m.vc || m.l7 || m.x);
     const paid = m => !!((m.pol && !m.free) || (m.xp && (m.credBase || m.credIn || m.credOut)) || m.priceIn > 0 || m.priceOut > 0);
     async function one(m, signal) {
@@ -70,7 +73,7 @@
     const estimated = m => { const r = measured(m); return !(r && r.ok) && !!tps(m); };
 
     // ---- votos da arena (o seu ranking)
-    const votes = () => rd(VOTE_KEY);
+    const votes = () => store(VOTE_KEY);
     function vote(winner, losers, tie) {
         const v = votes(), bump = (id, k) => { const e = v[id] || (v[id] = { w: 0, l: 0, t: 0 }); e[k]++; e.ts = Date.now(); };
         if (tie) [winner].concat(losers).forEach(id => bump(id, 't')); else { bump(winner, 'w'); losers.forEach(id => bump(id, 'l')); }
