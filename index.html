@@ -965,7 +965,7 @@
             html.is-ios body[data-ui="modern"] #settings-modal #set-general > .section-title:not(.ios-hide) { display: block !important; }
         }
         #ollama-login-box .ol-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; } #ollama-login-box .ol-row input { flex: 1 1 100%; } #ollama-login-box .ol-row .btn { margin: 0; white-space: nowrap; }
-        #cost-est { position: absolute; right: 14px; top: 6px; z-index: 3; font-size: 0.72em; color: var(--text-muted); background: color-mix(in srgb, var(--bg-input, var(--bg-main)) 88%, transparent); padding: 2px 8px; border-radius: 999px; pointer-events: none; max-width: 70%; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        #cost-est { position: absolute; right: 14px; top: auto; bottom: calc(100% + 6px); z-index: 3; font-size: 0.72em; color: var(--text-muted); background: color-mix(in srgb, var(--bg-input, var(--bg-main)) 88%, transparent); padding: 2px 8px; border-radius: 999px; pointer-events: none; max-width: 70%; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         #boot-splash { position: fixed; inset: 0; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; background: #1b1b1f; color: #8f8f98; font: 14px system-ui, -apple-system, 'Segoe UI', sans-serif; transition: opacity .28s ease; }
         #boot-splash.out { opacity: 0; pointer-events: none; }
         #boot-splash img { height: 64px; animation: bsPulse 1.6s ease-in-out infinite; }
@@ -1032,6 +1032,9 @@
         @keyframes tlPulse { 0%, 100% { transform: scale(1); opacity: .85; } 50% { transform: scale(1.08); opacity: 1; } }
         @keyframes tlRun { 0% { transform: scaleX(.05) translateX(0); } 60% { transform: scaleX(.6) translateX(30%); } 100% { transform: scaleX(.05) translateX(1900%); } }
         html.theme-switching *:not(#theme-loading):not(#theme-loading *), html.theme-switching *::before, html.theme-switching *::after { transition: none !important; animation: none !important; }
+        #send-group { display: flex; align-items: center; gap: 8px; flex: none; order: 11; }
+        #send-group > .mic-btn { order: 0 !important; } #send-group > #send-btn { order: 1 !important; }
+        body[data-ui="modern"] #send-group { grid-area: send; justify-self: end; order: 0; }
     </style>
     <script src="libs/emoji-shortcodes.js"></script>
     <script src="libs/providers.js"></script>
@@ -1195,8 +1198,10 @@
 
                 <span id="cost-est" style="display:none"></span>
                 <textarea id="prompt" rows="1" placeholder="Digite... (Shift+Enter quebra a linha, / para comandos)" autocomplete="off"></textarea>
-                <button class="btn btn-secondary mic-btn" id="mic-btn" type="button" onclick="lumeMic()" title="Falar (microfone)"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
-                <button class="btn btn-primary send-circle" id="send-btn" onclick="onSendClick()" title="Enviar"><img class="ic" id="send-icon" src="icons/send-horizontal.png"></button>
+                <div id="send-group">
+                    <button class="btn btn-secondary mic-btn" id="mic-btn" type="button" onclick="lumeMic()" title="Falar (microfone)"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+                    <button class="btn btn-primary send-circle" id="send-btn" onclick="onSendClick()" title="Enviar"><img class="ic" id="send-icon" src="icons/send-horizontal.png"></button>
+                </div>
             </div>
         </div>
         <div id="html-panel"><div class="hp-resize"></div><div class="hp-head"><span>Prévia HTML</span><span class="hp-spacer"></span><button type="button" onclick="htmlPreviewWindow()">Abrir em janela</button><button type="button" onclick="closeHtmlPreview()">✕</button></div><iframe id="html-frame" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads"></iframe></div>
