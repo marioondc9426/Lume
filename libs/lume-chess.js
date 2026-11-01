@@ -11,6 +11,9 @@
         mistake: { n: 'Erro', en: 'Mistake', sym: '?', c: '#e58f2a' }, blunder: { n: 'Erro grave', en: 'Blunder', sym: '??', c: '#ca3431' }, miss: { n: 'Perdeu', en: 'Miss', sym: '✕', c: '#ff7769' },
     };
     let game = null, st = null, ov = null, engine = null, engQ = Promise.resolve(), costBar = null;
+    const lsGet = (k, d) => { try { return localStorage.getItem(k) || d; } catch (e) { return d; } }, lsSet = (k, v) => { try { localStorage.setItem(k, String(v)); } catch (e) { /* sem armazenamento */ } };
+    let oppKind = lsGet('lume_chess_opp', 'model') === 'sf' ? 'sf' : 'model', sfLevel = Math.max(0, Math.min(20, parseInt(lsGet('lume_chess_sflevel', '5')) || 5));   // oponente: um modelo ou o Stockfish (nivel 0 a 20)
+    const oppName = () => oppKind === 'sf' ? 'Stockfish ' + sfLevel : T('o modelo');
 
     const css = document.createElement('style');
     css.textContent = `
@@ -87,6 +90,31 @@
         await cmd('uci', /uciok/); w.postMessage('setoption name MultiPV value 2'); await cmd('isready', /readyok/);
         engine = E; return E;
     }
+    function engineMove(level, ms) {   // melhor lance do Stockfish no nivel pedido (0 a 20); depois devolve o motor a forca total, 2 linhas, para a analise
+        const job = engQ.then(async () => {
+            const E = await getEngine(); E.w.postMessage('stop'); await E.cmd('isready', /readyok/, 8000);
+            try {
+                return await new Promise((res, rej) => {
+                    const t = setTimeout(() => { E.on = null; rej(new Error('o Stockfish nao respondeu')); }, ms + 15000);
+                    E.on = l => { const m = /^bestmove (\S+)/.exec(l); if (m) { clearTimeout(t); E.on = null; res(m[1]); } };
+                    E.w.postMessage('setoption name MultiPV value 1'); E.w.postMessage('setoption name Skill Level value ' + level);
+                    E.w.postMessage('position fen ' + game.fen()); E.w.postMessage('go movetime ' + ms);
+                });
+            } finally { E.w.postMessage('setoption name Skill Level value 20'); E.w.postMessage('setoption name MultiPV value 2'); }
+        });
+        engQ = job.catch(() => { /* a fila segue */ }); return job;
+    }
+    async function sfMove() {
+        const my = st.token; st.thinking = true; st.since = Date.now(); st.note = ''; st.moveCost = 0; render();
+        let uci = null, err = '';
+        try { uci = await engineMove(sfLevel, 150 + sfLevel * 70); } catch (e) { err = String(e.message || e).slice(0, 80); }
+        if (my !== st.token) return; st.thinking = false;
+        const legal = gmv(); let mv = uci && legal.find(m => m.from === uci.slice(0, 2) && m.to === uci.slice(2, 4) && (!m.promotion || m.promotion === (uci[4] || 'q')));
+        if (!mv) { mv = legal[Math.floor(Math.random() * legal.length)]; st.note = T('Não consegui usar o Stockfish') + (err ? ': ' + err : '') + ' — ' + T('joguei um lance qualquer por ele.'); }
+        if (!mv) { render(); return; }
+        const fen0 = game.fen(), done = game.move({ from: mv.from, to: mv.to, promotion: mv.promotion }); pushLegal(fen0, done);
+        st.arrows = []; st.marks = []; render(); afterMove(); runPremove();
+    }
     const wpct = cp => 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * cp)) - 1);   // 0..100 (chance de ganhar), do ponto de vista de quem tem o cp positivo
     function fenSafe(fen) {   // lance ilegal do modelo pode deixar uma posicao impossivel (sem rei, reis colados, quem acabou de jogar em xeque...): o Stockfish cai com isso
         try {
@@ -145,7 +173,7 @@
     }
     function result() {
         if (game.in_checkmate() && !mateOk()) return T('Empate: material insuficiente.');
-        if (game.in_checkmate()) return game.turn() === st.human ? T('Xeque-mate: o modelo ganhou.') : T('Xeque-mate: você ganhou!');
+        if (game.in_checkmate()) return game.turn() === st.human ? (oppKind === 'sf' ? T('Xeque-mate: o Stockfish ganhou.') : T('Xeque-mate: o modelo ganhou.')) : T('Xeque-mate: você ganhou!');
         if (game.in_stalemate()) return T('Empate por afogamento.');
         if (game.insufficient_material()) return T('Empate: material insuficiente.');
         if (game.in_threefold_repetition()) return T('Empate por repetição.');
@@ -178,7 +206,7 @@
 
     function thinkTxt() {   // "O modelo esta pensando... 12 s" (e um aviso se demorar)
         const sec = st.since ? Math.floor((Date.now() - st.since) / 1000) : 0;
-        return T('O modelo está pensando…') + (st.since ? ' ' + sec + ' s' + (sec >= 25 ? ' — ' + T('está lento; um modelo menor ou mais rápido joga mais depressa.') : '') : '');
+        return (oppKind === 'sf' ? T('O Stockfish está pensando…') : T('O modelo está pensando…')) + (st.since ? ' ' + sec + ' s' + (sec >= 25 ? ' — ' + T('está lento; um modelo menor ou mais rápido joga mais depressa.') : '') : '');
     }
     function render() {
         if (!ov) return;
@@ -197,7 +225,7 @@
         }
         drawArrows();
         const over = game.game_over() ? result() : st.over; st.over = over || st.over;
-        const turnTxt = game.turn() === st.human ? T('Sua vez.') + (game.in_check() ? ' ' + T('Você está em xeque!') : '') : (st.thinking ? thinkTxt() : T('Vez do modelo.'));
+        const turnTxt = game.turn() === st.human ? T('Sua vez.') + (game.in_check() ? ' ' + T('Você está em xeque!') : '') : (st.thinking ? thinkTxt() : (oppKind === 'sf' ? T('Vez do Stockfish.') : T('Vez do modelo.')));
         let line = st.busy || (st.rk > 0 && rv === null ? T('Analisando o lance…') : '') || (rv !== null && rv !== undefined ? '' : (st.over || turnTxt)) + (st.note ? ' ' + st.note : '');
         if (rv !== null && rv !== undefined) { const A = st.an[rv < st.log.length ? st.log[rv].fen : game.fen()]; line = (rv === 0 ? T('Posição inicial.') : T('Depois do lance') + ' ' + rv + ' (' + st.log[rv - 1].san + ')') + (lastCls ? ' · ' + T(CLS[lastCls.key].n) : '') + (A && A.lines[0] ? ' · ' + T('Melhor') + ': ' + sanOf(g, A.best) + ' (' + evalTxt(A.lines[0]) + ')' : ''); }
         else if (st.opts.rank && lastCls && !st.busy && !st.rk) line += ' · ' + T('Último lance') + ': ' + T(CLS[lastCls.key].n);
@@ -272,6 +300,7 @@
     }
     async function aiMove() {
         if (!game || game.game_over() || st.over || game.turn() === st.human) return;
+        if (oppKind === 'sf') return sfMove();
         const my = st.token; st.moveCost = 0; st.thinking = true; st.since = Date.now(); st.note = ''; const tick = setInterval(() => { if (!st.thinking || my !== st.token) { clearInterval(tick); return; } const el = ov && ov.querySelector('.chess-status'); if (el && el.textContent.startsWith(T('O modelo está pensando…'))) el.textContent = thinkTxt() + (st.note ? ' ' + st.note : ''); }, 1000); render();   // o contador de segundos mostra que ele nao travou
         const color = game.turn() === 'w' ? 'brancas' : 'pretas', legal = gmv().map(m => m.san), free = st.opts.illegal, fen0 = game.fen(), inCheck = game.in_check();
         const sys = free ? 'Você joga xadrez de verdade e quer ganhar. Em cada vez, responda SOMENTE com o seu lance em coordenadas (exemplos: e2e4, g1f3, e7e8q). Nada de explicação, nada de outro texto.' + (st.opts.noSpawn ? '' : ' Em vez de mover, você também pode CRIAR uma peça sua do nada numa casa, escrevendo +peça@casa (exemplo: +Q@d5 cria uma dama sua em d5).')
@@ -436,7 +465,12 @@
         const bw = mk('div', 'chess-bw'); wrap.appendChild(bw); const evb = mk('div', 'chess-eval'); evb.appendChild(mk('i')); evb.appendChild(mk('b')); bw.appendChild(evb);
         const board = mk('div', 'chess-board'); board.appendChild(document.createElementNS('http://www.w3.org/2000/svg', 'svg')); const svg = board.lastChild; svg.setAttribute('class', 'chess-arrows'); svg.setAttribute('viewBox', '0 0 8 8'); bw.appendChild(board);
         const side = mk('div', 'chess-side'); wrap.appendChild(side); side.appendChild(mk('h3', '', T('Xadrez contra um modelo')));
-        const pk = window.lumeModelPicker({ models, value: typeof selectedModel !== 'undefined' ? selectedModel : '', onPick: () => { if (st && !st.log.length) { st.token = Math.random(); newGame({ model: pk.get(), color: colorVal }); } } }); side.appendChild(pk.el);   // o mesmo seletor do chat (libs/lume-modelpick.js)
+        const pk = window.lumeModelPicker({ models, value: typeof selectedModel !== 'undefined' ? selectedModel : '', onPick: () => { if (st && !st.log.length) { st.token = Math.random(); newGame({ model: pk.get(), color: colorVal }); } } }); side.appendChild(pk.el);
+        const oppSeg = LumeUI.seg(side, [['model', 'Modelo'], ['sf', 'Stockfish']], oppKind, v => { oppKind = v; lsSet('lume_chess_opp', v); syncOpp(); render(); }); side.insertBefore(oppSeg, pk.el);
+        const lvlRow = mk('div', 'chess-row'), lvlLab = mk('span', '', ''), lvlRange = document.createElement('input'); lvlRange.type = 'range'; lvlRange.min = 0; lvlRange.max = 20; lvlRange.value = sfLevel; lvlRange.style.cssText = 'flex:none;width:100%;accent-color:var(--accent)';
+        const lvlTxt = () => { lvlLab.textContent = T('Nível do Stockfish') + ': ' + sfLevel + ' (' + T('0 = iniciante, 20 = força máxima') + ')'; }; lvlTxt();
+        lvlRange.oninput = () => { sfLevel = +lvlRange.value; lsSet('lume_chess_sflevel', sfLevel); lvlTxt(); }; lvlRow.style.cssText = 'flex-direction:column;align-items:stretch;gap:4px;font-size:.85em'; lvlRow.append(lvlLab, lvlRange); side.insertBefore(lvlRow, pk.el);
+        function syncOpp() { if (costBar) costBar.el.style.display = oppKind === 'sf' ? 'none' : ''; pk.el.style.display = oppKind === 'sf' ? 'none' : ''; lvlRow.style.display = oppKind === 'sf' ? '' : 'none'; } syncOpp();   // o mesmo seletor do chat (libs/lume-modelpick.js)
         const optBox = mk('details', 'chess-opts'); optBox.appendChild(mk('summary', '', T('Opções')));
         let colorVal = 'w'; LumeUI.seg(side, [['w', 'Brancas'], ['b', 'Pretas'], ['random', 'Aleatório']], colorVal, v => { colorVal = v; if (st && !st.log.length) { st.token = Math.random(); newGame({ model: pk.get(), color: colorVal }); } });
         const opt = (id, label, key) => LumeUI.toggle(optBox, label, st ? !!st.opts[key] : key === 'noSpawn', v => { st.opts[key] = v; if (key === 'rank') { if (v) rankBackfill(); render(); } }, id);
