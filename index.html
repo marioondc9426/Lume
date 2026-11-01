@@ -457,6 +457,10 @@
         .tool-call .tc-name { font-weight: bold; color: var(--accent); white-space: nowrap; }
         .tool-call code { font-family: Consolas, monospace; word-break: break-all; white-space: pre-wrap; }
         .tool-call.running code { opacity: .6; animation: pulse 1s ease-in-out infinite; }
+        .tool-call.tc-live { display: block; }
+        .tc-live .tc-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+        .tc-live .tc-head small { opacity: .55; margin-left: auto; }
+        .tc-live .tc-prev { margin: 6px 0 0; padding: 6px 8px; max-height: 120px; overflow: hidden; white-space: pre-wrap; word-break: break-all; font-size: .82em; line-height: 1.35; border-radius: 6px; background: rgba(0,0,0,.22); opacity: .85; }
         details.tool-call { display: block; }
         details.tool-call > summary { display: flex; align-items: baseline; gap: 8px; cursor: pointer; list-style: none; }
         details.tool-call > summary::-webkit-details-marker { display: none; }
@@ -1676,7 +1680,7 @@
         // ---------- idiomas: o texto-fonte esta em portugues; EN traduz pelo texto exato ----------
         const EN = {
             // barra de titulo / overlay / lateral
-            'Tentar com outro modelo': 'Try another model', 'Deixa eu ver o que houve…': 'Let me see what happened…', 'Não conheço esse erro ainda. Tente de novo ou escolha outro modelo.': 'I don\'t know this error yet. Try again or pick another model.', 'Esse provedor limitou os pedidos. Espere um pouquinho ou escolha outro modelo.': 'This provider limited the requests. Wait a moment or pick another model.', 'A chave parece inválida ou sem permissão. Confira em Configurações > Chaves de API.': 'The key looks invalid or lacks permission. Check Settings > API keys.', 'Acabou o saldo desse provedor. Escolha um modelo grátis ou outro provedor.': 'This provider is out of balance. Pick a free model or another provider.', 'O seu plano não cobre esse modelo. Escolha outro da lista.': 'Your plan doesn\'t cover this model. Pick another from the list.', 'O provedor não respondeu. Ele pode estar fora do ar: tente outro modelo.': 'The provider did not respond. It may be down: try another model.', 'O provedor respondeu vazio. Tente de novo ou troque de modelo.': 'The provider answered empty. Try again or switch models.', 'Minimizar': 'Minimize', 'Maximizar': 'Maximize', 'Fechar': 'Close',
+            'Tentar com outro modelo': 'Try another model', 'Deixa eu ver o que houve…': 'Let me see what happened…', 'Não conheço esse erro ainda. Tente de novo ou escolha outro modelo.': 'I don\'t know this error yet. Try again or pick another model.', 'Esse provedor limitou os pedidos. Espere um pouquinho ou escolha outro modelo.': 'This provider limited the requests. Wait a moment or pick another model.', 'A chave parece inválida ou sem permissão. Confira em Configurações > Chaves de API.': 'The key looks invalid or lacks permission. Check Settings > API keys.', 'Acabou o saldo desse provedor. Escolha um modelo grátis ou outro provedor.': 'This provider is out of balance. Pick a free model or another provider.', 'O seu plano não cobre esse modelo. Escolha outro da lista.': 'Your plan doesn\'t cover this model. Pick another from the list.', 'O provedor não respondeu. Ele pode estar fora do ar: tente outro modelo.': 'The provider did not respond. It may be down: try another model.', 'O provedor respondeu vazio. Tente de novo ou troque de modelo.': 'The provider answered empty. Try again or switch models.', 'linhas': 'lines', 'linha': 'line', 'Minimizar': 'Minimize', 'Maximizar': 'Maximize', 'Fechar': 'Close',
             '📊 Desempenho': '📊 Performance', 'Status: Ocioso': 'Status: Idle', 'Palavras/s: --': 'Words/s: --',
             'Palavras/s': 'Words/s', 'N/D': 'N/A', ' (est.)': ' (est.)',
             'Não conectado ao servidor.': 'Not connected to the server.', 'Conectar': 'Connect',
@@ -3525,6 +3529,21 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             copyText(b.closest('.codeblock').querySelector('code').textContent);
             const old = b.textContent; b.textContent = tr('Copiado ✓'); setTimeout(() => { b.textContent = old; }, 1300);
         });
+        // ---- cartao "executando" com uma previa ao vivo do que o modelo esta escrevendo (arquivo, comando, trecho) enquanto a chamada ainda chega
+        const jsonUnesc = s => s.replace(/\\(u[0-9a-fA-F]{4}|[\s\S])/g, (x, c) => c[0] === 'u' && c.length === 5 ? String.fromCharCode(parseInt(c.slice(1), 16)) : ({ n: '\n', t: '\t', r: '', b: '', f: '' }[c] ?? c));
+        function partialArgs(raw) {   // campos de texto do JSON mesmo que ele ainda nao tenha fechado
+            const o = {}, re = /"(path|command|query|url|content|old|new)"\s*:\s*"((?:[^"\\]|\\[\s\S])*)/g; let m;
+            while ((m = re.exec(raw))) o[m[1]] = jsonUnesc(m[2]);
+            return o;
+        }
+        function livePreviewHtml(name, rest) {
+            const a = partialArgs(rest), target = a.path || a.query || a.url || '';
+            const body = a.content != null ? a.content : a.command != null ? a.command : a.new != null ? a.new : a.old != null ? a.old : '';
+            const lines = body ? body.split('\n') : [], tail = lines.slice(-6).join('\n'), cut = tail.length > 700 ? '…' + tail.slice(-700) : tail;
+            const stat = body ? lines.length + ' ' + tr(lines.length === 1 ? 'linha' : 'linhas') + ' · ' + tr('{n} caracteres', { n: body.length }) : '';
+            const pre = name === 'edit_file' && a.new == null && a.old != null ? '− ' : '';
+            return `<div class="tool-call running tc-live"><div class="tc-head"><span class="tc-name">${esc(name)}</span><code>${esc(target || '…')}</code>${stat ? `<small>${esc(stat)}</small>` : ''}</div>` + (cut ? `<pre class="tc-prev">${esc(pre + cut)}</pre>` : '') + '</div>';
+        }
         function renderRich(text) {
             if (!text.includes('$$[') && !/\[(?:resultado de|result of) \w+\]/.test(text)) return richPart(text) || fmt(text);
             let out = '', i = 0, m; const re = /\$\$\s*\[|\[(?:resultado de|result of) (\w+)\]\n/g;
@@ -3534,7 +3553,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                     const c = parseCallAt(text, m.index);
                     if (!c) {   // chamada ainda chegando (o JSON nao fechou): em vez do texto cru, um cartao "executando"; o texto fica numa seta (aparece inteiro quando fecha)
                         const hd = text.slice(m.index).match(/^\$\$\s*\[\s*(?:TOOL\s*[:\s]\s*)?(\w+)[^\]\n]*\]?\s*(?=\{|$)/i);
-                        if (hd && hd[1] && !/^(?:resultado|result)$/i.test(hd[1])) { out += richPart(text.slice(i, m.index)) + `<details class="tool-call running"><summary><span class="tc-name">${esc(hd[1].toLowerCase())}</span><code>…</code></summary><pre style="white-space:pre-wrap;max-height:200px;overflow:auto;margin:6px 0 0">${esc(text.slice(m.index))}</pre></details>`; i = text.length; break; }
+                        if (hd && hd[1] && !/^(?:resultado|result)$/i.test(hd[1])) { out += richPart(text.slice(i, m.index)) + livePreviewHtml(hd[1].toLowerCase(), text.slice(m.index + hd[0].length)); i = text.length; break; }
                         continue;
                     }
                     out += richPart(text.slice(i, m.index)) + callHtml(c); i = re.lastIndex = c.end;
