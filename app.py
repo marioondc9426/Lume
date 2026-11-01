@@ -2468,7 +2468,8 @@ POL_MODELS = [
     ("community/scriptsnsenses-sys/muse-spark-1.3-contributor", {"free": True, "flaky": True, "tabs": "code", "warn": "Este provedor registra (loga) as suas conversas. Nao envie nada privado ou secreto."}),
     ("community/CloudCompile/poolside-laguna-s-2.1:free", {"free": True, "tabs": "code"}),
     ("community/ZapGaming/llama3.1-8b-xturbo", {"free": True, "speed": 2, "tabs": "both"}),
-    ("community/Saauf/minimax-m3.1-flash", {"tabs": "both"}), ("community/mikl-shortcuts/ministral-3", {"tabs": "both"}), ("minimax/minimax-m3", {"tabs": "both"}),
+    ("community/Saauf/mistral-large-4", {"tabs": "both"}), ("community/Saauf/laguna-xs-2.1", {"tabs": "code"}),
+    ("community/Saauf/minimax-m3.1-flash", {"tabs": "both"}),("community/mikl-shortcuts/ministral-3", {"tabs": "both"}), ("minimax/minimax-m3", {"tabs": "both"}),
     # modelos que ja existiam oficiais: a versao da comunidade (mais barata) vira a padrao e a oficial fica de reserva (o Lume ordena pelo preco)
     ("moonshotai/kimi-k2.6", {"tabs": "both"}), ("moonshotai/kimi-k3", {"tabs": "both", "keep": True}), ("community/vendouple/kimi-k3", {"tabs": "both", "prio": True}),
     ("community/sonofstrange/gpt-6.1-sol-quest", {"tabs": "both", "keep": True}), ("community/JustScriptzz/gpt-5.6-sol", {"tabs": "both", "keep": True}),
