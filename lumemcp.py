@@ -236,6 +236,15 @@ def tool_defs():
                 if full not in names: out.append({"full": full, "server": sname, "tool": kind, "kind": kind, "description": desc, "schema": schema})
     return out
 
+def resolve(name):
+    """O modelo as vezes escreve o nome sem o prefixo (execute_luau) ou com outra caixa. Devolve o nome completo certo, ou o proprio nome se nao achar (ou se for ambiguo)."""
+    n = str(name or ""); defs = tool_defs()
+    if any(d["full"] == n for d in defs): return n
+    low = n.lower(); hits = [d for d in defs if d["full"].lower() == low]
+    if not hits: hits = [d for d in defs if d["tool"].lower() == low or _safe(d["tool"]).lower() == _safe(n).lower()]
+    if not hits: hits = [d for d in defs if d["full"].lower().endswith("__" + _safe(n).lower())]
+    return hits[0]["full"] if len(hits) == 1 else n
+
 def find_tool(full):
     for d in tool_defs():
         if d["full"] == full: return d

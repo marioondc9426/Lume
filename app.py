@@ -167,7 +167,56 @@ if os.name == 'nt':
     os.system("")  # habilita cores ANSI no terminal do Windows
 
 _ANSI = re.compile(r"\033\[[0-9;]*m")
+# ---- o terminal acompanha o idioma do app: com o app em ingles, as mensagens conhecidas saem em ingles (as que nao estao na lista ficam como estao)
+UI_LANG = "pt"
+LOG_TAGS_EN = {"AGENTE": "AGENT", "PERMISSAO": "PERMISSION", "INICIO": "START", "SAIDA": "EXIT", "HISTORICO": "HISTORY", "ERRO": "ERROR", "ERRO · DETALHES": "ERROR · DETAILS", "USUARIO": "USER", "TOOL · RESULTADO": "TOOL · RESULT",
+               "IA · MENSAGEM COMPLETA": "AI · FULL MESSAGE", "IA · RESPOSTA": "AI · RESPONSE", "IA · RACIOCINIO": "AI · REASONING", "SERVIDOR": "SERVER", "SEGURANCA": "SECURITY", "MODELO": "MODEL", "CONFIG": "CONFIG", "CODIGO": "CODE",
+               "AMIGOS": "FRIENDS", "CONTA": "ACCOUNT", "TUNEL": "TUNNEL", "BANDEJA": "TRAY", "JANELA": "WINDOW", "MEMORIA": "MEMORY", "ARQUIVO": "FILE", "CHAVES": "KEYS", "ESFORCO": "EFFORT", "SAUDE": "HEALTH", "TEMA": "THEME", "DESFAZER": "UNDO", "EXPORTAR": "EXPORT", "STATS": "STATS"}
+LOG_EN = [(re.compile(p), r) for p, r in [
+    (r"^concluido: (\d+) caracteres em ([\d.]+)s$", r"done: \1 characters in \2s"),
+    (r"^modelo=", "model="), (r" modo=agente", " mode=agent"), (r" modo=chat", " mode=chat"), (r" mensagens=", " messages="), (r" imagens=", " images="), (r" contexto=", " context="), (r"=padrao", "=default"), (r" pensar=", " think="), (r" origem=", " origin="),
+    (r"^resultado de (.+): (\d+) caracteres$", r"result of \1: \2 characters"),
+    (r"^Limite de passos atingido$", "Step limit reached"),
+    (r"^A IA nao conseguiu chamar a ferramenta no formato certo; nada foi executado\.", "The AI could not call the tool in the right format; nothing was run."),
+    (r"A IA INVENTOU o resultado de uma ferramenta", "The AI MADE UP a tool result"), (r"A IA disse que ia agir mas nao chamou nenhuma ferramenta", "The AI said it would act but called no tool"), (r"A IA errou o formato da chamada", "The AI got the call format wrong"),
+    (r"; chamando a atencao dela\. Mensagem COMPLETA dela, sem filtro:", "; getting its attention. Its FULL message, unfiltered:"),
+    (r"^Plano B \(chamada nativa do Ollama\) funcionou: ", "Fallback (native Ollama call) worked: "), (r"^Plano B falhou: ", "Fallback failed: "),
+    (r"^Aguardando o usuario: ", "Waiting for the user: "), (r"^Aprovado pelo usuario$", "Approved by the user"), (r"^MCP permitido sozinho: ", "MCP auto-allowed: "), (r"^Permitido sozinho: ", "Auto-allowed: "), (r"^Bloqueado \(", "Blocked ("),
+    (r"^(\d+) tokens em ([\d.]+)s = ([\d.]+) t/s \| prompt (\d+) tokens \((\d+) t/s\) \| carga do modelo ([\d.]+)s \| total ([\d.]+)s$", r"\1 tokens in \2s = \3 t/s | prompt \4 tokens (\5 t/s) | model load \6s | total \7s"),
+    (r"^(\d+) chat\(s\) salvos$", r"\1 chat(s) saved"), (r"^Parada solicitada pelo usuario$", "Stop requested by the user"),
+    (r"^Interface carregada", "Interface loaded"), (r"^Pagina (.+) aberta", r"Page \1 opened"), (r" por (\d+\.)", r" by \1"),
+    (r"^Abrindo janela\.\.\.$", "Opening window..."), (r"^Pasta do programa: ", "Program folder: "), (r"^Aceleracao de hardware: ", "Hardware acceleration: "), (r"^Groq: biblioteca ok$", "Groq: library ok"), (r"^Groq: biblioteca NAO instalada", "Groq: library NOT installed"),
+    (r"^Janela fechada\. Desligando as IAs\.\.\.$", "Window closed. Shutting down the AIs..."), (r"^Tudo desligado\.$", "Everything is off."), (r"^Modelo (.+) desligado\.$", r"Model \1 unloaded."),
+    (r"^Rodando em (.+) \(somente neste PC\)$", r"Running at \1 (this PC only)"), (r"^ACESSO REMOTO LIGADO na porta (\d+)\. Enderecos: ", r"REMOTE ACCESS ON at port \1. Addresses: "),
+    (r"^Senha do servidor gerada \(veja em Configuracoes > Servidor\)\.$", "Server password generated (see Settings > Server)."), (r"^Dispositivo conectado: ", "Device connected: "), (r"^Dispositivo desconectado\.?$", "Device disconnected"),
+    (r"^Ollama nao esta rodando\. Iniciando\.\.\.$", "Ollama is not running. Starting..."), (r"^Ollama pronto\.$", "Ollama ready."), (r"^Comando 'ollama' nao encontrado\.", "'ollama' command not found."),
+    (r"^Carregando (.+)\.\.\.$", r"Loading \1..."), (r"^(.+) carregado em ([\d.]+)s$", r"\1 loaded in \2s"), (r"^(.+) desligado\.$", r"\1 unloaded."), (r"^Baixando (.+)\.\.\.$", r"Downloading \1..."), (r"^(.+) pronto\.$", r"\1 ready."), (r"^(.+) apagado\.$", r"\1 deleted."),
+    (r"^Conferindo atualizacoes de (\d+) modelo\(s\)\.\.\.$", r"Checking updates for \1 model(s)..."), (r"^Falha ao carregar (.+): ", r"Failed to load \1: "),
+    (r"^(\d+) resultado\(s\) via (.+)$", r"\1 result(s) via \2"), (r"^Resultado reaproveitado do cache \(busca repetida, sem custo\)\.$", "Result reused from cache (repeated search, no cost)."), (r"^Pesquisa falhou em todas as fontes", "Search failed in every source"),
+    (r"^Configuracoes salvas", "Settings saved"), (r"^Criando config padrao", "Creating default config"), (r"^Leitura de GPU a cada (\d+) ms$", r"GPU read every \1 ms"), (r"^nvidia-smi nao encontrado: sem metricas de GPU\.$", "nvidia-smi not found: no GPU metrics."),
+    (r"^Rodando (\w+): ", r"Running \1: "), (r"^Instalando: ", "Installing: "), (r"^Arquivo restaurado para a versao anterior\.", "File restored to the previous version."),
+    (r"^Estatisticas apagadas\.$", "Statistics cleared."), (r"^Terminal do log aberto", "Log terminal opened"), (r"^Icone da bandeja ligado\.$", "Tray icon on."),
+]]
+def _log_en(tag, msg):
+    tag = LOG_TAGS_EN.get(tag, tag)
+    for rx, rp in LOG_EN: msg = rx.sub(rp, msg)
+    return tag, msg
+
+def set_ui_lang(l):
+    """Guarda o idioma do app (vem da interface) para o terminal e as mensagens do servidor."""
+    global UI_LANG
+    l = "en" if l == "en" else "pt"
+    if l == UI_LANG: return
+    UI_LANG = l
+    try:
+        cfg = load_config()
+        if cfg.get("ui_lang") != l: cfg["ui_lang"] = l; save_config(cfg)
+    except Exception: pass
+
 def log(tag, msg, color=COLOR_RESET):
+    if UI_LANG == "en":
+        try: tag, msg = _log_en(tag, str(msg))
+        except Exception: pass
     line = f"{COLOR_GRAY}{time.strftime('%H:%M:%S')}{COLOR_RESET} {color}[{tag}]{COLOR_RESET} {msg}"
     try:
         if not sys.stdout.isatty(): line = _ANSI.sub("", line)   # arquivo de log sem codigos de cor
@@ -265,6 +314,8 @@ def load_config():
     cfg.setdefault("openrouter_api_key", "")     # chave do OpenRouter (so modelos gratis)
     cfg.setdefault("cloudflare_api_token", "")   # Cloudflare Workers AI: token + id da conta
     cfg.setdefault("cloudflare_account_id", "")
+    cfg.setdefault("log_full", True)              # o terminal mostra cada mensagem crua da IA, o raciocinio e os resultados (desligue em Configuracoes se for muito)
+    cfg.setdefault("ui_lang", "pt")
     cfg.setdefault("mcp_auto_allow", False)      # aceitar sozinho as ferramentas MCP (sem perguntar)
     cfg.setdefault("mcp_servers", {})            # servidores MCP: {nome: {command, args, env, enabled}}
     cfg.setdefault("pollinations_api_key", "")   # Pollinations: modelos que gastam pollen
@@ -2117,7 +2168,7 @@ def parse_ratelimit(h):
 def _sse_chat(response, t0, err_map, first_timeout=None, idle_timeout=None):
     """Le a resposta em stream (SSE) de uma API compativel com OpenAI e gera ('content'|'thinking'|'stats', valor).
     Se nao chegar nenhum dado dentro do tempo (first_timeout no comeco, idle_timeout depois), a conexao e cortada e vira um erro."""
-    first = None; usage = None; cut = False; tcalls = {}; limits = parse_ratelimit(getattr(response, "headers", None)); extra = []   # extra: linhas que nao sao SSE (alguns provedores respondem 200 com um JSON de erro ou a resposta inteira)
+    first = None; usage = None; cut = False; tcalls = {}; _tc_status = 0.0; limits = parse_ratelimit(getattr(response, "headers", None)); extra = []   # extra: linhas que nao sao SSE (alguns provedores respondem 200 com um JSON de erro ou a resposta inteira)
     first_timeout = first_timeout or CLOUD_FIRST_TIMEOUT; idle_timeout = idle_timeout or CLOUD_IDLE_TIMEOUT
     state = {"timed": False, "limit": first_timeout}
     def arm(secs):
@@ -2149,6 +2200,8 @@ def _sse_chat(response, t0, err_map, first_timeout=None, idle_timeout=None):
                 for tc in delta.get("tool_calls") or []:   # chamada de ferramenta nativa: o nome e os argumentos chegam em pedacos
                     first = first or time.time(); fn = tc.get("function") or {}; c = tcalls.setdefault(tc.get("index", 0), {"name": "", "args": ""})
                     c["name"] += str(fn.get("name") or ""); c["args"] += str(fn.get("arguments") or "")
+                    if time.time() - _tc_status > 0.7 and c["name"]:   # a chamada chega em pedacos e nada aparece no chat ate o fim: mostra o andamento
+                        _tc_status = time.time(); yield "status", f"Escrevendo a chamada de {c['name']} ({len(c['args'])} caracteres)"
                 if ch.get("finish_reason") == "length": cut = True
     except Exception:
         if state["timed"]: raise Exception(f"O provedor parou de responder (sem dados por {state['limit']} s).") from None
@@ -2168,7 +2221,7 @@ def _sse_chat(response, t0, err_map, first_timeout=None, idle_timeout=None):
         if m.get("content"): yield "content", str(m["content"]); return
         raise Exception("O provedor respondeu vazio" + (": " + body[:150] if body else " (sem texto)") + ". Tente de novo ou escolha outro modelo.")
     if cut: yield "content", "\n\n[Cortado: o modelo atingiu o limite de tokens da resposta]"
-    calls_txt = ["$$[TOOL: %s] %s$$" % (c["name"], c["args"] or "{}") for _, c in sorted(tcalls.items())[:5] if c["name"] in TOOL_NAMES or str(c["name"]).startswith("mcp__")]
+    calls_txt = ["$$[TOOL: %s] %s$$" % (lumemcp.resolve(c["name"]) if (lumemcp and c["name"] not in TOOL_NAMES) else c["name"], c["args"] or "{}") for _, c in sorted(tcalls.items())[:5] if c["name"]]   # nome desconhecido tambem passa: o laco responde "essa ferramenta nao existe" em vez de engolir a chamada
     if calls_txt: yield "content", chr(10).join(calls_txt)   # tudo num pedaco so: o laco do agente le a primeira e depois as outras
     if usage and usage.get("completion_tokens"):
         now = time.time(); win = max(0.001, now - (first or t0)); total = max(0.001, now - t0)
@@ -3515,6 +3568,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 cfg["start_with_terminal"] = bool(data["start_with_terminal"]); save_config(cfg); set_terminal(cfg["start_with_terminal"])
             if "auto_update_models" in data:
                 cfg["auto_update_models"] = bool(data["auto_update_models"]); save_config(cfg)
+            if "ui_lang" in data: set_ui_lang(data["ui_lang"]); cfg = load_config()
             if "log_full" in data:
                 cfg["log_full"] = bool(data["log_full"]); save_config(cfg)
             if "hw_accel" in data:
@@ -3865,6 +3919,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
     def handle_chat(self, req_json, local=True, guest=None):
         lang = 'en' if req_json.get('lang') == 'en' else 'pt'
+        set_ui_lang(lang)
         L = lambda pt, en: en if lang == 'en' else pt
         cfg = load_config()
         agent = bool(req_json.get("agent"))
@@ -4020,6 +4075,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 failed_pending = False; corrections = 0; native_tries = 0   # cada passo ganha as suas tentativas
                 full = full[:calls[-1][2]]; denied = False; results_txt = []; shot_imgs = []
                 for tool_name, tool_args, _end in calls:
+                    if lumemcp and tool_name not in TOOL_NAMES: tool_name = lumemcp.resolve(tool_name)
                     tool_args = normalize_args(tool_name, tool_args)
                     log("TOOL", f"{tool_name} {tool_args}", COLOR_CYAN)
                     _allowed = (("search_web", "read_url") if web_tool else ()) + (COMPUTER_TOOLS if comp_chat else ())   # aba Chat: so o que ela liga (pesquisa e/ou controle do computador)
@@ -4643,6 +4699,7 @@ if __name__ == '__main__':
         webview.create_window("Lume Feedback", f"http://127.0.0.1:{int(sys.argv[_i + 1])}/feedback?v={urllib.parse.quote(sys.argv[_i + 2] if len(sys.argv) > _i + 2 else '')}", width=440, height=720, min_size=(360, 480))
         webview.start(private_mode=True)
         sys.exit(0)
+    UI_LANG = load_config().get("ui_lang", "pt") if load_config().get("ui_lang") in ("pt", "en") else "pt"   # o terminal ja abre no idioma em que o app ficou
     log("INICIO", f"Pasta do programa: {BASE_DIR}", COLOR_BLUE)
     PORT = int(_env("PORT") or load_config().get("port", PORT))
     if FROZEN and load_config().get("start_with_terminal"): set_terminal(True)
