@@ -78,6 +78,8 @@ try: import tls   # HTTPS local (precisa do pacote "cryptography")
 except Exception: tls = None
 try: import vcomp   # controle do computador em segundo plano (varios programas, mouse virtual)
 except Exception: vcomp = None
+try: import lumemcp   # cliente MCP (servidores de ferramentas externos, por stdio)
+except Exception: lumemcp = None
 CERTS_DIR = os.path.join(BASE_DIR, "certs")
 HTTPS_PORT = 8443
 APP_NAME = "Lume"
@@ -263,6 +265,7 @@ def load_config():
     cfg.setdefault("openrouter_api_key", "")     # chave do OpenRouter (so modelos gratis)
     cfg.setdefault("cloudflare_api_token", "")   # Cloudflare Workers AI: token + id da conta
     cfg.setdefault("cloudflare_account_id", "")
+    cfg.setdefault("mcp_servers", {})            # servidores MCP: {nome: {command, args, env, enabled}}
     cfg.setdefault("pollinations_api_key", "")   # Pollinations: modelos que gastam pollen
     cfg.setdefault("vercel_api_key", "")         # Vercel AI Gateway (modelos "-free")
     for _f, _u, _n, _s in X_PROVIDERS.values(): cfg.setdefault(_f, "")
@@ -1042,11 +1045,14 @@ def describe_tool(name, args):
     if name in COMPUTER_TOOLS: return describe_computer(name, args)
     if name in ("cmd", "powershell"): return f"{name}: {args.get('command', '')}"
     if name == "write_file": return f"Escrever arquivo: {args.get('path', '')} ({len(args.get('content', ''))} caracteres)"
+    if str(name).startswith("mcp__"):
+        d = lumemcp.find_tool(name) if lumemcp else None
+        return f"Ferramenta MCP \"{d['tool'] if d else name}\" do servidor \"{d['server'] if d else '?'}\" com: {json.dumps(args, ensure_ascii=False)[:300]}"
     if name == "edit_file": return f"Editar arquivo: {args.get('path', '')} (trocar {len(str(args.get('old', '')))} por {len(str(args.get('new', '')))} caracteres)"
     return f"{name} {args}"
 
 def needs_permission(name):
-    return name in ("cmd", "powershell", "write_file", "edit_file") or name in COMPUTER_TOOLS
+    return name in ("cmd", "powershell", "write_file", "edit_file") or name in COMPUTER_TOOLS or str(name).startswith("mcp__")
 
 # ---- "permitir sozinho": com o botao ligado, comandos comuns rodam sem perguntar, mas estes NUNCA rodam (nem perguntando)
 _ROOTS = r"(?:[a-z]:[\\/]?(?:\*|\s|$|[\"'])|%(?:systemroot|windir|systemdrive|programfiles|userprofile|appdata|homepath)%|[a-z]:[\\/](?:windows|program files|program files \(x86\)|programdata|users)(?:[\\/]?\s|[\\/]?$|[\\/]?[\"'])|[a-z]:[\\/]users[\\/][^\\/\s\"']+[\\/]?(?:\s|$|[\"'])|~[\\/]?(?:\s|$)|(?:^|[\s\x22'])/(?:\s|$)|\$env:(?:systemroot|windir|userprofile|appdata|programfiles))"
@@ -1160,6 +1166,7 @@ def execute_tool(tool_name, tool_args, workdir, lang="pt"):
 COMPUTER_TOOLS = ("list_windows", "use_apps", "screenshot", "mouse_move", "mouse_click", "scroll", "type_text", "press_key")
 COMPUTER_GRANT_SECS = 600      # depois de aprovar uma vez, a IA pode agir por 10 minutos sem perguntar de novo (renova a cada uso)
 COMPUTER_USER_WAIT = 1.0       # se o dono estiver mexendo no mouse/teclado, a IA espera ele ficar parado 1 segundo
+_mcp_grant = {}   # servidor MCP -> ate quando o dono liberou sem perguntar de novo
 _comp = {"grant": 0.0, "scale": 1.0, "origin": (0, 0), "shot": False, "ai_tick": 0}
 _VK = {"ctrl": 0x11, "control": 0x11, "alt": 0x12, "shift": 0x10, "win": 0x5B, "windows": 0x5B, "enter": 0x0D, "return": 0x0D, "esc": 0x1B, "escape": 0x1B, "tab": 0x09, "backspace": 0x08, "delete": 0x2E, "del": 0x2E,
        "space": 0x20, "up": 0x26, "down": 0x28, "left": 0x25, "right": 0x27, "home": 0x24, "end": 0x23, "pageup": 0x21, "pagedown": 0x22, "insert": 0x2D, **{f"f{i}": 0x6F + i for i in range(1, 13)}}
@@ -1467,8 +1474,8 @@ def native_tool_call(model, messages, num_ctx=None, workdir=None):
         if isinstance(args, str):
             try: args = json.loads(args)
             except ValueError: args = None
-        if name in TOOL_NAMES and isinstance(args, dict):
-            return name, {k: (_clean_arg(v) if k not in ("content", "old", "new") else v) for k, v in args.items()}
+        if (name in TOOL_NAMES or str(name).startswith("mcp__")) and isinstance(args, dict):
+            return name, {k: (_clean_arg(v) if k not in ("content", "old", "new") and not str(name).startswith("mcp__") else v) for k, v in args.items()}
     c = find_tool_call(msg.get("content") or "")   # alguns modelos respondem com o formato de texto mesmo assim
     return (c[0], c[1]) if c else None
 
@@ -1569,6 +1576,8 @@ def shutdown_all():
     """Ao fechar o app: para a geracao, descarrega todos os modelos e encerra o que foi iniciado aqui."""
     stop_generation_flag.set()
     for ev in list(req_stops.values()): ev.set()
+    try: lumemcp and lumemcp.stop_all()   # fecha os servidores MCP
+    except Exception: pass
     tray_stop()
     stop_tunnel()
     try: set_terminal(False)   # fecha o terminal do log, se estiver aberto
@@ -2148,7 +2157,7 @@ def _sse_chat(response, t0, err_map, first_timeout=None, idle_timeout=None):
         if m.get("content"): yield "content", str(m["content"]); return
         raise Exception("O provedor respondeu vazio" + (": " + body[:150] if body else " (sem texto)") + ". Tente de novo ou escolha outro modelo.")
     if cut: yield "content", "\n\n[Cortado: o modelo atingiu o limite de tokens da resposta]"
-    calls_txt = ["$$[TOOL: %s] %s$$" % (c["name"], c["args"] or "{}") for _, c in sorted(tcalls.items())[:5] if c["name"] in TOOL_NAMES]
+    calls_txt = ["$$[TOOL: %s] %s$$" % (c["name"], c["args"] or "{}") for _, c in sorted(tcalls.items())[:5] if c["name"] in TOOL_NAMES or str(c["name"]).startswith("mcp__")]
     if calls_txt: yield "content", chr(10).join(calls_txt)   # tudo num pedaco so: o laco do agente le a primeira e depois as outras
     if usage and usage.get("completion_tokens"):
         now = time.time(); win = max(0.001, now - (first or t0)); total = max(0.001, now - t0)
@@ -2480,7 +2489,7 @@ def stream_pollinations(model, messages, think, cfg, max_tokens=None, agent=Fals
             want = effort if effort in EFFORT_ORDER else ("medium" if think else "none")
             known = _pol_effort_ok.get(cand) or (cfg.get("pol_effort_ok") or {}).get(cand)
             payload["reasoning_effort"] = (_near_effort(want, known) if known else want) or want
-        if agent and (caps is None or caps["tools"]): payload["tools"] = NATIVE_TOOLS_WEB if agent == "web" else NATIVE_TOOLS_COMP if agent == "comp" else NATIVE_TOOLS   # aba Code: chamada de ferramenta nativa (so se o modelo tem a capacidade)
+        if agent and (caps is None or caps["tools"]): payload["tools"] = NATIVE_TOOLS_WEB if agent == "web" else NATIVE_TOOLS_COMP if agent == "comp" else (NATIVE_TOOLS + (lumemcp.native_tools() if lumemcp else []))   # aba Code: chamada de ferramenta nativa (so se o modelo tem a capacidade)
         t0 = time.time()
         hdr = {"Authorization": "Bearer " + key, "Content-Type": "application/json", "User-Agent": "lume-app"}
         try:
@@ -2727,7 +2736,7 @@ LOCAL_HOSTS = ("127.0.0.1", "localhost")
 STATIC_PAGES = ("/", "/index.html")
 PAGE_ALIAS = {"/share": "/share.html", "/dashboard": "/dashboard.html", "/feedback": "/feedback.html"}
 # So o proprio PC (janela do app) pode usar estas rotas
-LOCAL_ONLY_POST = ("/api/save_config", "/api/save_key", "/api/server_config", "/api/perf_interval",
+LOCAL_ONLY_POST = ("/api/mcp_save", "/api/save_config", "/api/save_key", "/api/server_config", "/api/perf_interval",
                    "/api/custom_theme", "/api/custom_theme_delete", "/api/account_import", "/api/config_import", "/api/pol_effort_probe", "/api/account/login", "/api/account/logout", "/api/resolve_pending", "/api/export", "/api/ios_profile_save", "/api/undo", "/api/stats_clear", "/api/open_url", "/api/update_apply", "/api/restart_app", "/api/run_code", "/api/run_stop", "/api/tunnel_start", "/api/tunnel_stop", "/api/tunnel_install", "/api/app_options", "/api/model_pull", "/api/model_delete", "/api/models_update_now", "/api/cloudflare_usage_set")
 PUBLIC_POST = ("/api/auth/login", "/api/auth/logout", "/api/guest/register", "/api/guest/code")
 LOGIN_MAX_FAILS, LOGIN_LOCK_SECONDS = 5, 60
@@ -3060,6 +3069,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         if p == '/api/app_options':
             if not local: return self.send_json({"error": "local_only"}, 403)
             return self.send_json(app_options())
+        if p == '/api/mcp':
+            if not local or not lumemcp: return self.send_json({"error": "local_only"}, 403)
+            _c = load_config().get("mcp_servers") or {}
+            return self.send_json({"json": lumemcp.to_json(_c), "status": lumemcp.status(_c)})
         if p == '/api/tunnel':
             if not local: return self.send_json({"error": "local_only"}, 403)
             return self.send_json({**tunnel_state, "cloudflared": bool(find_cloudflared()), "tailscale": tailscale_status(), "port": PORT})
@@ -3471,6 +3484,14 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return self.send_json(run_code(data.get("lang"), data.get("code"), bool(data.get("analyze")), bool(data.get("install")), str(data.get("rid") or "") or None))
         if p == '/api/run_stop':
             return self.send_json({"ok": stop_code(str(data.get("rid") or ""))})
+        if p == '/api/mcp_save':
+            if not lumemcp: return self.send_json({"error": "MCP indisponivel"}, 500)
+            try: new = lumemcp.parse_config(data.get("json", ""))
+            except ValueError as e: return self.send_json({"error": str(e)}, 400)
+            cfg = load_config(); cfg["mcp_servers"] = new; save_config(cfg)
+            if data.get("restart"): lumemcp.stop_all()
+            lumemcp.sync(new, wait=True)
+            return self.send_json({"ok": True, "json": lumemcp.to_json(new), "status": lumemcp.status(new)})
         if p == '/api/update_apply':
             return self.send_json(apply_update())
         if p == '/api/tunnel_install': return self.send_json(install_cloudflared())
@@ -3907,6 +3928,9 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 _tp = (TOOL_PROMPT_EN if lang == 'en' else TOOL_PROMPT).replace("{workdir}", workdir)
                 if load_config().get("computer_control") and computer_supported():   # controle do mouse/teclado: so aparece para a IA se o dono ligou nas opcoes
                     _cut = _tp.index("Make ONE call" if lang == 'en' else "Faca UMA chamada"); _tp = _tp[:_cut] + (COMPUTER_PROMPT_EN if lang == 'en' else COMPUTER_PROMPT_PT) + _tp[_cut:]
+                _mcp_txt = lumemcp.prompt_lines(lang) if lumemcp else ""
+                if _mcp_txt:   # ferramentas dos servidores MCP ligados
+                    _cut = _tp.index("Make ONE call" if lang == 'en' else "Faca UMA chamada"); _tp = _tp[:_cut] + _mcp_txt + _tp[_cut:]
                 messages[0]["content"] += _tp
             elif web_tool or comp_chat:
                 if web_tool: messages[0]["content"] += WEB_TOOL_PROMPT_EN if lang == 'en' else WEB_TOOL_PROMPT
@@ -3992,7 +4016,12 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                         web_denied = True   # desligado nas opcoes: a ferramenta nao existe
                     elif comp and not agent and not comp_chat:
                         web_denied = True
-                    if needs_permission(tool_name) and not comp and load_config().get("auto_allow"):   # "permitir sozinho": roda sem perguntar, exceto o que e perigoso (esse e bloqueado)
+                    is_mcp = str(tool_name).startswith("mcp__")
+                    if is_mcp and (not agent or not lumemcp or not lumemcp.find_tool(tool_name)): web_denied = True
+                    if is_mcp and not web_denied:
+                        _md = lumemcp.find_tool(tool_name)
+                        if _md and time.time() < _mcp_grant.get(_md["server"], 0): auto = True   # o dono ja liberou este servidor (10 min, renova a cada uso)
+                    if needs_permission(tool_name) and not comp and not is_mcp and load_config().get("auto_allow"):   # "permitir sozinho": roda sem perguntar, exceto o que e perigoso (esse e bloqueado)
                         blocked = dangerous_reason(tool_name, tool_args); auto = not blocked
                         if blocked: log("PERMISSAO", f"Bloqueado ({blocked}): {describe_tool(tool_name, tool_args)}", COLOR_RED)
                         else: log("PERMISSAO", f"Permitido sozinho: {describe_tool(tool_name, tool_args)}", COLOR_YELLOW)
@@ -4000,6 +4029,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     if needs_permission(tool_name) and not auto and not blocked and not web_denied:
                         status("Aguardando permissão")
                         _desc = describe_tool(tool_name, tool_args)
+                        if is_mcp: _desc = "USAR UM SERVIDOR MCP (programa externo) por 10 minutos. Primeira acao: " + _desc
                         if comp: _desc = "CONTROLAR PROGRAMAS em segundo plano (mouse virtual, sem mexer no seu mouse) por 10 minutos. Primeira acao: " + _desc + ". Para parar tudo, mova o mouse para o canto superior esquerdo da tela."
                         if not ask_permission(_desc, stopped, (tool_name, tool_args)):
                             send(L("\n\n[Acao negada pelo usuario]", "\n\n[Action denied by the user]"))
@@ -4011,6 +4041,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                         result = L("Erro: essa ferramenta nao existe aqui.", "Error: that tool does not exist here.")
                     elif blocked:
                         result = L(f"Erro: comando BLOQUEADO por seguranca ({blocked}). O modo \"permitir sozinho\" nunca roda isso. Nao tente de novo: explique ao usuario ou use outra forma.", f"Error: command BLOCKED for safety ({blocked}). Auto-allow mode never runs this. Do not retry: explain it to the user or find another way.")
+                    elif is_mcp:
+                        _md = lumemcp.find_tool(tool_name)
+                        if _md: _mcp_grant[_md["server"]] = time.time() + COMPUTER_GRANT_SECS
+                        result = lumemcp.call_full(tool_name, tool_args)
                     elif comp:
                         _comp["grant"] = time.time() + COMPUTER_GRANT_SECS
                         result, _img = computer_execute(tool_name, tool_args, stopped)
@@ -4600,6 +4634,7 @@ if __name__ == '__main__':
     threading.Thread(target=start_ollama, daemon=True).start()
     threading.Thread(target=monitor_loop, daemon=True).start()
     threading.Thread(target=model_updater_loop, daemon=True).start()
+    if lumemcp: threading.Thread(target=lambda: lumemcp.sync(load_config().get("mcp_servers") or {}), daemon=True).start()   # liga os servidores MCP salvos
     tray_on = bool(load_config().get("tray_enabled")) and tray_start()
     start_gpu_stream(gpu_interval_ms)
     time.sleep(1)
