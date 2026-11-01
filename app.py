@@ -148,7 +148,7 @@ UNDO_DIR = os.path.join(BASE_DIR, "undo")               # copias dos arquivos qu
 MAX_BODY_BYTES = 60 * 1024 * 1024   # tamanho maximo de uma requisicao (anexos)
 MAX_FILE_CHARS = 60000              # texto maximo extraido de um arquivo anexado
 THEMES_DIR = os.path.join(BASE_DIR, "custom themes")    # temas criados no editor de temas
-MAX_AGENT_STEPS = 8        # limite de chamadas de ferramenta por mensagem
+MAX_AGENT_STEPS = 25       # limite PADRAO de chamadas de ferramenta por mensagem (vale a opcao "max_agent_steps" das configuracoes)
 MAX_TOOL_OUTPUT = 8000     # caracteres devolvidos a IA por ferramenta
 TOOL_TIMEOUT = 60          # segundos para cmd/powershell
 
@@ -223,12 +223,12 @@ def term_stream_end():
         _term["tag"] = _term["owner"] = None
         try: sys.stdout.write("\n"); sys.stdout.flush()
         except Exception: pass
-def term_stream(owner, tag, text, color=COLOR_RESET):
+def term_stream(owner, tag, text, color=COLOR_RESET, model=""):
     if not text: return
     with _term_lock:
         try:
             if _term["tag"] != tag or _term["owner"] != owner:   # comecou outra coisa (ou outra conversa): fecha a linha anterior e poe um cabecalho novo
-                term_stream_end(); t2 = LOG_TAGS_EN.get(tag, tag) if UI_LANG == "en" else tag
+                term_stream_end(); t2 = (LOG_TAGS_EN.get(tag, tag) if UI_LANG == "en" else tag) + (" · " + model if model else "")   # cabecalho com o modelo que esta respondendo
                 head = f"{COLOR_GRAY}{time.strftime('%H:%M:%S')}{COLOR_RESET} {color}[{t2}]{COLOR_RESET} "
                 sys.stdout.write(head if sys.stdout.isatty() else _ANSI.sub("", head)); _term["tag"], _term["owner"] = tag, owner
             sys.stdout.write(f"{color}{text}{COLOR_RESET}" if sys.stdout.isatty() else text); sys.stdout.flush()
@@ -339,6 +339,7 @@ def load_config():
     cfg.setdefault("log_full", True)              # o terminal mostra cada mensagem crua da IA, o raciocinio e os resultados (desligue em Configuracoes se for muito)
     cfg.setdefault("ui_lang", "pt")
     cfg.setdefault("mcp_auto_allow", False)      # aceitar sozinho as ferramentas MCP (sem perguntar)
+    cfg.setdefault("max_agent_steps", MAX_AGENT_STEPS)   # chamadas de ferramenta por mensagem (aba Code)
     cfg.setdefault("mcp_servers", {})            # servidores MCP: {nome: {command, args, env, enabled}}
     cfg.setdefault("pollinations_api_key", "")   # Pollinations: modelos que gastam pollen
     cfg.setdefault("vercel_api_key", "")         # Vercel AI Gateway (modelos "-free")
@@ -3334,7 +3335,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return self.send_json(out)
         if p == '/api/config_status':
             cfg = load_config()
-            return self.send_json({"groq_key_saved": bool(cfg.get("groq_api_key")), "openrouter_key_saved": bool(cfg.get("openrouter_api_key")), "cloudflare_saved": all(cf_creds(cfg)), "pollinations_saved": bool(cfg.get("pollinations_api_key")), "tomdacat_saved": bool(cfg.get("tomdacat_api_key")), "vercel_saved": bool(cfg.get("vercel_api_key")), "llm7_saved": bool(cfg.get("llm7_api_key")), "x_saved": {p: bool(cfg.get(v[0])) for p, v in X_PROVIDERS.items()}, "aichixia_saved": bool(cfg.get("aichixia_api_key")), "aihubmix_saved": bool(cfg.get("aihubmix_api_key")), "literouter_saved": bool(cfg.get("literouter_api_key")),  "feedback_url": cfg.get("feedback_url", ""), "exa_key_saved": bool(exa_api_key(cfg)), "search_provider": cfg.get("search_provider", "auto"), "exa_type": cfg.get("exa_type", "lite"), "search_results": max_results(), "search_daily_limit": cfg.get("search_daily_limit", 100), "exa_today": exa_searches_today(), "auto_allow": bool(cfg.get("auto_allow")), "computer_control": bool(cfg.get("computer_control")) and computer_supported(), "computer_supported": computer_supported(), "workdir": get_workdir(cfg) if local else "", "default_workdir": BASE_DIR if local else ""})
+            return self.send_json({"groq_key_saved": bool(cfg.get("groq_api_key")), "openrouter_key_saved": bool(cfg.get("openrouter_api_key")), "cloudflare_saved": all(cf_creds(cfg)), "pollinations_saved": bool(cfg.get("pollinations_api_key")), "tomdacat_saved": bool(cfg.get("tomdacat_api_key")), "vercel_saved": bool(cfg.get("vercel_api_key")), "llm7_saved": bool(cfg.get("llm7_api_key")), "x_saved": {p: bool(cfg.get(v[0])) for p, v in X_PROVIDERS.items()}, "aichixia_saved": bool(cfg.get("aichixia_api_key")), "aihubmix_saved": bool(cfg.get("aihubmix_api_key")), "literouter_saved": bool(cfg.get("literouter_api_key")),  "feedback_url": cfg.get("feedback_url", ""), "exa_key_saved": bool(exa_api_key(cfg)), "search_provider": cfg.get("search_provider", "auto"), "exa_type": cfg.get("exa_type", "lite"), "search_results": max_results(), "search_daily_limit": cfg.get("search_daily_limit", 100), "exa_today": exa_searches_today(), "auto_allow": bool(cfg.get("auto_allow")), "computer_control": bool(cfg.get("computer_control")) and computer_supported(), "computer_supported": computer_supported(), "max_agent_steps": int(cfg.get("max_agent_steps") or MAX_AGENT_STEPS), "workdir": get_workdir(cfg) if local else "", "default_workdir": BASE_DIR if local else ""})
         if p == '/api/models_status':
             tags = ollama_tags(); running = tags is not None
             used, total, _ = get_gpu_metrics()
@@ -3533,11 +3534,11 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 return self.send_json({"error": "Pasta de trabalho nao existe."}, 400)
             if data.get("search_provider") not in (None, "auto", "exa", "duckduckgo") or data.get("exa_type") not in (None, *EXA_TYPES):
                 return self.send_json({"error": "Opcao de pesquisa invalida."}, 400)
-            for k, lo, hi in (("search_results", 1, 25), ("search_daily_limit", 0, 100000)):
+            for k, lo, hi in (("search_results", 1, 25), ("search_daily_limit", 0, 100000), ("max_agent_steps", 1, 200)):
                 if k in data:
                     try: data[k] = max(lo, min(hi, int(data[k])))
                     except (TypeError, ValueError): return self.send_json({"error": "Opcao de pesquisa invalida."}, 400)
-            for k in ("groq_api_key", "openrouter_api_key", "pollinations_api_key", "cloudflare_api_token", "cloudflare_account_id", "exa_api_key", "tomdacat_api_key", "vercel_api_key", "llm7_api_key", "aichixia_api_key", "aihubmix_api_key", "literouter_api_key", "aichixia_api_key_backup", "aihubmix_api_key_backup", "literouter_api_key_backup", "paxsenix_api_key", "paxsenix_api_key_backup", "voidai_api_key", "voidai_api_key_backup", "tokenreply_api_key", "tokenreply_api_key_backup", "groq_api_key_backup", "openrouter_api_key_backup", "pollinations_api_key_backup", "tomdacat_api_key_backup", "vercel_api_key_backup", "llm7_api_key_backup", "workdir", "search_provider", "exa_type", "search_results", "search_daily_limit", "auto_allow", "computer_control", "feedback_url", "feedback_key", *X_KEY_FIELDS):
+            for k in ("max_agent_steps", "groq_api_key", "openrouter_api_key", "pollinations_api_key", "cloudflare_api_token", "cloudflare_account_id", "exa_api_key", "tomdacat_api_key", "vercel_api_key", "llm7_api_key", "aichixia_api_key", "aihubmix_api_key", "literouter_api_key", "aichixia_api_key_backup", "aihubmix_api_key_backup", "literouter_api_key_backup", "paxsenix_api_key", "paxsenix_api_key_backup", "voidai_api_key", "voidai_api_key_backup", "tokenreply_api_key", "tokenreply_api_key_backup", "groq_api_key_backup", "openrouter_api_key_backup", "pollinations_api_key_backup", "tomdacat_api_key_backup", "vercel_api_key_backup", "llm7_api_key_backup", "workdir", "search_provider", "exa_type", "search_results", "search_daily_limit", "auto_allow", "computer_control", "feedback_url", "feedback_key", *X_KEY_FIELDS):
                 if k in data: cfg[k] = bool(data[k]) if k in ("auto_allow", "computer_control") else data[k].strip() if k.endswith(("_key", "_token", "_id", "_backup", "_url")) else data[k]
             save_config(cfg)
             secrets_sent = [k for k in ("aichixia_api_key", "aihubmix_api_key", "literouter_api_key", "aichixia_api_key_backup", "aihubmix_api_key_backup", "literouter_api_key_backup", "paxsenix_api_key", "paxsenix_api_key_backup", "voidai_api_key", "voidai_api_key_backup", "tokenreply_api_key", "tokenreply_api_key_backup", "groq_api_key_backup", "openrouter_api_key_backup", "pollinations_api_key_backup", "tomdacat_api_key_backup", "vercel_api_key_backup", "llm7_api_key_backup", "groq_api_key", "openrouter_api_key", "pollinations_api_key", "tomdacat_api_key", "vercel_api_key", "llm7_api_key", "cloudflare_api_token", "exa_api_key", *X_KEY_FIELDS) if k in data]
@@ -4027,7 +4028,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         total_chars = 0
         web_tool = bool(req_json.get("search_web")) and not agent   # a IA decide quando pesquisar (ferramenta)
         comp_chat = (not agent) and bool(load_config().get("computer_control")) and computer_supported() and local   # Chat com o controle do computador (ligado nas opcoes); so no PC do dono
-        use_tools = agent or web_tool or comp_chat; max_steps = MAX_AGENT_STEPS if (agent or comp_chat) else 4
+        use_tools = agent or web_tool or comp_chat; max_steps = max(1, min(200, int(load_config().get("max_agent_steps") or MAX_AGENT_STEPS))) if (agent or comp_chat) else 4
         kw_model = {k: v for k, v in (("agent", ("comp" if comp_chat else "web" if web_tool else True) if use_tools else None), ("effort", str(req_json.get("effort") or "") or None)) if v}   # so manda o que foi pedido
         try:
             if not model.startswith(CLOUD_PREFIXES):
@@ -4066,7 +4067,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                         if kind == "status": status(piece); continue
                         if kind == "thinking":
                             send(piece, "thinking")
-                            if verbose: term_stream(rid, "IA · RACIOCINIO", str(piece), COLOR_GRAY)
+                            if verbose: term_stream(rid, "IA · RACIOCINIO", str(piece), COLOR_GRAY, model)
                             continue
                         if kind == "stats":
                             ptps = piece['prompt_tokens'] / piece['prompt_seconds'] if piece['prompt_seconds'] else 0
@@ -4074,12 +4075,12 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                             req_tokens += piece["tokens"]; req_seconds += piece["seconds"]; req_prompt += piece["prompt_tokens"]
                             emit({"stats": piece}); continue
                         for k2, p2 in splitter.feed(piece):
-                            if k2 == "thinking": send(p2, "thinking"); verbose and term_stream(rid, "IA · RACIOCINIO", p2, COLOR_GRAY)
-                            else: full += p2; send(p2); verbose and term_stream(rid, "IA · RESPOSTA", p2, COLOR_CYAN)
+                            if k2 == "thinking": send(p2, "thinking"); verbose and term_stream(rid, "IA · RACIOCINIO", p2, COLOR_GRAY, model)
+                            else: full += p2; send(p2); verbose and term_stream(rid, "IA · RESPOSTA", p2, COLOR_CYAN, model)
                         if use_tools and ('}' in piece or '$' in piece) and find_tool_call(full): break
                     for k2, p2 in splitter.flush():   # sobras do buffer (uma tag que nunca terminou de chegar)
-                        if k2 == "thinking": send(p2, "thinking"); verbose and term_stream(rid, "IA · RACIOCINIO", p2, COLOR_GRAY)
-                        else: full += p2; send(p2); verbose and term_stream(rid, "IA · RESPOSTA", p2, COLOR_CYAN)
+                        if k2 == "thinking": send(p2, "thinking"); verbose and term_stream(rid, "IA · RACIOCINIO", p2, COLOR_GRAY, model)
+                        else: full += p2; send(p2); verbose and term_stream(rid, "IA · RESPOSTA", p2, COLOR_CYAN, model)
                 finally:
                     gen.close()
                 total_chars += len(full)
@@ -4093,7 +4094,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     if use_tools and corrections < 2 and (invented_result(full) or looks_like_failed_call(full) or (agent and announces_action(full))):   # errou o formato (ou disse que ia agir e nao chamou nada): pede para repetir (ate 2 vezes)
                         corrections += 1; failed_pending = True
                         log("AGENTE", "A IA " + ("INVENTOU o resultado de uma ferramenta" if invented_result(full) else "disse que ia agir mas nao chamou nenhuma ferramenta" if (agent and announces_action(full) and not looks_like_failed_call(full)) else "errou o formato da chamada") + "; chamando a atencao dela. Mensagem COMPLETA dela, sem filtro:", COLOR_YELLOW)
-                        if not verbose: log("IA · MENSAGEM COMPLETA", full, COLOR_CYAN)
+                        if not verbose: log("IA · MENSAGEM COMPLETA", f"({model}) {full}", COLOR_CYAN)
                         send(L("\n\n[a IA inventou o resultado de uma ferramenta; dando uma bronca nela]", "\n\n[the AI made up a tool result; scolding it]") if invented_result(full) else L("\n\n[a IA disse que ia agir mas nao chamou nenhuma ferramenta; pedindo para ela continuar]", "\n\n[the AI said it would act but called no tool; asking it to continue]") if (agent and announces_action(full) and not looks_like_failed_call(full)) else L("\n\n[formato de ferramenta invalido, pedindo para a IA tentar de novo]", "\n\n[invalid tool format, asking the AI to try again]"))
                         messages.append({"role": "assistant", "content": full})
                         messages.append({"role": "user", "content": L(SCOLD_PT, SCOLD_EN) if invented_result(full) else L(NUDGE_PT, NUDGE_EN) if (agent and announces_action(full) and not looks_like_failed_call(full)) else L(CORRECTION_PT, CORRECTION_EN)})
