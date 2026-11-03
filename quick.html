@@ -17,10 +17,13 @@ body { font: 14.5px/1.5 -apple-system, "Segoe UI", system-ui, sans-serif; color:
 #in { flex: 1; font: inherit; font-family: "Segoe UI", system-ui, sans-serif; font-size: 1.05rem; color: var(--tx); background: none; border: none; outline: none; min-width: 0; } #in::placeholder { color: var(--mut); }
 .ib { all: unset; cursor: pointer; color: var(--mut); width: 28px; height: 28px; border-radius: 8px; display: none; align-items: center; justify-content: center; font-size: 15px; } .ib:hover { background: var(--bg2); color: var(--tx); } .ib.on { display: flex; }
 .lb { all: unset; cursor: pointer; width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex: none; } .lb:hover { background: var(--bg2); } .lb img { width: 20px; height: 20px; border-radius: 6px; }
+#sel { display: none; padding: 10px 16px 0; } #sel.on { display: block; } #sel .q { color: var(--mut); font-size: .8rem; border-left: 2px solid var(--ac); padding-left: 8px; margin-bottom: 8px; max-height: 3.2em; overflow: hidden; white-space: pre-wrap; word-break: break-word; }
+#sel .acts { display: flex; flex-wrap: wrap; gap: 6px; } .ch { all: unset; cursor: pointer; padding: 4px 12px; border-radius: 999px; background: var(--bg2); font-size: .82rem; } .ch:hover { background: var(--ac); color: #fff; }
 #hint { color: var(--mut); font-size: .72rem; padding: 0 16px 8px; display: none; } #hint.on { display: block; }
 </style></head><body>
 <div id="box">
   <div id="log"></div>
+  <div id="sel"><div class="q" id="selq"></div><div class="acts" id="selacts"></div></div>
   <div id="row"><input id="in" type="text" autocomplete="off" spellcheck="false" placeholder="Pergunte qualquer coisa..."><button class="ib" id="stop" title="Parar">■</button><button class="ib" id="new" title="Nova conversa">+</button><button class="lb" id="lume" title="Abrir esta conversa no Lume"><img src="/apple-touch-icon.png" alt="Lume"></button></div>
 </div>
 <script>
@@ -33,11 +36,25 @@ function md(t) {   // markdown minimo: blocos de codigo, `codigo`, **negrito**, 
   const parts = String(t).split(/```/);
   return parts.map((p, i) => i % 2 ? '<pre><code>' + esc(p.replace(/^[\w+-]*\n/, '')) + '</code></pre>' : esc(p).replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<i>$2</i>')).join('');
 }
-function fit() { try { const h = Math.min(Math.max((log.classList.contains('on') ? log.scrollHeight + 16 : 0) + $('row').offsetHeight, 64), 560); if (window.pywebview && pywebview.api) pywebview.api.resize(h); } catch (e) {} }
+function fit() { try { const h = Math.min(Math.max((log.classList.contains('on') ? log.scrollHeight + 16 : 0) + ($('sel').classList.contains('on') ? $('sel').offsetHeight : 0) + $('row').offsetHeight, 64), 560); if (window.pywebview && pywebview.api) pywebview.api.resize(h); } catch (e) {} }
 function add(role, text) { const d = document.createElement('div'); d.className = 'm ' + (role === 'user' ? 'u' : 'a'); if (role === 'user') d.textContent = text; else d.innerHTML = md(text); log.appendChild(d); log.classList.add('on'); log.scrollTop = log.scrollHeight; fit(); return d; }
 function ui() { $('stop').classList.toggle('on', busy); $('new').classList.toggle('on', !busy && msgs.length > 0); inp.placeholder = msgs.length ? (L() === 'en' ? 'Reply...' : 'Responder...') : (L() === 'en' ? 'Ask anything...' : 'Pergunte qualquer coisa...'); }
-async function send() {
-  const t = inp.value.trim(); if (!t || busy) return; inp.value = ''; msgs.push({ role: 'user', content: t }); add('user', t);
+// texto selecionado em outro app (Ctrl+Alt+Espaco): vira contexto da proxima mensagem; os botoes ja trazem a instrucao pronta
+let pending = '';
+const ACTS = { pt: [['Explicar', 'Explique de forma simples o texto abaixo.'], ['Traduzir', 'Traduza o texto abaixo para portugues (se ja estiver em portugues, traduza para ingles). Responda so com a traducao.'], ['Resumir', 'Resuma o texto abaixo em poucas linhas.'], ['Corrigir', 'Corrija a gramatica e a ortografia do texto abaixo, sem mudar o sentido. Responda so com o texto corrigido.']],
+  en: [['Explain', 'Explain the text below in simple terms.'], ['Translate', 'Translate the text below into English (if it is already English, translate it into Portuguese). Reply with the translation only.'], ['Summarize', 'Summarize the text below in a few lines.'], ['Fix', 'Fix the grammar and spelling of the text below without changing its meaning. Reply with the corrected text only.']] };
+window.qselection = text => {
+  reset(); pending = String(text || ''); if (!pending) return;
+  $('selq').textContent = pending.length > 160 ? pending.slice(0, 160) + '…' : pending;
+  const box = $('selacts'); box.innerHTML = '';
+  ACTS[L()].forEach(([name, instr]) => { const b = document.createElement('button'); b.className = 'ch'; b.textContent = name; b.onclick = () => send(instr); box.appendChild(b); });
+  $('sel').classList.add('on'); fit(); inp.focus();
+};
+async function send(instr) {
+  let t = (typeof instr === 'string' ? instr : inp.value).trim(); if (!t || busy) return; if (typeof instr !== 'string') inp.value = '';
+  const shown = pending ? (typeof instr === 'string' ? ACTS[L()].find(a => a[1] === instr)[0] : t) + ' ↩ “' + (pending.length > 80 ? pending.slice(0, 80) + '…' : pending) + '”' : t;
+  if (pending) { t = t + '\n\n"""\n' + pending + '\n"""'; pending = ''; $('sel').classList.remove('on'); }
+  msgs.push({ role: 'user', content: t }); add('user', shown);
   const out = add('assistant', ''), c = cfg(); out.classList.add('dots'); busy = true; ctl = new AbortController(); ui(); let text = '';
   try {
     const sys = L() === 'en' ? 'You are a quick assistant in a small floating box. Answer directly and briefly.' : 'Voce e um assistente rapido numa caixinha flutuante. Responda direto e curto.';
@@ -53,7 +70,7 @@ async function send() {
   busy = false; ctl = null; ui(); fit(); inp.focus();
 }
 function hide() { try { pywebview.api.hide(); } catch (e) {} }
-function reset() { if (ctl) ctl.abort(); msgs = []; log.innerHTML = ''; log.classList.remove('on'); busy = false; ui(); fit(); inp.focus(); }
+function reset() { pending = ''; $('sel').classList.remove('on'); if (ctl) ctl.abort(); msgs = []; log.innerHTML = ''; log.classList.remove('on'); busy = false; ui(); fit(); inp.focus(); }
 inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); } });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (busy && ctl) ctl.abort(); else hide(); } });
 $('stop').onclick = () => ctl && ctl.abort(); $('new').onclick = reset;

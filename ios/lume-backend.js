@@ -115,7 +115,7 @@ async function pollinationsModels(cfg) {
         if (!free && !ex.keep && Math.max(pin, pout, pimg) > D.POL_MAX_PRICE) continue;
         const caps = m.capabilities || [], rpm = m.per_user_rpm, parts = mid.split('/');
         out.push({ id: mid, name: m.title || parts[parts.length - 1], provider: mid.startsWith('community/') ? parts[1] : 'oficial', ctx: m.context_length || 128000, vision: inm.includes('image'), pin, pout, free, guess: !!ex.guess,
-            health: hl.status || (ex.flaky ? 'degraded' : '?'), success: hl.success_rate == null ? null : hl.success_rate, official: !mid.startsWith('community/'), prio: !!ex.prio, speed: ex.speed || 0, tabs: ex.tabs || 'chat',
+            health: hl.status || (ex.flaky ? 'degraded' : '?'), success: hl.success_rate == null ? null : hl.success_rate, created: m.created || 0, official: !mid.startsWith('community/'), prio: !!ex.prio, speed: ex.speed || 0, tabs: ex.tabs || 'chat',
             warn: ex.warn || (rpm && rpm <= 5 ? `Limite de ${rpm} pedidos por minuto: se mandar varias mensagens seguidas pode dar erro de limite.` : ''),
             reasoning: has && (caps.includes('reasoning') || !!m.reasoning), effort: (m.supported_parameters || []).includes('reasoning_effort'),
             tools: has ? (caps.includes('tool_calling') || !!m.tools) : null, rpm: rpm == null ? null : rpm, p50: lat[mid] == null ? null : lat[mid], efforts: polEffortOk[mid] || (cfg.pol_effort_ok || {})[mid] || null });

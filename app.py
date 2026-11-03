@@ -340,6 +340,7 @@ def load_config():
     cfg.setdefault("cloudflare_account_id", "")
     cfg.setdefault("quick_style", "mica")         # fundo da caixinha: solid | mica | aero | acrylic
     cfg.setdefault("quick_hotkey", True)         # Alt+Espaco abre a caixinha rapida (janela flutuante)
+    cfg.setdefault("quick_sel_hotkey", True)     # Ctrl+Alt+Espaco: abre a caixinha com o texto selecionado no app da frente (explicar, traduzir, resumir, corrigir)
     cfg.setdefault("log_full", True)              # o terminal mostra cada mensagem crua da IA, o raciocinio e os resultados (desligue em Configuracoes se for muito)
     cfg.setdefault("ui_lang", "pt")
     cfg.setdefault("mcp_auto_allow", False)      # aceitar sozinho as ferramentas MCP (sem perguntar)
@@ -2597,7 +2598,7 @@ def pollinations_models(cfg):
         if not free and not ex.get("keep") and max(pin, pout, pimg) > POL_MAX_PRICE: continue   # caro demais para o seu orcamento
         out.append({"id": mid, "name": m.get("title") or mid.split("/")[-1], "provider": mid.split("/")[1] if mid.startswith("community/") else "oficial",
                     "ctx": m.get("context_length") or 128000, "vision": "image" in inm, "pin": pin, "pout": pout, "free": free, "guess": bool(ex.get("guess")),
-                    "health": hl.get("status") or ("degraded" if ex.get("flaky") else "?"), "success": hl.get("success_rate"), "official": not mid.startswith("community/"), "prio": bool(ex.get("prio")), "speed": ex.get("speed", 0), "tabs": ex.get("tabs", "chat"),
+                    "health": hl.get("status") or ("degraded" if ex.get("flaky") else "?"), "success": hl.get("success_rate"), "created": m.get("created"), "official": not mid.startswith("community/"), "prio": bool(ex.get("prio")), "speed": ex.get("speed", 0), "tabs": ex.get("tabs", "chat"),
                     "warn": ex.get("warn") or (f"Limite de {m['per_user_rpm']} pedidos por minuto: se mandar varias mensagens seguidas pode dar erro de limite." if m.get("per_user_rpm") and m["per_user_rpm"] <= 5 else ""),
                     "reasoning": bool(m) and ("reasoning" in (m.get("capabilities") or []) or bool(m.get("reasoning"))), "effort": "reasoning_effort" in (m.get("supported_parameters") or []),
                     "tools": ("tool_calling" in (m.get("capabilities") or []) or bool(m.get("tools"))) if m else None, "rpm": m.get("per_user_rpm"), "p50": lat.get(mid),
@@ -3673,6 +3674,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             if data.get("quick_style") in QUICK_STYLES: cfg["quick_style"] = data["quick_style"]; save_config(cfg); quick_style_apply()
             if "browser_ai" in data: cfg["browser_ai"] = bool(data["browser_ai"]); save_config(cfg)
             if "quick_hotkey" in data: cfg["quick_hotkey"] = bool(data["quick_hotkey"]); save_config(cfg)
+            if "quick_sel_hotkey" in data: cfg["quick_sel_hotkey"] = bool(data["quick_sel_hotkey"]); save_config(cfg)
             if "log_full" in data:
                 cfg["log_full"] = bool(data["log_full"]); save_config(cfg)
             if "auto_reload" in data: cfg["auto_reload"] = bool(data["auto_reload"]); save_config(cfg)
@@ -4644,7 +4646,7 @@ def app_options():
     cfg = load_config()
     _hw = cfg.get("hw_accel", "auto"); _hw = _hw if _hw in HW_MODES else "auto"
     return {"frozen": FROZEN, "start_with_terminal": bool(cfg.get("start_with_terminal")), "terminal_open": terminal_is_open(), "start_with_windows": autostart_get(), "remote_enabled": bool(cfg.get("remote_enabled")),
-            "tray": bool(cfg.get("tray_enabled")), "tray_available": tray_available(), "auto_update_models": bool(cfg.get("auto_update_models")), "log_full": bool(cfg.get("log_full")), "quick_hotkey": bool(cfg.get("quick_hotkey", True)), "browser_ai": bool(cfg.get("browser_ai", True)), "browser_ext": (lumebrowser.info() if lumebrowser else {}), "browser_ext_dir": os.path.join(RES_DIR, "browser-extension"), "quick_style": cfg.get("quick_style", "mica"), "quick_available": sys.platform == "win32",
+            "tray": bool(cfg.get("tray_enabled")), "tray_available": tray_available(), "auto_update_models": bool(cfg.get("auto_update_models")), "log_full": bool(cfg.get("log_full")), "quick_hotkey": bool(cfg.get("quick_hotkey", True)), "quick_sel_hotkey": bool(cfg.get("quick_sel_hotkey", True)), "browser_ai": bool(cfg.get("browser_ai", True)), "browser_ext": (lumebrowser.info() if lumebrowser else {}), "browser_ext_dir": os.path.join(RES_DIR, "browser-extension"), "quick_style": cfg.get("quick_style", "mica"), "quick_available": sys.platform == "win32",
             "hw_accel": _hw, "hw_accel_auto": hw_accel_decide("auto"), "gpu_names": gpu_names(), "auto_reload": bool(cfg.get("auto_reload", True)), "dev": not FROZEN,
             "version": VERSION, "platform": platform.platform(), "python": sys.version.split()[0], "data_dir": BASE_DIR, "has_log": os.path.exists(os.path.join(BASE_DIR, "lume.log")),
             "models_updated_at": cfg.get("models_updated_at", 0), "model_update": dict(model_update_state)}
@@ -4914,7 +4916,76 @@ def quick_focus(w):
         n = w.native; n.Invoke(Action(lambda: n.webview.Focus()))
     except Exception as e: log("RAPIDO", f"foco: {e}", COLOR_YELLOW)
 
-def quick_toggle():
+def _clip_open():
+    u = ctypes.windll.user32
+    for _ in range(15):
+        if u.OpenClipboard(None): return True
+        time.sleep(0.02)
+    return False
+
+def _clip_text():
+    """(texto, so_texto): o texto da area de transferencia (None se nao ha) e se ela tem SO texto (imagem/arquivo copiados nao podem ser devolvidos depois)."""
+    u = ctypes.windll.user32; k = ctypes.windll.kernel32
+    u.GetClipboardData.restype = ctypes.c_void_p; u.GetClipboardData.argtypes = [wintypes.UINT]; u.EnumClipboardFormats.argtypes = [wintypes.UINT]
+    k.GlobalLock.restype = ctypes.c_void_p; k.GlobalLock.argtypes = [ctypes.c_void_p]; k.GlobalUnlock.argtypes = [ctypes.c_void_p]
+    if not _clip_open(): return None, False
+    try:
+        only, f = True, 0
+        while True:
+            f = u.EnumClipboardFormats(f)
+            if not f: break
+            if f < 0xC000 and f not in (1, 7, 13, 16): only = False   # figura, arquivos... (os formatos registrados por apps, como o HTML, nao contam)
+        if not u.IsClipboardFormatAvailable(13): return None, only
+        h = u.GetClipboardData(13); p = k.GlobalLock(h) if h else None
+        if not p: return None, only
+        try: return ctypes.wstring_at(p), only
+        finally: k.GlobalUnlock(h)
+    finally: u.CloseClipboard()
+
+def _clip_set(text):
+    u = ctypes.windll.user32; k = ctypes.windll.kernel32
+    k.GlobalAlloc.restype = ctypes.c_void_p; k.GlobalAlloc.argtypes = [wintypes.UINT, ctypes.c_size_t]; k.GlobalLock.restype = ctypes.c_void_p; k.GlobalLock.argtypes = [ctypes.c_void_p]; k.GlobalUnlock.argtypes = [ctypes.c_void_p]
+    u.SetClipboardData.argtypes = [wintypes.UINT, ctypes.c_void_p]
+    if not _clip_open(): return
+    try:
+        u.EmptyClipboard()
+        if text:
+            data = (text + "\0").encode("utf-16-le"); h = k.GlobalAlloc(0x0002, len(data)); p = k.GlobalLock(h)
+            ctypes.memmove(p, data, len(data)); k.GlobalUnlock(h); u.SetClipboardData(13, h)
+    finally: u.CloseClipboard()
+
+def quick_grab_selection():
+    """Copia (Ctrl+C) o que esta selecionado no app da frente e devolve o texto; a area de transferencia volta como estava.
+    Nunca no terminal (la o Ctrl+C interrompe o programa que esta rodando) e nunca se voce copiou uma imagem/arquivo (nao daria para devolver)."""
+    u = ctypes.windll.user32
+    try:
+        import vcomp
+        hw = u.GetForegroundWindow(); pid = wintypes.DWORD(); u.GetWindowThreadProcessId(hw, ctypes.byref(pid))
+        exe = vcomp._exe_of(pid.value).lower(); term = next((e for ws, (lab, e) in vcomp.CATEGORIES.items() if lab == "terminal"), set())
+        if exe in term or hw == _quick_hwnd(): return None
+        t0 = time.time()
+        while time.time() - t0 < 1.0 and any(u.GetAsyncKeyState(v) & 0x8000 for v in (0x10, 0x11, 0x12, 0x20)): time.sleep(0.02)   # espera soltar Ctrl/Alt/Shift/Espaco: senao o Ctrl+C sairia errado
+        before, only_text = _clip_text()
+        if not only_text: return None
+        seq0 = u.GetClipboardSequenceNumber()
+        for _try in range(2):   # o primeiro Ctrl+C logo depois de trocar de janela as vezes se perde: tenta de novo uma vez
+            for vk, up in ((0x11, 0), (0x43, 0), (0x43, 2), (0x11, 2)): u.keybd_event(vk, 0, up, 0)   # Ctrl+C
+            for _ in range(15):
+                time.sleep(0.02)
+                if u.GetClipboardSequenceNumber() != seq0: break
+            else: continue
+            break
+        else: return None   # nada selecionado (a area de transferencia nao mudou)
+        time.sleep(0.03); got, _ = _clip_text(); _clip_set(before)
+        return (got or "").strip()[:8000] or None
+    except Exception as e: log("RAPIDO", f"selecao: {e}", COLOR_YELLOW); return None
+
+def quick_selection():
+    """Ctrl+Alt+Espaco: pega o texto selecionado e abre a caixinha com as acoes (explicar, traduzir...)."""
+    if QUICK["visible"]: quick_hide(); return
+    quick_toggle(quick_grab_selection())
+
+def quick_toggle(sel=None):
     if QUICK["visible"]: quick_hide(); return
     w = QUICK["win"]
     if not w: return
@@ -4923,19 +4994,24 @@ def quick_toggle():
         u = ctypes.windll.user32; hwnd = _quick_hwnd()
         u.keybd_event(0x12, 0, 0, 0); u.keybd_event(0x12, 0, 2, 0)   # um toque no Alt libera o SetForegroundWindow (o Windows nega foco a quem nao foi o ultimo a receber tecla)
         u.SetForegroundWindow(hwnd); quick_focus(w); w.evaluate_js("window.qshown && qshown()")
+        if sel: w.evaluate_js("window.qselection && qselection(" + json.dumps(sel, ensure_ascii=False) + ")")
         threading.Timer(0.15, lambda: (quick_focus(w), w.evaluate_js("window.qshown && qshown()"))).start()   # de novo: o foco do teclado dentro da pagina as vezes so chega depois da janela
     except Exception as e: log("RAPIDO", f"Nao consegui abrir a caixinha: {e}", COLOR_YELLOW)
 
 def quick_hotkey_loop():
     """Alt+Espaco global (RegisterHotKey). Liga e desliga sozinho conforme a opcao em Configuracoes > App."""
-    u = ctypes.windll.user32; reg = False; msg = wintypes.MSG(); warned = False
+    u = ctypes.windll.user32; reg = False; reg2 = False; msg = wintypes.MSG(); warned = False
     while True:
+        want2 = bool(load_config().get("quick_sel_hotkey", True))
+        if want2 and not reg2: reg2 = bool(u.RegisterHotKey(None, 0x4C56, 0x0002 | 0x0001 | 0x4000, 0x20))   # Ctrl+Alt+Espaco (texto selecionado)
+        elif reg2 and not want2: u.UnregisterHotKey(None, 0x4C56); reg2 = False
         want = bool(load_config().get("quick_hotkey", True))
         if want and not reg:
             reg = bool(u.RegisterHotKey(None, 0x4C55, 0x0001 | 0x4000, 0x20))   # MOD_ALT | MOD_NOREPEAT, VK_SPACE
             if not reg and not warned: warned = True; log("RAPIDO", "Alt+Espaco ja esta em uso por outro programa (ex.: PowerToys Run); a caixinha rapida nao abre por atalho.", COLOR_YELLOW)
         elif reg and not want: u.UnregisterHotKey(None, 0x4C55); reg = False
         while u.PeekMessageW(ctypes.byref(msg), None, 0x0312, 0x0312, 1):   # WM_HOTKEY
+            if msg.wParam == 0x4C56: threading.Thread(target=quick_selection, daemon=True).start()
             if msg.wParam == 0x4C55:
                 threading.Thread(target=quick_toggle, daemon=True).start()   # fora do laco do atalho: uma chamada lenta nao pode travar o proximo Alt+Espaco
         time.sleep(0.05)
