@@ -2264,7 +2264,8 @@
         let _pxKeys = null; const modelKey = m => { fin(m); return [m.base, m.ver, m.psize].join('|'); };
         const pxDup = m => false;   // Paxsenix mostra todos os seus modelos, mesmo os que outro provedor ja tem
         const noIcon = m => { if (!m.x) return false; if (m._ni === undefined) { try { m._ni = !brandOf(fin(m)); } catch (e) { return false; } } return m._ni; };   // modelos dos provedores extras sem logo da marca nao entram na lista
-        const isAvail = m => m.auto ? !isGuest() : guestBlocks(m) ? false : pxDup(m) ? false : noIcon(m) ? false : m.phone ? phoneMode() : (phoneMode() && !m.cloud ? false : (m.groq || m.or || m.cf || m.pol || m.tdc || m.vc || m.l7 || m.x || installed === null || installed.has(m.id)));   // no modo celular os locais do PC saem da lista
+        const UNWANTED = /celeris|mythomax|isign|ising-|lfm|hermes|north-mini|riva-translate|cosmos-|dots-|grok|llama/i;   // modelos que o dono mandou tirar do seletor, venham de qual provedor vier
+        const isAvail = m => m.auto ? !isGuest() : UNWANTED.test(m.id) ? false : guestBlocks(m) ? false : pxDup(m) ? false : noIcon(m) ? false : m.phone ? phoneMode() : (phoneMode() && !m.cloud ? false : (m.groq || m.or || m.cf || m.pol || m.tdc || m.vc || m.l7 || m.x || installed === null || installed.has(m.id)));   // no modo celular os locais do PC saem da lista
         const availIn = tab => MODELS.filter(m => m.tabs.includes(tab) && isAvail(m));
         const pickDefault = list => list.find(m => m.rec && !m.cloud) || list.find(m => !m.cloud && !m.heavy) || list.find(m => !m.cloud) || list[0];
         // ---------- familias: todas as versoes e provedores de uma marca ficam num lugar so ("Qwen 2.5, 3 e 3.5"); a lista de parametros traz "versao, tamanho"
