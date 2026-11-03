@@ -110,7 +110,7 @@ Dicas de teste (a "harness" = script que abre o Lume numa janela pywebview escon
 - [x] Gemma: o "26" do `diffusiongemma-26b` era o tamanho lido como versão ("Gemma 3, 4 e 26"); agora a família fica "Gemma 3 e 4".
 - [x] FreeTheAI: modelo que está na lista mas responde 404 "was not found" (ex.: `gemini-4-argon`) é escondido por 12 h (`provider_follow.json`, como o erro de seguir provedor). Só aprende depois do primeiro erro.
 - [~] Linhas do seletor numa linha só: nome da família com reticências (completo ao passar o mouse) e logos dos provedores sem quebrar de linha (antes o nome comprido virava uma coluna alta). Só conferido por sintaxe.
-- [~] Seletor de modelos mais largo no PC (540 px; no celular continua a largura da tela).
+- [~] Seletor de modelos mais largo no PC (440 px; no celular continua a largura da tela).
 - [-] Modo offline: descartado pelo dono (besteira). Não fazer.
 
 ## 7. Provedores (todos só com modelos grátis, exceto Pollinations)
