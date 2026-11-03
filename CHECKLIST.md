@@ -168,6 +168,7 @@ Dicas de teste (a "harness" = script que abre o Lume numa janela pywebview escon
 - [x] Mascote mais parecido com o do Kimi (aro escuro translúcido, luz de baixo, olhos em cápsula, `mood-held` com `> <`, estilo LED).
 - [x] **Companheiro** (`lumePet.openProfile`): dias com você, conversas, sequência, mapa de calor (data da criação de cada chat), crescimento por mensagens, "Crescer sozinho" = sugestões de memória.
 - [x] **Lume Rápido**: transparência real (`quick_backcolor`: BackColor preto do formulário), animações, **troca de modelo** (lista = cache de modelos da nuvem do app + instalados; escolha em `localStorage.lume_quick_model`).
+- [~] Terminal: rodando do `run.bat` o app novo herda o terminal (não usa `DETACHED_PROCESS`); no `.exe` fecha o terminal antigo (`set_terminal(False)`). Testado só o reinício; o terminal de verdade (Windows Terminal) não foi observado.
 - [x] **Reiniciar sem sumir** (`restart_app`: `--handoff`, arquivos `lume-handoff-*` na pasta temporária; o app antigo só fecha com `os._exit` quando o novo mostra a janela, no mesmo lugar). No `.exe` com troca de arquivo (atualização baixada) a janela ainda fecha antes (o arquivo precisa estar livre), mas a nova abre no mesmo lugar.
 - [x] Atualização do código: pergunta com **Atualizar agora / Deixar para depois** (20 s; o depois volta em 30 min). Emergência = Release com `[urgente]`/`[security]`: sem botões, reinicia sozinho quando a IA está parada.
 - [x] Botão da extensão lista os navegadores instalados e instala no escolhido.

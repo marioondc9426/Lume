@@ -4636,7 +4636,10 @@ def _handoff_wait():
         except Exception: pass
     t1 = time.time()
     while time.time() - t1 < 40 and not os.path.exists(_hf("shown")): time.sleep(0.2)
-    if os.path.exists(_hf("shown")): os._exit(0)   # sem shutdown_all: ele fecharia o Ollama que o app novo ja esta usando
+    if os.path.exists(_hf("shown")):
+        try: set_terminal(False)   # .exe com "iniciar com o terminal": fecha o terminal do app antigo (o novo abriu o dele)
+        except Exception: pass
+        os._exit(0)   # sem shutdown_all: ele fecharia o Ollama que o app novo ja esta usando
     log("ATUALIZACAO", "A janela nova nao apareceu; religando este app.", COLOR_RED)
     threading.Thread(target=start_server, daemon=True).start(); time.sleep(1.5); _handoff_cancel()
 def _handoff_cancel():
@@ -4646,6 +4649,7 @@ def _handoff_cancel():
 def restart_app(notify=False):
     """Reinicia o Lume sem a janela sumir: abre o app novo por tras, no mesmo lugar, e so entao fecha este. notify: mostra o aviso na tela (atualizacao)."""
     flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    if not FROZEN: flags = 0   # rodando do codigo (run.bat): o app novo herda ESTE terminal, entao o log continua na mesma janela e ela fecha junto com o app novo (antes o terminal antigo ficava parado)
     if notify:
         try:
             if window_api and window_api._window: window_api._window.evaluate_js("window.lumeRestarting && lumeRestarting()"); time.sleep(0.9)   # um instante para a tela de aviso aparecer
