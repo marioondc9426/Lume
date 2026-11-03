@@ -103,7 +103,7 @@ Dicas de teste (a "harness" = script que abre o Lume numa janela pywebview escon
 - [x] **Nomes compactos**: muitas versões viram faixas, ex.: `GPT 5 – 5.6 Sol, 6 Luna – 6.1 Sol` (nome só nas pontas: o mais barato no começo, o mais caro no fim).
 - [x] **Tela cheia**: padrão no celular/iPhone; no PC é um interruptor (Configurações > Aparência: "Seletor de modelos em tela cheia"). Tem ✕, busca e ordenação.
 - [~] Tela cheia no celular de verdade (testado só numa janela estreita no PC).
-- [x] Compactar a conversa sozinho quando o contexto passa de 85% (interruptor em Aparência, ligado por padrão), igual ao botão Compactar.
+- [x] Compactar a conversa sozinho quando o contexto passa de 85% (interruptor em Aparência; padrão ligado, **desligado em modelos de 32K de contexto ou menos** enquanto você não escolher), igual ao botão Compactar.
 - [x] Abre rápido e volta ao último modelo; lista só é reconstruída quando algo muda (não fecha sozinha).
 - [-] Modo offline: descartado pelo dono (besteira). Não fazer.
 
@@ -161,6 +161,17 @@ Dicas de teste (a "harness" = script que abre o Lume numa janela pywebview escon
 - [x] **Comparar modelos / arena**: 2–3 modelos lado a lado, sorteio por critério, às cegas, votos viram o seu ranking, aba de velocidade.
 - [x] **Lume Auto** (roteador por tipo de pedido) como troca automática; notas de inteligência pelo Gratisfy (`https://gratisfy.xyz/api/benchmarks`, guardadas 24 h em `model_scores.json`).
 
+## 12b. Pet, companheiro e atualização sem sumir (v4.0)
+
+- [x] **Pet na área de trabalho** (`pet.html` + `pet_loop` no `app.py`, Windows): arrastar, jogar, quicar nas bordas com gravidade e gelatina, clique = pulinho, segurado = olhos `> <`, olhos seguem o cursor, grudar na borda, tamanho 50–300% (padrão 200%), resetar posição, posição lembrada (`pet_pos`). Config: `pet_desktop` (padrão desligado), `pet_size`, `pet_snap`. Janela transparente (vidro do DWM + fundo preto), sem botão na barra de tarefas, sem roubar foco, região circular (cliques passam no resto).
+- [~] Pet testado com um mouse simulado (jogada, 6 a 11 quicadas, chão e paredes certos); não testado: vários monitores, grudar na borda, o clique real em cima de outros programas.
+- [x] Mascote mais parecido com o do Kimi (aro escuro translúcido, luz de baixo, olhos em cápsula, `mood-held` com `> <`, estilo LED).
+- [x] **Companheiro** (`lumePet.openProfile`): dias com você, conversas, sequência, mapa de calor (data da criação de cada chat), crescimento por mensagens, "Crescer sozinho" = sugestões de memória.
+- [x] **Lume Rápido**: transparência real (`quick_backcolor`: BackColor preto do formulário), animações, **troca de modelo** (lista = cache de modelos da nuvem do app + instalados; escolha em `localStorage.lume_quick_model`).
+- [x] **Reiniciar sem sumir** (`restart_app`: `--handoff`, arquivos `lume-handoff-*` na pasta temporária; o app antigo só fecha com `os._exit` quando o novo mostra a janela, no mesmo lugar). No `.exe` com troca de arquivo (atualização baixada) a janela ainda fecha antes (o arquivo precisa estar livre), mas a nova abre no mesmo lugar.
+- [x] Atualização do código: pergunta com **Atualizar agora / Deixar para depois** (20 s; o depois volta em 30 min). Emergência = Release com `[urgente]`/`[security]`: sem botões, reinicia sozinho quando a IA está parada.
+- [x] Botão da extensão lista os navegadores instalados e instala no escolhido.
+
 ## 13. Interface, temas e configurações
 
 - [x] Interface moderna (padrão) + clássica; 6 temas (DeepSeek, Roxo, Claude, Ollama, Gemini, Perplexity) que mudam fonte, cantos, layout e logo; editor de temas com gradiente e imagem de fundo; temas salvos em `custom themes`.
@@ -194,6 +205,8 @@ Dicas de teste (a "harness" = script que abre o Lume numa janela pywebview escon
 - [ ] `take_screenshot` e as ferramentas do navegador com modelo real.
 - [ ] Caixinha: Esc para esconder, Mica no tema claro, Ctrl+Alt+Espaço com um modelo real e em vários apps (Chrome, Word, VS Code).
 - [ ] Seletor em tela cheia num celular de verdade e no iPhone.
+- [ ] Pet na área de trabalho: vários monitores, grudar na borda, uso por horas (CPU da física a 60 quadros).
+- [ ] Atualização de emergência (Release de verdade com `[urgente]`) e o reinício sem sumir no `.exe`.
 - [ ] Seletor: ordenar por "Novos" usa `created` (só o Pollinations/iOS preenchem; modelos locais ficam por último).
 
 ## 17. Ideias e backlog

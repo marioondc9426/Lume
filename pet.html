@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Lume Pet</title>
+<!-- O pet na area de trabalho: uma janela pequena, sem borda, transparente e sempre por cima. A fisica (arrastar, jogar, quicar nas bordas da tela) roda no app.py;
+     aqui so ficam o desenho (o MESMO mascote do chat: libs/lume-pet.js, com as suas cores e acessorios) e a gelatina (achata ao bater, estica ao voar). -->
+<style>
+html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; user-select: none; -webkit-user-select: none; cursor: grab; }
+#stage { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+#jelly { width: var(--s, 150px); height: var(--s, 150px); transform-origin: 50% 50%; will-change: transform; filter: drop-shadow(0 6px 10px rgba(0, 0, 0, .35)); }
+#jelly .lp-pet { width: 100%; height: 100%; }
+body.held { cursor: grabbing; }
+</style></head><body>
+<div id="stage"><div id="jelly"></div></div>
+<script>window.__LUME_PET_ONLY = true;</script>
+<script src="/libs/lume-pet.js"></script>
+<script>
+const $ = id => document.getElementById(id), jelly = $('jelly');
+let el = null;
+function mount() { if (!window.lumePet || !lumePet.make) return setTimeout(mount, 50); jelly.textContent = ''; el = lumePet.make(jelly); lumePet.repaint(); }
+mount();
+window.petSize = s => { jelly.style.setProperty('--s', s + 'px'); if (window.lumePet && lumePet.repaint) setTimeout(lumePet.repaint, 30); };
+window.addEventListener('storage', e => { if (e.key === 'lume_pet' && window.lumePet && lumePet.reload) lumePet.reload(); });   // personalizou o mascote no app: vale aqui tambem
+
+// ---- gelatina: mola amortecida na escala (achata no sentido da batida, estica no sentido do voo)
+let sx = 1, sy = 1, vsx = 0, vsy = 0, ang = 0, tx = 1, ty = 1, tang = 0, last = performance.now(), held = false;
+const K = 260, D = 9;   // dureza e amortecimento (um pouco "mole": balanca 2-3 vezes antes de parar)
+function frame(now) {
+  const dt = Math.min(0.04, (now - last) / 1000); last = now;
+  vsx += ((tx - sx) * K - vsx * D) * dt; vsy += ((ty - sy) * K - vsy * D) * dt; sx += vsx * dt; sy += vsy * dt;
+  ang += (tang - ang) * Math.min(1, dt * 18);
+  jelly.style.transform = `rotate(${ang}rad) scale(${sx.toFixed(3)}, ${sy.toFixed(3)}) rotate(${-ang}rad)`;
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+// bateu numa borda: normal (nx, ny) e velocidade (px/s): achata no sentido da normal e incha para os lados, depois a mola devolve
+window.petHit = (nx, ny, speed) => {
+  const k = Math.min(0.42, speed / 2600), a = Math.atan2(ny, nx);
+  ang = a; tang = a; sx = 1 - k; sy = 1 + k * 0.7; vsx = vsy = 0;
+};
+// o estado de 30 em 30 ms: velocidade (estica no voo), onde esta o cursor (os olhos seguem) e se esta sendo segurado
+window.petState = (vx, vy, lx, ly, drag) => {
+  const sp = Math.hypot(vx, vy), k = Math.min(0.22, sp / 5200);
+  if (sp > 120) { tang = Math.atan2(vy, vx); tx = 1 + k; ty = 1 - k * 0.8; } else { tx = 1; ty = 1; }
+  if (drag !== held) { held = drag; document.body.classList.toggle('held', held); if (el) el.classList.toggle('mood-held', held); }
+  if (el && window.lumePet && lumePet.point) lumePet.point(el, lx, ly);
+};
+// clique: pulinho de alegria
+window.petClick = () => {
+  if (!el) return; el.classList.add('mood-happy'); setTimeout(() => el && el.classList.remove('mood-happy'), 800);
+  sy = 1.18; sx = 0.86; vsx = vsy = 0; tang = 0; ang = 0;
+};
+window.petSnap = side => { if (el) { el.classList.toggle('mood-sleep', !!side); } };
+</script></body></html>

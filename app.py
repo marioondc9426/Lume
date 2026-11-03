@@ -1,5 +1,6 @@
 import http.server
 import socketserver
+import math
 import threading
 import json
 import urllib.request
@@ -340,6 +341,9 @@ def load_config():
     cfg.setdefault("cloudflare_account_id", "")
     cfg.setdefault("quick_style", "mica")         # fundo da caixinha: solid | mica | aero | acrylic
     cfg.setdefault("quick_hotkey", True)         # Alt+Espaco abre a caixinha rapida (janela flutuante)
+    cfg.setdefault("pet_desktop", False)         # o mascote na area de trabalho (da para jogar; quica nas bordas da tela como uma gelatina)
+    cfg.setdefault("pet_size", 200)              # tamanho do pet em % (100% = 80 px)
+    cfg.setdefault("pet_snap", True)             # grudar na borda da tela quando soltar perto dela
     cfg.setdefault("quick_sel_hotkey", True)     # Ctrl+Alt+Espaco: abre a caixinha com o texto selecionado no app da frente (explicar, traduzir, resumir, corrigir)
     cfg.setdefault("log_full", True)              # o terminal mostra cada mensagem crua da IA, o raciocinio e os resultados (desligue em Configuracoes se for muito)
     cfg.setdefault("ui_lang", "pt")
@@ -1321,8 +1325,13 @@ QUICK = {"win": None, "visible": False}
 def quick_hide():
     w = QUICK["win"]
     if w and QUICK["visible"]:
-        try: w.hide(); QUICK["visible"] = False; return True
-        except Exception: pass
+        try:
+            QUICK["visible"] = False   # ja conta como fechada: um segundo Alt+Espaco durante a animacao abre de novo
+            try: w.evaluate_js("window.qhiding && qhiding()"); time.sleep(0.13)   # a caixinha some com um fade curto (a janela so esconde depois)
+            except Exception: pass
+            if not QUICK["visible"]: w.hide()
+            return True
+        except Exception: QUICK["visible"] = True
     return False
 def quick_show():
     w = QUICK["win"]
@@ -2899,7 +2908,7 @@ LOOPBACK_IPS = ("127.0.0.1", "::1", "::ffff:127.0.0.1")
 LOCAL_HOSTS = ("127.0.0.1", "localhost")
 # So estes arquivos sao servidos (nunca config.json, history.json, app.py...)
 STATIC_PAGES = ("/", "/index.html")
-PAGE_ALIAS = {"/share": "/share.html", "/dashboard": "/dashboard.html", "/feedback": "/feedback.html", "/quick": "/quick.html"}
+PAGE_ALIAS = {"/share": "/share.html", "/dashboard": "/dashboard.html", "/feedback": "/feedback.html", "/quick": "/quick.html", "/pet": "/pet.html"}
 # So o proprio PC (janela do app) pode usar estas rotas
 LOCAL_ONLY_POST = ("/api/open_path", "/api/mcp_auto", "/api/mcp_save", "/api/save_config", "/api/save_key", "/api/server_config", "/api/perf_interval",
                    "/api/custom_theme", "/api/custom_theme_delete", "/api/account_import", "/api/config_import", "/api/pol_effort_probe", "/api/account/login", "/api/account/logout", "/api/resolve_pending", "/api/export", "/api/ios_profile_save", "/api/undo", "/api/stats_clear", "/api/open_url", "/api/update_apply", "/api/restart_app", "/api/run_code", "/api/run_stop", "/api/tunnel_start", "/api/tunnel_stop", "/api/tunnel_install", "/api/app_options", "/api/model_pull", "/api/model_delete", "/api/models_update_now", "/api/cloudflare_usage_set")
@@ -3235,10 +3244,13 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             if not local: return self.send_json({"error": "local_only"}, 403)
             return self.send_json(app_options())
         if p == '/api/ui_rev':   # a interface pergunta daqui a pouco se algum arquivo dela mudou (so rodando do codigo-fonte)
-            return self.send_json({"dev": bool(local and dev_enabled()), "rev": ui_rev() if local and dev_enabled() else "", "busy": bool(gens_active), "updated": bool(UPDATED_AT and time.time() - UPDATED_AT < 90)})
+            return self.send_json({"dev": bool(local and dev_enabled()), "rev": ui_rev() if local and dev_enabled() else "", "busy": bool(gens_active), "updated": bool(UPDATED_AT and time.time() - UPDATED_AT < 90), "pending": bool(DEV_PENDING["on"])})
         if p == '/api/browser/status':
             if not local or not lumebrowser: return self.send_json({"error": "local_only"}, 403)
             return self.send_json(lumebrowser.info())
+        if p == '/api/browser/list':   # navegadores instalados (para escolher onde instalar a extensao)
+            if not local: return self.send_json({"error": "local_only"}, 403)
+            return self.send_json({"browsers": installed_browsers()})
         if p == '/api/mcp':
             if not local or not lumemcp: return self.send_json({"error": "local_only"}, 403)
             _c = load_config().get("mcp_servers") or {}
@@ -3478,7 +3490,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             try: _d = json.loads(post_data or b"{}")
             except Exception: _d = {}
             if p == '/api/browser/install':   # botao das configuracoes (so deste PC)
-                return self.send_json(browser_install())
+                return self.send_json(browser_install(_d.get("browser")))
             if p == '/api/browser/pair':
                 tk = lumebrowser.pair(self.headers.get("Origin", ""))
                 if not tk: return self.send_json({"error": "origin"}, 403)
@@ -3697,6 +3709,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             if data.get("quick_style") in QUICK_STYLES: cfg["quick_style"] = data["quick_style"]; save_config(cfg); quick_style_apply()
             if "browser_ai" in data: cfg["browser_ai"] = bool(data["browser_ai"]); save_config(cfg)
             if "quick_hotkey" in data: cfg["quick_hotkey"] = bool(data["quick_hotkey"]); save_config(cfg)
+            if "pet_desktop" in data: cfg["pet_desktop"] = bool(data["pet_desktop"]); save_config(cfg)
+            if "pet_size" in data: cfg["pet_size"] = max(50, min(400, int(data["pet_size"]))); save_config(cfg)
+            if "pet_snap" in data: cfg["pet_snap"] = bool(data["pet_snap"]); save_config(cfg)
+            if data.get("pet_reset"): PET["reset"] = True
             if "quick_sel_hotkey" in data: cfg["quick_sel_hotkey"] = bool(data["quick_sel_hotkey"]); save_config(cfg)
             if "log_full" in data:
                 cfg["log_full"] = bool(data["log_full"]); save_config(cfg)
@@ -3730,7 +3746,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             return self.send_json({"ok": True})
         if p == '/api/tunnel_stop': stop_tunnel(); return self.send_json({"ok": True})
         if p == '/api/restart_app':
-            self.send_json({"ok": True}); threading.Thread(target=restart_app, daemon=True).start(); return
+            self.send_json({"ok": True}); threading.Thread(target=lambda: restart_app(notify=True), daemon=True).start(); return
         if p == '/api/stats_clear':
             _write_json(STATS_FILE, {"events": []}); log("STATS", "Estatisticas apagadas.", COLOR_YELLOW)
             return self.send_json({"ok": True})
@@ -4321,11 +4337,12 @@ def start_server():
     handler = functools.partial(AppHandler, directory=RES_DIR)
     host = "0.0.0.0" if load_config().get("remote_enabled") and not OWNER_ONLY else "127.0.0.1"
     srv = None
-    for attempt in range(8):   # na troca de modo o socket antigo pode demorar um instante para liberar a porta
+    tries = 60 if HANDOFF else 8   # no reinicio sem sumir o app antigo ainda segura a porta ate o novo avisar que esta pronto
+    for attempt in range(tries):   # na troca de modo o socket antigo pode demorar um instante para liberar a porta
         try:
             srv = ThreadingServer((host, PORT), handler); break
         except OSError as e:
-            if attempt == 7:
+            if attempt == tries - 1:
                 log("SERVIDOR", f"Nao foi possivel usar a porta {PORT}: {e}. Ja tem outra copia aberta?", COLOR_RED)
                 return
             time.sleep(0.5)
@@ -4427,9 +4444,10 @@ def check_release():
             if e.code == 404: return {"status": "unknown", "local": VERSION, "local_date": "exe", "version": VERSION}
             raise
         remote = str(d.get("tag_name", "")).lstrip("vV"); asset = next((a for a in d.get("assets", []) if a["name"].lower().endswith(".exe")), None)
+        urgent = bool(re.search(r"\[(urgente|urgent|emerg[eê]ncia|emergency|security|seguran[cç]a)\]", str(d.get("name") or "") + " " + str(d.get("body") or ""), re.I))   # patch de seguranca: sem "depois"
         newer = parse_ver(remote) > parse_ver(VERSION)
         return {"status": "available" if (newer and asset) else "uptodate" if parse_ver(remote) == parse_ver(VERSION) else "ahead" if not newer else "unknown",
-                "local": VERSION, "local_date": "exe", "version": VERSION, "remote_version": remote, "behind_by": 1 if newer else 0,
+                "local": VERSION, "local_date": "exe", "version": VERSION, "remote_version": remote, "behind_by": 1 if newer else 0, "urgent": bool(urgent and newer),
                 "commits": [{"sha": "v" + remote, "msg": (d.get("name") or ("v" + remote))}] if newer else [], "asset": ({"url": asset["browser_download_url"], "size": asset.get("size", 0), "digest": asset.get("digest", "")} if asset else None)}
     except Exception as e:
         return {"status": "error", "error": str(e)[:200]}
@@ -4524,13 +4542,38 @@ def default_browser():
         return (info[0] if info else os.path.splitext(os.path.basename(exe))[0], exe, info[1] if info else "chromium")
     except Exception: return None
 
-def browser_install():
+def installed_browsers():
+    """Navegadores instalados (registro do Windows, StartMenuInternet): [{name, exe, family, default}]. O padrao vem primeiro."""
+    out, seen = [], set()
+    try:
+        import winreg, vcomp
+        dflt = default_browser(); dexe = (dflt[1].lower() if dflt else "")
+        for root in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+            try: base = winreg.OpenKey(root, r"SOFTWARE\Clients\StartMenuInternet")
+            except OSError: continue
+            for i in range(winreg.QueryInfoKey(base)[0]):
+                try:
+                    sub = winreg.EnumKey(base, i)
+                    with winreg.OpenKey(base, sub + r"\shell\open\command") as k: cmd = winreg.QueryValueEx(k, "")[0]
+                    m = re.match(r'\s*"([^"]+)"', cmd) or re.match(r'\s*(\S+)', cmd); exe = m.group(1)
+                    if not os.path.isfile(exe) or exe.lower() in seen or "iexplore" in exe.lower(): continue
+                    seen.add(exe.lower()); info = vcomp.BROWSERS.get(os.path.basename(exe).lower())
+                    out.append({"name": info[0] if info else os.path.splitext(os.path.basename(exe))[0], "exe": exe, "family": info[1] if info else "chromium", "default": exe.lower() == dexe})
+                except OSError: continue
+        if dflt and dflt[1].lower() not in seen: out.append({"name": dflt[0], "exe": dflt[1], "family": dflt[2], "default": True})
+    except Exception: pass
+    return sorted(out, key=lambda b: (not b["default"], b["name"].lower()))
+
+def browser_install(exe_choice=None):
     """Botao "Instalar no meu navegador": abre a pagina de extensoes do navegador PADRAO e a pasta da extensao.
     Nenhum navegador deixa instalar uma extensao de fora sem um clique do dono (e o Comet/Chrome so aceitam --load-extension com o navegador fechado), entao o que da para automatizar e isso + o passo a passo."""
     if sys.platform != "win32": return {"error": "So no Windows por enquanto."}
     ext = os.path.join(RES_DIR, "browser-extension")
     if not os.path.isdir(ext): return {"error": "A pasta browser-extension nao foi encontrada."}
     d = default_browser()
+    if exe_choice:   # o dono escolheu outro navegador na lista (so vale um que esta instalado)
+        ch = next((b for b in installed_browsers() if b["exe"].lower() == str(exe_choice).lower()), None)
+        if ch: d = (ch["name"], ch["exe"], ch["family"])
     try: os.startfile(ext)   # a pasta no Explorador (para arrastar para a pagina de extensoes)
     except Exception: pass
     if not d: return {"browser": "", "steps": ["Nao achei o seu navegador padrao. Abra a pagina de extensoes dele (chrome://extensions), ligue o Modo do desenvolvedor e use Carregar sem compactacao com a pasta que abri."]}
@@ -4550,16 +4593,75 @@ def browser_install():
     except Exception as e: return {"browser": name, "error": f"Nao consegui abrir o {name}: {e}"}
 
 UPDATED_AT = time.time() if "--updated" in sys.argv else 0.0   # este processo nasceu de uma atualizacao automatica (a interface mostra "Lume atualizado")
+HANDOFF = "--handoff" in sys.argv   # este processo e o app NOVO de um reinicio: espera o antigo liberar a porta e abre a janela no mesmo lugar
+def _hf(name): return os.path.join(tempfile.gettempdir(), "lume-handoff-" + name)
+def _my_hwnd(title):
+    """A janela com esse titulo que pertence a ESTE processo (outra copia do Lume aberta nao atrapalha)."""
+    u = ctypes.windll.user32; found = []; pid = os.getpid()
+    @ctypes.WINFUNCTYPE(ctypes.c_bool, wintypes.HWND, wintypes.LPARAM)
+    def cb(h, _):
+        p = wintypes.DWORD(); u.GetWindowThreadProcessId(h, ctypes.byref(p))
+        if p.value == pid and u.IsWindowVisible(h):
+            n = u.GetWindowTextLengthW(h); b = ctypes.create_unicode_buffer(n + 1); u.GetWindowTextW(h, b, n + 1)
+            if b.value == title: found.append(h)
+        return True
+    u.EnumWindows(cb, 0); return found[0] if found else 0
+def window_geometry():
+    """Onde esta a janela principal (pixels) e se esta maximizada (o maximizar do Lume e proprio: guarda o tamanho de antes em window_api._restore)."""
+    try:
+        u = ctypes.windll.user32; hw = _my_hwnd(WINDOW_TITLE)
+        if not hw: return None
+        r = wintypes.RECT(); u.GetWindowRect(hw, ctypes.byref(r)); x, y, w, h = r.left, r.top, r.right - r.left, r.bottom - r.top
+        mx = bool(window_api and getattr(window_api, "_maximized", False))
+        if mx and getattr(window_api, "_restore", None): x, y, w, h = window_api._restore
+        try: k = u.GetDpiForWindow(hw) / 96.0
+        except Exception: k = 1.0
+        return {"x": int(x), "y": int(y), "w": round(w / k), "h": round(h / k), "px": [int(x), int(y), int(w), int(h)], "max": mx}
+    except Exception: return None
+def handoff_geometry():
+    """A posicao gravada pelo app antigo (vale por 90 s)."""
+    try:
+        if time.time() - os.path.getmtime(_hf("geom.json")) > 90: return None
+        with open(_hf("geom.json"), "r", encoding="utf-8") as f: g = json.load(f).get("geom")
+        return g if isinstance(g, dict) and g.get("w", 0) >= 300 and g.get("h", 0) >= 300 else None
+    except Exception: return None
+def _handoff_wait():
+    """App ANTIGO: quando o novo avisa que esta pronto, solta as portas (a janela fica, com o aviso) e so fecha quando a janela nova ja apareceu. Se o novo nao vier, volta ao normal."""
+    t0 = time.time()
+    while time.time() - t0 < 45 and not os.path.exists(_hf("ready")): time.sleep(0.2)
+    if not os.path.exists(_hf("ready")): log("ATUALIZACAO", "O app novo nao abriu a tempo; continuo neste.", COLOR_RED); _handoff_cancel(); return
+    for s in (https_httpd, httpd):
+        try:
+            if s: s.shutdown()
+        except Exception: pass
+    t1 = time.time()
+    while time.time() - t1 < 40 and not os.path.exists(_hf("shown")): time.sleep(0.2)
+    if os.path.exists(_hf("shown")): os._exit(0)   # sem shutdown_all: ele fecharia o Ollama que o app novo ja esta usando
+    log("ATUALIZACAO", "A janela nova nao apareceu; religando este app.", COLOR_RED)
+    threading.Thread(target=start_server, daemon=True).start(); time.sleep(1.5); _handoff_cancel()
+def _handoff_cancel():
+    try: window_api._window.evaluate_js("(document.getElementById('lume-restart')||{remove(){}}).remove(); location.reload()")
+    except Exception: pass
+
 def restart_app(notify=False):
-    """Fecha este app e abre outro depois de alguns segundos (a porta precisa ser liberada primeiro). notify: avisa na tela antes de fechar (atualizacao automatica)."""
+    """Reinicia o Lume sem a janela sumir: abre o app novo por tras, no mesmo lugar, e so entao fecha este. notify: mostra o aviso na tela (atualizacao)."""
     flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
     if notify:
         try:
             if window_api and window_api._window: window_api._window.evaluate_js("window.lumeRestarting && lumeRestarting()"); time.sleep(0.9)   # um instante para a tela de aviso aparecer
         except Exception: pass
-    if FROZEN and pending_update["cmd"]: subprocess.Popen(["cmd", "/c", pending_update["cmd"]], creationflags=flags)   # troca o .exe pelo novo e abre
-    elif FROZEN: subprocess.Popen(f'cmd /c "ping -n 4 127.0.0.1 >nul & start "" "{sys.executable}""', shell=True, creationflags=flags)
-    else: subprocess.Popen(f'cmd /c "ping -n 4 127.0.0.1 >nul & "{sys.executable}" app.py{" --updated" if notify else ""}"', cwd=BASE_DIR, shell=True, creationflags=flags)
+    for n in ("ready", "shown"):
+        try: os.remove(_hf(n))
+        except OSError: pass
+    try:
+        with open(_hf("geom.json"), "w", encoding="utf-8") as f: json.dump({"geom": window_geometry()}, f)
+    except OSError: pass
+    swap = FROZEN and pending_update["cmd"]   # a troca do .exe precisa do arquivo livre: ai este app fecha antes e o novo abre no mesmo lugar logo depois
+    if swap: subprocess.Popen(["cmd", "/c", pending_update["cmd"]], creationflags=flags)
+    else:
+        args = ([sys.executable] if FROZEN else [sys.executable, "app.py"]) + ["--handoff"] + (["--updated"] if notify else [])
+        subprocess.Popen(args, cwd=BASE_DIR, creationflags=flags)
+        threading.Thread(target=_handoff_wait, daemon=True).start(); return
     if window_api and window_api._window: window_api._window.destroy()
 
 # ---------------------------------------------------------------- atualizar sozinho quando os arquivos do programa mudam (so rodando do codigo-fonte, nao no .exe)
@@ -4579,9 +4681,10 @@ _ui_rev = {"rev": "", "since": 0.0}
 def ui_rev():
     """Identifica a versao da interface (index.html + libs): muda quando um desses arquivos muda."""
     return hashlib.md5(repr(_sig(_dev_files()[1])).encode()).hexdigest()[:12]
+DEV_PENDING = {"on": False}   # um .py mudou e esta pronto: a interface mostra "Atualizar agora / Deixar para depois"
 def dev_watch_loop(poll=2.0, stable=2.5, restart=None):
     """Se um arquivo .py mudar (e compilar), reinicia o Lume quando nao houver resposta em andamento nem permissao pendente."""
-    restart = restart or (lambda: restart_app(notify=True)); py0 = _sig(_dev_files()[0]); changed_at = 0.0; last = py0
+    restart = restart or None; py0 = _sig(_dev_files()[0]); changed_at = 0.0; last = py0
     while True:
         time.sleep(poll)
         try:
@@ -4594,7 +4697,8 @@ def dev_watch_loop(poll=2.0, stable=2.5, restart=None):
             if bad:
                 log("ATUALIZACAO", "Arquivo com erro de sintaxe, nao reiniciei: " + ", ".join(os.path.basename(b) for b in bad), COLOR_RED); py0 = cur; changed_at = 0.0; continue
             if gens_active or pending_command.get("resolve"): continue   # o dono esta conversando ou ha uma permissao esperando: tenta de novo daqui a pouco
-            log("ATUALIZACAO", "Arquivos do programa mudaram: reiniciando o Lume.", COLOR_YELLOW); restart(); return
+            if restart is not None: log("ATUALIZACAO", "Arquivos do programa mudaram: reiniciando o Lume.", COLOR_YELLOW); restart(); return
+            DEV_PENDING["on"] = True; log("ATUALIZACAO", "Arquivos do programa mudaram: a interface pergunta se reinicia agora ou depois.", COLOR_YELLOW); return
         except Exception as e:
             log("ATUALIZACAO", f"Vigia de arquivos: {e}", COLOR_RED)
 def _compiles(path, py_compile):
@@ -4670,7 +4774,11 @@ def gpu_names():
     """Nomes das placas de video (Windows: WMI; Linux: lspci). Lista vazia se nao deu para saber."""
     global _gpu_names_cache
     if _gpu_names_cache is not None: return _gpu_names_cache
-    names = []
+    names = []; cache_f = os.path.join(BASE_DIR, "gpu_cache.json")
+    try:   # o PowerShell leva ~2 s a cada abertura: guarda o resultado por 7 dias (a placa quase nunca muda)
+        with open(cache_f, "r", encoding="utf-8") as f: c = json.load(f)
+        if time.time() - float(c.get("t", 0)) < 7 * 86400 and isinstance(c.get("names"), list) and c["names"]: _gpu_names_cache = c["names"]; return _gpu_names_cache
+    except Exception: pass
     try:
         if sys.platform == "win32":
             out = subprocess.check_output(["powershell", "-NoProfile", "-Command", "(Get-CimInstance Win32_VideoController).Name"], stderr=subprocess.DEVNULL, timeout=8, creationflags=NO_WINDOW).decode("utf-8", "replace")
@@ -4680,6 +4788,10 @@ def gpu_names():
             names = [l.split(": ", 1)[-1].strip() for l in out.splitlines() if re.search(r"VGA|3D controller|Display controller", l)]
     except Exception: pass
     _gpu_names_cache = names
+    if names:
+        try:
+            with open(cache_f, "w", encoding="utf-8") as f: json.dump({"t": time.time(), "names": names}, f)
+        except OSError: pass
     return names
 
 def hw_accel_decide(mode, names=None):
@@ -4712,7 +4824,7 @@ def app_options():
     cfg = load_config()
     _hw = cfg.get("hw_accel", "auto"); _hw = _hw if _hw in HW_MODES else "auto"
     return {"frozen": FROZEN, "start_with_terminal": bool(cfg.get("start_with_terminal")), "terminal_open": terminal_is_open(), "start_with_windows": autostart_get(), "remote_enabled": bool(cfg.get("remote_enabled")),
-            "tray": bool(cfg.get("tray_enabled")), "tray_available": tray_available(), "auto_update_models": bool(cfg.get("auto_update_models")), "log_full": bool(cfg.get("log_full")), "quick_hotkey": bool(cfg.get("quick_hotkey", True)), "quick_sel_hotkey": bool(cfg.get("quick_sel_hotkey", True)), "browser_ai": bool(cfg.get("browser_ai", True)), "browser_ext": (lumebrowser.info() if lumebrowser else {}), "browser_ext_dir": os.path.join(RES_DIR, "browser-extension"), "quick_style": cfg.get("quick_style", "mica"), "quick_available": sys.platform == "win32",
+            "tray": bool(cfg.get("tray_enabled")), "tray_available": tray_available(), "auto_update_models": bool(cfg.get("auto_update_models")), "log_full": bool(cfg.get("log_full")), "quick_hotkey": bool(cfg.get("quick_hotkey", True)), "pet_desktop": bool(cfg.get("pet_desktop", False)), "pet_size": int(cfg.get("pet_size", 200)), "pet_snap": bool(cfg.get("pet_snap", True)), "pet_available": sys.platform == "win32", "quick_sel_hotkey": bool(cfg.get("quick_sel_hotkey", True)), "browser_ai": bool(cfg.get("browser_ai", True)), "browser_ext": (lumebrowser.info() if lumebrowser else {}), "browser_ext_dir": os.path.join(RES_DIR, "browser-extension"), "quick_style": cfg.get("quick_style", "mica"), "quick_available": sys.platform == "win32",
             "hw_accel": _hw, "hw_accel_auto": hw_accel_decide("auto"), "gpu_names": gpu_names(), "auto_reload": bool(cfg.get("auto_reload", True)), "dev": not FROZEN,
             "version": VERSION, "platform": platform.platform(), "python": sys.version.split()[0], "data_dir": BASE_DIR, "has_log": os.path.exists(os.path.join(BASE_DIR, "lume.log")),
             "models_updated_at": cfg.get("models_updated_at", 0), "model_update": dict(model_update_state)}
@@ -4950,11 +5062,23 @@ def quick_place(h_css=None):
     u.SetWindowPos(hwnd, ctypes.c_void_p(-1), w.left + (w.right - w.left - W) // 2, w.top + round((w.bottom - w.top) * 0.2), W, H, 0x0010)   # -1 = HWND_TOPMOST, 0x10 = NOACTIVATE
 
 QUICK_STYLES = ("solid", "mica", "aero", "acrylic")
+def quick_backcolor(w):
+    """A janela do pywebview transparente deixa a cor de fundo do formulario (cinza claro) aparecer ATRAS da pagina, entao o vidro nunca aparecia (o fundo parecia um cinza chapado).
+    Preto + 'vidro' do DWM (DwmExtendFrameIntoClientArea) = transparente de verdade."""
+    try:
+        from System import Action
+        from System.Drawing import Color
+        n = w.native
+        def _set():
+            n.BackColor = Color.Black
+        n.Invoke(Action(_set))
+    except Exception as e: log("RAPIDO", f"cor de fundo: {e}", COLOR_YELLOW)
 def quick_style_apply():
     """Fundo da caixinha: mica / acrylic (Windows 11, via DWM), aero (vidro desfocado classico) ou solido."""
     try:
         hw = _quick_hwnd()
         if not hw: return
+        if QUICK["win"] and load_config().get("quick_style", "mica") != "solid": quick_backcolor(QUICK["win"])
         st = load_config().get("quick_style", "mica"); dwm = ctypes.windll.dwmapi
         class ACCENT(ctypes.Structure): _fields_ = [("State", ctypes.c_int), ("Flags", ctypes.c_int), ("Color", ctypes.c_uint), ("Anim", ctypes.c_int)]
         class WCA(ctypes.Structure): _fields_ = [("Attr", ctypes.c_int), ("Data", ctypes.c_void_p), ("Size", ctypes.c_size_t)]
@@ -5095,6 +5219,147 @@ def quick_setup():
         QUICK["win"] = w; threading.Thread(target=quick_hotkey_loop, daemon=True).start()
     except Exception as e: log("RAPIDO", f"Caixinha Alt+Espaco indisponivel: {e}", COLOR_YELLOW)
 
+
+# ---------------------------------------------------------------- pet na area de trabalho: o mascote numa janela transparente que da para jogar (quica nas bordas como uma gelatina)
+PET = {"win": None, "reset": False, "hit": [], "state": None}
+PET_TITLE = "Lume Pet"
+def _pet_hwnd(): return ctypes.windll.user32.FindWindowW(None, PET_TITLE)
+def pet_geometry(cfg=None):
+    """(tamanho do bonequinho S, tamanho da janela W): a janela e maior para sobrar espaco quando ele estica ao voar."""
+    pct = int((cfg or load_config()).get("pet_size", 200)); S = max(40, round(80 * pct / 100)); return S, round(S * 1.4)
+
+def pet_style(w):
+    """Janela do pet: sem fundo (vidro do DWM + preto = transparente), fora da barra de tarefas e que nao rouba o foco."""
+    try:
+        hw = _pet_hwnd()
+        if not hw: return
+        quick_backcolor(w); dwm = ctypes.windll.dwmapi; u = ctypes.windll.user32
+        dwm.DwmSetWindowAttribute(hw, 33, ctypes.byref(ctypes.c_int(1)), 4)   # sem cantos arredondados
+        dwm.DwmSetWindowAttribute(hw, 38, ctypes.byref(ctypes.c_int(1)), 4)   # sem efeito de fundo
+        dwm.DwmExtendFrameIntoClientArea(hw, ctypes.byref((ctypes.c_int * 4)(-1, -1, -1, -1)))
+        ex = u.GetWindowLongW(hw, -20); u.SetWindowLongW(hw, -20, ex | 0x80 | 0x08000000)   # TOOLWINDOW (sem botao na barra) | NOACTIVATE (nao pega o foco)
+    except Exception as e: log("PET", f"estilo: {e}", COLOR_YELLOW)
+
+def pet_region(S, W):
+    """So o circulo (um pouco maior, para a gelatina esticar) recebe cliques; os cantos da janela deixam o clique passar."""
+    try:
+        hw = _pet_hwnd()
+        if not hw: return
+        d = round(S * 1.3); o = (W - d) // 2
+        rgn = ctypes.windll.gdi32.CreateEllipticRgn(o, o, o + d, o + d); ctypes.windll.user32.SetWindowRgn(hw, rgn, True)
+    except Exception: pass
+
+def pet_js(code):
+    """Roda JS na janela do pet sem travar a fisica (o pywebview espera a resposta da pagina)."""
+    w = PET["win"]
+    if not w: return
+    threading.Thread(target=lambda: _pet_eval(w, code), daemon=True).start()
+def _pet_eval(w, code):
+    try: w.evaluate_js(code)
+    except Exception: pass
+
+def pet_loop():
+    """A fisica do pet (60 quadros por segundo): segura com o mouse, joga, quica nas bordas da area de trabalho com gravidade, e grudar na borda."""
+    u = ctypes.windll.user32; pt = wintypes.POINT(); cfg = load_config(); cfg_t = 0.0
+    class MI(ctypes.Structure): _fields_ = [("cbSize", wintypes.DWORD), ("rcMonitor", wintypes.RECT), ("rcWork", wintypes.RECT), ("dwFlags", wintypes.DWORD)]
+    def work_area(x, y):
+        mi = MI(); mi.cbSize = ctypes.sizeof(mi); u.GetMonitorInfoW(u.MonitorFromPoint(wintypes.POINT(int(x), int(y)), 2), ctypes.byref(mi)); return mi.rcWork
+    x = y = 0.0; vx = vy = 0.0; shown = False; placed = False; S, W = pet_geometry(cfg); drag = None; down_prev = False; snapped = 0   # snapped: -1 esquerda, 1 direita
+    hist = []; last = time.perf_counter(); sent = 0.0; saved_pos = None; saved_t = 0.0; hover = [0.0, 0]; GRAV = 1800.0; REST = 0.74
+    def put(nx, ny, size=None):
+        hw = _pet_hwnd()
+        if hw: u.SetWindowPos(hw, ctypes.c_void_p(-1), int(nx), int(ny), int(size or W), int(size or W), 0x0010 | (0 if size else 0x0001))   # TOPMOST, sem ativar
+    while True:
+        time.sleep(0.012); now = time.perf_counter(); dt = min(0.05, now - last); last = now
+        if now - cfg_t > 1.0: cfg = load_config(); cfg_t = now
+        want = bool(cfg.get("pet_desktop")) and PET["win"] is not None
+        hw = _pet_hwnd()
+        if not want or not hw:
+            if shown and PET["win"]:
+                try: PET["win"].hide()
+                except Exception: pass
+                shown = False
+            time.sleep(0.15); continue
+        nS, nW = pet_geometry(cfg)
+        if not shown:   # ligou agora: mostra (no lugar de antes, ou no canto de baixo)
+            S, W = nS, nW
+            try: PET["win"].show()
+            except Exception: pass
+            pet_style(PET["win"]); shown = True
+            pos = cfg.get("pet_pos")
+            if isinstance(pos, list) and len(pos) == 2: x, y = float(pos[0]), float(pos[1])
+            else: PET["reset"] = True
+            vx = vy = 0.0; snapped = 0; placed = False; put(x, y, W); pet_region(S, W); pet_js(f"petSize({S})")
+        if nS != S:   # mudou o tamanho nas configuracoes
+            cx, cy = x + W / 2, y + W / 2; S, W = nS, nW; x, y = cx - W / 2, cy - W / 2; put(x, y, W); pet_region(S, W); pet_js(f"petSize({S})")
+        u.GetCursorPos(ctypes.byref(pt)); px, py = pt.x, pt.y; down = bool(u.GetAsyncKeyState(0x01) & 0x8000)
+        wa = work_area(x + W / 2, y + W / 2); pad = (W - S) / 2
+        if PET["reset"]:   # "Resetar posicao": canto de baixo, a direita, do monitor onde esta o mouse
+            PET["reset"] = False; wa = work_area(px, py); x = wa.right - W + pad - 24; y = wa.bottom - W + pad - 24; vx = vy = 0.0; snapped = 0; drag = None; put(x, y)
+        cxp, cyp = x + W / 2, y + W / 2; over = math.hypot(px - cxp, py - cyp) <= S / 2
+        if down and not down_prev and over and drag is None:   # pegou o pet
+            drag = {"ox": px - x, "oy": py - y, "t0": now, "p0": (px, py), "moved": False}; hist = []; vx = vy = 0.0
+            if snapped: snapped = 0; pet_js("petSnap(0)")
+        down_prev = down
+        if drag is not None:
+            if down:
+                if not drag["moved"] and math.hypot(px - drag["p0"][0], py - drag["p0"][1]) > 5: drag["moved"] = True
+                if drag["moved"]:
+                    x, y = px - drag["ox"], py - drag["oy"]; put(x, y); hist.append((now, px, py)); hist = [h for h in hist if now - h[0] < 0.12]
+            else:   # soltou: clique (pulinho) ou arremesso
+                d = drag; drag = None
+                if not d["moved"] and now - d["t0"] < 0.4: vy = -520.0; pet_js("petClick()")
+                elif len(hist) >= 2 and now - hist[-1][0] < 0.08:
+                    dtv = max(0.016, hist[-1][0] - hist[0][0]); vx = (hist[-1][1] - hist[0][1]) / dtv; vy = (hist[-1][2] - hist[0][2]) / dtv
+                    sp = math.hypot(vx, vy)
+                    if sp > 4200: vx, vy = vx * 4200 / sp, vy * 4200 / sp
+                if cfg.get("pet_snap", True) and math.hypot(vx, vy) < 500:   # grudar na borda: solta perto da esquerda/direita, devagar
+                    if cxp - wa.left < S * 0.7: snapped = -1
+                    elif wa.right - cxp < S * 0.7: snapped = 1
+                    if snapped: vx = vy = 0.0; pet_js(f"petSnap({snapped})")
+        elif snapped:
+            x = (wa.left - pad - S * 0.45) if snapped < 0 else (wa.right - W + pad + S * 0.45); put(x, y)
+        else:   # fisica livre: gravidade, quicar nas bordas (gelatina) e parar no chao
+            vy += GRAV * dt; x += vx * dt; y += vy * dt; sp0 = math.hypot(vx, vy)
+            vx *= max(0.0, 1 - 0.08 * dt); lo_x, hi_x, lo_y, hi_y = wa.left - pad, wa.right - W + pad, wa.top - pad, wa.bottom - W + pad
+            def hit(nx, ny, spd):
+                if spd > 140: PET["hit"].append((nx, ny, spd))
+            if x < lo_x: x = lo_x; hit(1, 0, abs(vx)); vx = abs(vx) * REST
+            elif x > hi_x: x = hi_x; hit(-1, 0, abs(vx)); vx = -abs(vx) * REST
+            if y < lo_y: y = lo_y; hit(0, 1, abs(vy)); vy = abs(vy) * REST
+            elif y > hi_y:
+                y = hi_y; hit(0, -1, abs(vy)); vy = -abs(vy) * REST
+                if abs(vy) < 160: vy = 0.0
+                vx *= max(0.0, 1 - 4.0 * dt)   # atrito no chao
+                if abs(vx) < 12: vx = 0.0
+            put(x, y)
+        for h in PET["hit"][:4]: pet_js(f"petHit({h[0]},{h[1]},{h[2]:.0f})")
+        PET["hit"].clear()
+        if now - sent > 0.033:   # olhos seguem o cursor; a gelatina estica com a velocidade
+            sent = now; dx, dy = px - (x + W / 2), py - (y + W / 2); dd = math.hypot(dx, dy) or 1.0; k = min(1.0, dd / 260)
+            pet_js(f"petState({vx:.0f},{vy:.0f},{dx / dd * k:.2f},{dy / dd * k:.2f},{'true' if (drag is not None and drag['moved']) else 'false'})")
+        if now - saved_t > 3.0:   # lembra onde ele ficou
+            saved_t = now; cur = [int(x), int(y)]
+            if cur != saved_pos and vx == 0 and abs(vy) < 5:
+                saved_pos = cur
+                try: c2 = load_config(); c2["pet_pos"] = cur; save_config(c2)
+                except Exception: pass
+
+def pet_setup():
+    if sys.platform != "win32": return
+    try:
+        S, W = pet_geometry()
+        w = webview.create_window(PET_TITLE, f"http://127.0.0.1:{PORT}/pet", width=W, height=W, frameless=True, on_top=True, hidden=True, easy_drag=False, transparent=True, focus=False)
+        def _loaded():
+            try:
+                if load_config().get("pet_desktop"): pet_style(w); pet_js(f"petSize({pet_geometry()[0]})")   # ja ligado: a pagina acabou de carregar, so ajusta
+                else: ctypes.windll.user32.ShowWindow(_pet_hwnd(), 0)   # o pywebview as vezes mostra a janela mesmo criada escondida
+            except Exception: pass
+        w.events.loaded += _loaded
+        PET["win"] = w; threading.Thread(target=pet_loop, daemon=True).start()
+    except Exception as e: log("PET", f"Pet da area de trabalho indisponivel: {e}", COLOR_YELLOW)
+
+
 if __name__ == '__main__':
     if "--feedback-window" in sys.argv:   # processo so da janela de feedback (aberto pelo Lume no Linux): nao sobe servidor, so mostra a pagina do Lume que ja esta rodando
         _i = sys.argv.index("--feedback-window")
@@ -5106,6 +5371,10 @@ if __name__ == '__main__':
     PORT = int(_env("PORT") or load_config().get("port", PORT))
     if FROZEN and load_config().get("start_with_terminal"): set_terminal(True)
     log("INICIO", "Groq: " + ("biblioteca ok" if HAS_GROQ else "biblioteca NAO instalada (pip install groq)"), COLOR_GREEN if HAS_GROQ else COLOR_YELLOW)
+    if HANDOFF:
+        try:
+            with open(_hf("ready"), "w") as f: f.write(str(os.getpid()))   # o app antigo solta a porta agora
+        except OSError: pass
     threading.Thread(target=start_server, daemon=True).start()
     threading.Thread(target=start_ollama, daemon=True).start()
     threading.Thread(target=monitor_loop, daemon=True).start()
@@ -5114,14 +5383,32 @@ if __name__ == '__main__':
     if not FROZEN: threading.Thread(target=dev_watch_loop, daemon=True).start()   # reinicia sozinho quando os .py mudam (desligavel em Configuracoes > App)
     tray_on = bool(load_config().get("tray_enabled")) and tray_start()
     start_gpu_stream(gpu_interval_ms)
-    time.sleep(1)
+    for _ in range(300 if HANDOFF else 40):   # espera ESTE servidor subir (antes era um sleep fixo de 1 s): normalmente leva uns 0,1 s; no reinicio sem sumir espera o antigo soltar a porta
+        if httpd is not None: break
+        time.sleep(0.1)
     hw_accel_apply()
     log("INICIO", "Abrindo janela...", COLOR_BLUE)
     api = WindowApi()
-    api._window = webview.create_window(WINDOW_TITLE, f'http://127.0.0.1:{PORT}/index.html', width=1100, height=800, min_size=(800, 520), frameless=True, easy_drag=False, js_api=api, hidden=bool(tray_on and "--autostart" in sys.argv))
+    geo = handoff_geometry() if (HANDOFF or "--updated" in sys.argv) else None   # reinicio/atualizacao: a janela nova abre onde a antiga estava
+    pos = {"x": geo["x"], "y": geo["y"]} if geo else {}
+    api._window = webview.create_window(WINDOW_TITLE, f'http://127.0.0.1:{PORT}/index.html', width=geo["w"] if geo else 1100, height=geo["h"] if geo else 800, min_size=(800, 520), frameless=True, easy_drag=False, js_api=api, hidden=bool(tray_on and "--autostart" in sys.argv), **pos)
+    if HANDOFF or geo:
+        def _first_load():
+            api._window.events.loaded -= _first_load
+            try:
+                if geo and geo.get("px"):   # o tamanho que o pywebview da nao bate com a borda do Windows: poe a janela exatamente onde a antiga estava
+                    hw = _my_hwnd(WINDOW_TITLE)
+                    if hw: ctypes.windll.user32.SetWindowPos(hw, 0, *geo["px"], 0x0004)   # 0x4 = nao mexe na ordem das janelas
+                if geo and geo.get("max"): api.toggle_maximize()
+            except Exception: pass
+            try:
+                with open(_hf("shown"), "w") as f: f.write("1")   # o app antigo pode fechar
+            except OSError: pass
+        api._window.events.loaded += _first_load
     # private_mode=False: sem isso o localStorage some toda vez que o app fecha
     window_api = api
     quick_setup()
+    pet_setup()
     webview.start(private_mode=False, storage_path=os.path.join(BASE_DIR, "webview_data"), icon=custom_icon_ico())
     log("SAIDA", "Janela fechada. Desligando as IAs...", COLOR_YELLOW)
     shutdown_all()

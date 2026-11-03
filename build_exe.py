@@ -18,7 +18,7 @@ LOCK = os.path.join(BUILD, ".lock")
 AGAIN = os.path.join(BUILD, ".again")
 LOG = os.path.join(BUILD, "build.log")
 NOWIN = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-DATA = ["index.html", "share.html", "dashboard.html", "feedback.html", "quick.html", "browser-extension", "CHANGELOG.md", "CHANGELOG-EN.md", "icons", "fonts", "libs"] + (["sounds"] if os.path.isdir(os.path.join(ROOT, "sounds")) else [])   # o que vai dentro do .exe (pasta de destino: a raiz)
+DATA = ["index.html", "share.html", "dashboard.html", "feedback.html", "quick.html", "pet.html", "browser-extension", "CHANGELOG.md", "CHANGELOG-EN.md", "icons", "fonts", "libs"] + (["sounds"] if os.path.isdir(os.path.join(ROOT, "sounds")) else [])   # o que vai dentro do .exe (pasta de destino: a raiz)
 
 
 def say(msg):

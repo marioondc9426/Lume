@@ -40,3 +40,4 @@ model_scores.json
 provider_usage.json
 provider_models_last.json
 provider_follow.json
+gpu_cache.json

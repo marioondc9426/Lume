@@ -35,10 +35,14 @@
         .lp-pet.bob { animation: lpBob 3.4s ease-in-out infinite; } .lp-pet.mood-thinking { animation: lpThink 1.1s ease-in-out infinite; } .lp-pet.mood-happy { animation: lpJump .55s ease; } .lp-pet.mood-sleep { animation: lpSleep 4s ease-in-out infinite; }
         .lp-pet .lp-body { position: absolute; inset: 0; border-radius: 50%; }
         .lp-pet.shape-square .lp-body { border-radius: 30%; } .lp-pet.shape-drop .lp-body { border-radius: 50% 50% 50% 50% / 58% 58% 42% 42%; } .lp-pet.shape-ghost .lp-body { border-radius: 50% 50% 14% 14% / 62% 62% 38% 38%; } .lp-pet.shape-wide .lp-body { border-radius: 50%; transform: scaleX(1.18); }
-        .lp-pet.orb .lp-body { box-shadow: 0 0 0 2px rgba(255,255,255,.22), 0 5px 14px rgba(0,0,0,.4), 0 0 calc(var(--lp-glow, 60) * .4px) var(--lp-glowc); }
+        .lp-pet.orb .lp-body { box-shadow: 0 0 0 calc(var(--lp-s) * 2.4px) rgba(120,72,40,.34), 0 0 0 calc(var(--lp-s) * 4.5px) rgba(120,72,40,.12), inset 0 calc(var(--lp-s) * -5px) calc(var(--lp-s) * 9px) rgba(255,255,255,.22), inset 0 calc(var(--lp-s) * 3px) calc(var(--lp-s) * 6px) rgba(255,255,255,.34), 0 calc(var(--lp-s) * 4px) calc(var(--lp-s) * 10px) rgba(0,0,0,.4), 0 0 calc(var(--lp-glow, 60) * .16px) var(--lp-glowc); }   /* aro escuro translucido + luz refletida embaixo, como o do Kimi */
         .lp-pet.led .lp-body { background-image: radial-gradient(circle, var(--lp-c) 0 38%, transparent 42%) !important; background-size: calc(100% / 13) calc(100% / 13); background-color: transparent !important; -webkit-mask-image: radial-gradient(circle, #000 55%, transparent 74%); mask-image: radial-gradient(circle, #000 55%, transparent 74%); border-radius: 50%; }
-        .lp-pet .e { position: absolute; top: 36%; width: 15%; height: 26%; background: var(--lp-e); border-radius: 50%; box-shadow: 0 0 6px var(--lp-e); transform: translate(calc(var(--lp-lx) * 2.4px * var(--lp-s)), calc(var(--lp-ly) * 2.1px * var(--lp-s))); transition: transform .14s ease-out, height .1s, border-radius .2s, top .1s; }
-        .lp-pet .e.l { left: 30%; } .lp-pet .e.r { right: 30%; }
+        .lp-pet .e { position: absolute; top: 39%; width: 13.5%; height: 27%; background: var(--lp-e); border-radius: 999px; box-shadow: 0 0 2px rgba(255,255,255,.55); rotate: 0deg; transform: translate(calc(var(--lp-lx) * 2.4px * var(--lp-s)), calc(var(--lp-ly) * 2.1px * var(--lp-s))); transition: transform .14s ease-out, height .1s, border-radius .2s, top .1s; }
+        .lp-pet .e.l { left: 31%; rotate: -5deg; } .lp-pet .e.r { right: 31%; rotate: 5deg; }
+        /* segurado / apertado: olhos viram "> <" (como o do Kimi quando voce pega ele) */
+        .lp-pet.mood-held .e { background: transparent !important; box-shadow: none; width: 11%; height: 11%; top: 43%; border-radius: 1px; border: 0 solid var(--lp-e); border-top-width: calc(var(--lp-s) * 3.6px); border-right-width: calc(var(--lp-s) * 3.6px); }
+        .lp-pet.mood-held .e.l { rotate: 45deg; left: 29%; } .lp-pet.mood-held .e.r { rotate: -135deg; right: 29%; }
+        .lp-pet.mood-peek .e { top: 36%; }
         .lp-pet.eyes-round .e { width: 20%; height: 20%; top: 40%; } .lp-pet.eyes-dot .e { width: 9%; height: 9%; top: 46%; } .lp-pet.eyes-wide .e { width: 19%; height: 32%; top: 32%; border-radius: 45%; }
         .lp-pet.blink .e { height: 4% !important; top: 48% !important; border-radius: 3px !important; }
         .lp-pet .m { position: absolute; left: 50%; top: 66%; width: 22%; height: 11%; transform: translateX(-50%); border: 0 solid var(--lp-e); display: none; }
@@ -70,6 +74,10 @@
         .lp-tip { display: flex; gap: 10px; align-items: flex-start; margin: 10px 0 2px; padding: 10px 12px; border-radius: 14px; background: rgba(128,128,128,.12); border-left: 3px solid var(--accent, #4d6bfe); font-size: .9em; } .lp-tip-ic { flex: none; width: 30px; height: 30px; } .lp-tip-body { flex: 1; min-width: 0; } .lp-tip-text { line-height: 1.45; }
         .lp-tip-row { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; } .lp-tip-row .btn { margin: 0; padding: 4px 11px; font-size: .82em; }
         .lp-prev { flex: none; width: 84px; height: 84px; margin: 6px 14px 4px 0; }
+        .lp-heat { display: grid; grid-template-rows: repeat(7, 10px); grid-auto-flow: column; grid-auto-columns: 10px; gap: 3px; width: max-content; } .lp-heat i { border-radius: 3px; background: rgba(128,128,128,.18); }
+        .lp-heat i[data-l="1"] { background: rgba(47,139,255,.35); } .lp-heat i[data-l="2"] { background: rgba(47,139,255,.55); } .lp-heat i[data-l="3"] { background: rgba(47,139,255,.8); } .lp-heat i[data-l="4"] { background: #2f8bff; }
+        .lp-months { display: grid; grid-auto-columns: 13px; grid-template-columns: repeat(53, 13px); width: max-content; margin-top: 6px; font-size: .75em; color: var(--text-muted); } .lp-months span { white-space: nowrap; }
+        .lp-bar { height: 10px; border-radius: 6px; background: rgba(128,128,128,.2); margin: 8px 0; overflow: hidden; } .lp-bar i { display: block; height: 100%; border-radius: 6px; background: linear-gradient(90deg, #2f8bff, #8b5cf6); }
     `;
     document.head.appendChild(css);
 
@@ -87,7 +95,7 @@
         el.className = 'lp-pet ' + cfg.style + ' shape-' + cfg.shape + ' ex-' + cfg.expr + ' eyes-' + cfg.eyes + ' acc-' + cfg.acc + (cfg.blush ? ' blush' : '') + (cfg.bob ? ' bob' : '') + (mm !== 'idle' && cfg.react ? ' mood-' + mm : '') + (blink ? ' blink' : '');
         el.style.setProperty('--lp-c', cfg.color); el.style.setProperty('--lp-e', cfg.eyeColor); el.style.setProperty('--lp-glow', cfg.glow); el.style.setProperty('--lp-glowc', rgba(cfg.color, Math.min(1, cfg.glow / 100)));
         const body = el.querySelector('.lp-body');
-        if (body) body.style.background = cfg.style === 'led' ? '' : 'radial-gradient(circle at 34% 26%, ' + mix(cfg.color, [255, 255, 255], .55) + ' 0%, ' + cfg.color + ' 48%, ' + mix(cfg.color, [0, 0, 0], .42) + ' 100%)';
+        if (body) body.style.background = cfg.style === 'led' ? '' : 'radial-gradient(circle at 36% 22%, ' + mix(cfg.color, [255, 255, 255], .34) + ' 0%, ' + cfg.color + ' 46%, ' + mix(cfg.color, [0, 0, 0], .36) + ' 100%)';
         const acc = el.querySelector('.acc'); if (acc) acc.innerHTML = ACC[cfg.acc] ? '<svg viewBox="0 0 100 100">' + ACC[cfg.acc] + '</svg>' : '';
         el.style.setProperty('--lp-s', Math.max(.5, Math.min(2.4, (el.clientWidth || 30) / 30)));
     }
@@ -143,6 +151,64 @@
         }, 700);
     }
 
+    // ---- o companheiro: ha quantos dias esta com voce, mapa de calor das conversas, sequencia e crescimento
+    const dayKey = t => { const d = new Date(t); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); };
+    const STAGES = [[0, 'Ovinho'], [20, 'Filhote'], [100, 'Jovem'], [300, 'Parceiro'], [800, 'Veterano'], [2000, 'Lendário']];   // por mensagens suas
+    function petStats() {
+        const byDay = {}; let msgs = 0, n = 0, first = Infinity;
+        try { Object.keys(chats).forEach(id => { const c = chats[id], t = +id; if (!c || !(t > 1e12)) return; const um = (c.messages || []).filter(m => m.role === 'user').length; n++; msgs += um; first = Math.min(first, t); const k = dayKey(t); byDay[k] = (byDay[k] || 0) + Math.max(1, um); }); } catch (e) { /* sem conversas ainda */ }
+        const day = 86400000, now = Date.now(); let streak = 0, t = now; if (!byDay[dayKey(t)]) t -= day;
+        while (byDay[dayKey(t)]) { streak++; t -= day; }
+        return { byDay, msgs, chats: n, days: n ? Math.max(1, Math.ceil((now - first) / day)) : 0, streak };
+    }
+    function openProfile() {
+        if (document.getElementById('lp-profile')) return;
+        const U = window.LumeUI, w = U.modal({ title: cfg.name, id: 'lp-profile', width: 760 }), st = petStats(), en = EN();
+        const head = document.createElement('div'); head.style.cssText = 'display:flex;gap:16px;align-items:center;margin:2px 0 14px';
+        const ph = document.createElement('div'); ph.style.cssText = 'flex:none;width:72px;height:72px'; head.appendChild(ph); make(ph);
+        const tx = document.createElement('div'); const pl = (n, a, b) => n + ' ' + (n === 1 ? a : b);
+        tx.innerHTML = '<div style="font-weight:700;font-size:1.15em"></div><div style="color:var(--text-muted);margin-top:4px;line-height:1.5"></div>';
+        tx.firstChild.textContent = cfg.name;
+        tx.lastChild.textContent = en ? `${cfg.name} has been with you for ${pl(st.days, 'day', 'days')} across ${pl(st.chats, 'chat', 'chats')}, and we've chatted ${pl(st.streak, 'day', 'days')} in a row.` : `${cfg.name} está com você há ${pl(st.days, 'dia', 'dias')}, em ${pl(st.chats, 'conversa', 'conversas')}, e conversamos ${pl(st.streak, 'dia', 'dias')} seguido${st.streak === 1 ? '' : 's'}.`;
+        head.appendChild(tx); w.body.appendChild(head);
+        const area = document.createElement('div'); let tab = 'c';
+        const heat = () => {
+            const d0 = new Date(); d0.setHours(12, 0, 0, 0); const today = d0.getTime(), day = 86400000, wd = d0.getDay(), start = today - (52 * 7 + wd) * day;
+            const g = document.createElement('div'); g.className = 'lp-heat'; let months = '', lastM = -1, col = 0;
+            for (let i = 0; i <= 52 * 7 + wd; i++) {
+                const t = start + i * day, c = document.createElement('i'), n = st.byDay[dayKey(t)] || 0, d = new Date(t);
+                c.dataset.l = n === 0 ? 0 : n < 3 ? 1 : n < 7 ? 2 : n < 15 ? 3 : 4; c.title = d.toLocaleDateString(en ? 'en-US' : 'pt-BR') + (n ? ' · ' + n : ''); g.appendChild(c);
+                if (d.getDay() === 0 && d.getMonth() !== lastM) { lastM = d.getMonth(); months += `<span style="grid-column:${Math.floor(i / 7) + 1}">${d.toLocaleDateString(en ? 'en-US' : 'pt-BR', { month: 'short' })}</span>`; }
+            }
+            const wrap = document.createElement('div'); wrap.style.cssText = 'overflow-x:auto;padding-bottom:4px'; wrap.appendChild(g);
+            const ml = document.createElement('div'); ml.className = 'lp-months'; ml.innerHTML = months; wrap.appendChild(ml); setTimeout(() => { wrap.scrollLeft = wrap.scrollWidth; }, 0); return wrap;
+        };
+        const render = () => {
+            area.textContent = '';
+            const note = document.createElement('div'); note.style.cssText = 'color:var(--text-muted);margin:10px 0'; area.appendChild(note);
+            if (tab === 'c') { note.textContent = en ? 'The more you chat, the closer you grow.' : 'Quanto mais você conversa, mais a gente fica próximo.'; area.appendChild(heat()); }
+            else {
+                let lv = 0; STAGES.forEach((s, i) => { if (st.msgs >= s[0]) lv = i; }); const cur = STAGES[lv], nx = STAGES[lv + 1], pct = nx ? Math.round((st.msgs - cur[0]) / (nx[0] - cur[0]) * 100) : 100;
+                note.textContent = en ? 'You grow it by sending messages.' : 'Você faz ele crescer mandando mensagens.'; area.appendChild(note);
+                const box = document.createElement('div'); box.innerHTML = '<div style="font-weight:700;font-size:1.1em"></div><div class="lp-bar"><i></i></div><div style="color:var(--text-muted);font-size:.88em"></div>';
+                box.firstChild.textContent = T(cur[1]) + (en ? '  ·  level ' : '  ·  nível ') + (lv + 1); box.querySelector('.lp-bar i').style.width = pct + '%';
+                box.lastChild.textContent = nx ? (en ? `${nx[0] - st.msgs} more messages to become ${T(nx[1])}` : `Faltam ${nx[0] - st.msgs} mensagens para virar ${T(nx[1])}`) : (en ? 'Maximum level reached!' : 'Nível máximo!');
+                area.appendChild(box);
+            }
+        };
+        U.seg(w.body, [['c', en ? 'Closeness' : 'Proximidade'], ['g', en ? 'Growth' : 'Crescimento']], 'c', v => { tab = v; render(); });
+        w.body.appendChild(area); render();
+        const grow = document.createElement('div'); grow.style.cssText = 'display:flex;gap:18px;align-items:center;margin-top:18px;flex-wrap:wrap';
+        const left = document.createElement('div'); left.style.cssText = 'flex:1;min-width:240px';
+        left.innerHTML = '<div style="font-weight:700;margin-bottom:6px"></div><div style="color:var(--text-muted);line-height:1.5;margin-bottom:10px"></div>';
+        left.firstChild.textContent = en ? `${cfg.name} can learn and grow on its own` : `${cfg.name} pode aprender e crescer sozinho`;
+        left.children[1].textContent = en ? 'When on, it keeps learning your preferences, habits and ways of working and suggests remembering them (you always approve).' : 'Ligado, ele vai aprendendo as suas preferências, hábitos e jeito de trabalhar e sugere lembrar (você sempre aprova).';
+        const tgl = document.createElement('div'); left.appendChild(tgl);
+        U.toggle(tgl, en ? 'Grow on its own' : 'Crescer sozinho', config.memorySuggest !== false, v => { config.memorySuggest = !!v; if (typeof saveState === 'function') saveState(); });
+        const led = document.createElement('div'); led.style.cssText = 'flex:none;width:150px;height:150px'; make(led); const le = led.firstChild; le.classList.remove('orb'); le.classList.add('led'); const lb = le.querySelector('.lp-body'); if (lb) lb.style.background = '';
+        grow.append(left, led); w.body.appendChild(grow);
+    }
+
     // ---- janela de personalizacao (com previa ao vivo)
     function openSettings() {
         if (document.getElementById('lp-modal')) return;
@@ -151,6 +217,7 @@
         const tog = (sec, label, key, fn) => U.toggle(sec, label, cfg[key], v => { cfg[key] = v; (fn || apply)(); });
         const rng = (key, min, max) => U.range(min, max, cfg[key], v => { cfg[key] = v; apply(); });
         const sel = (key, opts) => U.select(opts, cfg[key], v => { cfg[key] = v; apply(); });
+        U.button(w.foot, T('Ver o meu companheiro'), () => { w.close && w.close(); openProfile(); });
         const prev = document.createElement('div'); prev.className = 'lp-prev'; w.aside(prev); const pv = make(prev); point(pv, 0, 0);
         prev.addEventListener('pointermove', e => { const r = pv.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2), d = Math.hypot(dx, dy) || 1; point(pv, +(dx / d).toFixed(2), +(dy / d).toFixed(2)); });
         let s = U.section(w.body, 'Onde aparece', { open: true });
@@ -284,8 +351,9 @@
         try { showTip(div, await tipFor(err, failedModel), false); } catch (e) { showTip(div, T('Não consegui descobrir o que houve. Tente de novo ou escolha outro modelo.'), false); }
     };
     window.lumeTipDemo = div => { div.innerHTML = '<div class="final-text">[Erro: Provedor X respondeu 599: bad gateway kaboom-42]</div>'; window.lumePetOnReply(div, null); };
-    window.lumePet = { openSettings, get config() { return cfg; }, say, setMood: flash };
+    window.lumePet = { openSettings, openProfile, get config() { return cfg; }, say, setMood: flash, make, point, repaint: repaintAll, reload: () => { cfg = load(); repaintAll(); } };   // make/point/repaint/reload: o pet da area de trabalho (pet.html) desenha o mesmo mascote
     addEventListener('resize', () => { if (root) place(); });
     const start = () => { build(); initAv(); repaintAll(); if (cfg.on) setTimeout(() => say(T('Oi, eu sou {n}!').replace('{n}', cfg.name), 2600), 1800); };
+    if (window.__LUME_PET_ONLY) return;   // pet.html (area de trabalho) so desenha o boneco: sem flutuante nem avatares
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();

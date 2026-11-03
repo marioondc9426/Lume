@@ -19,24 +19,59 @@ body { font: 14.5px/1.5 -apple-system, "Segoe UI", system-ui, sans-serif; color:
 .lb { all: unset; cursor: pointer; width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex: none; } .lb:hover { background: var(--bg2); } .lb img { width: 20px; height: 20px; border-radius: 6px; }
 #sel { display: none; padding: 10px 16px 0; } #sel.on { display: block; } #sel .q { color: var(--mut); font-size: .8rem; border-left: 2px solid var(--ac); padding-left: 8px; margin-bottom: 8px; max-height: 3.2em; overflow: hidden; white-space: pre-wrap; word-break: break-word; }
 #sel .acts { display: flex; flex-wrap: wrap; gap: 6px; } .ch { all: unset; cursor: pointer; padding: 4px 12px; border-radius: 999px; background: var(--bg2); font-size: .82rem; } .ch:hover { background: var(--ac); color: #fff; }
+/* animacoes: a caixinha aparece com fade + leve descida, as mensagens sobem entrando, e some com fade (qhiding) */
+@keyframes qin { from { opacity: 0; transform: translateY(-10px) scale(.985); } to { opacity: 1; transform: none; } }
+@keyframes qout { to { opacity: 0; transform: translateY(-6px) scale(.985); } }
+@keyframes qmsg { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+#box.in { animation: qin .18s cubic-bezier(.2,.9,.3,1.05) both; } #box.out { animation: qout .12s ease-in both; }
+.m { animation: qmsg .22s cubic-bezier(.2,.8,.3,1) both; } #sel.on .q { animation: qmsg .2s ease both; } #sel.on .ch { animation: qmsg .22s cubic-bezier(.2,.8,.3,1) both; } #sel.on .ch:nth-child(2) { animation-delay: .04s; } #sel.on .ch:nth-child(3) { animation-delay: .08s; } #sel.on .ch:nth-child(4) { animation-delay: .12s; }
+.ch, .ib, .lb { transition: background .15s, color .15s, transform .12s; } .ch:active, .ib:active, .lb:active { transform: scale(.94); }
+@media (prefers-reduced-motion: reduce) { #box.in, #box.out, .m, #sel.on .q, #sel.on .ch { animation: none !important; } }
+/* trocar de modelo (so para a caixinha: o chat do app continua com o dele) */
+.mc { all: unset; cursor: pointer; flex: none; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 3px 10px; border-radius: 999px; background: var(--bg2); color: var(--mut); font-size: .76rem; } .mc:hover { color: var(--tx); }
+#mm { display: none; padding: 8px 12px 0; } #mm.on { display: block; animation: qmsg .18s ease both; } #mq { width: 100%; box-sizing: border-box; font: inherit; font-size: .85rem; color: var(--tx); background: var(--bg2); border: none; outline: none; border-radius: 10px; padding: 6px 10px; }
+#ml { max-height: 170px; overflow-y: auto; margin-top: 6px; } #ml div { padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: .86rem; display: flex; justify-content: space-between; gap: 8px; } #ml div:hover { background: var(--bg2); } #ml div.cur { color: var(--ac); font-weight: 600; } #ml small { color: var(--mut); font-size: .72rem; }
 #hint { color: var(--mut); font-size: .72rem; padding: 0 16px 8px; display: none; } #hint.on { display: block; }
 </style></head><body>
 <div id="box">
   <div id="log"></div>
   <div id="sel"><div class="q" id="selq"></div><div class="acts" id="selacts"></div></div>
-  <div id="row"><input id="in" type="text" autocomplete="off" spellcheck="false" placeholder="Pergunte qualquer coisa..."><button class="ib" id="stop" title="Parar">■</button><button class="ib" id="new" title="Nova conversa">+</button><button class="lb" id="lume" title="Abrir esta conversa no Lume"><img src="/apple-touch-icon.png" alt="Lume"></button></div>
+  <div id="mm"><input id="mq" type="text" autocomplete="off" spellcheck="false" placeholder="Buscar modelo..."><div id="ml"></div></div>
+  <div id="row"><input id="in" type="text" autocomplete="off" spellcheck="false" placeholder="Pergunte qualquer coisa..."><button class="mc" id="mdl" title="Trocar de modelo"></button><button class="ib" id="stop" title="Parar">■</button><button class="ib" id="new" title="Nova conversa">+</button><button class="lb" id="lume" title="Abrir esta conversa no Lume"><img src="/apple-touch-icon.png" alt="Lume"></button></div>
 </div>
 <script>
 const API = location.origin, $ = id => document.getElementById(id), log = $('log'), inp = $('in');
 const L = () => { try { return (JSON.parse(localStorage.getItem('thingmabobber_config') || '{}').lang || navigator.language || 'pt').slice(0, 2) === 'en' ? 'en' : 'pt'; } catch (e) { return 'pt'; } };
 const cfg = () => { try { return JSON.parse(localStorage.getItem('thingmabobber_config') || '{}'); } catch (e) { return {}; } };
 let msgs = [], busy = false, ctl = null, shownAt = 0;
+// ---- modelo da caixinha: a lista vem da copia que o app guarda no navegador (modelos da nuvem) mais os instalados no PC
+const MQ = 'lume_quick_model';
+const modelId = () => { try { return localStorage.getItem(MQ) || cfg().model || 'qwen3.5:4b'; } catch (e) { return cfg().model || 'qwen3.5:4b'; } };
+let allModels = [];
+const nm = m => String(m.short || m.label || m.id).replace(/\s*\(.*?\)\s*$/, '');
+async function loadModels() {
+  const out = [];
+  try { (JSON.parse(localStorage.getItem('lume_models_cache_v1') || '[]') || []).forEach(m => { if (m && m.id && (!m.tabs || m.tabs.includes('chat'))) out.push({ id: m.id, name: nm(m), tag: m.free ? 'grátis' : m.paid ? 'pago' : 'nuvem' }); }); } catch (e) { /* sem cache ainda */ }
+  try { const st = await (await fetch(API + '/api/models_status')).json(); (st.installed || []).forEach(n => { if (!out.some(m => m.id === n)) out.push({ id: n, name: n, tag: 'local' }); }); } catch (e) { /* sem Ollama */ }
+  const cur = modelId(); if (!out.some(m => m.id === cur)) out.unshift({ id: cur, name: cur.replace(/^[a-z0-9]+:/i, ''), tag: '' });
+  allModels = out; paintModel();
+}
+function paintModel() { const m = allModels.find(x => x.id === modelId()); $('mdl').textContent = (m ? m.name : modelId()).slice(0, 40); }
+function drawList() {
+  const q = $('mq').value.trim().toLowerCase(), box = $('ml'), cur = modelId(); box.textContent = '';
+  allModels.filter(m => !q || (m.name + ' ' + m.id).toLowerCase().includes(q)).slice(0, 80).forEach(m => {
+    const d = document.createElement('div'); if (m.id === cur) d.className = 'cur'; d.append(document.createTextNode(m.name)); const s = document.createElement('small'); s.textContent = m.tag; d.appendChild(s);
+    d.onclick = () => { try { localStorage.setItem(MQ, m.id); } catch (e) {} paintModel(); toggleModels(false); inp.focus(); }; box.appendChild(d);
+  });
+}
+function toggleModels(on) { const p = $('mm'); on = on === undefined ? !p.classList.contains('on') : on; p.classList.toggle('on', on); if (on) { $('mq').value = ''; drawList(); setTimeout(() => $('mq').focus(), 30); } fit(); }
+$('mdl').onclick = () => toggleModels(); $('mq').oninput = drawList;
 const esc = s => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 function md(t) {   // markdown minimo: blocos de codigo, `codigo`, **negrito**, *italico*, paragrafos
   const parts = String(t).split(/```/);
   return parts.map((p, i) => i % 2 ? '<pre><code>' + esc(p.replace(/^[\w+-]*\n/, '')) + '</code></pre>' : esc(p).replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<i>$2</i>')).join('');
 }
-function fit() { try { const h = Math.min(Math.max((log.classList.contains('on') ? log.scrollHeight + 16 : 0) + ($('sel').classList.contains('on') ? $('sel').offsetHeight : 0) + $('row').offsetHeight, 64), 560); if (window.pywebview && pywebview.api) pywebview.api.resize(h); } catch (e) {} }
+function fit() { try { const h = Math.min(Math.max((log.classList.contains('on') ? log.scrollHeight + 16 : 0) + ($('sel').classList.contains('on') ? $('sel').offsetHeight : 0) + ($('mm').classList.contains('on') ? $('mm').offsetHeight : 0) + $('row').offsetHeight, 64), 560); if (window.pywebview && pywebview.api) pywebview.api.resize(h); } catch (e) {} }
 function add(role, text) { const d = document.createElement('div'); d.className = 'm ' + (role === 'user' ? 'u' : 'a'); if (role === 'user') d.textContent = text; else d.innerHTML = md(text); log.appendChild(d); log.classList.add('on'); log.scrollTop = log.scrollHeight; fit(); return d; }
 function ui() { $('stop').classList.toggle('on', busy); $('new').classList.toggle('on', !busy && msgs.length > 0); inp.placeholder = msgs.length ? (L() === 'en' ? 'Reply...' : 'Responder...') : (L() === 'en' ? 'Ask anything...' : 'Pergunte qualquer coisa...'); }
 // texto selecionado em outro app (Ctrl+Alt+Espaco): vira contexto da proxima mensagem; os botoes ja trazem a instrucao pronta
@@ -58,7 +93,7 @@ async function send(instr) {
   const out = add('assistant', ''), c = cfg(); out.classList.add('dots'); busy = true; ctl = new AbortController(); ui(); let text = '';
   try {
     const sys = L() === 'en' ? 'You are a quick assistant in a small floating box. Answer directly and briefly.' : 'Voce e um assistente rapido numa caixinha flutuante. Responda direto e curto.';
-    const res = await fetch(API + '/api/chat', { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: c.model || 'qwen3.5:4b', stream: true, think: false, search_web: false, agent: false, lang: L(), messages: [{ role: 'system', content: sys }].concat(msgs) }) });
+    const res = await fetch(API + '/api/chat', { method: 'POST', signal: ctl.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: modelId(), stream: true, think: false, search_web: false, agent: false, lang: L(), messages: [{ role: 'system', content: sys }].concat(msgs) }) });
     const rd = res.body.getReader(), dec = new TextDecoder(); let buf = '';
     const one = l => { try { const d = JSON.parse(l); if (d.message && d.message.content) { text += d.message.content; out.classList.remove('dots'); out.innerHTML = md(text); log.scrollTop = log.scrollHeight; fit(); } } catch (e) {} };
     while (true) { const { done, value } = await rd.read(); if (done) break; buf += dec.decode(value, { stream: true }); const ls = buf.split('\n'); buf = ls.pop(); ls.forEach(one); }
@@ -72,11 +107,12 @@ async function send(instr) {
 function hide() { try { pywebview.api.hide(); } catch (e) {} }
 function reset() { pending = ''; $('sel').classList.remove('on'); if (ctl) ctl.abort(); msgs = []; log.innerHTML = ''; log.classList.remove('on'); busy = false; ui(); fit(); inp.focus(); }
 inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); send(); } });
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { if (busy && ctl) ctl.abort(); else hide(); } });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') { if ($('mm').classList.contains('on')) toggleModels(false); else if (busy && ctl) ctl.abort(); else hide(); } });
 $('stop').onclick = () => ctl && ctl.abort(); $('new').onclick = reset;
 $('lume').onclick = () => { try { pywebview.api.open_in_lume(msgs.slice()); reset(); } catch (e) {} };   // leva a conversa para um chat novo no Lume
 window.qstyle = (s, dark) => { document.documentElement.className = (s || 'mica') + (dark ? '' : ' lt'); };   // o claro/escuro segue o tema do Windows (o mesmo do vidro)
 window.addEventListener('blur', () => { if (Date.now() - shownAt > 400) hide(); });   // clicar fora esconde (o 400 ms evita esconder logo ao abrir)
-window.qshown = () => { shownAt = Date.now(); ui(); inp.focus(); inp.select(); fit(); };
+window.qshown = () => { loadModels(); toggleModels(false); shownAt = Date.now(); const b = $('box'); b.classList.remove('out', 'in'); void b.offsetWidth; b.classList.add('in'); ui(); inp.focus(); inp.select(); fit(); };
+window.qhiding = () => { const b = $('box'); b.classList.remove('in'); b.classList.add('out'); };
 ui();
 </script></body></html>
