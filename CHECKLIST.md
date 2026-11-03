@@ -107,6 +107,7 @@ Dicas de teste (a "harness" = script que abre o Lume numa janela pywebview escon
 - [x] Abre rápido e volta ao último modelo; lista só é reconstruída quando algo muda (não fecha sozinha).
 - [x] Modelos de provedores extras com id fora do padrão (FreeTheAI: `claude-4-5-haiku`, `deepseek-chat`, `qwen-plus`, `grok-4.6`) agora caem na família certa (antes cada um virava uma linha solta, com o logo do DeepSeek sem nome). Regras em `parseDyn`; modelos sem logo continuam escondidos.
 - [x] Lista de modelos que o dono mandou tirar (`UNWANTED` em `isAvail`): Celeris, MythoMax, Ising, LFM, Hermes, North, Riva, Cosmos, dots, Grok, Muse — somem em qualquer provedor. O Llama foi liberado de novo.
+- [x] Gemma: o "26" do `diffusiongemma-26b` era o tamanho lido como versão ("Gemma 3, 4 e 26"); agora a família fica "Gemma 3 e 4".
 - [-] Modo offline: descartado pelo dono (besteira). Não fazer.
 
 ## 7. Provedores (todos só com modelos grátis, exceto Pollinations)

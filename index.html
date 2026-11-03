@@ -2286,7 +2286,7 @@
             const s = raw.split('/').pop().toLowerCase().replace(/-free$/, '').replace(/-quest$/, '').replace(/^(nvidia|vercel|reflection)-/, '').replace(/^(nvidia|vercel)-/, '').replace(/^(coding|xiaomi)-/, ''), sz = (s.match(/(?:^|[-_:])(\d+(?:\.\d+)?)b(?![a-z])/) || [])[1], SZ = sz ? sz + 'B' : '';
             let m;
             if ((m = s.match(/^gemma-?(\d+(?:\.\d+)?)/))) return { base: 'Gemma', ver: m[1], psize: SZ || 'Cloud' };
-            if ((m = s.match(/^diffusiongemma-?(\d+(?:\.\d+)?)/))) return { base: 'Gemma', ver: m[1], psize: (SZ ? SZ + ' ' : '') + 'Diffusion' };
+            if (/^diffusiongemma/.test(s)) { const v = (s.match(/^diffusiongemma-?(\d+(?:\.\d+)?)(?!\d|b|\.)/) || [])[1]; return { base: 'Gemma', ver: v || '', psize: (SZ ? SZ + ' ' : '') + 'Diffusion' }; }   // o 26 de diffusiongemma-26b e o tamanho, nao a versao
             if ((m = s.match(/^gemini-(\d+(?:\.\d+)?)-?(.*)$/))) return { base: 'Gemini', ver: m[1], psize: (m[2] || '').split('-').filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(' ') || 'Base' };
             if ((m = s.match(/^llama-?(\d+(?:\.\d+)?)/))) return { base: 'Llama', ver: m[1], psize: SZ || 'Base' };
             if (/^beam(-free)?$/.test(s)) return { base: 'Beam', ver: '', psize: 'Cloud' };
