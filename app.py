@@ -1908,8 +1908,21 @@ def _health_load():
     global _health
     d = _read_json(HEALTH_FILE, {}); _health = d if isinstance(d, dict) else {}
 
+# FreeTheAI: cada modelo vem de um "provedor" que voce precisa SEGUIR no site deles (freetheai.org/providers/NOME) para usar; sem seguir, o pedido volta 403
+# ("You don't follow X"). O Lume aprende com o erro (nao gasta pedidos testando): esconde os modelos desse provedor por 12 h e explica como seguir.
+FOLLOW_FILE = os.path.join(BASE_DIR, "provider_follow.json"); FOLLOW_TTL = 12 * 3600
+def _follow_state(): d = _read_json(FOLLOW_FILE, {}); return d if isinstance(d, dict) else {}
+def follow_learn(kind, name):
+    """kind: 'owner' (provedor que nao segue) ou 'model' (nenhum provedor seguido tem este modelo)."""
+    try: d = _follow_state(); d.setdefault(kind, {})[str(name).lower()] = time.time(); _write_json(FOLLOW_FILE, d); _x_cache["ft"] = [0, []]   # a proxima lista ja vem sem eles
+    except OSError: pass
+def follow_hidden(mid):
+    d = _follow_state(); now = time.time(); owner = mid.split("/")[0].lower() if "/" in mid else ""
+    return now - (d.get("model") or {}).get(mid.lower(), 0) < FOLLOW_TTL or bool(owner and now - (d.get("owner") or {}).get(owner, 0) < FOLLOW_TTL)
+
 def model_is_healthy(prov, mid):
     """Modelo que falhou no ultimo teste (duas tentativas seguidas) some da lista; sem teste ainda = aparece."""
+    if prov == "ft" and follow_hidden(mid): return False
     if prov in X_SHOW_ALL: return True
     h = _health.get(prov + ":" + mid); return h is None or bool(h.get("ok", True))
 
@@ -2063,7 +2076,7 @@ def _oai_nonstream(model, msgs, base, key, label, max_tokens, t0):
         body = e.read().decode("utf-8", "replace"); msg = body[:250]
         try: msg = str((json.loads(body).get("error") or {}).get("message") or msg)[:250]
         except (ValueError, AttributeError): pass
-        _oai_fail(label, e.code, body, msg)
+        _oai_fail(label, e.code, body, msg, model)
     m = ((j.get("choices") or [{}])[0].get("message") or {}); think = m.get("reasoning_content") or m.get("reasoning"); text = m.get("content") or ""
     if think: yield "thinking", str(think)
     if text: yield "content", str(text)
@@ -2095,12 +2108,18 @@ def stream_openai_compat(model, messages, base, key, label, max_tokens=None):
                 try: wait = float(e.headers.get("Retry-After") or (re.search(r"[Rr]etry after (\d+(?:\.\d+)?)", msg) or re.search(r"\((\d+(?:\.\d+)?) seconds", msg) or [0, 1])[1])
                 except (TypeError, ValueError): wait = 1.0
                 yield "status", f"Limite de pedidos; esperando {min(wait, 8):.0f} s"; time.sleep(min(wait, 8) + 0.3); continue
-            _oai_fail(label, e.code, body, msg)
+            _oai_fail(label, e.code, body, msg, model)
     else: raise Exception(f"{label}: nao respondeu")
     yield from _sse_chat(response, t0, {})
 
-def _oai_fail(label, code, body, msg):
+def _oai_fail(label, code, body, msg, model=""):
     if True:
+        mf = re.search(r"You don't follow (\w+)\. Follow it at (\S+) to use", msg)
+        if code == 403 and mf:   # FreeTheAI: precisa seguir o provedor no site
+            follow_learn("owner", mf.group(1)); raise Exception(f"{label}: voce nao segue o provedor {mf.group(1)} no FreeTheAI, entao nao pode usar este modelo. Siga (e de graca) em {mf.group(2)} e tente de novo. Escondi os modelos desse provedor da lista por 12 h; os outros continuam.")
+        if code == 403 and re.search(r"No provider you follow serves", msg):
+            if model: follow_learn("model", model)
+            raise Exception(f"{label}: nenhum provedor que voce segue tem este modelo. Siga um em https://freetheai.org/providers (ou adicione o modelo a sua chave em https://freetheai.org/dashboard/api-keys). Escondi este modelo da lista por 12 h.")
         if "credit card" in body or "customer_verification_required" in body: raise Exception("A Vercel exige um cartao cadastrado na conta para usar o AI Gateway (mesmo nos modelos gratis). Adicione em vercel.com > AI Gateway.")
         if code == 403 and re.search(r"ate limit|oncurrent", body): raise Exception(f"{label}: limite de pedidos. {msg}")
         if code in (401, 403): raise Exception(f"{label}: chave invalida ou sem permissao ({code}). {msg}")

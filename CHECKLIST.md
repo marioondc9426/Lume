@@ -112,6 +112,7 @@ Dicas de teste (a "harness" = script que abre o Lume numa janela pywebview escon
 - [x] **Ollama** local + **Ollama Cloud** (gerenciador: baixar, atualizar, apagar, atualização automática semanal).
 - [x] **Pollinations** (pago em pollen, ferramentas nativas só onde o catálogo permite, espera o `Retry-After`, saldo, menu do catálogo com saúde).
 - [x] **OpenRouter** (só grátis) · **Cloudflare Workers AI** (10k neurônios/dia, contador) · **Groq** · **Vercel AI Gateway** · **LLM7** · **tomdacat**.
+- [x] **FreeTheAI exige seguir o provedor de cada modelo** (freetheai.org/providers/NOME): o 403 "You don't follow X" vira mensagem em português com o link e o Lume esconde os modelos desse provedor por 12 h (`provider_follow.json`, aprende pelo erro, sem gastar pedidos). Ainda não portado para o iPhone (`lume-backend.js`).
 - [x] Extras pelo registro `libs/providers.js`: **LiteRouter, AIHubMix, Paxsenix, FreeTheAI** (50 pedidos/dia, check-in no site), **VoidAI**, **TokenReply**. Adicionar um = um item no registro (guia `libs/PROVIDERS.md`).
 - [x] Várias chaves + chaves de reserva; teste de saúde automático (modelo fora do ar some da lista); painel de provedores com cota diária.
 - [x] Troca automática de modelo quando um falha (desligada por padrão) e "tentar o próximo mais barato".
@@ -164,6 +165,7 @@ Dicas de teste (a "harness" = script que abre o Lume numa janela pywebview escon
 
 - [x] Interface moderna (padrão) + clássica; 6 temas (DeepSeek, Roxo, Claude, Ollama, Gemini, Perplexity) que mudam fonte, cantos, layout e logo; editor de temas com gradiente e imagem de fundo; temas salvos em `custom themes`.
 - [x] Fontes (interface e código), telas de carregamento por marca, escala, tela de boas-vindas, bandeja do sistema, iniciar com o Windows/terminal, aceleração de hardware (automática/ligada/desligada), overlay de desempenho.
+- [x] Campos de número das configurações usam botões − e + (função `enhanceNumbers`), não as setinhas do navegador.
 - [x] Configurações em cartões num mosaico; abas: Geral, Aparência, Code, Chaves de API, Servidor, App. Trocar de seção tem animação e não amontoa os cartões (também ao entrar/sair da interface clássica).
 - [x] Atualização automática (`.py` mudou): mostra "Atualizando o Lume..." antes de fechar e "Lume atualizado ✓" na volta.
 - [x] Celular: botões redondos, gaveta lateral, gestos (arrastar da borda abre as conversas).

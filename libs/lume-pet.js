@@ -184,6 +184,7 @@
     // ---- dicas de erro: quando a resposta vem com "[Erro: ...]" o mascote explica e sugere o que fazer.
     // Erros conhecidos tem dica pronta; erros nunca vistos vao para o modelo do mascote (Configuracoes do mascote > Dicas de erro), e a dica fica guardada para a proxima vez.
     const KNOWN = [
+        [/não segue o provedor|nenhum provedor que voce segue|nao segue o provedor/i, 'Esse modelo do FreeTheAI exige seguir o provedor no site deles (é grátis): abra o link da mensagem e siga, ou escolha outro modelo.'],
         [/\b429\b|limite de pedidos|rate limit|too many/i, 'Esse provedor limitou os pedidos. Espere um pouquinho ou escolha outro modelo.'],
         [/\b40[13]\b|chave|api key|unauthorized|sem permiss/i, 'A chave parece inválida ou sem permissão. Confira em Configurações > Chaves de API.'],
         [/\b402\b|saldo|credit|pollen|quota/i, 'Acabou o saldo desse provedor. Escolha um modelo grátis ou outro provedor.'],

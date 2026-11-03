@@ -906,6 +906,10 @@
 
         /* lista de modelos nunca passa da borda da janela */
         .select-options { max-width: calc(100vw - 24px); max-height: calc(100vh - 90px); overflow-y: auto !important; }
+        /* campos de numero das configuracoes: sem as setinhas feias do navegador, com - e + no estilo do app */
+        #settings-modal input[type=number]::-webkit-inner-spin-button, #settings-modal input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; display: none; }
+        .num-step { display: inline-flex; align-items: center; gap: 6px; } .num-step input[type=number] { width: 64px !important; height: 38px; padding: 0 4px !important; flex: none; text-align: center; -moz-appearance: textfield; appearance: textfield; }
+        .num-step button { flex: none; width: 38px; height: 38px; padding: 0; border-radius: 10px; border: 1px solid var(--border-color); background: var(--seg-bg, var(--bg-input)); color: var(--text-main); cursor: pointer; font-size: 17px; line-height: 1; } .num-step button:hover { border-color: var(--accent); } .num-step button:active { transform: scale(.94); }
         /* trocar de secao nas configuracoes: os cartoes entram deslizando de leve (so opacidade e posicao: nao muda a altura medida do mosaico) */
         #set-general.sec-anim > :not(.sec-hidden):not(#xp-keys):not(#set-app-opts), #set-general.sec-anim > #xp-keys > *, #set-general.sec-anim > #set-app-opts > * { animation: secIn .26s cubic-bezier(.2,.8,.3,1) both; animation-delay: calc(var(--si, 0) * 28ms); }
         @keyframes secIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
@@ -1788,6 +1792,7 @@
             'Compactar a conversa sozinho quando o contexto passar de 85%': 'Compact the conversation automatically when context passes 85%', 'Contexto quase cheio: compactando a conversa sozinho...': 'Context almost full: compacting the conversation automatically...',
             'Atualizando o Lume...': 'Updating Lume...', 'O programa fecha e volta sozinho em alguns segundos.': 'The app closes and comes back by itself in a few seconds.', 'Lume atualizado ✓': 'Lume updated ✓',
             'Instalar no meu navegador': 'Install in my browser', 'Não consegui abrir o navegador.': 'Could not open the browser.',
+            'Esse modelo do FreeTheAI exige seguir o provedor no site deles (é grátis): abra o link da mensagem e siga, ou escolha outro modelo.': 'This FreeTheAI model requires following its provider on their site (it is free): open the link in the message and follow it, or pick another model.',
             'Minimizar': 'Minimize', 'Maximizar': 'Maximize', 'Fechar': 'Close',
             '📊 Desempenho': '📊 Performance', 'Status: Ocioso': 'Status: Idle', 'Palavras/s: --': 'Words/s: --',
             'Palavras/s': 'Words/s', 'N/D': 'N/A', ' (est.)': ' (est.)',
@@ -4349,7 +4354,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             $('perf-style').value = config.perfStyle;
             $('perf-interval').value = config.perfInterval; $('perf-int-val').innerText = config.perfInterval;
             $('groq-key-input').value = ''; $('or-key-input').value = ''; $('cf-token-input').value = ''; $('cf-acc-input').value = ''; $('pol-key-input').value = ''; $('tdc-key-input').value = ''; $('vc-key-input').value = ''; $('l7-key-input').value = ''; (window.LUME_PROVIDERS || []).forEach(p => { $(p.id + '-key-input').value = ''; }); $('exa-key-input').value = '';
-            showModal('settings-modal');
+            showModal('settings-modal'); enhanceNumbers();
             showSettingsTab('general'); initAccountRow();
             if (!config.uiLegacy && innerWidth > 760 && !window.__LUME_IOS) buildSettingsNav(); else document.querySelectorAll('#set-general .sec-hidden').forEach(e => e.classList.remove('sec-hidden'));   // classica e celular: tudo numa rolagem so
             if (auth.local) { renderAppSettings(); refreshModelManager(); }
@@ -4602,6 +4607,13 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             if (!themesNow().includes(config.theme) && !String(config.theme).startsWith('custom:')) config.theme = defaultTheme();
             renderThemeOptions(); applyBaseTheme(config.theme); saveState();
             refreshSettingsLayout();
+        }
+        function enhanceNumbers() {   // poe - e + nos campos de numero das configuracoes (idempotente)
+            document.querySelectorAll('#settings-modal input[type=number]:not([data-ns])').forEach(inp => {
+                inp.dataset.ns = '1'; const w = document.createElement('span'); w.className = 'num-step'; inp.parentNode.insertBefore(w, inp);
+                const mk = (t, dir) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = t; b.tabIndex = -1; b.setAttribute('aria-label', dir > 0 ? '+' : '-'); b.onclick = () => { if (dir > 0) inp.stepUp(); else inp.stepDown(); inp.dispatchEvent(new Event('input', { bubbles: true })); inp.dispatchEvent(new Event('change', { bubbles: true })); }; return b; };
+                w.append(mk('−', -1), inp, mk('+', 1));
+            });
         }
         function refreshSettingsLayout() {   // trocar entre a interface nova e a classica com as configuracoes abertas: refaz o menu e as alturas dos cartoes (sem isso apareciam todos amontoados)
             const gen = $('set-general'); if (!gen) return;
