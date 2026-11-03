@@ -2362,6 +2362,7 @@
             const nums = vs.filter(v => /^\d+(\.\d+)?$/.test(v));
             if (/^(Qwen|Nemotron)$/.test(ms[0].base) && nums.length > 2) return ms[0].base + ' ' + nums[0] + ' – ' + nums[nums.length - 1];   // muitas versoes: so o intervalo
             if (nums.length > 3) return ms[0].base + ' ' + compactVersions(ms, vs, nums);   // muitas versoes (GPT: 5, 5.4, 5.6, 6, 6.1...): faixas por geracao, com o nome do modelo nas pontas
+            if (vs.length > 4) return ms[0].base + (nums.length > 1 ? ' ' + nums[0] + ' – ' + nums[nums.length - 1] : '');   // muitos nomes de versao (Mistral: Medium 3.1, Ministral 14, Small 3.2...): so a marca (ou a faixa de numeros)
             const list = vs.length > 1 ? vs.slice(0, -1).join(', ') + ' ' + tr('e') + ' ' + vs[vs.length - 1] : vs[0] || '';
             return ms[0].base + (list ? ' ' + list : '');
         }
