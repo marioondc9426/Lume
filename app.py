@@ -2129,6 +2129,8 @@ def _oai_fail(label, code, body, msg, model=""):
         if code == 403 and re.search(r"No provider you follow serves", msg):
             if model: follow_learn("model", model)
             raise Exception(f"{label}: nenhum provedor que voce segue tem este modelo. Siga um em https://freetheai.org/providers (ou adicione o modelo a sua chave em https://freetheai.org/dashboard/api-keys). Escondi este modelo da lista por 12 h.")
+        if code == 404 and model and "freetheai" in label.lower() and re.search(r"was not found|not found", msg):   # a lista do FreeTheAI traz modelos que o pedido nao acha: esconde por 12 h
+            follow_learn("model", model); raise Exception(f"{label}: o FreeTheAI listou o modelo {model}, mas na hora de usar respondeu que ele nao existe (404). Escondi este modelo da lista por 12 h.")
         if "credit card" in body or "customer_verification_required" in body: raise Exception("A Vercel exige um cartao cadastrado na conta para usar o AI Gateway (mesmo nos modelos gratis). Adicione em vercel.com > AI Gateway.")
         if code == 403 and re.search(r"ate limit|oncurrent", body): raise Exception(f"{label}: limite de pedidos. {msg}")
         if code in (401, 403): raise Exception(f"{label}: chave invalida ou sem permissao ({code}). {msg}")

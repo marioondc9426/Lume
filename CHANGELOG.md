@@ -7,6 +7,7 @@ Como numerar:
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
 ## v4.0 (em desenvolvimento)
+- **FreeTheAI:** modelo que a lista mostra mas o pedido não acha (erro 404 "model was not found", ex.: Gemini 4 Argon) agora vira uma mensagem em português e some da lista por 12 h.
 - **Seletor:** a família Gemma aparecia como "Gemma 3, 4 e 26" (o 26 era o tamanho do DiffusionGemma 26B lido como versão); agora é "Gemma 3 e 4".
 - **Seletor:** os modelos que você mandou tirar (Celeris, Hermes, Ising, North, Grok, Muse e afins; o Llama foi liberado) voltavam por outros provedores; agora somem em qualquer um.
 - **Seletor de modelos:** os modelos do FreeTheAI/outros provedores que vinham com nome fora do padrão (`claude-4-5-haiku`, `deepseek-chat`, `qwen-plus`, `grok-4.6`) apareciam cada um numa linha separada, e os do DeepSeek só mostravam o logo, sem nome. Agora entram na família certa (Claude, DeepSeek, Qwen, Grok) com a versão e o tamanho.
