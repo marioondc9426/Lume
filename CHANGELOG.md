@@ -7,6 +7,7 @@ Como numerar:
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
 ## v4.0 (em desenvolvimento)
+- **Terminal:** a página recarregar no meio de uma resposta não enche mais o terminal de erro ("ConnectionAbortedError"). Famílias com muitas versões como Kimi mostram a faixa ("Kimi K2 – K3.1").
 - **Seletor:** o nome da família Mistral (e outras com muitas versões) não lista mais todas as versões ("Medium 3.1, Ministral 14, Small 3.2…"); fica só "Mistral".
 - **Seletor de modelos mais largo** no computador (440 px) (cabem nome e logos dos provedores sem apertar).
 - **Seletor de modelos:** cada família ocupa uma linha só (nome comprido termina em "…" e aparece inteiro ao passar o mouse; os logos dos provedores não quebram mais de linha), em vez de virar uma coluna alta.

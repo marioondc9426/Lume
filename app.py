@@ -3138,7 +3138,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         body = json.dumps(obj).encode()
         self.send_response(code); self.send_header('Content-Type', 'application/json'); self.send_header('Content-Length', str(len(body)))
         for k, v in (headers or {}).items(): self.send_header(k, v)
-        self.end_headers(); self.wfile.write(body)
+        try: self.end_headers(); self.wfile.write(body)
+        except (ConnectionError, OSError): pass   # a pagina fechou/recarregou no meio da resposta: nao e erro do Lume (antes enchia o terminal de traceback)
 
     # ---- quem esta chamando?
     def host_only(self):
