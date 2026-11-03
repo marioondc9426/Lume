@@ -7,6 +7,7 @@ Como numerar:
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
 ## v4.0 (em desenvolvimento)
+- **Extensão do navegador:** o Comet/Chrome não aceita a permissão `debugger` como opcional (ela era ignorada, então PDF e foto da página inteira nunca funcionavam); agora é uma permissão normal da extensão. Os avisos "background.scripts" e do Firefox são inofensivos. Recarregue a extensão no navegador.
 - **Terminal:** a página recarregar no meio de uma resposta não enche mais o terminal de erro ("ConnectionAbortedError"). Famílias com muitas versões como Kimi mostram a faixa ("Kimi K2 – K3.1").
 - **Seletor:** o nome da família Mistral (e outras com muitas versões) não lista mais todas as versões ("Medium 3.1, Ministral 14, Small 3.2…"); fica só "Mistral".
 - **Seletor de modelos mais largo** no computador (440 px) (cabem nome e logos dos provedores sem apertar).
