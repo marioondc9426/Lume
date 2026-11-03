@@ -7,6 +7,7 @@ Como numerar:
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
 ## v4.0 (em desenvolvimento)
+- **Seletor de modelos mais largo** no computador (cabem nome e logos dos provedores sem apertar).
 - **Seletor de modelos:** cada família ocupa uma linha só (nome comprido termina em "…" e aparece inteiro ao passar o mouse; os logos dos provedores não quebram mais de linha), em vez de virar uma coluna alta.
 - **FreeTheAI:** modelo que a lista mostra mas o pedido não acha (erro 404 "model was not found", ex.: Gemini 4 Argon) agora vira uma mensagem em português e some da lista por 12 h.
 - **Seletor:** a família Gemma aparecia como "Gemma 3, 4 e 26" (o 26 era o tamanho do DiffusionGemma 26B lido como versão); agora é "Gemma 3 e 4".

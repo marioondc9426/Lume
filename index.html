@@ -195,7 +195,7 @@
         .select-arrow { width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid var(--text-main); margin-left: 10px; transition: transform .2s, border-width .25s, margin .25s, opacity .2s; }
         .controls.typing .select-arrow { border-left-width: 0; border-right-width: 0; margin-left: 0; opacity: 0; }
         .custom-select.open .select-arrow { transform: rotate(180deg); }
-        .select-options { position: absolute; bottom: 100%; left: 0; min-width: 360px; margin-bottom: 6px; background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 10px; z-index: 50; box-shadow: 0 -6px 20px rgba(0,0,0,0.5); overflow: hidden;
+        .select-options { position: absolute; bottom: 100%; left: 0; min-width: 540px; margin-bottom: 6px; background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 10px; z-index: 50; box-shadow: 0 -6px 20px rgba(0,0,0,0.5); overflow: hidden;
             visibility: hidden; opacity: 0; transform: translateY(10px) scale(0.96); transform-origin: bottom left; transition: opacity .18s ease, transform .2s cubic-bezier(.2,.9,.3,1.1), visibility 0s linear .2s; }
         .custom-select.open .select-options { visibility: visible; opacity: 1; transform: none; transition-delay: 0s; }
         .select-options.anim .select-option { animation: optIn .28s ease both; animation-delay: calc(var(--i, 0) * 35ms); }
