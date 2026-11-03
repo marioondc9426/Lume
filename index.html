@@ -2327,6 +2327,10 @@
             if ((m = s.match(/^gpt-(\d+(?:\.\d+)?o?)(?:-(.+))?$/))) return { base: 'GPT', ver: m[1], psize: (m[2] || '').split('-').filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(' ') || 'Base' };
             if ((m = s.match(/^deepseek-v(\d+(?:\.\d+)?)(?:-([a-z]\w*))?/))) return { base: 'DeepSeek', ver: 'V' + m[1], psize: m[2] ? m[2][0].toUpperCase() + m[2].slice(1) : 'Base' };
             if (/^deepseek-r1/.test(s)) return { base: 'DeepSeek', ver: 'R1', psize: s.replace(/^deepseek-r1-?/, '').split('-').filter(Boolean).map(w => /^\d+b$/.test(w) ? w.toUpperCase() : w[0].toUpperCase() + w.slice(1)).join(' ') };
+            if ((m = s.match(/^claude-(\d+)(?:-(\d{1,2})(?!\d))?-([a-z]+)$/))) return { base: 'Claude', ver: m[1] + (m[2] ? '.' + m[2] : ''), psize: m[3][0].toUpperCase() + m[3].slice(1) };   // "claude-4-5-haiku": a versao vem antes do nome (FreeTheAI)
+            if ((m = s.match(/^deepseek-(chat|reasoner)$/))) return { base: 'DeepSeek', ver: '', psize: m[1][0].toUpperCase() + m[1].slice(1) };
+            if ((m = s.match(/^qwen-(plus|max|turbo|flash|long)$/))) return { base: 'Qwen', ver: '', psize: m[1][0].toUpperCase() + m[1].slice(1) };
+            if ((m = s.match(/^grok-(\d+(?:\.\d+)?)(?:-(.+))?$/))) return { base: 'Grok', ver: m[1], psize: (m[2] || '').split('-').filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(' ') || 'Base' };
             if (raw === 'openrouter/free') return { base: 'OpenRouter', ver: '', psize: 'Free' };
             const [b, tag] = raw.split(':');
             return { base: fallbackBase || (prov ? prov[0].toUpperCase() + prov.slice(1) : b), ver: '', psize: prov ? b : (tag || '') };

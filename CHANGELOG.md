@@ -7,6 +7,7 @@ Como numerar:
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
 ## v4.0 (em desenvolvimento)
+- **Seletor de modelos:** os modelos do FreeTheAI/outros provedores que vinham com nome fora do padrão (`claude-4-5-haiku`, `deepseek-chat`, `qwen-plus`, `grok-4.6`) apareciam cada um numa linha separada, e os do DeepSeek só mostravam o logo, sem nome. Agora entram na família certa (Claude, DeepSeek, Qwen, Grok) com a versão e o tamanho.
 - **Pet na área de trabalho:** o mascote do Lume solto na tela, numa janela transparente sempre por cima. **Arraste e jogue**: ele quica nas bordas da tela como uma gelatina (achata ao bater, estica ao voar, balança), com gravidade, e para no chão (a barra de tarefas). Clique faz um pulinho; segurado, os olhos viram `> <`; os olhos seguem o cursor. Em Configurações > App: mostrar/esconder, tamanho (50 a 300%, padrão 200%), grudar na borda ao soltar perto da lateral, resetar a posição e personalizar. Só o círculo recebe cliques (o resto deixa passar). Windows.
 - **Mascote mais parecido com o do Kimi:** esfera lisa com aro escuro translúcido e luz refletida embaixo, olhos em cápsula levemente inclinados (sem o brilho exagerado), e o estilo LED de pontinhos.
 - **Seu companheiro** (Configurações > App > Ver o meu companheiro, ou no botão da janela de personalizar o mascote): "o Lume está com você há N dias, em N conversas, e conversamos N dias seguidos", abas **Proximidade** (mapa de calor do último ano) e **Crescimento** (estágios por mensagens enviadas) e o interruptor **Crescer sozinho** (as sugestões de memória).

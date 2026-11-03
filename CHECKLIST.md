@@ -105,6 +105,7 @@ Dicas de teste (a "harness" = script que abre o Lume numa janela pywebview escon
 - [~] Tela cheia no celular de verdade (testado só numa janela estreita no PC).
 - [x] Compactar a conversa sozinho quando o contexto passa de 85% (interruptor em Aparência; padrão ligado, **desligado em modelos de 32K de contexto ou menos** enquanto você não escolher), igual ao botão Compactar.
 - [x] Abre rápido e volta ao último modelo; lista só é reconstruída quando algo muda (não fecha sozinha).
+- [x] Modelos de provedores extras com id fora do padrão (FreeTheAI: `claude-4-5-haiku`, `deepseek-chat`, `qwen-plus`, `grok-4.6`) agora caem na família certa (antes cada um virava uma linha solta, com o logo do DeepSeek sem nome). Regras em `parseDyn`; modelos sem logo continuam escondidos.
 - [-] Modo offline: descartado pelo dono (besteira). Não fazer.
 
 ## 7. Provedores (todos só com modelos grátis, exceto Pollinations)
