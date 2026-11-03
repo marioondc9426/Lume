@@ -28,6 +28,12 @@ function pageRead(maxChars) {
   const cut = text.length > maxChars ? text.slice(0, maxChars) + `\n...[texto cortado: ${text.length - maxChars} caracteres a mais; role a pagina e leia de novo]` : text;
   return `${document.title}\n${location.href}\n\nTEXTO DA PAGINA:\n${cut}\n\nELEMENTOS (use o numero em click/type):\n${lines.join('\n') || '(nenhum)'}`;
 }
+function pageText(maxChars) {   // so o texto bruto da pagina (sem a lista de botoes): para ler artigos e documentos
+  const sel = String(getSelection() || '').trim();
+  const text = (document.body ? document.body.innerText : '').replace(/\n{3,}/g, '\n\n').trim();
+  const cut = text.length > maxChars ? text.slice(0, maxChars) + `\n...[texto cortado: ${text.length - maxChars} caracteres a mais]` : text;
+  return `${document.title}\n${location.href}\n${sel ? '\nTRECHO SELECIONADO PELO DONO:\n' + sel.slice(0, 4000) + '\n' : ''}\nTEXTO DA PAGINA:\n${cut}`;
+}
 function pageClick(idx) {
   const el = document.querySelector(`[data-lume-i="${idx}"]`);
   if (!el) return 'Erro: o elemento ' + idx + ' nao existe mais. Chame read_page de novo para ver a numeracao atual.';
@@ -83,6 +89,15 @@ async function inPage(id, func, args) {
   const r = await chrome.scripting.executeScript({ target: { tabId: id }, func, args: args || [] });
   return r && r[0] ? r[0].result : '';
 }
+// PDF e foto da pagina INTEIRA usam o depurador do navegador (so Chromium: Comet, Chrome, Edge, Brave...). Precisa da permissao opcional "debugger" (botao no popup da extensao);
+// o aviso amarelo do navegador "depurando" aparece so durante esses poucos segundos.
+const hasDebugger = async () => !!(chrome.debugger && chrome.permissions && await chrome.permissions.contains({ permissions: ['debugger'] }));
+async function withDebugger(id, fn) {
+  await chrome.debugger.attach({ tabId: id }, '1.3');
+  try { return await fn((method, params) => new Promise((ok, no) => chrome.debugger.sendCommand({ tabId: id }, method, params || {}, r => chrome.runtime.lastError ? no(new Error(chrome.runtime.lastError.message)) : ok(r)))); }
+  finally { try { await chrome.debugger.detach({ tabId: id }); } catch (e) { /* ja soltou */ } }
+}
+const NO_DBG = 'o dono ainda nao liberou isso (popup da extensao > "Permitir PDF e foto da pagina inteira") ou o navegador e o Firefox';
 const line = t => `[${t.id}]${t.active ? ' (ativa)' : ''} ${String(t.title || '').slice(0, 80)} - ${String(t.url || '').slice(0, 100)}`;
 
 async function run(action, a) {
@@ -97,6 +112,16 @@ async function run(action, a) {
     else t = await chrome.tabs.create({ url, active: true });
     t = await waitLoaded(t.id); return { text: 'Aba ' + line(t) };
   }
+  if (action === 'read_current_page') {
+    const id = await target(a), fmt = String(a.format || 'text').toLowerCase();
+    if (fmt === 'pdf') {
+      if (!(await hasDebugger())) return { text: 'PDF indisponivel: ' + NO_DBG + '. Use format="text".' };
+      const t = await chrome.tabs.get(id);
+      const r = await withDebugger(id, send => send('Page.printToPDF', { printBackground: true }));
+      return { text: `PDF da aba ${t.title} - ${t.url}`, pdf: r.data };
+    }
+    return { text: await inPage(id, pageText, [40000]) };
+  }
   if (action === 'read_page') { const id = await target(a); return { text: await inPage(id, pageRead, [6000]) }; }
   if (action === 'click') {
     const id = await target(a), before = await chrome.tabs.get(id), out = await inPage(id, pageClick, [Number(a.index)]);
@@ -109,10 +134,18 @@ async function run(action, a) {
     return { text: out };
   }
   if (action === 'scroll') { const id = await target(a); return { text: await inPage(id, pageScroll, [String(a.direction || 'down')]) }; }
-  if (action === 'screenshot') {
+  if (action === 'screenshot' || action === 'screenshot_current_page') {
     const id = await target(a); const t = await chrome.tabs.update(id, { active: true }); await chrome.windows.update(t.windowId, { focused: true }); await sleep(250);
+    if (a.full) {   // a pagina inteira (rolando), nao so o que aparece
+      if (!(await hasDebugger())) { const u = await chrome.tabs.captureVisibleTab(t.windowId, { format: 'jpeg', quality: 60 }); return { text: `Foto SO DA PARTE VISIVEL da aba ${t.title} - ${t.url} (a pagina inteira indisponivel: ${NO_DBG}).`, image: u.slice(u.indexOf(',') + 1) }; }
+      const r = await withDebugger(id, async send => {
+        const lm = await send('Page.getLayoutMetrics'), cs = lm.cssContentSize || lm.contentSize, h = Math.min(Math.ceil(cs.height), 12000);
+        return send('Page.captureScreenshot', { format: 'jpeg', quality: 55, captureBeyondViewport: true, clip: { x: 0, y: 0, width: Math.ceil(cs.width), height: h, scale: 1 } });
+      });
+      return { text: `Foto da pagina INTEIRA da aba ${t.title} - ${t.url}`, image: r.data };
+    }
     const url = await chrome.tabs.captureVisibleTab(t.windowId, { format: 'jpeg', quality: 60 });
-    return { text: `Foto da aba ${t.title} - ${t.url}`, image: url.slice(url.indexOf(',') + 1) };
+    return { text: `Foto da parte visivel da aba ${t.title} - ${t.url}`, image: url.slice(url.indexOf(',') + 1) };
   }
   if (action === 'switch_tab') { const t = await chrome.tabs.update(Number(a.tab_id), { active: true }); await chrome.windows.update(t.windowId, { focused: true }); return { text: 'Aba em primeiro plano: ' + line(t) }; }
   if (action === 'close_tab') { await chrome.tabs.remove(Number(a.tab_id)); return { text: 'Aba ' + a.tab_id + ' fechada.' }; }
@@ -150,7 +183,7 @@ async function loop() {
     } catch (e) { TOKEN = null; lastOk = false; chrome.action.setBadgeText({ text: '' }); await sleep(3000); }
   }
 }
-chrome.runtime.onMessage.addListener((m, s, send) => { if (m && m.cmd === 'status') { send({ ok: lastOk }); } return false; });
+chrome.runtime.onMessage.addListener((m, s, send) => { if (m && m.cmd === 'status') { hasDebugger().then(d => send({ ok: lastOk, debugger: d })); return true; } return false; });
 chrome.runtime.onInstalled.addListener(() => { loop(); });
 chrome.runtime.onStartup.addListener(() => { loop(); });
 chrome.alarms.create('lume-keepalive', { periodInMinutes: 0.5 });

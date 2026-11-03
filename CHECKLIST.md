@@ -103,6 +103,7 @@ Dicas de teste (a "harness" = script que abre o Lume numa janela pywebview escon
 - [x] **Nomes compactos**: muitas versões viram faixas, ex.: `GPT 5 – 5.6 Sol, 6 Luna – 6.1 Sol` (nome só nas pontas: o mais barato no começo, o mais caro no fim).
 - [x] **Tela cheia**: padrão no celular/iPhone; no PC é um interruptor (Configurações > Aparência: "Seletor de modelos em tela cheia"). Tem ✕, busca e ordenação.
 - [~] Tela cheia no celular de verdade (testado só numa janela estreita no PC).
+- [x] Compactar a conversa sozinho quando o contexto passa de 85% (interruptor em Aparência, ligado por padrão), igual ao botão Compactar.
 - [x] Abre rápido e volta ao último modelo; lista só é reconstruída quando algo muda (não fecha sozinha).
 - [-] Modo offline: descartado pelo dono (besteira). Não fazer.
 
@@ -137,7 +138,10 @@ Dicas de teste (a "harness" = script que abre o Lume numa janela pywebview escon
 
 - [x] Extensão MV3 em `browser-extension/` (Comet, Chrome, Edge, Brave, Firefox temporário). Instalar: `chrome://extensions` > modo do desenvolvedor > Carregar sem compactação > pasta `browser-extension`.
 - [x] Ponte local: a extensão pareia só com Origin de extensão, faz long-poll (20 s) e devolve resultados; ferramentas só aparecem com a extensão conectada.
-- [x] Ferramentas `mcp__browser__*`: `tabs`, `open_url`, `read_page` (texto + lista numerada), `click`, `type`, `scroll`, `screenshot`, `switch_tab`, `close_tab`, `back`. Senhas nunca aparecem.
+- [x] Ferramentas `mcp__browser__*`: `tabs`, `open_url`, `read_page` (texto + lista numerada), `click`, `type`, `scroll`, `read_current_page` (texto bruto ou **PDF**), `screenshot_current_page` (parte visível ou **página inteira**), `switch_tab`, `close_tab`, `back`. Senhas nunca aparecem.
+- [x] PDF e página inteira usam a permissão opcional `debugger` (só Chromium; botão no popup da extensão; aparece um aviso amarelo "depurando" por segundos). Sem ela volta um aviso e a IA usa texto/parte visível.
+- [x] Botão **Instalar no meu navegador** (Configurações > App): abre a página de extensões do navegador padrão + a pasta e mostra o passo a passo (instalação 100% automática não existe).
+- [~] `read_current_page`/`screenshot_current_page`, o `debugger` e o botão de instalar: testados só pela ponte com extensão falsa e detecção do navegador padrão (neste PC o padrão do Windows aparece como **Firefox**); não rodaram num navegador de verdade.
 - [x] Chat e Code usam; interruptor "IA no navegador" nas configurações (card com status e botão para abrir a pasta).
 - [~] A extensão **rodando de verdade** no Comet/Firefox (APIs `chrome.*`, sono do service worker) ainda não foi testada.
 - [x] Comet é de instância única: abrir com porta de depuração (CDP) não funciona; por isso a extensão.
@@ -160,7 +164,8 @@ Dicas de teste (a "harness" = script que abre o Lume numa janela pywebview escon
 
 - [x] Interface moderna (padrão) + clássica; 6 temas (DeepSeek, Roxo, Claude, Ollama, Gemini, Perplexity) que mudam fonte, cantos, layout e logo; editor de temas com gradiente e imagem de fundo; temas salvos em `custom themes`.
 - [x] Fontes (interface e código), telas de carregamento por marca, escala, tela de boas-vindas, bandeja do sistema, iniciar com o Windows/terminal, aceleração de hardware (automática/ligada/desligada), overlay de desempenho.
-- [x] Configurações em cartões num mosaico; abas: Geral, Aparência, Code, Chaves de API, Servidor, App.
+- [x] Configurações em cartões num mosaico; abas: Geral, Aparência, Code, Chaves de API, Servidor, App. Trocar de seção tem animação e não amontoa os cartões (também ao entrar/sair da interface clássica).
+- [x] Atualização automática (`.py` mudou): mostra "Atualizando o Lume..." antes de fechar e "Lume atualizado ✓" na volta.
 - [x] Celular: botões redondos, gaveta lateral, gestos (arrastar da borda abre as conversas).
 
 ## 14. Rede, contas e amigos

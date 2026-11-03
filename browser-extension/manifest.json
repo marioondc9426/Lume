@@ -4,6 +4,7 @@
   "version": "1.0",
   "description": "Deixa a IA do Lume (no seu PC) ler e usar as abas deste navegador quando voce permitir. Conversa so com o Lume em 127.0.0.1.",
   "permissions": ["tabs", "scripting", "alarms", "storage"],
+  "optional_permissions": ["debugger"],
   "host_permissions": ["<all_urls>"],
   "background": { "service_worker": "background.js", "scripts": ["background.js"] },
   "action": { "default_title": "Lume", "default_popup": "popup.html" },

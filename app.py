@@ -877,6 +877,8 @@ def extract_file_text(filename, data):
     else: raise Exception("Arquivo binario nao suportado (use texto, codigo, PDF, Word, Excel ou PowerPoint).")
     return text[:MAX_FILE_CHARS], len(text) > MAX_FILE_CHARS, pages
 
+if lumebrowser: lumebrowser.PDF_TEXT = lambda data: extract_file_text("pagina.pdf", data)   # a ponte do navegador le o PDF da pagina com o mesmo leitor dos anexos
+
 def suggest_ext(kind, data):
     """Extensao certa para o tipo reconhecido pelo conteudo (usada quando o arquivo veio com uma extensao que ninguem conhece)."""
     if kind == "image":
@@ -3214,7 +3216,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             if not local: return self.send_json({"error": "local_only"}, 403)
             return self.send_json(app_options())
         if p == '/api/ui_rev':   # a interface pergunta daqui a pouco se algum arquivo dela mudou (so rodando do codigo-fonte)
-            return self.send_json({"dev": bool(local and dev_enabled()), "rev": ui_rev() if local and dev_enabled() else "", "busy": bool(gens_active)})
+            return self.send_json({"dev": bool(local and dev_enabled()), "rev": ui_rev() if local and dev_enabled() else "", "busy": bool(gens_active), "updated": bool(UPDATED_AT and time.time() - UPDATED_AT < 90)})
         if p == '/api/browser/status':
             if not local or not lumebrowser: return self.send_json({"error": "local_only"}, 403)
             return self.send_json(lumebrowser.info())
@@ -3456,6 +3458,8 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             if not local or not lumebrowser: return self.send_json({"error": "local_only"}, 403)
             try: _d = json.loads(post_data or b"{}")
             except Exception: _d = {}
+            if p == '/api/browser/install':   # botao das configuracoes (so deste PC)
+                return self.send_json(browser_install())
             if p == '/api/browser/pair':
                 tk = lumebrowser.pair(self.headers.get("Origin", ""))
                 if not tk: return self.send_json({"error": "origin"}, 403)
@@ -4488,12 +4492,55 @@ def apply_update():
 
 window_api = None
 
-def restart_app():
-    """Fecha este app e abre outro depois de alguns segundos (a porta precisa ser liberada primeiro)."""
+def default_browser():
+    """(nome, exe, familia) do navegador padrao do Windows para links https; None se nao achar."""
+    try:
+        import winreg
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\Shell\Associations\UrlAssociations\https\UserChoice") as k: progid = winreg.QueryValueEx(k, "ProgId")[0]
+        with winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, progid + r"\shell\open\command") as k: cmd = winreg.QueryValueEx(k, "")[0]
+        m = re.match(r'\s*"([^"]+)"', cmd) or re.match(r'\s*(\S+)', cmd); exe = m.group(1)
+        if not os.path.isfile(exe): return None
+        import vcomp
+        info = vcomp.BROWSERS.get(os.path.basename(exe).lower())
+        return (info[0] if info else os.path.splitext(os.path.basename(exe))[0], exe, info[1] if info else "chromium")
+    except Exception: return None
+
+def browser_install():
+    """Botao "Instalar no meu navegador": abre a pagina de extensoes do navegador PADRAO e a pasta da extensao.
+    Nenhum navegador deixa instalar uma extensao de fora sem um clique do dono (e o Comet/Chrome so aceitam --load-extension com o navegador fechado), entao o que da para automatizar e isso + o passo a passo."""
+    if sys.platform != "win32": return {"error": "So no Windows por enquanto."}
+    ext = os.path.join(RES_DIR, "browser-extension")
+    if not os.path.isdir(ext): return {"error": "A pasta browser-extension nao foi encontrada."}
+    d = default_browser()
+    try: os.startfile(ext)   # a pasta no Explorador (para arrastar para a pagina de extensoes)
+    except Exception: pass
+    if not d: return {"browser": "", "steps": ["Nao achei o seu navegador padrao. Abra a pagina de extensoes dele (chrome://extensions), ligue o Modo do desenvolvedor e use Carregar sem compactacao com a pasta que abri."]}
+    name, exe, fam = d; flags = getattr(subprocess, "DETACHED_PROCESS", 0)
+    try:
+        import vcomp
+        running = any(w["exe"].lower() == os.path.basename(exe).lower() for w in vcomp.windows_info())
+        if fam == "gecko":
+            subprocess.Popen([exe, "about:debugging#/runtime/this-firefox"], creationflags=flags)
+            steps = [f"Abri o {name} na pagina 'Este Firefox'.", "Clique em 'Carregar extensao temporaria...' e escolha o arquivo manifest.json da pasta que abri (no Firefox ela some quando ele fecha)."]
+        else:
+            subprocess.Popen([exe] + ([] if running else ["--load-extension=" + ext]) + ["chrome://extensions"], creationflags=flags)
+            steps = [f"Abri a pagina de extensoes do {name}." + ("" if running else " Como ele estava fechado, tentei ja abrir com a extensao carregada: se 'Lume - IA no navegador' aparecer na lista, acabou."),
+                     "Ligue o 'Modo do desenvolvedor' (canto da pagina).", "Arraste a pasta browser-extension (abri no Explorador) para a pagina, ou clique em 'Carregar sem compactacao' e escolha a pasta.",
+                     "Deixe o Lume aberto: o icone da extensao mostra ON e o status aqui muda para Conectada."]
+        return {"browser": name, "steps": steps}
+    except Exception as e: return {"browser": name, "error": f"Nao consegui abrir o {name}: {e}"}
+
+UPDATED_AT = time.time() if "--updated" in sys.argv else 0.0   # este processo nasceu de uma atualizacao automatica (a interface mostra "Lume atualizado")
+def restart_app(notify=False):
+    """Fecha este app e abre outro depois de alguns segundos (a porta precisa ser liberada primeiro). notify: avisa na tela antes de fechar (atualizacao automatica)."""
     flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+    if notify:
+        try:
+            if window_api and window_api._window: window_api._window.evaluate_js("window.lumeRestarting && lumeRestarting()"); time.sleep(0.9)   # um instante para a tela de aviso aparecer
+        except Exception: pass
     if FROZEN and pending_update["cmd"]: subprocess.Popen(["cmd", "/c", pending_update["cmd"]], creationflags=flags)   # troca o .exe pelo novo e abre
     elif FROZEN: subprocess.Popen(f'cmd /c "ping -n 4 127.0.0.1 >nul & start "" "{sys.executable}""', shell=True, creationflags=flags)
-    else: subprocess.Popen(f'cmd /c "ping -n 4 127.0.0.1 >nul & "{sys.executable}" app.py"', cwd=BASE_DIR, shell=True, creationflags=flags)
+    else: subprocess.Popen(f'cmd /c "ping -n 4 127.0.0.1 >nul & "{sys.executable}" app.py{" --updated" if notify else ""}"', cwd=BASE_DIR, shell=True, creationflags=flags)
     if window_api and window_api._window: window_api._window.destroy()
 
 # ---------------------------------------------------------------- atualizar sozinho quando os arquivos do programa mudam (so rodando do codigo-fonte, nao no .exe)
@@ -4515,7 +4562,7 @@ def ui_rev():
     return hashlib.md5(repr(_sig(_dev_files()[1])).encode()).hexdigest()[:12]
 def dev_watch_loop(poll=2.0, stable=2.5, restart=None):
     """Se um arquivo .py mudar (e compilar), reinicia o Lume quando nao houver resposta em andamento nem permissao pendente."""
-    restart = restart or restart_app; py0 = _sig(_dev_files()[0]); changed_at = 0.0; last = py0
+    restart = restart or (lambda: restart_app(notify=True)); py0 = _sig(_dev_files()[0]); changed_at = 0.0; last = py0
     while True:
         time.sleep(poll)
         try:

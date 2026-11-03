@@ -8,6 +8,8 @@ POLL_SECS = 20              # quanto tempo a extensao espera por um comando ante
 ALIVE_SECS = 45             # sem pergunta por esse tempo = extensao desconectada (o service worker do Chrome dorme)
 CALL_TIMEOUT = 45
 
+PDF_TEXT = None   # o app.py poe aqui a funcao que le um PDF (bytes) e devolve (texto, cortado, paginas); a IA recebe o texto do PDF da pagina
+
 _cmds = queue.Queue(); _waiting = {}; _lock = threading.Lock()
 _state = {"seen": 0.0, "info": {}}
 
@@ -49,10 +51,18 @@ def call(action, args=None, timeout=CALL_TIMEOUT):
         with _lock: _waiting.pop(cid, None)
     if r.get("error"): return "Erro: " + str(r["error"])[:600], []
     txt = str(r.get("text", "")).strip() or "(sem saida)"
-    if action in ("tabs", "read_page"):
+    if r.get("pdf"):
+        try:
+            import base64
+            if not PDF_TEXT: raise Exception("leitor de PDF indisponivel")
+            body, _cut, pages = PDF_TEXT(base64.b64decode(r["pdf"]))
+            txt += f"\nPDF gerado da pagina ({pages} paginas); texto dele:\n" + body
+        except Exception as e: txt += f"\nNao consegui ler o PDF ({str(e)[:120]}). Use format=\"text\"."
+    if action in ("tabs", "read_page", "read_current_page"):
         who = _who()
         if who: txt = f"Navegador aberto no PC: {who}. Chame-o por esse nome (nao invente outro, como Chrome)." + chr(10) + txt
-    if len(txt) > 14000: txt = txt[:14000] + f"\n...[cortado, {len(txt) - 14000} caracteres omitidos]"
+    lim = 30000 if action == "read_current_page" else 14000
+    if len(txt) > lim: txt = txt[:lim] + f"\n...[cortado, {len(txt) - lim} caracteres omitidos]"
     return txt, ([str(r["image"])] if r.get("image") else [])
 
 def _who():
@@ -73,7 +83,8 @@ TOOLS = [
     ("click", "Clica no elemento de numero N da ultima read_page", _S({"index": {"type": "integer"}, "tab_id": _TAB}, ["index"])),
     ("type", "Digita texto no campo de numero N da ultima read_page (submit=true aperta Enter no fim)", _S({"index": {"type": "integer"}, "text": {"type": "string"}, "submit": {"type": "boolean"}, "tab_id": _TAB}, ["index", "text"])),
     ("scroll", "Rola a pagina", _S({"direction": {"type": "string", "description": "down, up, top ou bottom"}, "tab_id": _TAB})),
-    ("screenshot", "Foto da parte visivel da aba (deixa a aba em primeiro plano)", _S({"tab_id": _TAB})),
+    ("read_current_page", "Le a pagina ATUAL inteira como texto bruto (artigos, documentos; sem a lista de botoes). format=\"text\" (padrao, rapido) ou \"pdf\" (a pagina impressa em PDF, com o layout: tabelas e colunas; precisa da permissao do dono, se faltar volta o erro e voce usa text). Para clicar/digitar use read_page", _S({"format": {"type": "string", "description": "text (padrao) ou pdf"}, "tab_id": _TAB})),
+    ("screenshot_current_page", "Foto da pagina ATUAL. full=false (padrao): so a parte visivel; full=true: a pagina inteira, rolando (precisa da permissao do dono, senao vem so a parte visivel). Use quando o visual importa (graficos, imagens, layout)", _S({"full": {"type": "boolean"}, "tab_id": _TAB})),
     ("switch_tab", "Traz uma aba para a frente", _S({"tab_id": {"type": "integer"}}, ["tab_id"])),
     ("close_tab", "Fecha uma aba", _S({"tab_id": {"type": "integer"}}, ["tab_id"])),
     ("back", "Volta uma pagina no historico da aba", _S({"tab_id": _TAB})),
