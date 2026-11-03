@@ -111,7 +111,7 @@ Dicas de teste (a "harness" = script que abre o Lume numa janela pywebview escon
 - [x] FreeTheAI: modelo que está na lista mas responde 404 "was not found" (ex.: `gemini-4-argon`) é escondido por 12 h (`provider_follow.json`, como o erro de seguir provedor). Só aprende depois do primeiro erro.
 - [~] Linhas do seletor numa linha só: nome da família com reticências (completo ao passar o mouse) e logos dos provedores sem quebrar de linha (antes o nome comprido virava uma coluna alta). Só conferido por sintaxe.
 - [~] Seletor de modelos mais largo no PC (440 px; no celular continua a largura da tela).
-- [~] Título da família com mais de 4 versões fica compacto: Mistral vira só "Mistral"; versões com letra e número (Kimi K2…K3, MiniMax M2…M3) viram faixa ("Kimi K2 – K3.1"). A lista completa continua em Parâmetros.
+- [~] Título da família com mais de 4 versões fica compacto: as versões são agrupadas em faixas: "Mistral 3, Medium 3.1 – 3.5, Ministral 3 – 14, Mixtral 8X7B, Nemo, Small 3.1 – 3.2", "Kimi K2 – K3.1"; o que não cabe na linha vira "…" (função `groupVersions`). A lista completa continua em Parâmetros.
 - [x] Erro "ConnectionAbortedError" no terminal quando a página fecha no meio de uma resposta: agora é ignorado em silêncio (`send_json`).
 - [-] Modo offline: descartado pelo dono (besteira). Não fazer.
 
