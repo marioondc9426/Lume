@@ -195,7 +195,7 @@
         .select-arrow { width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-top: 6px solid var(--text-main); margin-left: 10px; transition: transform .2s, border-width .25s, margin .25s, opacity .2s; }
         .controls.typing .select-arrow { border-left-width: 0; border-right-width: 0; margin-left: 0; opacity: 0; }
         .custom-select.open .select-arrow { transform: rotate(180deg); }
-        .select-options { position: absolute; bottom: 100%; left: 0; min-width: 440px; margin-bottom: 6px; background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 10px; z-index: 50; box-shadow: 0 -6px 20px rgba(0,0,0,0.5); overflow: hidden;
+        .select-options { position: absolute; bottom: 100%; left: 0; min-width: 360px; margin-bottom: 6px; background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 10px; z-index: 50; box-shadow: 0 -6px 20px rgba(0,0,0,0.5); overflow: hidden;
             visibility: hidden; opacity: 0; transform: translateY(10px) scale(0.96); transform-origin: bottom left; transition: opacity .18s ease, transform .2s cubic-bezier(.2,.9,.3,1.1), visibility 0s linear .2s; }
         .custom-select.open .select-options { visibility: visible; opacity: 1; transform: none; transition-delay: 0s; }
         .select-options.anim .select-option { animation: optIn .28s ease both; animation-delay: calc(var(--i, 0) * 35ms); }
@@ -905,6 +905,7 @@
         body[data-ui="modern"] #ctxdiv-row span { color: var(--text-muted); }
 
         /* lista de modelos nunca passa da borda da janela */
+        #model-select .select-options { width: 440px; min-width: 0; }   /* largura fixa: o nome em uma linha so nao pode esticar a caixa */
         .select-options { max-width: calc(100vw - 24px); max-height: calc(100vh - 90px); overflow-y: auto !important; }
         /* campos de numero das configuracoes: sem as setinhas feias do navegador, com - e + no estilo do app */
         #settings-modal input[type=number]::-webkit-inner-spin-button, #settings-modal input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; display: none; }
@@ -2357,10 +2358,11 @@
             const parts = [...runs.values()].map(r => r.length === 1 ? r[0] + nameAt(r[0], true) : r[0] + nameAt(r[0], false) + ' – ' + r[r.length - 1] + nameAt(r[r.length - 1], true));
             return parts.concat(vs.filter(v => !nums.includes(v))).join(', ');
         }
-        function groupVersions(vs) {   // Mistral: "3, Medium 3.1 – 3.5, Ministral 3 – 14, Nemo"; Kimi: "K2 – K3.1"
+        function groupVersions(vs, only) {   // only: so estas sub-marcas entram (Mistral: Small, Medium, Large)   // Mistral: "3, Medium 3.1 – 3.5, Ministral 3 – 14, Nemo"; Kimi: "K2 – K3.1"
             const num = v => parseFloat(String(v).replace(/^[A-Za-z]+\s*/, '')), range = a => { const s = a.filter(v => num(v) < 1000).sort((x, y) => num(x) - num(y)); return s.length > 1 ? s[0] + ' – ' + s[s.length - 1] : s.length ? s[0] : a[0]; };
             const groups = new Map(), order = [];
             vs.forEach(v => { const w = /^([A-Za-z]+)\s+(\S+)$/.exec(v), simple = /^[A-Za-z]{0,2}\d+(\.\d+)?$/.test(v), k = w ? 'w:' + w[1] : simple ? 's' : 'o:' + v; if (!groups.has(k)) { groups.set(k, []); order.push(k); } groups.get(k).push(w ? w[2] : v); });
+            if (only) return only.filter(w => groups.has('w:' + w)).map(w => w + ' ' + range(groups.get('w:' + w))).join(', ') || '';
             return order.map(k => { const a = groups.get(k); return k.startsWith('w:') ? k.slice(2) + ' ' + range(a) : k === 's' ? range(a) : a[0]; }).join(', ');
         }
         function famTitle(ms) {   // "Gemma 3 e 4", "Qwen 2.5, 3 e 3.5"
@@ -2368,7 +2370,7 @@
             const nums = vs.filter(v => /^\d+(\.\d+)?$/.test(v));
             if (/^(Qwen|Nemotron)$/.test(ms[0].base) && nums.length > 2) return ms[0].base + ' ' + nums[0] + ' – ' + nums[nums.length - 1];   // muitas versoes: so o intervalo
             if (nums.length > 3) return ms[0].base + ' ' + compactVersions(ms, vs, nums);   // muitas versoes (GPT: 5, 5.4, 5.6, 6, 6.1...): faixas por geracao, com o nome do modelo nas pontas
-            if (vs.length > 4) return ms[0].base + ' ' + groupVersions(vs);   // muitas versoes: junta as da mesma sub-marca em faixas ("Medium 3.1 – 3.5, Ministral 3 – 14"); o que nao couber na linha vira "...".
+            if (vs.length > 4) return ms[0].base + ' ' + groupVersions(vs, ms[0].base === 'Mistral' ? ['Small', 'Medium', 'Large'] : null);   // muitas versoes: junta as da mesma sub-marca em faixas ("Medium 3.1 – 3.5, Ministral 3 – 14"); o que nao couber na linha vira "...".
             const list = vs.length > 1 ? vs.slice(0, -1).join(', ') + ' ' + tr('e') + ' ' + vs[vs.length - 1] : vs[0] || '';
             return ms[0].base + (list ? ' ' + list : '');
         }

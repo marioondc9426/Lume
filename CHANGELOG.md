@@ -8,7 +8,7 @@ Como numerar:
 
 ## v4.0 (em desenvolvimento)
 - **Extensão do navegador:** o Comet/Chrome não aceita a permissão `debugger` como opcional (ela era ignorada, então PDF e foto da página inteira nunca funcionavam); agora é uma permissão normal da extensão. Os avisos "background.scripts" e do Firefox são inofensivos. Recarregue a extensão no navegador.
-- **Terminal:** a página recarregar no meio de uma resposta não enche mais o terminal de erro ("ConnectionAbortedError"). Famílias com muitas versões agrupam em faixas ("Mistral 3, Medium 3.1 – 3.5, Ministral 3 – 14…", "Kimi K2 – K3.1") e usam o espaço da linha.
+- **Terminal:** a página recarregar no meio de uma resposta não enche mais o terminal de erro ("ConnectionAbortedError"). Famílias com muitas versões agrupam em faixas ("Mistral Small 3.1 – 3.2, Medium 3.1 – 3.5, Large 3", "Kimi K2 – K3.1"); o seletor tem largura fixa e não vaza mais da janela e usam o espaço da linha.
 - **Seletor:** o nome da família Mistral (e outras com muitas versões) não lista mais todas as versões ("Medium 3.1, Ministral 14, Small 3.2…"); fica só "Mistral".
 - **Seletor de modelos mais largo** no computador (440 px) (cabem nome e logos dos provedores sem apertar).
 - **Seletor de modelos:** cada família ocupa uma linha só (nome comprido termina em "…" e aparece inteiro ao passar o mouse; os logos dos provedores não quebram mais de linha), em vez de virar uma coluna alta.
