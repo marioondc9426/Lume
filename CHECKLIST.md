@@ -104,7 +104,7 @@ Dicas de teste (a "harness" = script que abre o Lume numa janela pywebview escon
 - [x] **Tela cheia**: padrão no celular/iPhone; no PC é um interruptor (Configurações > Aparência: "Seletor de modelos em tela cheia"). Tem ✕, busca e ordenação.
 - [~] Tela cheia no celular de verdade (testado só numa janela estreita no PC).
 - [x] Abre rápido e volta ao último modelo; lista só é reconstruída quando algo muda (não fecha sozinha).
-- [ ] Modo offline: após ~20 s sem internet, esmaecer (ou sumir) os modelos de nuvem e voltar a um local (ideia do dono; ver Ideias).
+- [-] Modo offline: descartado pelo dono (besteira). Não fazer.
 
 ## 7. Provedores (todos só com modelos grátis, exceto Pollinations)
 
@@ -191,7 +191,8 @@ Dicas de teste (a "harness" = script que abre o Lume numa janela pywebview escon
 
 ## 17. Ideias e backlog
 
-- [ ] **Modo offline**: após 20 s sem internet, modelos de nuvem esmaecem (ou somem) com aviso "sem internet" e voltam sozinhos; se o modelo atual for de nuvem, trocar para um local. Cheque confiável (vários pings), não um erro só.
+- [-] **Modo offline** (esmaecer/sumir modelos de nuvem sem internet): o dono disse que é besteira (2026-11-03). NÃO fazer.
+- [ ] Ideias novas (2026-11-03, escolher): presets de personalidade por chat; "projetos" (pasta com instruções e arquivos fixos); pesquisa profunda (várias buscas + relatório com fontes); gerar imagem (Pollinations); resumir sozinho quando a barra de contexto enche; Ctrl+Shift+Espaço manda o print da janela da frente para a caixinha; botão "Substituir" na caixinha da seleção (cola o texto corrigido de volta no app); "perguntar sobre esta página" no popup da extensão; tarefas agendadas ("todo dia 8h resuma...").
 - [ ] Resposta lado a lado no próprio chat (a arena já faz fora do chat).
 - [ ] Backup/exportar tudo num arquivo (conversas + configurações) para outro PC/iPhone.
 - [ ] Ações rápidas do navegador ("resumir esta aba" com um clique) depois que a extensão provar que funciona.
