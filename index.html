@@ -1263,7 +1263,7 @@
     </div></div>
 
     <!-- Modal Configurações -->
-    <div id="theme-loading" aria-hidden="true"><div class="tl-box"><img src="icons/lume.png" alt=""><div class="tl-bar"><i></i></div><div class="tl-txt">Trocando o tema…</div></div></div>
+    <div id="theme-loading" aria-hidden="true"><div class="tl-box"><img src="icons/lume.png" alt=""><div class="tl-bar"><i></i></div><div class="tl-txt">Trocando o tema…</div></div></div>
     <div id="settings-modal"><div class="modal-content">
         <button class="close-btn" onclick="closeSettings()">&times;</button>
         <h2>Configurações</h2>
@@ -2264,7 +2264,7 @@
         let _pxKeys = null; const modelKey = m => { fin(m); return [m.base, m.ver, m.psize].join('|'); };
         const pxDup = m => false;   // Paxsenix mostra todos os seus modelos, mesmo os que outro provedor ja tem
         const noIcon = m => { if (!m.x) return false; if (m._ni === undefined) { try { m._ni = !brandOf(fin(m)); } catch (e) { return false; } } return m._ni; };   // modelos dos provedores extras sem logo da marca nao entram na lista
-        const UNWANTED = /celeris|mythomax|isign|ising-|lfm|hermes|north-mini|riva-translate|cosmos-|dots-|grok|llama/i;   // modelos que o dono mandou tirar do seletor, venham de qual provedor vier
+        const UNWANTED = /celeris|mythomax|isign|ising-|lfm|hermes|north-mini|riva-translate|cosmos-|dots-|grok|(^|[/:-])muse/i;   // modelos que o dono mandou tirar do seletor, venham de qual provedor vier
         const isAvail = m => m.auto ? !isGuest() : UNWANTED.test(m.id) ? false : guestBlocks(m) ? false : pxDup(m) ? false : noIcon(m) ? false : m.phone ? phoneMode() : (phoneMode() && !m.cloud ? false : (m.groq || m.or || m.cf || m.pol || m.tdc || m.vc || m.l7 || m.x || installed === null || installed.has(m.id)));   // no modo celular os locais do PC saem da lista
         const availIn = tab => MODELS.filter(m => m.tabs.includes(tab) && isAvail(m));
         const pickDefault = list => list.find(m => m.rec && !m.cloud) || list.find(m => !m.cloud && !m.heavy) || list.find(m => !m.cloud) || list[0];
@@ -3031,7 +3031,7 @@
             renderModelOptions();
             if (d.probing) { if (reprobe === true || !window.__cfProbeShown) showInfo('Conferindo quais modelos do Cloudflare o seu plano aceita (uns 30 segundos)...', 6000); window.__cfProbeShown = true; clearTimeout(window.__cfTimer); window.__cfTimer = setTimeout(loadCloudflareModels, 30000); }   // quando a conferencia acaba, a lista se atualiza
         }
-        const HIDDEN_MODELS = /^(clef|deepseek-v4\.1-flash)\b|llama/i;   // clef e DeepSeek V4.1 Flash: nao sao gratis; Llama: fora por escolha   // instalados no Ollama, mas fora do seletor
+        const HIDDEN_MODELS = /^(clef|deepseek-v4\.1-flash)\b/i;   // clef e DeepSeek V4.1 Flash: nao sao gratis   // instalados no Ollama, mas fora do seletor
         async function detectVision() {   // o Ollama informa as capacidades de cada modelo instalado; a etiqueta "visao" segue isso (corrige modelos que aceitam imagem e estavam sem a etiqueta)
             if (!installed) return; let changed = false;
             await Promise.all(MODELS.filter(m => !m.phone && !m.groq && !m.or && !m.cf && !m.pol && !m.tdc && !m.vc && !m.l7 && !m.x && installed.has(m.id) && !m._capsDone).map(async m => {
@@ -4424,9 +4424,9 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             showSettingsSection(keep && (setActive === 'servidor' || setSecs.some(s => s.id === setActive)) ? setActive : 'geral');
         }
         document.addEventListener('click', e => { const h = e.target.closest && e.target.closest('#settings-modal .hint'); if (h && !e.target.closest('a')) h.classList.toggle('open'); });   // dicas compridas: uma linha ou duas; clique abre tudo
-        // ---- atualizar sozinho (so quando roda do codigo-fonte): se index.html ou libs/*.js mudaram, recarrega a interface quando nao ha resposta nem texto sendo escrito
-        (function devReload() {
-            if (window.__LUME_IOS) return; let rev = null, told = false;
+        // ---- atualizar sozinho (so quando roda do codigo-fonte): se index.html ou libs/*.js mudaram, recarrega a interface quando nao ha resposta nem texto sendo escrito
+        (function devReload() {
+            if (window.__LUME_IOS) return; let rev = null, told = false;
             window.lumeRestarting = () => {   // o Lume vai fechar e voltar sozinho (arquivo .py mudou): avisa em vez de a janela so sumir
                 if (document.getElementById('lume-restart')) return;
                 const o = document.createElement('div'); o.id = 'lume-restart';
@@ -4451,21 +4451,21 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 paint(); b.append(t, go, later); document.body.appendChild(b);
                 devTimer = setInterval(() => { if (busy) return; left--; if (left <= 0) now(); else paint(); }, 1000);   // so conta com a IA parada (nao corta uma resposta)
             };
-            const tick = async () => {
-                try {
+            const tick = async () => {
+                try {
                     const d = await (await fetch(API + '/api/ui_rev')).json(); if (!d.dev) { rev = null; told = false; return; }
                     if (d.updated && !updShown) { updShown = true; showInfo(tr('Lume atualizado ✓'), 4000); }
-                    if (d.pending) devPrompt();
-                    if (rev === null) { rev = d.rev; return; }
-                    if (d.rev !== rev) {
-                        const typing = $('prompt') && $('prompt').value.trim() && document.activeElement === $('prompt');
-                        if (!busy && !d.busy && !typing && !compacting) { showInfo(tr('Interface atualizada: recarregando...'), 1500); setTimeout(() => location.reload(), 600); return; }
-                        if (!told) { told = true; showInfo(tr('Nova versão da interface pronta: recarrego quando você terminar de escrever ou a IA terminar.'), 6000); }
-                    }
-                } catch (e) { /* servidor reiniciando: tenta de novo */ }
-            };
-            setInterval(tick, 3000); setTimeout(tick, 1500);
-        })();
+                    if (d.pending) devPrompt();
+                    if (rev === null) { rev = d.rev; return; }
+                    if (d.rev !== rev) {
+                        const typing = $('prompt') && $('prompt').value.trim() && document.activeElement === $('prompt');
+                        if (!busy && !d.busy && !typing && !compacting) { showInfo(tr('Interface atualizada: recarregando...'), 1500); setTimeout(() => location.reload(), 600); return; }
+                        if (!told) { told = true; showInfo(tr('Nova versão da interface pronta: recarrego quando você terminar de escrever ou a IA terminar.'), 6000); }
+                    }
+                } catch (e) { /* servidor reiniciando: tenta de novo */ }
+            };
+            setInterval(tick, 3000); setTimeout(tick, 1500);
+        })();
         // ---- mosaico das configuracoes: cada cartao ocupa so a sua altura (linhas de 4 px) e os de baixo sobem para os buracos
         const SET_FULL = '.hint, .section-title, .code-opts, [id$="-box"], [id$="-list"], .form-group:has(textarea), .set-wide';
         function packSettings() {
@@ -4551,22 +4551,22 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             if (!initial) { config.uiFont = sel.value === '__custom' ? cu.value.trim() : sel.value; config.codeFont = $('opt-codefont').value; saveState(); }
             applyUiFont();
         }
-        // ---- trocar de tema com tela de loading: mostra a tela, so entao aplica o tema (por tras, sem animacoes) e deixa ela um tempo minimo para a troca nao parecer um tranco
-        let _tlTimer = 0, _tlSeq = 0;
-        function switchTheme(v) {
-            const el = $('theme-loading'); if (!el) { applyBaseTheme(v); return; }
-            const seq = ++_tlSeq; clearTimeout(_tlTimer);
-            document.documentElement.classList.add('theme-switching');
-            el.classList.add('show'); void el.offsetWidth; el.classList.add('on');
-            setTimeout(() => {   // da tempo da tela aparecer (e pintar) antes do trabalho pesado
-                requestAnimationFrame(() => requestAnimationFrame(() => {
-                    try { applyBaseTheme(v); if (typeof saveState === 'function') saveState(); } catch (e) { console.error('tema:', e); }
-                    requestAnimationFrame(() => requestAnimationFrame(() => {   // o tema ja foi desenhado: segura um pouco e some
-                        _tlTimer = setTimeout(() => { if (seq !== _tlSeq) return; el.classList.remove('on'); setTimeout(() => { if (seq !== _tlSeq) return; el.classList.remove('show'); document.documentElement.classList.remove('theme-switching'); }, 220); }, 650);
-                    }));
-                }));
-            }, 220);
-        }
+        // ---- trocar de tema com tela de loading: mostra a tela, so entao aplica o tema (por tras, sem animacoes) e deixa ela um tempo minimo para a troca nao parecer um tranco
+        let _tlTimer = 0, _tlSeq = 0;
+        function switchTheme(v) {
+            const el = $('theme-loading'); if (!el) { applyBaseTheme(v); return; }
+            const seq = ++_tlSeq; clearTimeout(_tlTimer);
+            document.documentElement.classList.add('theme-switching');
+            el.classList.add('show'); void el.offsetWidth; el.classList.add('on');
+            setTimeout(() => {   // da tempo da tela aparecer (e pintar) antes do trabalho pesado
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                    try { applyBaseTheme(v); if (typeof saveState === 'function') saveState(); } catch (e) { console.error('tema:', e); }
+                    requestAnimationFrame(() => requestAnimationFrame(() => {   // o tema ja foi desenhado: segura um pouco e some
+                        _tlTimer = setTimeout(() => { if (seq !== _tlSeq) return; el.classList.remove('on'); setTimeout(() => { if (seq !== _tlSeq) return; el.classList.remove('show'); document.documentElement.classList.remove('theme-switching'); }, 220); }, 650);
+                    }));
+                }));
+            }, 220);
+        }
         function applyBaseTheme(theme) {
             [...THEME_VARS, ...THEME_EXTRA_VARS, '--icon-filter'].forEach(v => document.body.style.removeProperty(v)); applyUiFont();
             let base = theme, custom = null;
