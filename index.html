@@ -266,8 +266,8 @@
         .wl-opt.off { opacity: .5; } .wl-opt select { width: auto; padding: 5px 10px; font-size: 0.9em; border-radius: 8px; }
         .wl-more { text-align: center; margin-bottom: 14px; } .wl-more .btn { margin: 0; }
         @media (max-width: 640px) { .wl-grid { grid-template-columns: 1fr; } .wl-card { padding: 20px 16px; } }
-        .mo-provs { display: inline-flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 5px 7px; margin-left: auto; padding-left: 8px; max-width: 56%; flex-shrink: 0; } .mo-provs .pv { height: 15px; width: auto; opacity: .9; } .mo-provs .pv-mono { background: var(--text-main); -webkit-mask: var(--m) center / contain no-repeat; mask: var(--m) center / contain no-repeat; } .select-option.selected .pv-mono { background: #fff; } .pv-wrap { position: relative; display: inline-flex; margin-right: 4px; } .pv-plus { position: absolute; right: -7px; bottom: -3px; width: 11px; height: 11px; background: var(--k-local); -webkit-mask: url(icons/plus.png) center / contain no-repeat; mask: url(icons/plus.png) center / contain no-repeat; filter: drop-shadow(0 0 1px #000); }
-        .mo-label { flex: 1; display: flex; align-items: center; min-width: 0; overflow: hidden; }   /* muitos provedores (ex.: Nemotron): os logos quebram de linha em vez de passar por cima do nome */
+        .mo-provs { display: inline-flex; justify-content: flex-end; align-items: center; gap: 5px 7px; margin-left: auto; padding-left: 8px; max-width: 46%; flex-shrink: 0; flex-wrap: nowrap; overflow: hidden; } .mo-provs .pv { height: 15px; width: auto; opacity: .9; } .mo-provs .pv-mono { background: var(--text-main); -webkit-mask: var(--m) center / contain no-repeat; mask: var(--m) center / contain no-repeat; } .select-option.selected .pv-mono { background: #fff; } .pv-wrap { position: relative; display: inline-flex; margin-right: 4px; } .pv-plus { position: absolute; right: -7px; bottom: -3px; width: 11px; height: 11px; background: var(--k-local); -webkit-mask: url(icons/plus.png) center / contain no-repeat; mask: url(icons/plus.png) center / contain no-repeat; filter: drop-shadow(0 0 1px #000); }
+        .mo-label { flex: 1; display: flex; align-items: center; min-width: 0; overflow: hidden; white-space: nowrap; } .mo-label > * { flex: none; } .mo-label > .mo-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }   /* muitos provedores (ex.: Nemotron): os logos quebram de linha em vez de passar por cima do nome */
         .mo-badge { font-size: 0.75em; padding: 1px 7px; border-radius: 9px; background: rgba(63,185,80,0.2); color: #3fb950; margin-left: 8px; white-space: nowrap; font-weight: normal; }
         .mo-badge.busy { background: rgba(227,160,8,0.2); color: var(--warn); }
         .mo-badge.cloud { background: rgba(128,128,128,0.2); color: var(--text-muted); }
@@ -2690,15 +2690,16 @@
             const im = document.createElement('img'); im.className = 'ic mode-ic'; im.src = kind === 'cloud' ? 'icons/cloud.png' : 'icons/globe-off.png';
             im.title = tr(kind === 'cloud' ? 'Roda na nuvem (precisa de internet)' : 'Funciona sem internet'); return im;
         }
+        const titleSpan = t => { const s = document.createElement('span'); s.className = 'mo-title'; s.textContent = t; s.title = t; return s; };   // o nome numa linha so (reticencias), o completo no title
         function famLabelNodes(rec, title) {   // [imagem, texto] que identificam a familia (title = "Qwen 2.5, 3 e 3.5" quando e a marca toda)
             title = title || rec.famName;
             const br = brandOf(rec), out = [];
             if (br) {
                 out.push(brandEl(br, rec));
-                if (!br.wordmark) out.push(document.createTextNode(title));
+                if (!br.wordmark) out.push(titleSpan(title));
             } else {
                 if (rec.icon !== 'cloud') { const im = document.createElement('img'); im.className = 'ic'; im.src = `icons/${rec.icon === 'triangle-alert' ? 'zap' : rec.icon}.png`; out.push(im); }   // modelos so da nuvem ja mostram o icone de nuvem ao lado
-                out.push(document.createTextNode(title));
+                out.push(titleSpan(title));
             }
             return out;
         }
