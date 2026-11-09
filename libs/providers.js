@@ -21,6 +21,8 @@ window.LUME_PROVIDERS = [
     "hint": "Mostra todos os modelos, sem teste (o plano grátis tem só 50 pedidos por dia). Antes de usar, faça o check-in diário com captcha em freetheai.org/checkin. Chave em freetheai.org/dashboard/api-keys." },
   { "id": "vd", "key": "voidai", "name": "VoidAI", "field": "voidai_api_key", "url": "https://api.voidai.app/v1", "spacing": 1.5, "showAll": true, "kind": "vd", "placeholder": "sk-voidai-...", "logo": "prov-voidai.png",
     "hint": "Só os modelos que o plano grátis cobre. Os créditos diários do seu plano valem para todos. Chave em voidai.app/dashboard." },
+  { "id": "nx", "key": "nexus", "name": "Nexus", "field": "nexus_api_key", "url": "https://nextrouter.me/v1", "spacing": 1.5, "showAll": false, "kind": "openai", "placeholder": "sk-nexus-...", "letter": "N",
+    "hint": "Um endereço só para vários modelos (nextrouter.me). Só ficam os modelos de marcas que o Lume já tem e que passam no teste (os que dão erro somem sozinhos). Chave no painel do NextRouter." },
   { "id": "tk", "key": "tokenreply", "name": "TokenReply", "field": "tokenreply_api_key", "url": "https://api.tokenreply.com/v1", "spacing": 1.5, "showAll": true, "kind": "tk", "placeholder": "sk-...", "logo": "prov-tokenreply.png",
     "hint": "Só os modelos do nível grátis e os \"semanais em destaque\" (gastam o crédito grátis da conta). Chave em tokenreply.com." }
 ];

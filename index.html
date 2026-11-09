@@ -2286,7 +2286,7 @@
             const raw = String(slug).replace(/^@(cf|hf)\//, '').replace(/:free$/, ''), prov = raw.includes('/') ? raw.split('/')[0] : '';
             const s = raw.split('/').pop().toLowerCase().replace(/-free$/, '').replace(/-quest$/, '').replace(/^(nvidia|vercel|reflection)-/, '').replace(/^(nvidia|vercel)-/, '').replace(/^(coding|xiaomi)-/, ''), sz = (s.match(/(?:^|[-_:])(\d+(?:\.\d+)?)b(?![a-z])/) || [])[1], SZ = sz ? sz + 'B' : '';
             let m;
-            if ((m = s.match(/^gemma-?(\d+(?:\.\d+)?)/))) return { base: 'Gemma', ver: m[1], psize: SZ || 'Cloud' };
+            if ((m = s.match(/^gemma[-\s]?(\d+(?:\.\d+)?)/))) return { base: 'Gemma', ver: m[1], psize: SZ || 'Cloud' };
             if (/^diffusiongemma/.test(s)) { const v = (s.match(/^diffusiongemma-?(\d+(?:\.\d+)?)(?!\d|b|\.)/) || [])[1]; return { base: 'Gemma', ver: v || '', psize: (SZ ? SZ + ' ' : '') + 'Diffusion' }; }   // o 26 de diffusiongemma-26b e o tamanho, nao a versao
             if ((m = s.match(/^gemini-(\d+(?:\.\d+)?)-?(.*)$/))) return { base: 'Gemini', ver: m[1], psize: (m[2] || '').split('-').filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(' ') || 'Base' };
             if ((m = s.match(/^llama-?(\d+(?:\.\d+)?)/))) return { base: 'Llama', ver: m[1], psize: SZ || 'Base' };
@@ -2316,7 +2316,7 @@
             if ((m = s.match(/^mistral-(small|medium|large|nemo|saba)-?(\d+(?:\.\d+)?)?/))) return { base: 'Mistral', ver: m[1][0].toUpperCase() + m[1].slice(1) + (m[2] ? ' ' + m[2] : ''), psize: SZ || 'Cloud' };
             if (/^codestral/.test(s)) return { base: 'Mistral', ver: 'Codestral', psize: SZ || 'Cloud' };
             if ((m = s.match(/^celeris-?(\d+)/))) return { base: 'Celeris', ver: m[1], psize: 'Cloud' };
-            if ((m = s.match(/^claude-([a-z]+)-(\d+)(?:-(\d{1,2})(?!\d))?/))) return { base: 'Claude', ver: m[2] + (m[3] ? '.' + m[3] : ''), psize: m[1][0].toUpperCase() + m[1].slice(1) };   // opus/sonnet/haiku/fable...; o -2025xxxx do fim nao e versao
+            if ((m = s.match(/^claude-([a-z]+)-(\d+)(?:[-.](\d{1,2})(?!\d))?/))) return { base: 'Claude', ver: m[2] + (m[3] ? '.' + m[3] : ''), psize: m[1][0].toUpperCase() + m[1].slice(1) };   // opus/sonnet/haiku/fable...; o -2025xxxx do fim nao e versao
             if ((m = s.match(/^command-([a-z0-9]+)/))) return { base: 'Command', ver: m[1].toUpperCase(), psize: 'Cloud' };
             if ((m = s.match(/^phi-?(\d+)/))) return { base: 'Phi', ver: m[1], psize: 'Cloud' };
             if (/^compound/.test(s)) return { base: 'Compound', ver: '', psize: 'Cloud' };

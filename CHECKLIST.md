@@ -113,6 +113,8 @@ Dicas de teste (a "harness" = script que abre o Lume numa janela pywebview escon
 - [~] Seletor de modelos mais largo no PC (440 px fixos, não cresce com o nome; no celular continua a largura da tela).
 - [~] Título da família com mais de 4 versões fica compacto: as versões são agrupadas em faixas: Mistral só mostra Small, Medium e Large ("Mistral Small 3.1 – 3.2, Medium 3.1 – 3.5, Large 3"; Ministral/Mixtral/Nemo ficam fora do título), "Kimi K2 – K3.1"; o que não cabe na linha vira "…" (função `groupVersions`). A lista completa continua em Parâmetros.
 - [x] Erro "ConnectionAbortedError" no terminal quando a página fecha no meio de uma resposta: agora é ignorado em silêncio (`send_json`).
+- [x] Pollinations: adicionados `community/JustScriptzz/` claude-opus-4.6, gemini-4-argon, mistral-large-4 e gpt-5.6-terra. O teste de saúde agora manda `stream:false` (o Nexus responde em streaming por padrão) e reprova resposta que é só um "[Error: ...]" escrito.
+- [~] Nexus: listagem e teste de saúde conferidos com a chave real (20 modelos de marca); falta ver na interface com a chave colocada em Configurações > Chaves de API.
 - [-] Modo offline: descartado pelo dono (besteira). Não fazer.
 
 ## 7. Provedores (todos só com modelos grátis, exceto Pollinations)
@@ -121,7 +123,7 @@ Dicas de teste (a "harness" = script que abre o Lume numa janela pywebview escon
 - [x] **Pollinations** (pago em pollen, ferramentas nativas só onde o catálogo permite, espera o `Retry-After`, saldo, menu do catálogo com saúde).
 - [x] **OpenRouter** (só grátis) · **Cloudflare Workers AI** (10k neurônios/dia, contador) · **Groq** · **Vercel AI Gateway** · **LLM7** · **tomdacat**.
 - [x] **FreeTheAI exige seguir o provedor de cada modelo** (freetheai.org/providers/NOME): o 403 "You don't follow X" vira mensagem em português com o link e o Lume esconde os modelos desse provedor por 12 h (`provider_follow.json`, aprende pelo erro, sem gastar pedidos). Ainda não portado para o iPhone (`lume-backend.js`).
-- [x] Extras pelo registro `libs/providers.js`: **LiteRouter, AIHubMix, Paxsenix, FreeTheAI** (50 pedidos/dia, check-in no site), **VoidAI**, **TokenReply**. Adicionar um = um item no registro (guia `libs/PROVIDERS.md`).
+- [x] Extras pelo registro `libs/providers.js`: **LiteRouter, AIHubMix, Paxsenix, FreeTheAI** (50 pedidos/dia, check-in no site), **VoidAI**, **TokenReply**, **Nexus** (nextrouter.me, chave `sk-nexus-...`: só marcas que o Lume já tem — `NX_BRANDS` no `app.py` —, sem GLM porque a conta do Z.ai deles está bloqueada; passa pelo teste de saúde, então os que dão 502/404 somem sozinhos). Adicionar um = um item no registro (guia `libs/PROVIDERS.md`).
 - [x] Várias chaves + chaves de reserva; teste de saúde automático (modelo fora do ar some da lista); painel de provedores com cota diária.
 - [x] Troca automática de modelo quando um falha (desligada por padrão) e "tentar o próximo mais barato".
 - [x] Tempo limite 45 s / 60 s sem dados; erros de provedor aparecem com a mensagem real; modelos sem streaming vêm inteiros.

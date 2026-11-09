@@ -1877,6 +1877,7 @@ AC_URL = "https://www.aichixia.xyz/api/v1"   # Aichixia: so os modelos do plano 
 AH_URL = "https://aihubmix.com/v1"           # AIHubMix: so os que terminam em "free"
 LR_URL = "https://api.literouter.com/v1"     # LiteRouter: so os ":free" (1 pedido a cada 7 s no plano gratis)
 LR_BLOCKED = {"kimi-k3-cheap:free", "muse-spark-1.2-contributor:free"}   # a API responde "model is not available" (o resto dos ":free" respondeu num teste com 1024 tokens; com 16 os modelos que pensam davam 502 por resposta vazia)
+NX_BRANDS = re.compile(r"(gemma|gemini|claude|gpt|kimi|mistral|nemotron|qwen|deepseek|minimax|mimo|mercury)", re.I)   # Nexus: modelos de marcas que o Lume ja tem
 X_NONCHAT = re.compile(r"safety|guard|embed|whisper|tts|image", re.I)   # VoidAI, Paxsenix e LiteRouter trazem TODOS os modelos de chat; so sai o que nao e conversa
 X_SHOW_ALL = {p["id"] for p in PROVIDER_REGISTRY if p.get("showAll")}   # sem teste de saude e sem filtro de plano: aparecem todos (os que o plano nao cobrir respondem com erro na hora de usar)
 AH_EXCLUDE = re.compile(r"phi-|north-|mythomax|intern-|dots-|lfm|xing|flint|agents-a|step-|command-|compound|sarvam|nova-|seed-|hy4|gpt-3\.5|grok|safety|guard|embed|whisper|tts|image", re.I)   # sem Llama nem Grok, e sem modelos "aleatorios" que ninguem pediu
@@ -1939,13 +1940,15 @@ def health_test(prov, mid, cfg):
     """1 pedido de verdade: responde se vier texto (modelos que pensam precisam de bastante espaco: 512 tokens). Devolve (ok, ms, erro)."""
     field, base = X_PROVIDERS[prov][:2]
     key = (cfg.get(field) or "").strip()
-    body = json.dumps({"model": mid, "messages": [{"role": "user", "content": "Responda so a palavra: ok"}], "max_tokens": 512}).encode()
+    body = json.dumps({"model": mid, "messages": [{"role": "user", "content": "Responda so a palavra: ok"}], "max_tokens": 512, "stream": False}).encode()
     req = urllib.request.Request(base + "/chat/completions", data=body, headers={"Authorization": "Bearer " + key, "Content-Type": "application/json", "User-Agent": "lume-app"})
     t0 = time.time()
     try:
         with urllib.request.urlopen(req, timeout=90) as r: j = json.load(r)
         m = ((j.get("choices") or [{}])[0].get("message") or {})
-        if (m.get("content") or m.get("reasoning_content") or m.get("reasoning") or "").strip(): return True, int((time.time() - t0) * 1000), ""
+        txt = (m.get("content") or m.get("reasoning_content") or m.get("reasoning") or "").strip()
+        if re.match(r"\[Error", txt): return False, int((time.time() - t0) * 1000), txt[:100]   # gateway que devolve o erro do provedor como se fosse a resposta (ex.: Nexus/GLM: "[Error: Z.ai returned 403")
+        if txt: return True, int((time.time() - t0) * 1000), ""
         return False, int((time.time() - t0) * 1000), "resposta vazia"
     except urllib.error.HTTPError as e:
         body = e.read()[:160].decode("utf-8", "replace")
@@ -2048,6 +2051,7 @@ def extra_models(prov, cfg, force=False, raw=False):
             if m.get("type") != "chat.completions" or X_NONCHAT.search(mid): continue
             out.append({"id": mid, "name": m.get("name") or mid, "ctx": m.get("max_context_tokens") or 128000, "vision": bool(m.get("supports_vision"))})
         elif kind != "lr":   # provedor novo no formato da OpenAI: todos os modelos de chat que o /models lista
+            if prov == "nx" and not NX_BRANDS.match(mid): continue   # Nexus: so marcas que o Lume ja tem (sem GLM: a conta do Z.ai deles esta bloqueada)
             if X_NONCHAT.search(mid) or m.get("type") not in (None, "chat", "chat.completions", "language"): continue
             out.append({"id": mid, "name": m.get("name") or m.get("display_name") or mid.split("/")[-1], "ctx": m.get("context_window") or m.get("max_context_tokens") or m.get("context_length") or 128000, "vision": False})
         else:   # lr: so os ":free"
@@ -2506,6 +2510,7 @@ POL_MODELS = [
     # modelos que ja existiam oficiais: a versao da comunidade (mais barata) vira a padrao e a oficial fica de reserva (o Lume ordena pelo preco)
     ("moonshotai/kimi-k2.6", {"tabs": "both"}), ("moonshotai/kimi-k3", {"tabs": "both", "keep": True}), ("community/vendouple/kimi-k3", {"tabs": "both", "prio": True}),
     ("community/sonofstrange/gpt-6.1-sol-quest", {"tabs": "both", "keep": True}), ("community/JustScriptzz/gpt-5.6-sol", {"tabs": "both", "keep": True}),
+    ("community/JustScriptzz/claude-opus-4.6", {"tabs": "both"}), ("community/JustScriptzz/gemini-4-argon", {"tabs": "both"}), ("community/JustScriptzz/mistral-large-4", {"tabs": "both"}), ("community/JustScriptzz/gpt-5.6-terra", {"tabs": "both"}),
     ("community/vendouple/qwen-3.8-max", {"tabs": "both"}), ("qwen/qwen3.8-2.4t-a95b", {"tabs": "both", "keep": True}),   # o oficial (mais caro) e o mesmo Qwen 3.8 Max: fica de reserva
     ("community/scriptsnsenses-sys/deepseek-v4-flash-0731", {"free": True, "tabs": "both"}),
     ("mistralai/mistral-large-3", {"tabs": "both"}),
