@@ -1067,6 +1067,91 @@
         #send-group { display: flex; align-items: center; gap: 8px; flex: none; order: 11; }
         #send-group > .mic-btn { order: 0 !important; } #send-group > #send-btn { order: 1 !important; }
         body[data-ui="modern"] #send-group { grid-area: send; justify-self: end; order: 0; }
+
+        /* ===== VISUAL NOVO: o acabamento da maquete em Tailwind (experimentos/lume-tailwind.html), feito em CSS normal e com as cores de cada tema.
+           Liga/desliga em Configuracoes > Aparencia ("Visual novo"); body[data-look="tw"] so existe na interface nova. ===== */
+        body[data-ui="modern"][data-look="tw"] { --tw-pop: #d946ef; --tw-ring: color-mix(in srgb, var(--accent) 16%, transparent); --tw-shadow: 0 10px 30px -10px rgba(0,0,0,0.5); --tw-soft: rgba(128,128,128,0.12); }
+        @keyframes twRise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+        /* rolagem fina e discreta */
+        body[data-look="tw"] ::-webkit-scrollbar-thumb { background: rgba(128,128,128,0.35); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+        body[data-look="tw"] ::-webkit-scrollbar-track { background: transparent; }
+        /* brilho suave da cor do tema no topo (temas que ja tem o proprio brilho ficam com o deles) */
+        body[data-ui="modern"][data-look="tw"]:not([data-glow-off]):not([data-theme="lume"]):not([data-theme="gemini"]) { --glow: radial-gradient(ellipse 60% 300px at 50% 0, color-mix(in srgb, var(--accent) 20%, transparent), transparent 72%); }
+        /* lateral: "Nova conversa" cheio na cor do tema, abas Chat/Code em bloco, titulos das secoes em caixa alta */
+        body[data-ui="modern"][data-look="tw"] #sidebar .btn-primary { background: var(--accent); color: #fff; border-radius: 12px; box-shadow: 0 6px 16px -8px color-mix(in srgb, var(--accent) 80%, transparent); transition: filter .15s, transform .1s; }
+        body[data-ui="modern"][data-look="tw"][data-theme="lume"] #sidebar .btn-primary { background: var(--grad); }
+        body[data-ui="modern"][data-look="tw"] #sidebar .btn-primary:active { transform: scale(.985); }
+        body[data-ui="modern"][data-look="tw"] #sidebar .tabs { border-radius: 12px; padding: 4px; background: var(--tw-soft); }
+        body[data-ui="modern"][data-look="tw"] #sidebar .tab { border-radius: 9px; }
+        body[data-ui="modern"][data-look="tw"] #sidebar .tab.active { box-shadow: 0 1px 3px rgba(0,0,0,0.28); }
+        body[data-ui="modern"][data-look="tw"] #chat-search { border-radius: 10px; }
+        body[data-ui="modern"][data-look="tw"] .list-head:not(.folder) { text-transform: uppercase; font-size: 0.66em; font-weight: 600; letter-spacing: 0.09em; padding: 14px 12px 4px; }
+        body[data-ui="modern"][data-look="tw"] .chat-item { border-radius: 9px; transition: background .15s; }
+        /* tela inicial: titulo em degrade, entrada animada e cartoes de sugestao embaixo da barra */
+        body[data-ui="modern"][data-look="tw"] #hero h1 { background: linear-gradient(90deg, var(--accent), var(--tw-pop)); -webkit-background-clip: text; background-clip: text; color: transparent; letter-spacing: -0.02em; }
+        body[data-ui="modern"][data-look="tw"][data-theme="lume"] #hero h1 { background: var(--grad); -webkit-background-clip: text; background-clip: text; }
+        body[data-ui="modern"][data-look="tw"]:not(.no-anim).chat-empty #hero > * { animation: twRise .35s cubic-bezier(.2,.8,.3,1) both; }
+        #hero-sugg { display: none; }
+        @media (min-width: 761px) {
+            body[data-ui="modern"][data-look="tw"].chat-empty .controls { margin-bottom: 30px; }
+            body[data-ui="modern"][data-look="tw"].chat-empty[data-hero="center"] #hero-sugg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; width: min(var(--chat-w), calc(100% - 48px)); margin: 0 auto auto; }
+        }
+        .hero-card { text-align: left; padding: 14px 16px; border-radius: 16px; border: 1px solid var(--border-color); background: color-mix(in srgb, var(--bg-input) 55%, transparent); color: var(--text-main); font: inherit; cursor: pointer; transition: transform .15s, border-color .15s, box-shadow .15s; }
+        body:not(.no-anim) .hero-card { animation: twRise .35s cubic-bezier(.2,.8,.3,1) both; } .hero-card:nth-child(2) { animation-delay: .06s; }
+        .hero-card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--accent) 60%, transparent); box-shadow: var(--tw-shadow); }
+        .hero-card b { display: block; font-size: 0.9em; font-weight: 500; } .hero-card span { display: block; margin-top: 3px; font-size: 0.78em; color: var(--text-muted); }
+        /* mensagens: a sua na cor do tema; a da IA com o simbolo do Lume ao lado; entrada animada */
+        body[data-ui="modern"][data-look="tw"] .msg.user { background: var(--accent); color: #fff; border-radius: 18px; border-bottom-right-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.22); }
+        body[data-ui="modern"][data-look="tw"][data-theme="lume"] .msg.user { background: var(--grad); }
+        body[data-ui="modern"][data-look="tw"] .msg.user a { color: #fff; }
+        body[data-ui="modern"][data-look="tw"] .msg.user .msg-tag, body[data-ui="modern"][data-look="tw"] .msg.user .msg-actions { color: rgba(255,255,255,0.75); }
+        body[data-ui="modern"][data-look="tw"]:not(.no-anim) .msg:not(.noanim) { animation: twRise .35s cubic-bezier(.2,.8,.3,1) forwards; }
+        @media (min-width: 761px) {
+            body[data-ui="modern"][data-look="tw"]:not([data-bubbles="filled"]) .msg.ai:not(.welcome):not(.note):not(.summary) { padding-left: 40px; }
+            body[data-ui="modern"][data-look="tw"]:not([data-bubbles="filled"]) .msg.ai:not(.welcome):not(.note):not(.summary)::before { content: ''; position: absolute; left: 0; top: 3px; width: 26px; height: 26px; background: url(icons/lume-mark.png) center / contain no-repeat; }
+        }
+        /* conversa some suavemente nas bordas de cima e de baixo (como o degrade em cima da barra de digitar) */
+        body[data-ui="modern"][data-look="tw"] #chat { -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 26px), transparent 100%); mask-image: linear-gradient(to bottom, transparent 0, #000 12px, #000 calc(100% - 26px), transparent 100%); }
+        /* barra de digitar: cantos grandes, sombra e um anel na cor do tema quando esta em foco */
+        body[data-ui="modern"][data-look="tw"] .controls { position: relative; transition: border-color .15s, box-shadow .15s; }
+        body[data-ui="modern"][data-look="tw"]:not([data-input="pill"]):not([data-input="flat"]) .controls { border-radius: 24px; }
+        body[data-ui="modern"][data-look="tw"]:not([data-input="flat"]) .controls { border: 1px solid var(--in-border, var(--border-color)); box-shadow: 0 12px 30px -12px rgba(0,0,0,0.5); }
+        body[data-ui="modern"][data-look="tw"]:not([data-input="flat"]) .controls:focus-within { border-color: color-mix(in srgb, var(--accent) 65%, transparent); box-shadow: 0 0 0 4px var(--tw-ring), 0 12px 30px -12px rgba(0,0,0,0.5); }
+        body[data-ui="modern"][data-look="tw"] .select-trigger, body[data-ui="modern"][data-look="tw"] .controls .toggle-container { transition: background .15s, border-color .15s; }
+        body[data-ui="modern"][data-look="tw"] .select-trigger:hover { background: var(--tw-soft); }
+        body[data-ui="modern"][data-look="tw"] #send-btn { background: var(--tw-pop); border: 0; box-shadow: 0 6px 16px -6px color-mix(in srgb, var(--tw-pop) 75%, transparent); transition: transform .12s, filter .15s; }
+        body[data-ui="modern"][data-look="tw"][data-theme="lume"] #send-btn { background: var(--grad); }
+        body[data-ui="modern"][data-look="tw"] #send-btn.stop { background: var(--danger); box-shadow: none; }
+        body[data-ui="modern"][data-look="tw"] #send-btn:hover { transform: scale(1.06); } body[data-ui="modern"][data-look="tw"] #send-btn:active { transform: scale(.94); }
+        @media (min-width: 761px) {   /* o aviso pequeno embaixo da barra */
+            body[data-ui="modern"][data-look="tw"] .controls::after { content: var(--tw-disc, ''); position: absolute; left: 0; right: 0; top: calc(100% + 5px); text-align: center; font-size: 11px; color: var(--text-muted); opacity: .75; pointer-events: none; white-space: nowrap; }
+        }
+        /* blocos de codigo: cantos de 12 px, cabecalho visivel, botoes suaves e cores de sintaxe da maquete */
+        body[data-ui="modern"][data-look="tw"] .codeblock { border-radius: 12px; border: 1px solid var(--code-border, var(--border-color)); box-shadow: 0 1px 3px rgba(0,0,0,0.18); }
+        body[data-ui="modern"][data-look="tw"] .msg.ai .codeblock { border-color: var(--border-color); }
+        body[data-ui="modern"][data-look="tw"] .cb-head, body[data-ui="modern"][data-look="tw"] .msg.ai .cb-head { padding: 6px 14px; background: var(--tw-soft); border-bottom: 1px solid var(--border-color); }
+        body[data-ui="modern"][data-look="tw"] .codeblock pre { padding: 14px 16px; line-height: 1.6; }
+        body[data-ui="modern"][data-look="tw"] .code-run { border: 0; border-radius: 7px; box-shadow: 0 3px 10px -4px color-mix(in srgb, var(--accent) 80%, transparent); }
+        body[data-ui="modern"][data-look="tw"] .code-copy { border: 0; border-radius: 7px; } body[data-ui="modern"][data-look="tw"] .code-copy:hover { background: var(--tw-soft); color: var(--text-main); }
+        body[data-look="tw"] .tk-k { color: #e879f9; } body[data-look="tw"] .tk-f { color: #38bdf8; } body[data-look="tw"] .tk-n { color: #fbbf24; } body[data-look="tw"] .tk-s { color: #34d399; } body[data-look="tw"] .tk-c { color: #8b93a1; } body[data-look="tw"] .tk-t { color: #f87171; }
+        /* widget: cartao com cabecalho "Widget · nome" */
+        .lw-head { display: flex; align-items: center; gap: 8px; padding: 7px 14px; font-size: 0.75em; color: var(--text-muted); border-bottom: 1px solid var(--border-color); }
+        body[data-ui="modern"][data-look="tw"] .lume-widget { border-radius: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.2); background: color-mix(in srgb, var(--bg-input) 45%, transparent); }
+        /* seletor de modelos (e as outras listas): cantos de 16 px, sombra grande, busca preenchida, titulos de grupo fixos ao rolar */
+        body[data-ui="modern"][data-look="tw"] .select-options { border-radius: 16px; box-shadow: 0 24px 60px -14px rgba(0,0,0,0.65); }
+        body[data-ui="modern"][data-look="tw"] .mo-tools { padding: 8px; }
+        body[data-ui="modern"][data-look="tw"] .mo-search { border: 0; background: var(--tw-soft); border-radius: 9px; } body[data-ui="modern"][data-look="tw"] .mo-search:focus { box-shadow: 0 0 0 2px var(--tw-ring); }
+        body[data-ui="modern"][data-look="tw"] .mo-group { position: sticky; top: 0; z-index: 2; font-weight: 600; letter-spacing: 0.09em; border-top: 0; background: color-mix(in srgb, var(--bg-sidebar) 94%, transparent); }
+        body[data-ui="modern"][data-look="tw"] .select-option { border-bottom: 0; }
+        body[data-ui="modern"][data-look="tw"] #model-options .select-option { padding: 9px 12px; }
+        body[data-ui="modern"][data-look="tw"] .select-option:hover { background: var(--tw-soft); }
+        body[data-ui="modern"][data-look="tw"] .select-option.selected { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--text-main); }
+        body[data-ui="modern"][data-look="tw"] .mo-badge { border-radius: 999px; font-weight: 500; }
+        body[data-ui="modern"][data-look="tw"] .size-row { background: rgba(128,128,128,0.05); } body[data-ui="modern"][data-look="tw"] .size-row select { border-radius: 7px; }
+        /* overlay de desempenho e janelas */
+        body[data-ui="modern"][data-look="tw"] .perf-monitor:not(.gray) { border-radius: 12px; background: color-mix(in srgb, var(--bg-main) 82%, transparent); border-color: rgba(255,255,255,0.08); box-shadow: 0 6px 18px rgba(0,0,0,0.35); }
+        body[data-ui="modern"][data-look="tw"] .modal-content { box-shadow: 0 24px 60px -14px rgba(0,0,0,0.65); }
+        body[data-ui="modern"][data-look="tw"] .modal-content input[type="text"]:focus, body[data-ui="modern"][data-look="tw"] .modal-content input[type="password"]:focus, body[data-ui="modern"][data-look="tw"] .modal-content textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--tw-ring); }
     </style>
     <script src="libs/emoji-shortcodes.js"></script>
     <script src="libs/providers.js"></script>
@@ -1235,6 +1320,7 @@
                     <button class="btn btn-primary send-circle" id="send-btn" onclick="onSendClick()" title="Enviar"><img class="ic" id="send-icon" src="icons/send-horizontal.png"></button>
                 </div>
             </div>
+            <div id="hero-sugg"></div>
         </div>
         <div id="html-panel"><div class="hp-resize"></div><div class="hp-head"><span>Prévia HTML</span><span class="hp-spacer"></span><button type="button" onclick="htmlPreviewWindow()">Abrir em janela</button><button type="button" onclick="closeHtmlPreview()">✕</button></div><iframe id="html-frame" sandbox="allow-scripts allow-forms allow-modals allow-popups allow-downloads"></iframe></div>
     </div>
@@ -1493,6 +1579,7 @@
             <label class="toggle-container"><input type="checkbox" id="opt-pickfull" onchange="setPickerFull(this.checked)"><div class="toggle-switch"></div> Seletor de modelos em tela cheia</label>
             <label class="toggle-container"><input type="checkbox" id="opt-widgets" onchange="setWidgets(this.checked)"><div class="toggle-switch"></div> Widgets: a IA pode criar pequenos blocos interativos (calculadora, gráfico, quiz...) dentro da conversa</label>
             <label class="toggle-container"><input type="checkbox" id="opt-autocompact" onchange="setAutoCompact(this.checked)"><div class="toggle-switch"></div> Compactar a conversa sozinho quando o contexto passar de 85%</label>
+            <label class="toggle-container"><input type="checkbox" id="opt-looktw" onchange="setLookTw(this.checked)"><div class="toggle-switch"></div> Visual novo (sombras, cantos e cores do teste em Tailwind). Desligado = visual antigo</label>
             <label class="toggle-container"><input type="checkbox" id="opt-legacy" onchange="setUiLegacy(this.checked)"><div class="toggle-switch"></div> Interface clássica (a antiga, com temas só de cor)</label>
             <span class="hint">A interface nova tem lateral recolhível, tela inicial no meio e temas que mudam fonte, cantos, barra de digitação, mensagens e fundo. Desligado = interface nova.</span>
         </div>
@@ -1804,6 +1891,12 @@
             'Montando o widget…': 'Building the widget…', 'Criando o widget…': 'Creating the widget…', 'Ver o código do widget': 'View the widget code',
             'Widgets: a IA pode criar pequenos blocos interativos (calculadora, gráfico, quiz...) dentro da conversa': 'Widgets: the AI can create small interactive blocks (calculator, chart, quiz...) inside the chat',
             '\n\nWIDGETS: quando algo visual ou interativo explicar melhor do que texto (calculadora, gráfico, diagrama, simulação, quiz, cronômetro, conversor...), crie um widget: um bloco de código com a linguagem widget, com UM trecho de HTML que traz <style> e <script> dentro. Regras: sem bibliotecas e sem internet (nada de CDN, fetch ou imagens externas); fundo transparente; use as cores var(--fg), var(--muted), var(--accent), var(--card) e var(--border), que acompanham o tema; largura de até 600 px; pequeno e direto. Depois do bloco, explique em uma ou duas frases. Não use widget em respostas simples.': '\n\nWIDGETS: when something visual or interactive explains better than text (calculator, chart, diagram, simulation, quiz, timer, converter...), create a widget: a code block with the language widget, holding ONE piece of HTML with <style> and <script> inside. Rules: no libraries and no internet (no CDN, fetch or external images); transparent background; use the colors var(--fg), var(--muted), var(--accent), var(--card) and var(--border), which follow the theme; up to 600 px wide; small and direct. After the block, explain in one or two sentences. Do not use a widget for simple answers.',
+            'Visual novo (sombras, cantos e cores do teste em Tailwind). Desligado = visual antigo': 'New look (shadows, corners and colors from the Tailwind test). Off = old look',
+            'A IA pode errar. Confira informações importantes.': 'AI can make mistakes. Check important info.',
+            'Explicar um conceito': 'Explain a concept', 'com um widget interativo': 'with an interactive widget', 'Me explique, com um widget interativo, como funciona ': 'Explain to me, with an interactive widget, how this works: ',
+            'Resumir um PDF': 'Summarize a PDF', 'anexe o arquivo e eu resumo': 'attach the file and I will summarize it', 'Resuma este PDF em tópicos curtos.': 'Summarize this PDF in short bullet points.',
+            'Criar uma página': 'Create a page', 'HTML, CSS e JavaScript': 'HTML, CSS and JavaScript', 'Crie uma página HTML simples e bonita que ': 'Create a simple, good-looking HTML page that ',
+            'Achar um erro': 'Find a bug', 'cole o código ou a mensagem de erro': 'paste the code or the error message', 'Encontre e corrija o erro neste código:\n': 'Find and fix the bug in this code:\n',
             'Minimizar': 'Minimize', 'Maximizar': 'Maximize', 'Fechar': 'Close',
             '📊 Desempenho': '📊 Performance', 'Status: Ocioso': 'Status: Idle', 'Palavras/s: --': 'Words/s: --',
             'Palavras/s': 'Words/s', 'N/D': 'N/A', ' (est.)': ' (est.)',
@@ -2141,7 +2234,7 @@
             translateStatic();
             renderThemeOptions(); renderModelOptions();
             if (currentChatId && chats[currentChatId]) { renderSidebar(); loadChat(currentChatId); }
-            setOverlayStatus(curStatus);
+            setOverlayStatus(curStatus); applyLook(); paintHero();
             $('ctx-compact').textContent = tr('Compactar');
             $('opt-lang').value = curLang();
             if ($('settings-modal').style.display === 'flex') { $('system-prompt-input').value = sysPrompt(false); $('code-prompt-input').value = sysPrompt(true); }
@@ -3700,7 +3793,8 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             code = code.replace(/\n$/, '');
             if (!WIDGET_FINAL) return `<div class="lume-widget building">🧩 ${esc(tr(closed ? 'Montando o widget…' : 'Criando o widget…'))}</div>`;
             if (!closed || !code.trim()) return null;
-            return `<div class="lume-widget"><iframe sandbox="allow-scripts" referrerpolicy="no-referrer" title="widget" srcdoc="${escAttr(widgetDoc(code))}"></iframe><details><summary>${esc(tr('Ver o código do widget'))}</summary>${codeBlockHtml('html', code, true)}</details></div>`;
+            const name = ((/<title>([^<]{1,60})<\/title>/i.exec(code) || /<h[1-3][^>]*>([^<]{1,60})<\/h[1-3]>/i.exec(code) || [])[1] || '').trim();
+            return `<div class="lume-widget"><div class="lw-head"><span>🧩</span> Widget${name ? ' · ' + esc(name) : ''}</div><iframe sandbox="allow-scripts" referrerpolicy="no-referrer" title="widget" srcdoc="${escAttr(widgetDoc(code))}"></iframe><details><summary>${esc(tr('Ver o código do widget'))}</summary>${codeBlockHtml('html', code, true)}</details></div>`;
         }
         function codeBlockHtml(info, code, closed = true) {
             const lang = (info.trim().split(/\s+/)[0] || '').toLowerCase(), canon = lang in LANG_ALIAS ? LANG_ALIAS[lang] : lang;
@@ -4397,7 +4491,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             $('code-prompt-input').value = sysPrompt(true);
             $('opt-bgspeed').value = config.bgSpeed == null ? 4 : config.bgSpeed; $('opt-bgspeed-val').textContent = +$('opt-bgspeed').value ? $('opt-bgspeed').value + '/10' : 'parado';
             $('opt-lang').value = curLang(); $('opt-anim').checked = config.animations !== false; $('opt-hidevram').checked = config.hideVramWarn !== false;
-            $('opt-autocompact').checked = autoCompactOn(); $('opt-widgets').checked = widgetsOn(); $('opt-pickfull').checked = pickerFull(); $('perf-fps').checked = config.perfFps !== false; $('opt-font').value = [...$('opt-font').options].some(o => o.value === (config.uiFont || '')) ? (config.uiFont || '') : '__custom'; $('opt-font-custom').value = $('opt-font').value === '__custom' ? config.uiFont : ''; $('opt-codefont').value = config.codeFont || ''; fontUi(true); $('opt-ctx').value = String(config.numCtx); $('opt-maxctx').checked = !!config.maxCtx; $('opt-ctx').disabled = !!config.maxCtx; $('opt-ctxdiv').checked = !!config.ctxDivide; $('opt-maxctx-cloud').checked = !!config.maxCtxCloudOnly; $('opt-ctxdiv-ai').checked = config.ctxDivideAi !== false; $('opt-ctxdiv-num').value = config.ctxDivisor || 4; ctxDivUi(true); $('opt-ctxbar').checked = config.showCtxBar; $('opt-web').checked = config.webSearch; if (window.lumeVoiceLoad) lumeVoiceLoad(); applyWinBtn(); $('opt-legacy').checked = !!config.uiLegacy; $('opt-themelayout').checked = config.themeLayout !== false; $('opt-star').checked = config.starToDot; $('opt-autostop').checked = config.autoStopPrev;
+            $('opt-autocompact').checked = autoCompactOn(); $('opt-widgets').checked = widgetsOn(); $('opt-looktw').checked = lookTw(); $('opt-pickfull').checked = pickerFull(); $('perf-fps').checked = config.perfFps !== false; $('opt-font').value = [...$('opt-font').options].some(o => o.value === (config.uiFont || '')) ? (config.uiFont || '') : '__custom'; $('opt-font-custom').value = $('opt-font').value === '__custom' ? config.uiFont : ''; $('opt-codefont').value = config.codeFont || ''; fontUi(true); $('opt-ctx').value = String(config.numCtx); $('opt-maxctx').checked = !!config.maxCtx; $('opt-ctx').disabled = !!config.maxCtx; $('opt-ctxdiv').checked = !!config.ctxDivide; $('opt-maxctx-cloud').checked = !!config.maxCtxCloudOnly; $('opt-ctxdiv-ai').checked = config.ctxDivideAi !== false; $('opt-ctxdiv-num').value = config.ctxDivisor || 4; ctxDivUi(true); $('opt-ctxbar').checked = config.showCtxBar; $('opt-web').checked = config.webSearch; if (window.lumeVoiceLoad) lumeVoiceLoad(); applyWinBtn(); $('opt-legacy').checked = !!config.uiLegacy; $('opt-themelayout').checked = config.themeLayout !== false; $('opt-star').checked = config.starToDot; $('opt-autostop').checked = config.autoStopPrev;
             $('perf-enabled').checked = config.perfEnabled; $('opt-autoupd').checked = config.autoUpdate !== false;
             $('perf-style').value = config.perfStyle;
             if (auth.local) checkUpdates(false);
@@ -4625,7 +4719,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             if (!config.uiLegacy && !THEMES_MODERN.includes(base)) base = defaultTheme();   // base de um tema antigo: usa o padrao da interface nova
             if (config.uiLegacy && !THEMES_LEGACY.includes(base)) base = 'dark';
             document.body.setAttribute('data-theme', base); config.theme = theme;
-            applyThemeExtras(base, custom); bgDriftStart();
+            applyThemeExtras(base, custom); bgDriftStart(); applyLook();
             if ($('theme-base')) $('theme-base').value = theme;
         }
         // fonte, cantos, estilo da barra de digitacao/mensagens/lateral, fundo e a tela inicial (so na interface nova)
@@ -4654,6 +4748,28 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             const g = currentTab === 'code' && heroGreet && !heroGreetOwn ? CODE_GREET : heroGreet, t = $('hero-title'), s = $('hero-sub');
             if (t) { t.textContent = g ? (g[curLang()] || g.pt) : ''; t.style.display = g ? '' : 'none'; }
             if (s) s.textContent = '';
+            renderHeroSugg();
+        }
+        // ---- visual novo (o acabamento do teste em Tailwind) e os cartoes de sugestao da tela inicial
+        const lookTw = () => config.lookTw !== false;
+        function applyLook() {
+            document.body.setAttribute('data-look', lookTw() && !config.uiLegacy ? 'tw' : 'classic');
+            document.body.style.setProperty('--tw-disc', JSON.stringify(tr('A IA pode errar. Confira informações importantes.')));
+        }
+        function setLookTw(on) { config.lookTw = !!on; applyLook(); saveState(); }
+        const HERO_SUGG = {
+            chat: [['Explicar um conceito', 'com um widget interativo', 'Me explique, com um widget interativo, como funciona '], ['Resumir um PDF', 'anexe o arquivo e eu resumo', 'Resuma este PDF em tópicos curtos.', true]],
+            code: [['Criar uma página', 'HTML, CSS e JavaScript', 'Crie uma página HTML simples e bonita que '], ['Achar um erro', 'cole o código ou a mensagem de erro', 'Encontre e corrija o erro neste código:\n']],
+        };
+        function renderHeroSugg() {
+            const box = $('hero-sugg'); if (!box) return;
+            box.innerHTML = '';
+            (HERO_SUGG[currentTab === 'code' ? 'code' : 'chat'] || []).forEach(([t, sub, text, file]) => {
+                const b = document.createElement('button'); b.type = 'button'; b.className = 'hero-card';
+                b.innerHTML = `<b>${esc(tr(t))}</b><span>${esc(tr(sub))}</span>`;
+                b.onclick = () => { const p = $('prompt'); p.value = tr(text); autosize(); p.focus(); p.setSelectionRange(p.value.length, p.value.length); if (file) $('file-input').click(); };
+                box.appendChild(b);
+            });
         }
         function updateEmpty() {   // conversa vazia -> tela inicial (saudacao + barra no meio)
             const c = chats[currentChatId], empty = !!c && !c.messages.length && !gens[currentChatId] && !(queues[currentChatId] || []).length;
