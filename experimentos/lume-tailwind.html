@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="pt-BR" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lume em Tailwind (teste visual)</title>
+<!--
+  TESTE VISUAL, não é o app: a tela do Lume redesenhada só com classes do Tailwind (sem o CSS próprio do index.html).
+  Tem 3 telas (botões no topo): Início, Conversa (com widget e código) e Seletor de modelos aberto, e o botão de tema claro/escuro.
+  Usa o "Play CDN" do Tailwind, que precisa de internet; no app de verdade seria preciso gerar o CSS com o Tailwind CLI.
+  Os logos vêm da pasta ../icons do projeto.
+-->
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: { extend: {
+      colors: { lume: { 50: '#eef2ff', 400: '#7f93ff', 500: '#4d6bfe', 600: '#3d57d8' } },
+      fontFamily: { sans: ['Inter', '"Segoe UI"', 'system-ui', 'sans-serif'] },
+      keyframes: { rise: { from: { opacity: 0, transform: 'translateY(8px)' }, to: { opacity: 1, transform: 'none' } } },
+      animation: { rise: 'rise .35s cubic-bezier(.2,.8,.3,1) both' }
+    } }
+  }
+</script>
+<style>
+  /* só o que o Tailwind não faz sozinho */
+  .scroll-thin::-webkit-scrollbar { width: 8px } .scroll-thin::-webkit-scrollbar-thumb { background: rgba(128,128,128,.35); border-radius: 8px }
+  .glow { background: radial-gradient(60% 50% at 50% 0%, rgba(77,107,254,.22), transparent 70%) }
+</style>
+</head>
+<body class="h-screen overflow-hidden bg-white text-zinc-800 antialiased dark:bg-[#1b1b1f] dark:text-zinc-100 font-sans">
+
+<!-- barra de controles do teste -->
+<div class="fixed left-1/2 top-3 z-50 flex -translate-x-1/2 items-center gap-1 rounded-full border border-zinc-300/60 bg-white/80 p-1 text-xs shadow-lg backdrop-blur dark:border-white/10 dark:bg-zinc-900/80">
+  <button data-view="home" class="view-btn rounded-full px-3 py-1.5 font-medium">Início</button>
+  <button data-view="chat" class="view-btn rounded-full px-3 py-1.5 font-medium">Conversa</button>
+  <button data-view="picker" class="view-btn rounded-full px-3 py-1.5 font-medium">Seletor de modelos</button>
+  <span class="mx-1 h-4 w-px bg-zinc-300 dark:bg-white/15"></span>
+  <button id="theme" class="rounded-full px-3 py-1.5 font-medium hover:bg-zinc-200/70 dark:hover:bg-white/10">☀︎ / ☾</button>
+</div>
+
+<div class="flex h-full">
+
+  <!-- ===== barra lateral ===== -->
+  <aside class="hidden w-72 shrink-0 flex-col border-r border-zinc-200 bg-zinc-50 dark:border-white/[.06] dark:bg-[#151517] md:flex">
+    <div class="flex items-center gap-2 px-4 pb-2 pt-4">
+      <img src="../icons/lume-mark.png" alt="" class="h-7 w-7" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'h-7 w-7 rounded-lg bg-lume-500'}))">
+      <span class="text-lg font-semibold tracking-tight">Lume</span>
+      <button class="ml-auto grid h-8 w-8 place-items-center rounded-lg text-zinc-500 hover:bg-zinc-200/70 dark:hover:bg-white/10" title="Recolher">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg>
+      </button>
+    </div>
+
+    <div class="px-3">
+      <div class="grid grid-cols-2 rounded-xl bg-zinc-200/70 p-1 text-sm dark:bg-white/[.06]">
+        <button class="rounded-lg bg-white py-1.5 font-medium shadow-sm dark:bg-white/10">Chat</button>
+        <button class="rounded-lg py-1.5 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-100">Code</button>
+      </div>
+      <button class="mt-3 flex w-full items-center gap-2 rounded-xl bg-lume-500 px-3 py-2.5 text-sm font-medium text-white shadow-sm shadow-lume-500/30 transition hover:bg-lume-600 active:scale-[.99]">
+        <svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> Nova conversa
+      </button>
+    </div>
+
+    <nav class="scroll-thin mt-4 flex-1 overflow-y-auto px-2 text-sm">
+      <p class="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Hoje</p>
+      <a class="flex items-center gap-2 rounded-lg bg-zinc-200/70 px-3 py-2 dark:bg-white/[.08]" href="#"><span class="truncate">Ideias de widgets interativos</span></a>
+      <a class="group flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-zinc-200/60 dark:hover:bg-white/[.05]" href="#"><span class="truncate">Receita de macarrão com limão</span><span class="ml-auto hidden text-zinc-400 group-hover:inline">⋯</span></a>
+      <a class="group flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-zinc-200/60 dark:hover:bg-white/[.05]" href="#"><span class="truncate">Como funciona o impedimento?</span></a>
+      <p class="px-3 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wider text-zinc-400">Últimos 7 dias</p>
+      <a class="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-zinc-200/60 dark:hover:bg-white/[.05]" href="#"><span class="truncate">Controle Dinofire no Windows</span></a>
+      <a class="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-zinc-200/60 dark:hover:bg-white/[.05]" href="#"><span class="truncate">Quantização: Q4_K_M ou IQ4_XS?</span></a>
+      <a class="flex items-center gap-2 rounded-lg px-3 py-2 hover:bg-zinc-200/60 dark:hover:bg-white/[.05]" href="#"><span class="truncate">Kimi-VL no Ollama</span></a>
+    </nav>
+
+    <div class="border-t border-zinc-200 p-3 dark:border-white/[.06]">
+      <button class="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm hover:bg-zinc-200/60 dark:hover:bg-white/[.05]">
+        <svg class="h-4 w-4 text-zinc-500" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3 1a7 7 0 0 0-2-1.2L14 3h-4l-.6 2.7a7 7 0 0 0-2 1.2l-2.3-1-2 3.4 2 1.5A7 7 0 0 0 5 12c0 .4 0 .8.1 1.2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 2 1.2L10 21h4l.6-2.7a7 7 0 0 0 2-1.2l2.3 1 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z"/></svg>
+        Configurações
+      </button>
+    </div>
+  </aside>
+
+  <!-- ===== área principal ===== -->
+  <main class="relative flex min-w-0 flex-1 flex-col">
+    <div class="glow pointer-events-none absolute inset-x-0 top-0 h-72 dark:opacity-100 opacity-40"></div>
+
+    <!-- medidor (como o de desempenho do Lume) -->
+    <div class="absolute right-4 top-14 z-10 hidden rounded-xl border border-zinc-200 bg-white/80 px-3 py-2 font-mono text-[11px] leading-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-black/40 lg:block">
+      <div class="font-sans text-xs font-semibold">Desempenho</div>
+      <div class="text-emerald-500">VRAM 1264 MB · GPU 5%</div>
+    </div>
+
+    <!-- ===== tela: Início ===== -->
+    <section id="v-home" class="view relative flex flex-1 flex-col items-center justify-center px-4 pb-24">
+      <div class="animate-rise text-center">
+        <img src="../icons/lume-mark.png" alt="" class="mx-auto mb-4 h-14 w-14" onerror="this.style.display='none'">
+        <h1 class="bg-gradient-to-r from-lume-500 to-fuchsia-500 bg-clip-text text-3xl font-semibold tracking-tight text-transparent sm:text-4xl">Em que posso ajudar?</h1>
+        <p class="mt-2 text-sm text-zinc-500">Modelos locais e da nuvem, tudo no mesmo lugar.</p>
+      </div>
+      <div class="mt-8 grid w-full max-w-2xl grid-cols-1 gap-3 sm:grid-cols-2">
+        <button class="animate-rise rounded-2xl border border-zinc-200 bg-white/70 p-4 text-left transition hover:-translate-y-0.5 hover:border-lume-400/60 hover:shadow-md dark:border-white/10 dark:bg-white/[.04]" style="animation-delay:.05s"><span class="text-sm font-medium">Explicar um conceito</span><span class="mt-1 block text-xs text-zinc-500">com um widget interativo</span></button>
+        <button class="animate-rise rounded-2xl border border-zinc-200 bg-white/70 p-4 text-left transition hover:-translate-y-0.5 hover:border-lume-400/60 hover:shadow-md dark:border-white/10 dark:bg-white/[.04]" style="animation-delay:.1s"><span class="text-sm font-medium">Resumir um PDF</span><span class="mt-1 block text-xs text-zinc-500">arraste o arquivo aqui</span></button>
+      </div>
+    </section>
+
+    <!-- ===== tela: Conversa ===== -->
+    <section id="v-chat" class="view scroll-thin hidden flex-1 overflow-y-auto px-4 pb-40 pt-16">
+      <div class="mx-auto flex max-w-3xl flex-col gap-6">
+        <div class="animate-rise ml-auto max-w-[85%] rounded-2xl rounded-br-md bg-lume-500 px-4 py-2.5 text-sm text-white shadow-sm">Me dê algumas ideias de coisas visuais e interativas.</div>
+
+        <div class="animate-rise flex gap-3" style="animation-delay:.08s">
+          <img src="../icons/lume-mark.png" alt="" class="mt-1 h-7 w-7 shrink-0" onerror="this.style.display='none'">
+          <div class="min-w-0 flex-1 space-y-3 text-[15px] leading-7">
+            <p>Aqui vai um exemplo: um <strong>conversor de temperatura</strong> que você mexe na hora.</p>
+
+            <!-- widget -->
+            <div class="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-white/10 dark:bg-white/[.04]">
+              <div class="flex items-center gap-2 border-b border-zinc-200 px-4 py-2 text-xs text-zinc-500 dark:border-white/10"><span>🧩</span> Widget · Conversor de temperatura</div>
+              <div class="space-y-4 p-5">
+                <div class="flex items-end justify-between"><span class="text-xs text-zinc-500">Celsius</span><span class="text-3xl font-semibold tabular-nums" id="w-c">25 °C</span></div>
+                <input id="w-r" type="range" min="-20" max="50" value="25" class="w-full accent-lume-500">
+                <div class="grid grid-cols-3 gap-2 text-center text-sm">
+                  <div class="rounded-xl bg-zinc-100 py-2 dark:bg-white/[.06]"><div class="text-[11px] text-zinc-500">Fahrenheit</div><div id="w-f" class="font-semibold tabular-nums">77 °F</div></div>
+                  <div class="rounded-xl bg-zinc-100 py-2 dark:bg-white/[.06]"><div class="text-[11px] text-zinc-500">Kelvin</div><div id="w-k" class="font-semibold tabular-nums">298 K</div></div>
+                  <div class="rounded-xl bg-zinc-100 py-2 dark:bg-white/[.06]"><div class="text-[11px] text-zinc-500">Sensação</div><div id="w-s" class="font-semibold">Agradável</div></div>
+                </div>
+              </div>
+              <details class="border-t border-zinc-200 dark:border-white/10"><summary class="cursor-pointer select-none px-4 py-2 text-xs text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200">Ver o código do widget</summary>
+                <pre class="overflow-x-auto bg-zinc-900 p-4 text-xs leading-6 text-zinc-100"><code>&lt;input type="range" id="c"&gt; … &lt;script&gt; f.textContent = c.value * 9/5 + 32 &lt;/script&gt;</code></pre>
+              </details>
+            </div>
+
+            <p>E um trecho de código normal:</p>
+            <div class="overflow-hidden rounded-xl border border-zinc-200 dark:border-white/10">
+              <div class="flex items-center justify-between bg-zinc-100 px-4 py-1.5 text-xs text-zinc-500 dark:bg-white/[.06]"><span>Python</span><span class="flex gap-2"><button class="rounded-md bg-lume-500 px-2 py-0.5 text-white">▶ Rodar</button><button class="rounded-md px-2 py-0.5 hover:bg-zinc-200 dark:hover:bg-white/10">Copiar</button></span></div>
+              <pre class="overflow-x-auto bg-zinc-50 p-4 text-[13px] leading-6 dark:bg-[#212226]"><code><span class="text-fuchsia-500">def</span> <span class="text-sky-500">c_para_f</span>(c):
+    <span class="text-fuchsia-500">return</span> c * <span class="text-amber-500">9</span> / <span class="text-amber-500">5</span> + <span class="text-amber-500">32</span></code></pre>
+            </div>
+            <div class="flex items-center gap-3 pt-1 text-xs text-zinc-400"><span>42 tok/s</span><span>·</span><span>Gemini 4 Argon</span><button class="ml-auto rounded-md p-1 hover:bg-zinc-200/70 dark:hover:bg-white/10" title="Copiar">⧉</button></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== caixa de digitar (fica embaixo nas telas Início e Conversa) ===== -->
+    <div id="composer" class="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-white via-white/90 to-transparent px-4 pb-5 pt-10 dark:from-[#1b1b1f] dark:via-[#1b1b1f]/90">
+      <div class="mx-auto max-w-3xl">
+        <div class="rounded-3xl border border-zinc-200 bg-white p-3 shadow-lg shadow-black/5 transition focus-within:border-lume-400/70 focus-within:ring-4 focus-within:ring-lume-500/10 dark:border-white/10 dark:bg-[#27282c] dark:shadow-black/30">
+          <textarea rows="1" placeholder="Digite sua mensagem..." class="w-full resize-none bg-transparent px-2 py-1 text-[15px] outline-none placeholder:text-zinc-400"></textarea>
+          <div class="mt-1 flex items-center gap-2">
+            <button class="grid h-9 w-9 place-items-center rounded-full text-zinc-500 hover:bg-zinc-100 dark:hover:bg-white/10" title="Anexar"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+            <button id="chip-model" class="flex items-center gap-2 rounded-full border border-zinc-200 px-3 py-1.5 text-sm hover:bg-zinc-100 dark:border-white/10 dark:hover:bg-white/[.06]">
+              <svg class="h-4 w-4 text-lume-500" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg>
+              Gemini 4 Argon <span class="text-zinc-400">▴</span>
+            </button>
+            <button class="flex items-center gap-1.5 rounded-full border border-zinc-200 px-3 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 dark:border-white/10 dark:hover:bg-white/[.06]">✦ Pensar</button>
+            <div class="ml-auto flex items-center gap-2">
+              <button class="grid h-9 w-9 place-items-center rounded-full text-zinc-500 hover:bg-zinc-100 dark:hover:bg-white/10" title="Falar">🎤</button>
+              <button class="grid h-9 w-9 place-items-center rounded-full bg-fuchsia-500 text-white shadow-md shadow-fuchsia-500/30 transition hover:scale-105 active:scale-95" title="Enviar"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+            </div>
+          </div>
+        </div>
+        <p class="mt-2 text-center text-[11px] text-zinc-400">A IA pode errar. Confira informações importantes.</p>
+      </div>
+    </div>
+
+    <!-- ===== seletor de modelos (aberto) ===== -->
+    <div id="picker" class="absolute bottom-28 left-1/2 z-30 hidden w-[min(440px,calc(100vw-24px))] -translate-x-1/2 overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-2xl shadow-black/20 dark:border-white/10 dark:bg-[#1f2024] md:left-[calc(50%-40px)]">
+      <div class="flex items-center gap-2 border-b border-zinc-200 p-2 dark:border-white/10">
+        <input placeholder="Buscar modelo..." class="min-w-0 flex-1 rounded-lg bg-zinc-100 px-3 py-1.5 text-sm outline-none placeholder:text-zinc-400 dark:bg-white/[.06]">
+        <select class="rounded-lg bg-zinc-100 px-2 py-1.5 text-sm outline-none dark:bg-white/[.06]"><option>Mais famosos</option><option>A–Z</option><option>Preço</option><option>Velocidade</option><option>Novos</option></select>
+      </div>
+      <div class="scroll-thin max-h-80 overflow-y-auto">
+        <p class="sticky top-0 bg-zinc-50/95 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-500 backdrop-blur dark:bg-[#26272c]/95">Recomendados</p>
+        <!-- linhas: logo · nome (uma linha só) · pontos · provedores -->
+        <button class="row flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-zinc-100 dark:hover:bg-white/[.06]"><span class="text-zinc-300 hover:text-amber-400">☆</span><img src="../icons/chatgpt.png" class="h-6 w-6 rounded-full dark:invert" alt=""><span class="min-w-0 flex-1 truncate text-sm font-medium">GPT 3.5, 4 – 4.1, 5 – 5.6 Sol, 6 Astra – 6.1 Sol</span><span class="rounded-full bg-lume-500/15 px-2 py-0.5 text-[10px] font-medium text-lume-400">visão</span><span class="flex gap-1"><i class="h-2 w-2 rounded-full bg-zinc-400"></i><i class="h-2 w-2 rounded-full bg-amber-400"></i></span></button>
+        <button class="row flex w-full items-center gap-3 bg-zinc-100 px-3 py-2.5 text-left dark:bg-white/[.06]"><span class="text-zinc-300">☆</span><img src="../icons/Claude.png" class="h-6 w-6" alt=""><span class="min-w-0 flex-1 truncate text-sm font-medium">Claude 4 Haiku – 4.8 Opus, 5 Fable – 5.5 Haiku</span><span class="rounded-full bg-lume-500/15 px-2 py-0.5 text-[10px] font-medium text-lume-400">visão</span><span class="flex gap-1"><i class="h-2 w-2 rounded-full bg-zinc-400"></i></span></button>
+        <button class="row flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-zinc-100 dark:hover:bg-white/[.06]"><span class="text-amber-400">★</span><img src="../icons/Google.png" class="h-6 w-6" alt=""><span class="min-w-0 flex-1 truncate text-sm font-medium">Gemini 3 – 3.8 Flash, 4 Argon</span><span class="flex gap-1"><i class="h-2 w-2 rounded-full bg-zinc-400"></i></span></button>
+        <button class="row flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-zinc-100 dark:hover:bg-white/[.06]"><span class="text-zinc-300">☆</span><img src="../icons/Kimi.png" class="h-6 w-6 rounded" alt=""><span class="min-w-0 flex-1 truncate text-sm font-medium">Kimi K2 – K3.1</span><span class="flex gap-1"><i class="h-2 w-2 rounded-full bg-zinc-400"></i><i class="h-2 w-2 rounded-full bg-amber-400"></i></span></button>
+        <p class="sticky top-0 bg-zinc-50/95 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-zinc-500 backdrop-blur dark:bg-[#26272c]/95">Todos os modelos</p>
+        <button class="row flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-zinc-100 dark:hover:bg-white/[.06]"><span class="text-zinc-300">☆</span><img src="../icons/Mistral.png" class="h-6 w-6" alt=""><span class="min-w-0 flex-1 truncate text-sm font-medium">Mistral Small 3.1 – 3.2, Medium 3.1 – 3.5, Large 3</span><span class="flex gap-1"><i class="h-2 w-2 rounded-full bg-zinc-400"></i></span></button>
+        <button class="row flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-zinc-100 dark:hover:bg-white/[.06]"><span class="text-zinc-300">☆</span><img src="../icons/Qwen.png" class="h-6 w-6" alt=""><span class="min-w-0 flex-1 truncate text-sm font-medium">Qwen 2.5 – 3.8</span><span class="flex gap-1"><i class="h-2 w-2 rounded-full bg-sky-400"></i><i class="h-2 w-2 rounded-full bg-zinc-400"></i></span></button>
+      </div>
+      <div class="flex items-center gap-2 border-t border-zinc-200 bg-zinc-50 px-3 py-2.5 text-xs text-zinc-500 dark:border-white/10 dark:bg-white/[.03]">
+        <span class="rounded-md bg-zinc-200 px-2 py-1 font-medium text-zinc-700 dark:bg-white/10 dark:text-zinc-200">4, Argon</span>
+        <span class="rounded-md bg-zinc-200 px-2 py-1 font-medium text-zinc-700 dark:bg-white/10 dark:text-zinc-200">FreeTheAI ▾</span>
+        <span class="ml-auto">nuvem · 125K contexto</span>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+  const $ = s => document.querySelector(s), views = { home: '#v-home', chat: '#v-chat', picker: '#v-home' };
+  function show(v) {
+    document.querySelectorAll('.view').forEach(e => { e.classList.add('hidden'); e.classList.remove('flex'); });
+    const el = $(views[v]); el.classList.remove('hidden'); if (v !== 'chat') el.classList.add('flex'); else el.classList.add('block');
+    $('#picker').classList.toggle('hidden', v !== 'picker');
+    document.querySelectorAll('.view-btn').forEach(b => { const on = b.dataset.view === v; b.classList.toggle('bg-lume-500', on); b.classList.toggle('text-white', on); b.classList.toggle('hover:bg-zinc-200/70', !on); });
+  }
+  document.querySelectorAll('.view-btn').forEach(b => b.onclick = () => show(b.dataset.view));
+  $('#chip-model').onclick = () => $('#picker').classList.contains('hidden') ? show('picker') : show('home');
+  $('#theme').onclick = () => document.documentElement.classList.toggle('dark');
+  // o widget de verdade
+  const r = $('#w-r'); r.oninput = () => { const c = +r.value; $('#w-c').textContent = c + ' °C'; $('#w-f').textContent = Math.round(c * 9 / 5 + 32) + ' °F'; $('#w-k').textContent = Math.round(c + 273.15) + ' K'; $('#w-s').textContent = c < 5 ? 'Frio' : c < 15 ? 'Fresco' : c < 28 ? 'Agradável' : c < 36 ? 'Quente' : 'Muito quente'; };
+  show('home');
+</script>
+</body>
+</html>

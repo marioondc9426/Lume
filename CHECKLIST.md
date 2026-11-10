@@ -117,6 +117,7 @@ Dicas de teste (a "harness" = script que abre o Lume numa janela pywebview escon
 - [x] Erro "ConnectionAbortedError" no terminal quando a página fecha no meio de uma resposta: agora é ignorado em silêncio (`send_json`).
 - [x] Pollinations: adicionados `community/JustScriptzz/` claude-opus-4.6, gemini-4-argon, mistral-large-4 e gpt-5.6-terra. O teste de saúde agora manda `stream:false` (o Nexus responde em streaming por padrão) e reprova resposta que é só um "[Error: ...]" escrito.
 - [~] Nexus: listagem e teste de saúde conferidos com a chave real (20 modelos de marca); falta ver na interface com a chave colocada em Configurações > Chaves de API.
+- [~] Teste visual em Tailwind: `experimentos/lume-tailwind.html` (só para ver; NÃO é o app e não entra no .exe). 3 telas (início, conversa com widget, seletor de modelos) e tema claro/escuro. Usa o CDN do Tailwind (precisa de internet). Decisão sobre migrar a interface: pendente do dono.
 - [-] Modo offline: descartado pelo dono (besteira). Não fazer.
 
 ## 7. Provedores (todos só com modelos grátis, exceto Pollinations)
