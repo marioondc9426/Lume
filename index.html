@@ -3688,7 +3688,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
         function widgetDoc(code) {
             const cs = getComputedStyle(document.body), v = n => (cs.getPropertyValue(n) || '').trim();
             const vars = `--fg:${cs.color};--muted:${v('--text-muted') || '#999'};--accent:${v('--accent') || '#4d6bfe'};--card:${v('--bg-msg-ai') || v('--bg-main') || 'transparent'};--border:${v('--border-color') || '#333'}`;
-            return '<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-inline\'; style-src \'unsafe-inline\'; img-src data: blob:; font-src data:; media-src data: blob:">'
+            return '<!doctype html><html><he' + 'ad><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-inline\'; style-src \'unsafe-inline\'; img-src data: blob:; font-src data:; media-src data: blob:">'
                 + `<style>:root{${vars}}*{box-sizing:border-box}html,body{margin:0;background:transparent;color:var(--fg);font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}body{padding:12px}button,input,select,textarea{font:inherit}</style></head><body>`
                 + code + '<script>(function(){var s=function(){try{parent.postMessage({lumeWidget:1,h:Math.ceil(document.body.offsetHeight)},"*")}catch(e){}};addEventListener("load",s);try{new ResizeObserver(s).observe(document.body)}catch(e){setInterval(s,500)}})()<\/script></body></html>';
         }
