@@ -203,6 +203,7 @@ Dicas de teste (a "harness" = script que abre o Lume numa janela pywebview escon
 
 - [x] iPhone: a mesma interface com `lume-backend.js` (roda sem PC); atualiza sozinho pela branch `ios-live`; **não tem**: aba Code, rodar código, Cloudflare, túnel, atualizador, PDF/Word.
 - [~] `created` (para "Novos") e o seletor em tela cheia no iPhone: só testados no PC.
+- [x] iPhone em dia com o PC (v4.0): `backend-data.js` regerado (7 modelos novos do Pollinations), regra do FreeTheAI (seguir provedor / modelo 404 some por 12 h), Nexus só com marcas do Lume, teste de saúde com `stream:false` e que reprova "[Error...]", e os cartões que só valem no PC (Janela, IA no navegador, Aceleração, Pet) ficam escondidos nas configurações do iPhone. Testes: `node tests/test_ios_backend.js` (cobre Nexus e FreeTheAI). **O iPhone só recebe isso quando a main for enviada** (workflow `ios-live` publica a página; agora também reage a mudanças em `libs/`).
 - [x] Linux nativo (Qt, AppImage, instalador); **não há macOS** (Ventura/macOS foi recusado).
 - [x] `Lume-Setup.exe` (Inno Setup, sem administrador), atualização automática do `.exe` por GitHub Releases; no código-fonte o Lume reinicia/recarrega sozinho quando `.py`/`.html`/`.js` mudam.
 - [x] Testes automáticos no GitHub (`tests.yml`), feedback numa janela separada, app e servidor de feedback.

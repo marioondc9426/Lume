@@ -192,7 +192,7 @@ async function extraRaw(p, cfg) {
         else if (kind === 'vd') { if (!(m.endpoints || []).includes('/v1/chat/completions') || !(m.plan_requirements || ['free']).includes('free') || /gemma/i.test(id) || XNONCHAT.test(id)) continue; if (m.supports_streaming === false) noStream.add(XBASE[p] + '|' + id); list.push({ id, name: id, ctx: m.max_context_tokens || 128000, vision: false, cin: m.input_multiplier || 0, cout: m.output_multiplier || 0, cbase: m.base_cost || 0 }); }
         else if (kind === 'tk') { if (!(await tkFree()).has(id) || XNONCHAT.test(id) || /grok/i.test(id)) continue; list.push({ id, name: id.split('/').pop(), ctx: 128000, vision: false, cin: (tkPrice[id] || [0, 0])[0], cout: (tkPrice[id] || [0, 0])[1] }); }
         else if (kind === 'px') { if (m.type !== 'chat.completions' || XNONCHAT.test(id)) continue; list.push({ id, name: m.name || id, ctx: m.max_context_tokens || 128000, vision: !!m.supports_vision }); }
-        else if (kind !== 'lr') { if (XNONCHAT.test(id) || (m.type != null && !['chat', 'chat.completions', 'language'].includes(m.type))) continue; list.push({ id, name: m.name || m.display_name || id.split('/').pop(), ctx: m.context_window || m.max_context_tokens || m.context_length || 128000, vision: false }); }
+        else if (kind !== 'lr') { if (p === 'nx' && !/(gemma|gemini|claude|gpt|kimi|mistral|nemotron|qwen|deepseek|minimax|mimo|mercury)/i.test(id)) continue; if (XNONCHAT.test(id) || (m.type != null && !['chat', 'chat.completions', 'language'].includes(m.type))) continue; list.push({ id, name: m.name || m.display_name || id.split('/').pop(), ctx: m.context_window || m.max_context_tokens || m.context_length || 128000, vision: false }); }
         else { if (!id.endsWith(':free') || m.type !== 'chat' || XNONCHAT.test(id)) continue; list.push({ id, name: m.display_name || id, ctx: m.context_window || 128000, vision: !!(m.capabilities || {}).vision }); }
     }
     list.sort((a, b) => a.id < b.id ? -1 : 1); c.v = list; c.t = now(); return list;
@@ -200,10 +200,12 @@ async function extraRaw(p, cfg) {
 async function healthTest(p, id, cfg) {   // 1 pedido de verdade: ok se vier texto (modelos que pensam precisam de espaco: 512 tokens)
     const t0 = now();
     try {
-        const r = await fetchT(XBASE[p] + '/chat/completions', { method: 'POST', headers: bearer(cfg[XFIELD[p]]), body: JSON.stringify({ model: id, messages: [{ role: 'user', content: 'Responda so a palavra: ok' }], max_tokens: 512 }) }, 90000, 'O provedor');
+        const r = await fetchT(XBASE[p] + '/chat/completions', { method: 'POST', headers: bearer(cfg[XFIELD[p]]), body: JSON.stringify({ model: id, messages: [{ role: 'user', content: 'Responda so a palavra: ok' }], max_tokens: 512, stream: false }) }, 90000, 'O provedor');
         if (!r.ok) { const body = await r.text().catch(() => ''); if (r.status === 429 || (r.status === 403 && /ate limit|oncurrent/.test(body))) return { ok: null }; return { ok: false, ms: Math.round((now() - t0) * 1000), err: 'HTTP ' + r.status }; }
         const j = await r.json().catch(() => ({})), m = ((j.choices || [{}])[0] || {}).message || {};
-        return String(m.content || m.reasoning_content || m.reasoning || '').trim() ? { ok: true, ms: Math.round((now() - t0) * 1000) } : { ok: false, ms: Math.round((now() - t0) * 1000), err: 'resposta vazia' };
+        const txt = String(m.content || m.reasoning_content || m.reasoning || '').trim();
+        if (/^\[Error/.test(txt)) return { ok: false, ms: Math.round((now() - t0) * 1000), err: txt.slice(0, 80) };   // gateway que devolve o erro do provedor como se fosse a resposta (ex.: Nexus/GLM)
+        return txt ? { ok: true, ms: Math.round((now() - t0) * 1000) } : { ok: false, ms: Math.round((now() - t0) * 1000), err: 'resposta vazia' };
     } catch (e) { return { ok: false, ms: 0, err: String(e.message || e).slice(0, 80) }; }
 }
 let healthRunning = false;
@@ -225,6 +227,7 @@ async function healthCycle() {   // reconfere os que falharam + 12 dos outros; f
 }
 if (typeof setInterval !== 'undefined') { setTimeout(() => { healthCycle(); setInterval(healthCycle, 600000); }, 30000); }
 window.__lumeHealthCycle = healthCycle;
+window.__lumeOaiFail = (...a) => oaiFail(...a);   // so para os testes
 
 // ---------------------------------------------------------------- estatisticas
 async function recordEvent(ev) { const s = await kv.get('stats', { events: [] }); s.events.push(Object.assign({ ts: now() }, ev)); if (s.events.length > 5000) s.events = s.events.slice(-5000); await kv.set('stats', s); }
@@ -314,7 +317,15 @@ const HTTP_ERR = {
     pol: { 401: 'Chave do Pollinations invalida (401). Confira a chave em Configuracoes.', 403: 'A chave do Pollinations nao tem permissao (403).', 402: 'Saldo de pollen insuficiente (402). Ganhe pollen nas missoes ou compre mais.', 429: 'Limite do Pollinations atingido (429). Espere um pouco.' },
     or: { 401: 'Chave do OpenRouter invalida (401). Confira a chave em Configuracoes.', 402: 'O OpenRouter pediu credito (402): este modelo nao e gratis para a sua conta.', 429: 'Limite do plano gratis do OpenRouter atingido (429). Espere um pouco ou tente amanha.', 404: 'O OpenRouter nao achou esse modelo (404): talvez ele saiu da lista gratis.' },
 };
-function oaiFail(label, code, body, msg) {
+// FreeTheAI: cada modelo vem de um "provedor" que precisa ser SEGUIDO no site (freetheai.org/providers/NOME); sem seguir, o pedido volta 403. Igual ao app.py: aprende pelo erro e esconde por 12 h.
+const FOLLOW_TTL = 12 * 3600;
+async function followLearn(kind, name) { try { const d = await kv.rawGet('follow', {}); (d[kind] = d[kind] || {})[String(name).toLowerCase()] = now(); await kv.rawSet('follow', d); } catch (e) { /* sem armazenamento */ } }
+function followHidden(d, mid) { const t = now(), owner = mid.includes('/') ? mid.split('/')[0].toLowerCase() : ''; return t - ((d.model || {})[mid.toLowerCase()] || 0) < FOLLOW_TTL || !!(owner && t - ((d.owner || {})[owner] || 0) < FOLLOW_TTL); }
+function oaiFail(label, code, body, msg, model) {
+    const mf = /You don't follow (\w+)\. Follow it at (\S+) to use/.exec(msg);
+    if (code === 403 && mf) { followLearn('owner', mf[1]); throw new Error(`${label}: voce nao segue o provedor ${mf[1]} no FreeTheAI, entao nao pode usar este modelo. Siga (e de graca) em ${mf[2]} e tente de novo. Escondi os modelos desse provedor da lista por 12 h; os outros continuam.`); }
+    if (code === 403 && /No provider you follow serves/.test(msg)) { if (model) followLearn('model', model); throw new Error(`${label}: nenhum provedor que voce segue tem este modelo. Siga um em https://freetheai.org/providers (ou adicione o modelo a sua chave em https://freetheai.org/dashboard/api-keys). Escondi este modelo da lista por 12 h.`); }
+    if (code === 404 && model && /freetheai/i.test(label) && /not found/.test(msg)) { followLearn('model', model); throw new Error(`${label}: o FreeTheAI listou o modelo ${model}, mas na hora de usar respondeu que ele nao existe (404). Escondi este modelo da lista por 12 h.`); }
     if (/credit card|customer_verification_required/.test(body)) throw new Error('A Vercel exige um cartao cadastrado na conta para usar o AI Gateway (mesmo nos modelos gratis). Adicione em vercel.com > AI Gateway.');
     if (code === 403 && /ate limit|oncurrent/.test(body)) throw new Error(`${label}: limite de pedidos. ${msg}`);
     if (code === 401 || code === 403) throw new Error(`${label}: chave invalida ou sem permissao (${code}). ${msg}`);
@@ -326,7 +337,7 @@ const noStream = new Set();   // modelos que responderam "streaming nao suportad
 async function* oaiNonStream(model, messages, base, key, label, maxTokens, signal, t0) {
     const payload = { model, messages: toOai(messages), stream: false }; if (maxTokens) payload.max_tokens = +maxTokens;
     const r = await fetchT(base + '/chat/completions', { method: 'POST', headers: bearer(key), body: JSON.stringify(payload), signal }, 120000, label);
-    if (!r.ok) { const { body, msg } = await errMsg(r); oaiFail(label, r.status, body, msg); }
+    if (!r.ok) { const { body, msg } = await errMsg(r); oaiFail(label, r.status, body, msg, model); }
     const j = await r.json().catch(() => ({})), m = ((j.choices || [{}])[0] || {}).message || {}, think = m.reasoning_content || m.reasoning;
     if (think) yield ['thinking', String(think)]; if (m.content) yield ['content', String(m.content)];
     const u = j.usage || {}, total = Math.max(0.001, now() - t0);
@@ -343,7 +354,7 @@ async function* streamOaiCompat(model, messages, base, key, label, maxTokens, si
         const { body, msg } = await errMsg(r);
         if (r.status === 400 && /treaming is not supported/.test(body)) { noStream.add(base + '|' + model); yield ['status', 'Este modelo nao aceita streaming: a resposta chega inteira']; yield* oaiNonStream(model, messages, base, key, label, maxTokens, signal, t0); return; }
         if ((r.status === 429 || (r.status === 403 && /ate limit|oncurrent/.test(body))) && attempt < 2) { let wait = parseFloat(r.headers.get('Retry-After') || (/[Rr]etry after (\d+(?:\.\d+)?)/.exec(msg) || /\((\d+(?:\.\d+)?) seconds/.exec(msg) || [0, 1])[1]) || 1; yield ['status', `Limite de pedidos; esperando ${Math.min(wait, 8).toFixed(0)} s`]; await sleep(Math.min(wait, 8) * 1000 + 300); continue; }
-        oaiFail(label, r.status, body, msg);
+        oaiFail(label, r.status, body, msg, model);
     }
 }
 async function* streamPollinations(model, messages, think, cfg, maxTokens, effort, signal) {
@@ -745,10 +756,10 @@ const ROUTES = {
         catch (e) { return json({ error: String(e.message || e).slice(0, 160) }, 502); }
     },
     'GET /api/extra_models': async () => {
-        const cfg = await loadConfig(), out = {}, health = await kv.rawGet('health', {});
+        const cfg = await loadConfig(), out = {}, health = await kv.rawGet('health', {}), follow = await kv.rawGet('follow', {});
         for (const p of Object.keys(XPROV)) {
             if (!cfg[XFIELD[p]]) { out[p] = { saved: false, models: [] }; continue; }
-            try { const list = await extraRaw(p, cfg); out[p] = { saved: true, models: SHOW_ALL.has(p) ? list : list.filter(m => !health[p + ':' + m.id] || health[p + ':' + m.id].ok !== false) }; }
+            try { let list = await extraRaw(p, cfg); if (p === 'ft') list = list.filter(m => !followHidden(follow, m.id)); out[p] = { saved: true, models: SHOW_ALL.has(p) ? list : list.filter(m => !health[p + ':' + m.id] || health[p + ':' + m.id].ok !== false) }; }
             catch (e) { out[p] = { saved: true, models: [], error: String(e.message || e).slice(0, 200) }; }
         }
         return json(out);

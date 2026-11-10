@@ -7,6 +7,7 @@ Como numerar:
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
 ## v4.0 (em desenvolvimento)
+- **iPhone atualizado:** lista de modelos do Pollinations nova, regra do FreeTheAI (seguir provedor, modelo que não existe), provedor Nexus, teste de saúde corrigido e as configurações sem os cartões que só existem no PC (janela, navegador, placa de vídeo, pet). O app do iPhone também passa a se atualizar quando mudar algo em `libs/`.
 - **Novo provedor Nexus (nextrouter.me):** um endereço para vários modelos (Claude, Gemini, GPT, Mistral, DeepSeek, Kimi, Qwen...). Só entram marcas que o Lume já tem e que passam no teste; os que dão erro somem sozinhos. Mais 4 modelos da comunidade no Pollinations (JustScriptzz: Claude Opus 4.6, Gemini 4 Argon, Mistral Large 4, GPT 5.6 Terra). O teste de saúde dos provedores também passou a reprovar respostas que são só uma mensagem de erro.
 - **Extensão do navegador:** o Comet/Chrome não aceita a permissão `debugger` como opcional (ela era ignorada, então PDF e foto da página inteira nunca funcionavam); agora é uma permissão normal da extensão. Os avisos "background.scripts" e do Firefox são inofensivos. Recarregue a extensão no navegador.
 - **Terminal:** a página recarregar no meio de uma resposta não enche mais o terminal de erro ("ConnectionAbortedError"). Famílias com muitas versões agrupam em faixas ("Mistral Small 3.1 – 3.2, Medium 3.1 – 3.5, Large 3", "Kimi K2 – K3.1"); o seletor tem largura fixa e não vaza mais da janela e usam o espaço da linha.

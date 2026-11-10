@@ -10,6 +10,9 @@ window.LUME_PROVIDERS.push({ id: 'zz', key: 'zz', name: 'ZZ', field: 'zz_api_key
 globalThis.fetch = async (url, o) => String(url) === 'http://fb.example/api/feedback' ? new Response(JSON.stringify({ ok: true, id: 7, got: JSON.parse(o.body).message }), { status: 201 }) : String(url) === 'https://zz.example/v1/models'
   ? new Response(JSON.stringify({ data: [{ id: 'chat-a' }, { id: 'text-embed-3' }, { id: 'vendor/chat-b', context_window: 32000 }, { id: 'x-image' }] }), { status: 200 })
   : new Response('{}', { status: 404 });
+const fetch0 = globalThis.fetch;   // Nexus (so marcas do Lume) e FreeTheAI (modelo que nao existe some da lista)
+globalThis.fetch = async (url, o) => String(url) === 'https://nextrouter.me/v1/models' ? new Response(JSON.stringify({ data: [{ id: 'gpt-6-luna' }, { id: 'base' }, { id: 'glm-5.3' }, { id: 'claude-opus-4.6' }, { id: 'ltx-distilled' }] }), { status: 200 })
+  : String(url) === 'https://api.freetheai.org/v1/models' ? new Response(JSON.stringify({ data: [{ id: 'fta/dog/gemini-4-argon' }, { id: 'fta/lion/claude-5-sonnet' }] }), { status: 200 }) : fetch0(url, o);
 eval(fs.readFileSync(R + 'ios/backend-data.js', 'utf8').replace('window.LUME_DATA', 'globalThis.LUME_DATA'));
 eval(fs.readFileSync(R + 'ios/lume-backend.js', 'utf8'));
 (async () => {
@@ -26,5 +29,15 @@ eval(fs.readFileSync(R + 'ios/lume-backend.js', 'utf8'));
   assert.strictEqual((await post('feedback_send', { message: 'oi' })).status, 502, 'sem servidor configurado deve falhar');
   await post('save_config', { feedback_url: 'http://fb.example/' });
   const fb = await (await post('feedback_send', { category: 'bug', message: 'do iPhone' })).json(); assert.strictEqual(fb.id, 7); assert.strictEqual(fb.got, 'do iPhone');
+  await post('save_config', { nexus_api_key: 'k', freetheai_api_key: 'k' });
+  const ex2 = await (await f('/api/extra_models')).json();
+  assert.deepStrictEqual(ex2.nx.models.map(m => m.id), ['claude-opus-4.6', 'gpt-6-luna'], 'Nexus deve listar so as marcas do Lume (sem GLM, base, ltx)');
+  assert.strictEqual(ex2.ft.models.length, 2);
+  await assert.rejects(async () => window.__lumeOaiFail('O FreeTheAI', 404, '', 'model "gemini-4-argon" was not found', 'fta/dog/gemini-4-argon'), /nao existe/, 'o 404 do FreeTheAI deve virar mensagem em portugues');
+  await new Promise(r => setTimeout(r, 20));
+  assert.deepStrictEqual((await (await f('/api/extra_models')).json()).ft.models.map(m => m.id), ['fta/lion/claude-5-sonnet'], 'o modelo que respondeu 404 deve sumir da lista');
+  await assert.rejects(async () => window.__lumeOaiFail('O FreeTheAI', 403, '', "You don't follow dog. Follow it at https://freetheai.org/providers/dog to use", 'fta/dog/x'), /nao segue o provedor dog/);
+  await new Promise(r => setTimeout(r, 20));
+  assert.strictEqual((await (await f('/api/extra_models')).json()).ft.models.length, 1, 'o outro modelo do provedor que nao segue some tambem (so sobra o do lion)');
   console.log('ios backend: ok'); process.exit(0);
 })().catch(e => { console.error('FALHOU:', e.message); process.exit(1); });

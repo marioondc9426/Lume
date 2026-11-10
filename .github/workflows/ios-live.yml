@@ -5,7 +5,7 @@ name: iOS ao vivo (atualizacao sem reinstalar)
 on:
   push:
     branches: [main]
-    paths: ["index.html", "ios/**", "icons/**", "fonts/**", ".github/workflows/ios-live.yml"]
+    paths: ["index.html", "ios/**", "icons/**", "fonts/**", "libs/**", ".github/workflows/ios-live.yml"]
   workflow_dispatch:
 
 permissions:

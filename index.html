@@ -4791,11 +4791,12 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             try { const r = await (await fetch(API + '/api/app_options', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })).json(); if (r.error) showInfo(r.error, 7000); return r; }
             catch (e) { showInfo('Servidor não respondeu.'); return {}; }
         }
+        const PC_ONLY_CARDS = ['Janela e inicialização', 'IA no navegador', 'Aceleração de hardware', 'Pet na área de trabalho'];
         async function renderAppSettings() {
             const box = $('set-app-opts'); box.innerHTML = '';
             let ao = {}; try { ao = await (await fetch(API + '/api/app_options')).json(); } catch (e) { return; }
             const el = (tag, cls, txt) => { const e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
-            const card = (title, hint) => { const c = el('div', 'form-group host-only'); c.appendChild(el('label', '', tr(title))); if (hint) c.appendChild(el('span', 'hint', tr(hint))); box.appendChild(c); return c; };
+            const card = (title, hint) => { const c = el('div', 'form-group host-only'); c.appendChild(el('label', '', tr(title))); if (hint) c.appendChild(el('span', 'hint', tr(hint))); if (!(window.__LUME_IOS && PC_ONLY_CARDS.includes(title))) box.appendChild(c); return c; };   // no iPhone esses cartoes nao fazem sentido (janela, navegador do PC, placa de video, pet...): sao montados mas nao entram na tela
             const tg = (c, text, on, change, enabled = true) => {
                 const l = el('label', 'toggle-container'); l.style.opacity = enabled ? '' : '.5';
                 const i = document.createElement('input'); i.type = 'checkbox'; i.checked = !!on; i.disabled = !enabled; i.onchange = () => change(i.checked, i);
