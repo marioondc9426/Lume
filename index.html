@@ -137,6 +137,11 @@
         .copy-btn:hover { background: rgba(128,128,128,0.25); }
         .copy-btn.done { border-color: #3fb950; background: rgba(63,185,80,0.25); }
         .msg.ai { padding-bottom: 20px; }
+        /* widgets: um pedacinho de HTML criado pela IA, numa caixa isolada (sandbox) dentro da conversa */
+        .lume-widget { margin: 10px 0; border: 1px solid var(--border-color); border-radius: 14px; overflow: hidden; background: var(--bg-msg-ai, transparent); }
+        .lume-widget iframe { display: block; width: 100%; height: 140px; border: 0; background: transparent; transition: height .18s ease; }
+        .lume-widget details { border-top: 1px solid var(--border-color); } .lume-widget summary { cursor: pointer; padding: 6px 12px; font-size: .78em; color: var(--text-muted); user-select: none; } .lume-widget details .codeblock { margin: 0; border: 0; border-radius: 0; }
+        .lume-widget.building { padding: 18px 16px; color: var(--text-muted); font-size: .9em; animation: lwPulse 1.2s ease-in-out infinite; } @keyframes lwPulse { 50% { opacity: .45; } }
         .codeblock { margin: 10px 0; border: 1px solid var(--border-color); border-radius: 10px; overflow: hidden; background: rgba(0,0,0,0.28); white-space: normal; }
         .cb-head { display: flex; align-items: center; justify-content: space-between; padding: 5px 10px; font-size: 0.75em; color: var(--text-muted); background: rgba(128,128,128,0.14); border-bottom: 1px solid var(--border-color); }
         .code-copy { background: none; border: 1px solid var(--border-color); color: var(--text-muted); border-radius: 6px; padding: 2px 8px; font-size: 1em; cursor: pointer; }
@@ -1486,6 +1491,7 @@
         </div>
         <div class="form-group">
             <label class="toggle-container"><input type="checkbox" id="opt-pickfull" onchange="setPickerFull(this.checked)"><div class="toggle-switch"></div> Seletor de modelos em tela cheia</label>
+            <label class="toggle-container"><input type="checkbox" id="opt-widgets" onchange="setWidgets(this.checked)"><div class="toggle-switch"></div> Widgets: a IA pode criar pequenos blocos interativos (calculadora, gráfico, quiz...) dentro da conversa</label>
             <label class="toggle-container"><input type="checkbox" id="opt-autocompact" onchange="setAutoCompact(this.checked)"><div class="toggle-switch"></div> Compactar a conversa sozinho quando o contexto passar de 85%</label>
             <label class="toggle-container"><input type="checkbox" id="opt-legacy" onchange="setUiLegacy(this.checked)"><div class="toggle-switch"></div> Interface clássica (a antiga, com temas só de cor)</label>
             <span class="hint">A interface nova tem lateral recolhível, tela inicial no meio e temas que mudam fonte, cantos, barra de digitação, mensagens e fundo. Desligado = interface nova.</span>
@@ -1795,6 +1801,9 @@
             'Instalar no navegador escolhido': 'Install in the chosen browser', 'padrão': 'default', 'Não consegui abrir o navegador.': 'Could not open the browser.',
             'Esse modelo do FreeTheAI exige seguir o provedor no site deles (é grátis): abra o link da mensagem e siga, ou escolha outro modelo.': 'This FreeTheAI model requires following its provider on their site (it is free): open the link in the message and follow it, or pick another model.',
             'Pet na área de trabalho': 'Desktop pet', 'O mascote do Lume solto na tela: arraste, jogue e ele quica nas bordas como uma gelatina.': 'The Lume mascot loose on your screen: drag it, throw it and it bounces off the screen edges like jelly.', 'Mostrar o pet na área de trabalho': 'Show the desktop pet', 'Tamanho do pet': 'Pet size', 'Grudar na borda: solte o pet perto da lateral da tela e ele fica ali': 'Edge snapping: drop the pet near the side of the screen and it sticks there', 'Resetar a posição': 'Reset position', 'Personalizar o mascote': 'Customize the mascot', 'Ver o meu companheiro': 'See my companion', 'Ovinho': 'Egg', 'Filhote': 'Pup', 'Jovem': 'Young', 'Parceiro': 'Partner', 'Veterano': 'Veteran', 'Lendário': 'Legendary',
+            'Montando o widget…': 'Building the widget…', 'Criando o widget…': 'Creating the widget…', 'Ver o código do widget': 'View the widget code',
+            'Widgets: a IA pode criar pequenos blocos interativos (calculadora, gráfico, quiz...) dentro da conversa': 'Widgets: the AI can create small interactive blocks (calculator, chart, quiz...) inside the chat',
+            '\n\nWIDGETS: quando algo visual ou interativo explicar melhor do que texto (calculadora, gráfico, diagrama, simulação, quiz, cronômetro, conversor...), crie um widget: um bloco de código com a linguagem widget, com UM trecho de HTML que traz <style> e <script> dentro. Regras: sem bibliotecas e sem internet (nada de CDN, fetch ou imagens externas); fundo transparente; use as cores var(--fg), var(--muted), var(--accent), var(--card) e var(--border), que acompanham o tema; largura de até 600 px; pequeno e direto. Depois do bloco, explique em uma ou duas frases. Não use widget em respostas simples.': '\n\nWIDGETS: when something visual or interactive explains better than text (calculator, chart, diagram, simulation, quiz, timer, converter...), create a widget: a code block with the language widget, holding ONE piece of HTML with <style> and <script> inside. Rules: no libraries and no internet (no CDN, fetch or external images); transparent background; use the colors var(--fg), var(--muted), var(--accent), var(--card) and var(--border), which follow the theme; up to 600 px wide; small and direct. After the block, explain in one or two sentences. Do not use a widget for simple answers.',
             'Minimizar': 'Minimize', 'Maximizar': 'Maximize', 'Fechar': 'Close',
             '📊 Desempenho': '📊 Performance', 'Status: Ocioso': 'Status: Idle', 'Palavras/s: --': 'Words/s: --',
             'Palavras/s': 'Words/s', 'N/D': 'N/A', ' (est.)': ' (est.)',
@@ -3379,7 +3388,7 @@
             if (opts.model) div.dataset.model = opts.model;
             const think = document.createElement('div'); think.className = 'think';
             const span = document.createElement('span'); span.className = 'final-text';
-            if (opts.html) span.innerHTML = text; else span.innerHTML = (role === 'ai' && !opts.welcome) ? renderRich(text) : fmt(text);
+            if (opts.html) span.innerHTML = text; else span.innerHTML = (role === 'ai' && !opts.welcome) ? renderRichFinal(text) : fmt(text);
             if (opts.images && opts.images.length) {
                 const box = document.createElement('div'); box.className = 'msg-images';
                 opts.images.forEach(src => { const im = document.createElement('img'); im.src = src; box.appendChild(im); });
@@ -3671,8 +3680,31 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
         const textHtml = t => t ? mdBlock(t).replace(NOTE_RE, '<span class="tool-note">[$1]</span>') : '';
         const RUN_NAMES = { python: 'Python', javascript: 'JavaScript (Node)', powershell: 'PowerShell', bat: 'Batch (cmd)', bash: 'Bash' };
         const runLang = c => (RUN_NAMES[c] ? c : '');
-        function codeBlockHtml(info, code) {
+        // ---------- widgets: bloco ```widget com HTML+CSS+JS; roda num iframe com sandbox="allow-scripts" (sem acesso ao app, as chaves nem a internet: a CSP bloqueia rede)
+        const widgetsOn = () => config.widgets !== false;
+        const escAttr = s => esc(s).replace(/"/g, '&quot;');
+        let WIDGET_FINAL = false;   // so vira widget de verdade quando a resposta terminou (durante o streaming o iframe reiniciaria a cada pedaco)
+        const renderRichFinal = t => { WIDGET_FINAL = true; try { return renderRich(t); } finally { WIDGET_FINAL = false; } };
+        function widgetDoc(code) {
+            const cs = getComputedStyle(document.body), v = n => (cs.getPropertyValue(n) || '').trim();
+            const vars = `--fg:${cs.color};--muted:${v('--text-muted') || '#999'};--accent:${v('--accent') || '#4d6bfe'};--card:${v('--bg-msg-ai') || v('--bg-main') || 'transparent'};--border:${v('--border-color') || '#333'}`;
+            return '<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; script-src \'unsafe-inline\'; style-src \'unsafe-inline\'; img-src data: blob:; font-src data:; media-src data: blob:">'
+                + `<style>:root{${vars}}*{box-sizing:border-box}html,body{margin:0;background:transparent;color:var(--fg);font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}body{padding:12px}button,input,select,textarea{font:inherit}</style></head><body>`
+                + code + '<script>(function(){var s=function(){try{parent.postMessage({lumeWidget:1,h:Math.ceil(document.body.offsetHeight)},"*")}catch(e){}};addEventListener("load",s);try{new ResizeObserver(s).observe(document.body)}catch(e){setInterval(s,500)}})()<\/script></body></html>';
+        }
+        window.addEventListener('message', e => {   // o widget avisa a altura dele
+            const d = e.data; if (!d || d.lumeWidget !== 1 || typeof d.h !== 'number') return;
+            document.querySelectorAll('.lume-widget iframe').forEach(f => { if (f.contentWindow === e.source) f.style.height = Math.max(40, Math.min(1200, d.h)) + 'px'; });
+        });
+        function widgetBlockHtml(code, closed) {   // null = mostra como codigo normal (resposta terminou com o bloco aberto)
+            code = code.replace(/\n$/, '');
+            if (!WIDGET_FINAL) return `<div class="lume-widget building">🧩 ${esc(tr(closed ? 'Montando o widget…' : 'Criando o widget…'))}</div>`;
+            if (!closed || !code.trim()) return null;
+            return `<div class="lume-widget"><iframe sandbox="allow-scripts" referrerpolicy="no-referrer" title="widget" srcdoc="${escAttr(widgetDoc(code))}"></iframe><details><summary>${esc(tr('Ver o código do widget'))}</summary>${codeBlockHtml('html', code, true)}</details></div>`;
+        }
+        function codeBlockHtml(info, code, closed = true) {
             const lang = (info.trim().split(/\s+/)[0] || '').toLowerCase(), canon = lang in LANG_ALIAS ? LANG_ALIAS[lang] : lang;
+            if (canon === 'widget' && widgetsOn()) { const w = widgetBlockHtml(code, closed); if (w) return w; }
             const label = LANG_NAMES[canon] || (canon ? canon : tr('Código'));
             code = code.replace(/\n$/, '');
             return `<div class="codeblock"><div class="cb-head"><span class="cb-lang">${esc(label)}</span>${runLang(canon) && auth.local ? `<button class="code-run" type="button" data-run="${runLang(canon)}">▶ ${esc(tr('Rodar'))}</button>` : canon === 'html' ? `<button class="code-run" type="button" data-run="html">▶ ${esc(tr('Abrir'))}</button>` : ''}<button class="code-copy" type="button">${esc(tr('Copiar'))}</button></div><pre><code>${highlight(code, lang)}</code></pre></div>`;
@@ -3682,7 +3714,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             if (!seg.includes('```')) return textHtml(seg);
             let out = '', last = 0, m; FENCE_RE.lastIndex = 0;
             while ((m = FENCE_RE.exec(seg))) {
-                out += textHtml(seg.slice(last, m.index).replace(/^\n+|\n+$/g, '')) + codeBlockHtml(m[1], m[2]);
+                out += textHtml(seg.slice(last, m.index).replace(/^\n+|\n+$/g, '')) + codeBlockHtml(m[1], m[2], /```$/.test(m[0]));
                 last = FENCE_RE.lastIndex; if (last >= seg.length) break;
                 if (m[0] === '') FENCE_RE.lastIndex++;
             }
@@ -4167,7 +4199,8 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             // o texto da resposta (markdown + codigo + formulas) e redesenhado no maximo ~14 vezes por segundo: refazer tudo a cada token travava a tela
             let dirty = false, renderTimer = null, thinkEl = null;
             let renderCost = 0;   // quanto custou o ultimo desenho: texto longo demora mais, entao o intervalo cresce junto (o desenho nunca ocupa mais que ~20% do tempo)
-            const doRender = () => { renderTimer = null; if (thinkEl) thinkEl.scrollTop = thinkEl.scrollHeight; if (!dirty) return; dirty = false; const r0 = performance.now(); const shown = stripMem(fullResponse); textSpan.innerHTML = renderRich(shown); aiDiv._raw = shown; if (isCur()) followBottom(); renderCost = performance.now() - r0; };
+            let finalRender = false;   // true so no ultimo desenho da resposta (widgets so aparecem ai)
+            const doRender = () => { renderTimer = null; if (thinkEl) thinkEl.scrollTop = thinkEl.scrollHeight; if (!dirty) return; dirty = false; const r0 = performance.now(); const shown = stripMem(fullResponse); textSpan.innerHTML = (finalRender ? renderRichFinal : renderRich)(shown); aiDiv._raw = shown; if (isCur()) followBottom(); renderCost = performance.now() - r0; };
             const scheduleRender = () => { if (renderTimer === null) renderTimer = setTimeout(doRender, Math.max(70, renderCost * 4)); };
             const flushRender = () => { clearTimeout(renderTimer); doRender(); };
 
@@ -4178,6 +4211,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 if (summaries.length) sys += tr('\n\nRESUMO DA CONVERSA ANTERIOR (as mensagens antigas foram compactadas):\n') + summaries.join('\n') + '\n';
                 if (globalMemories.length > 0) sys += tr('\n\nFATOS QUE VOCÊ DEVE LEMBRAR:\n') + globalMemories.map(m => `- ${m}`).join('\n') + '\n';
                 if (!model.phone) sys += tr('\n\nFORMATAÇÃO: use Markdown só se quiser. Para emojis escreva o código entre dois-pontos, como :fire: ou :skull: (nunca só a palavra). Para setas e símbolos use o caractere Unicode direto (→ ≈ ✓ ≠), sem LaTeX.');
+                if (!isCode && !model.phone && widgetsOn()) sys += tr('\n\nWIDGETS: quando algo visual ou interativo explicar melhor do que texto (calculadora, gráfico, diagrama, simulação, quiz, cronômetro, conversor...), crie um widget: um bloco de código com a linguagem widget, com UM trecho de HTML que traz <style> e <script> dentro. Regras: sem bibliotecas e sem internet (nada de CDN, fetch ou imagens externas); fundo transparente; use as cores var(--fg), var(--muted), var(--accent), var(--card) e var(--border), que acompanham o tema; largura de até 600 px; pequeno e direto. Depois do bloco, explique em uma ou duas frases. Não use widget em respostas simples.');
                 if (!isCode && !model.phone && config.memorySuggest !== false) sys += tr('\n\nMEMÓRIA: se o usuário contar algo pessoal e duradouro que valha lembrar em outras conversas (nome, profissão, preferência, projeto, jeito que quer as respostas), termine a resposta com uma última linha [[lembrar: fato curto, escrito em terceira pessoa]]. No máximo uma vez, só quando for realmente útil; nunca em pedidos comuns e nunca repita o que já está na lista de fatos.');
                 const apiMessages = buildApiMessages(chat, model, sys, job.view);
 
@@ -4244,7 +4278,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                     if (/^\s*\[(Erro|Error):/.test(fullResponse) && fullResponse.length < 700 && retry(fullResponse.replace(/^\s*\[(Erro|Error):\s*/, '').replace(/\]\s*$/, ''))) continue;
                     break;
                 }
-                flushRender();
+                finalRender = true; dirty = true; flushRender(); finalRender = false;
                 const stray = /^([\s\S]*?)<\/think(?:ing)?>\s*/i.exec(fullResponse);   // so veio o </think> (o modelo abriu o raciocinio no proprio prompt): o que veio antes era raciocinio
                 if (stray && !/<think(?:ing)?>/i.test(stray[1]) && stray[1].trim()) { thinkBox().textContent += stray[1].trim(); fullResponse = fullResponse.slice(stray[0].length); const shown0 = stripMem(fullResponse); textSpan.innerHTML = renderRich(shown0); aiDiv._raw = shown0; }
                 if (!gotText) textSpan.textContent = tr(thinkN ? '(o modelo só mostrou o raciocínio e parou antes de responder: talvez tenha acabado o limite de tokens)' : '(sem resposta)');
@@ -4363,7 +4397,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             $('code-prompt-input').value = sysPrompt(true);
             $('opt-bgspeed').value = config.bgSpeed == null ? 4 : config.bgSpeed; $('opt-bgspeed-val').textContent = +$('opt-bgspeed').value ? $('opt-bgspeed').value + '/10' : 'parado';
             $('opt-lang').value = curLang(); $('opt-anim').checked = config.animations !== false; $('opt-hidevram').checked = config.hideVramWarn !== false;
-            $('opt-autocompact').checked = autoCompactOn(); $('opt-pickfull').checked = pickerFull(); $('perf-fps').checked = config.perfFps !== false; $('opt-font').value = [...$('opt-font').options].some(o => o.value === (config.uiFont || '')) ? (config.uiFont || '') : '__custom'; $('opt-font-custom').value = $('opt-font').value === '__custom' ? config.uiFont : ''; $('opt-codefont').value = config.codeFont || ''; fontUi(true); $('opt-ctx').value = String(config.numCtx); $('opt-maxctx').checked = !!config.maxCtx; $('opt-ctx').disabled = !!config.maxCtx; $('opt-ctxdiv').checked = !!config.ctxDivide; $('opt-maxctx-cloud').checked = !!config.maxCtxCloudOnly; $('opt-ctxdiv-ai').checked = config.ctxDivideAi !== false; $('opt-ctxdiv-num').value = config.ctxDivisor || 4; ctxDivUi(true); $('opt-ctxbar').checked = config.showCtxBar; $('opt-web').checked = config.webSearch; if (window.lumeVoiceLoad) lumeVoiceLoad(); applyWinBtn(); $('opt-legacy').checked = !!config.uiLegacy; $('opt-themelayout').checked = config.themeLayout !== false; $('opt-star').checked = config.starToDot; $('opt-autostop').checked = config.autoStopPrev;
+            $('opt-autocompact').checked = autoCompactOn(); $('opt-widgets').checked = widgetsOn(); $('opt-pickfull').checked = pickerFull(); $('perf-fps').checked = config.perfFps !== false; $('opt-font').value = [...$('opt-font').options].some(o => o.value === (config.uiFont || '')) ? (config.uiFont || '') : '__custom'; $('opt-font-custom').value = $('opt-font').value === '__custom' ? config.uiFont : ''; $('opt-codefont').value = config.codeFont || ''; fontUi(true); $('opt-ctx').value = String(config.numCtx); $('opt-maxctx').checked = !!config.maxCtx; $('opt-ctx').disabled = !!config.maxCtx; $('opt-ctxdiv').checked = !!config.ctxDivide; $('opt-maxctx-cloud').checked = !!config.maxCtxCloudOnly; $('opt-ctxdiv-ai').checked = config.ctxDivideAi !== false; $('opt-ctxdiv-num').value = config.ctxDivisor || 4; ctxDivUi(true); $('opt-ctxbar').checked = config.showCtxBar; $('opt-web').checked = config.webSearch; if (window.lumeVoiceLoad) lumeVoiceLoad(); applyWinBtn(); $('opt-legacy').checked = !!config.uiLegacy; $('opt-themelayout').checked = config.themeLayout !== false; $('opt-star').checked = config.starToDot; $('opt-autostop').checked = config.autoStopPrev;
             $('perf-enabled').checked = config.perfEnabled; $('opt-autoupd').checked = config.autoUpdate !== false;
             $('perf-style').value = config.perfStyle;
             if (auth.local) checkUpdates(false);
@@ -5672,6 +5706,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
         }
         const autoCompactOn = () => config.autoCompact === undefined ? ctxMax() > 32768 : !!config.autoCompact;   // sem escolha sua: desligado nos modelos de 32K de contexto ou menos (compactar um contexto pequeno cedo demais perde detalhe)
         function setAutoCompact(on) { config.autoCompact = !!on; saveState(); }
+        function setWidgets(on) { config.widgets = !!on; saveState(); }
         async function compactChat(auto = false) {
             const chat = chats[currentChatId];
             if (busy || !chat) return;

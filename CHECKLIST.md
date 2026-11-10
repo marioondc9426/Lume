@@ -71,6 +71,8 @@ Dicas de teste (a "harness" = script que abre o Lume numa janela pywebview escon
 - [x] **Ctrl+Shift+F**: janela de feedback. **Ctrl+Enter** na arena compara. **Esc** fecha janelas, a caixinha e o seletor em tela cheia.
 - [x] Servidor: porta **8000** (HTTP) e **8443** (HTTPS). A extensão do navegador procura o Lume nas portas **8000 a 8010**.
 
+- [x] **Widgets** (v4.0): a IA cria um bloco ```` ```widget ```` com HTML+CSS+JS e o Lume mostra como um mini-app dentro da conversa (calculadora, gráfico, quiz...). Roda num `iframe sandbox="allow-scripts"` com CSP `default-src 'none'`: sem internet, sem acesso ao app, às chaves nem ao armazenamento (testado). Usa as cores do tema (`--fg`, `--muted`, `--accent`, `--card`, `--border`), ajusta a altura sozinho e tem "Ver o código do widget". Só aparece quando a resposta termina (durante o texto mostra "Criando o widget…"). Liga/desliga em Configurações > "Widgets"; o prompt que ensina o modelo só entra no Chat (não no Code) e fora do modo celular. Modelo pequeno pode errar o formato: aí o bloco aparece como código normal.
+
 ---
 
 ## 5. Chat
