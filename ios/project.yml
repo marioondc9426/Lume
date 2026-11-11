@@ -18,7 +18,7 @@ targets:
       path: Lume/Info.plist
       properties:
         CFBundleDisplayName: Lume
-        CFBundleShortVersionString: "3.0"
+        CFBundleShortVersionString: "4.0"
         CFBundleVersion: "1"
         UILaunchScreen: {}
         UIRequiresFullScreen: true
