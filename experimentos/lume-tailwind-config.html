@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="pt-BR" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Configurações do Lume em Tailwind (teste visual)</title>
+<!--
+  TESTE VISUAL, não é o app: o menu de Configurações do Lume redesenhado só com classes do Tailwind.
+  6 abas (Geral, Aparência, Code, Chaves de API, Servidor, App), busca, tema claro/escuro. Os controles funcionam (toggles, sliders, abas, mostrar/ocultar chave).
+  Usa o Play CDN do Tailwind (precisa de internet). As linhas são geradas por pequenas funções JS que só montam texto com classes do Tailwind.
+-->
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script>
+  tailwind.config = { darkMode: 'class', theme: { extend: {
+    colors: { lume: { 400: '#7f93ff', 500: '#4d6bfe', 600: '#3d57d8' } },
+    fontFamily: { sans: ['Inter', '"Segoe UI"', 'system-ui', 'sans-serif'] },
+    keyframes: { pop: { from: { opacity: 0, transform: 'translateY(10px) scale(.98)' }, to: { opacity: 1, transform: 'none' } }, fade: { from: { opacity: 0 }, to: { opacity: 1 } } },
+    animation: { pop: 'pop .28s cubic-bezier(.2,.8,.3,1) both', fade: 'fade .2s ease both' }
+  } } }
+</script>
+<style>
+  .scroll-thin::-webkit-scrollbar { width: 8px } .scroll-thin::-webkit-scrollbar-thumb { background: rgba(128,128,128,.35); border-radius: 8px }
+  input[type=range] { accent-color: #4d6bfe }
+</style>
+</head>
+<body class="h-screen overflow-hidden bg-zinc-200 font-sans text-zinc-800 antialiased dark:bg-[#0e0e10] dark:text-zinc-100">
+
+<!-- fundo: o app desfocado atrás da janela -->
+<div class="absolute inset-0 flex opacity-60 blur-[3px]">
+  <div class="hidden w-72 border-r border-zinc-300 bg-zinc-100 dark:border-white/5 dark:bg-[#151517] md:block"></div>
+  <div class="flex flex-1 items-center justify-center"><div class="h-14 w-2/3 max-w-xl rounded-3xl border border-zinc-300 bg-white dark:border-white/10 dark:bg-[#27282c]"></div></div>
+</div>
+
+<!-- controles do teste -->
+<button id="theme" class="fixed left-4 top-3 z-50 rounded-full border border-zinc-300/60 bg-white/80 px-3 py-1.5 text-xs font-medium shadow-lg backdrop-blur hover:bg-white dark:border-white/10 dark:bg-zinc-900/80 dark:hover:bg-zinc-800">☀︎ / ☾ tema</button>
+
+<!-- ===== janela de configurações ===== -->
+<div class="absolute inset-0 z-10 grid place-items-center p-3 sm:p-6">
+ <div class="absolute inset-0 animate-fade bg-black/40 backdrop-blur-sm"></div>
+ <div class="relative flex h-full max-h-[780px] w-full max-w-[1040px] animate-pop overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-2xl shadow-black/30 dark:border-white/10 dark:bg-[#1b1b1f]">
+
+  <!-- navegação -->
+  <aside class="hidden w-56 shrink-0 flex-col border-r border-zinc-200 bg-zinc-50 p-3 dark:border-white/[.06] dark:bg-[#151517] sm:flex">
+    <div class="flex items-center gap-2 px-2 pb-4 pt-2">
+      <div class="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-lume-500 to-fuchsia-500 text-white shadow-md shadow-lume-500/30"><svg class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/></svg></div>
+      <div><div class="text-sm font-semibold leading-4">Configurações</div><div class="text-[11px] text-zinc-500">Lume 4.0</div></div>
+    </div>
+    <nav id="nav" class="flex flex-1 flex-col gap-0.5 text-sm"></nav>
+    <div class="mt-2 rounded-xl bg-emerald-500/10 px-3 py-2 text-[11px] text-emerald-600 dark:text-emerald-400">● Tudo salvo automaticamente</div>
+  </aside>
+
+  <!-- conteúdo -->
+  <section class="flex min-w-0 flex-1 flex-col">
+    <header class="flex items-center gap-3 border-b border-zinc-200 px-5 py-3 dark:border-white/[.06]">
+      <h2 id="title" class="text-lg font-semibold tracking-tight">Geral</h2>
+      <div class="relative ml-auto w-full max-w-xs">
+        <svg class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="q" placeholder="Buscar configuração..." class="w-full rounded-xl bg-zinc-100 py-2 pl-9 pr-3 text-sm outline-none ring-lume-500/30 placeholder:text-zinc-400 focus:ring-4 dark:bg-white/[.06]">
+      </div>
+      <button class="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:hover:bg-white/10 dark:hover:text-zinc-100" title="Fechar"><svg class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    </header>
+    <!-- abas no celular -->
+    <div id="tabsm" class="flex gap-1 overflow-x-auto border-b border-zinc-200 px-3 py-2 text-sm dark:border-white/[.06] sm:hidden"></div>
+
+    <div id="pane" class="scroll-thin flex-1 overflow-y-auto px-5 py-5"></div>
+  </section>
+ </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const ic = d => `<svg class="h-[18px] w-[18px] shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">${d}</svg>`;
+const TABS = [
+  ['geral', 'Geral', ic('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>')],
+  ['aparencia', 'Aparência', ic('<circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.4a4.6 4.6 0 0 0 4.6-4.6C22 6 17.5 2 12 2z"/>')],
+  ['code', 'Code', ic('<path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/>')],
+  ['chaves', 'Chaves de API', ic('<circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 9.2-9.2M17 6l3 3M14 9l2 2"/>')],
+  ['servidor', 'Servidor', ic('<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>')],
+  ['app', 'App', ic('<rect x="5" y="2" width="14" height="20" rx="3"/><path d="M11 18h2"/>')],
+];
+
+/* ---- peças de interface (só devolvem texto com classes do Tailwind) ---- */
+const card = (title, body, hint = '') => `<div class="card animate-pop rounded-2xl border border-zinc-200 bg-zinc-50/60 p-4 dark:border-white/[.07] dark:bg-white/[.03]" data-t="${(title + hint).toLowerCase()}"><h3 class="text-sm font-semibold">${title}</h3>${hint ? `<p class="mt-0.5 text-xs text-zinc-500">${hint}</p>` : ''}<div class="mt-3 space-y-3">${body}</div></div>`;
+const toggle = (label, on = false, sub = '') => `<label class="flex cursor-pointer items-start gap-3"><span class="min-w-0 flex-1 text-sm leading-5">${label}${sub ? `<span class="block text-xs text-zinc-500">${sub}</span>` : ''}</span><span class="relative mt-0.5 inline-flex shrink-0"><input type="checkbox" class="peer sr-only" ${on ? 'checked' : ''}><span class="h-6 w-11 rounded-full bg-zinc-300 transition peer-checked:bg-lume-500 peer-focus-visible:ring-4 peer-focus-visible:ring-lume-500/30 dark:bg-white/15"></span><span class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-5"></span></span></label>`;
+const select = (label, opts, sel = 0) => `<label class="block text-sm"><span class="mb-1 block text-xs font-medium text-zinc-500">${label}</span><select class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-lume-400 focus:ring-4 focus:ring-lume-500/15 dark:border-white/10 dark:bg-[#27282c]">${opts.map((o, i) => `<option ${i === sel ? 'selected' : ''}>${o}</option>`).join('')}</select></label>`;
+const text = (label, val = '', ph = '') => `<label class="block text-sm"><span class="mb-1 block text-xs font-medium text-zinc-500">${label}</span><input value="${val}" placeholder="${ph}" class="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none placeholder:text-zinc-400 focus:border-lume-400 focus:ring-4 focus:ring-lume-500/15 dark:border-white/10 dark:bg-[#27282c]"></label>`;
+const area = (label, val, rows = 4) => `<label class="block text-sm"><span class="mb-1 block text-xs font-medium text-zinc-500">${label}</span><textarea rows="${rows}" class="w-full resize-y rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none focus:border-lume-400 focus:ring-4 focus:ring-lume-500/15 dark:border-white/10 dark:bg-[#27282c]">${val}</textarea></label>`;
+const range = (label, min, max, val, unit = '') => `<label class="block text-sm"><span class="mb-1 flex justify-between text-xs font-medium text-zinc-500"><span>${label}</span><span class="rv tabular-nums text-zinc-800 dark:text-zinc-100">${val}${unit}</span></span><input type="range" min="${min}" max="${max}" value="${val}" data-u="${unit}" class="w-full"></label>`;
+const btn = (t, kind = '') => `<button class="rounded-xl px-3.5 py-2 text-sm font-medium transition active:scale-[.98] ${kind === 'primary' ? 'bg-lume-500 text-white shadow-sm shadow-lume-500/30 hover:bg-lume-600' : kind === 'danger' ? 'bg-red-500/10 text-red-500 hover:bg-red-500/20' : 'bg-zinc-200/70 hover:bg-zinc-200 dark:bg-white/10 dark:hover:bg-white/15'}">${t}</button>`;
+const key = (name, sub, filled) => `<div class="flex items-center gap-3 rounded-xl border border-zinc-200 bg-white p-3 dark:border-white/10 dark:bg-[#27282c]"><span class="h-2 w-2 shrink-0 rounded-full ${filled ? 'bg-emerald-500' : 'bg-zinc-400/60'}"></span><div class="w-32 shrink-0 sm:w-40"><div class="text-sm font-medium">${name}</div><div class="truncate text-[11px] text-zinc-500">${sub}</div></div><input type="password" value="${filled ? 'sk-nexus-xxxxxxxxxxxxxxxxxxxxxxxx' : ''}" placeholder="cole a chave aqui" class="min-w-0 flex-1 rounded-lg bg-zinc-100 px-3 py-1.5 font-mono text-xs outline-none ring-lume-500/30 focus:ring-4 dark:bg-white/[.06]"><button class="eye grid h-8 w-8 shrink-0 place-items-center rounded-lg text-zinc-500 hover:bg-zinc-100 dark:hover:bg-white/10" title="Mostrar/ocultar">👁</button></div>`;
+const theme = (n, bg, fg, ac, on) => `<button class="group relative overflow-hidden rounded-xl border-2 p-2 text-left transition hover:-translate-y-0.5 ${on ? 'border-lume-500 ring-4 ring-lume-500/15' : 'border-transparent bg-zinc-100 dark:bg-white/[.05]'}"><div class="flex h-14 overflow-hidden rounded-lg" style="background:${bg}"><div class="w-1/4" style="background:${fg}"></div><div class="flex flex-1 flex-col justify-end gap-1 p-1.5"><div class="h-1.5 w-2/3 rounded" style="background:${ac}"></div><div class="h-3 rounded-md" style="background:${fg}"></div></div></div><div class="mt-1.5 flex items-center justify-between px-0.5 text-xs font-medium">${n}${on ? '<span class="text-lume-500">✓</span>' : ''}</div></button>`;
+
+const PANES = {
+  geral: () => [
+    card('Idioma', select('Idioma / Language', ['Português (Brasil)', 'English'])),
+    card('Voz', toggle('Microfone (fala → texto)', true) + toggle('Enviar sozinho depois de transcrever') + toggle('Ler as respostas em voz alta sozinho') + select('Voz da IA', ['Padrão do sistema', 'Maria', 'Daniel'])),
+    card('Contexto', toggle('Usar o contexto máximo de cada modelo') + toggle('Mostrar a barra de contexto no topo', true) + toggle('Compactar a conversa sozinho quando o contexto passar de 85%', true), 'A memória da conversa'),
+    card('Pesquisa na web', toggle('Pesquisar na web nas respostas (aba Chat)', true) + select('Provedor de pesquisa', ['Automático', 'Exa', 'DuckDuckGo']) + range('Máximo de resultados por busca', 1, 10, 5)),
+    card('Memória e modelos', toggle('Ao trocar de modelo, parar o anterior se a VRAM não couber os dois', true) + toggle('Trocar * no início da linha por •', true)),
+    card('System Prompt (aba Chat)', area('Instruções que valem para todas as conversas', 'Você é o Lume, um assistente direto e simpático. Responda em português do Brasil.'), 'Como o modelo deve se comportar'),
+  ],
+  aparencia: () => [
+    card('Tema', `<div class="grid grid-cols-2 gap-2 sm:grid-cols-4">${theme('Lume', '#15131c', '#2a2236', '#e8467c', true)}${theme('DeepSeek', '#1b1b1f', '#2b2c31', '#4d6bfe')}${theme('Kimi', '#161617', '#2a2a2d', '#1783ff')}${theme('Claude', '#262624', '#30302e', '#d97757')}${theme('Ollama', '#171717', '#262626', '#8a8a92')}${theme('Gemini', '#131314', '#282a2c', '#4f83e0')}${theme('Perplexity', '#191a1a', '#242626', '#20b8cd')}<button class="grid place-items-center rounded-xl border-2 border-dashed border-zinc-300 text-xs font-medium text-zinc-500 transition hover:border-lume-400 hover:text-lume-500 dark:border-white/15">+ Criar tema</button></div>`, 'Cores, fonte e o jeito de cada app que inspira o tema'),
+    card('Visual', toggle('Visual novo', true, 'Sombras, cantos e cores do teste em Tailwind. Desligado = visual antigo') + toggle('Animações', true, 'Desligue se a interface pesar na GPU') + toggle('Widgets na conversa', true, 'A IA cria calculadoras, gráficos, quizzes...') + toggle('Seletor de modelos em tela cheia') + toggle('Interface clássica', false, 'A antiga, com temas só de cor') + toggle('Os temas mudam o layout (não só as cores)', true)),
+    card('Texto e tamanho', select('Fonte da interface', ['Padrão do tema', 'Segoe UI', 'Georgia (serifada)', 'Verdana']) + select('Fonte do código', ['Consolas', 'Cascadia Mono', 'Courier New']) + range('Escala da interface', 80, 130, 100, '%')),
+    card('Janela', select('Botões da janela (minimizar, maximizar, fechar)', ['Compactos', 'Do Windows', 'Personalizados']) + toggle('Esconder os avisos de VRAM na janela', false, 'Continuam aparecendo no terminal')),
+    card('Imagem de fundo', `<div class="flex items-center gap-3"><div class="grid h-16 w-24 place-items-center rounded-xl border border-dashed border-zinc-300 text-xs text-zinc-400 dark:border-white/15">sem imagem</div>${btn('Escolher imagem')}${btn('Remover')}</div>` + range('Opacidade', 0, 100, 25, '%')),
+    card('Velocidade do fundo animado', range('Tema Lume', 0, 100, 40, '%')),
+  ],
+  code: () => [
+    card('Pasta de trabalho', `<div class="flex gap-2"><input value="C:\\Users\\gamer\\projetos" class="min-w-0 flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 font-mono text-xs outline-none focus:border-lume-400 focus:ring-4 focus:ring-lume-500/15 dark:border-white/10 dark:bg-[#27282c]">${btn('Escolher...')}</div>`, 'Onde a aba Code lê e escreve arquivos'),
+    card('Permissões', toggle('Permitir sozinho, sem perguntar', true, 'Comandos perigosos continuam bloqueados') + range('Limite de chamadas de ferramenta por mensagem', 1, 50, 20)),
+    card('System Prompt (aba Code)', area('Instruções da aba Code', 'Você é um engenheiro de software. Leia os arquivos antes de editar e explique o que mudou em uma frase.', 5)),
+  ],
+  chaves: () => [
+    `<div class="card rounded-2xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300 md:col-span-2" data-t="aviso chaves">As chaves ficam só neste computador. Nunca vão para o GitHub nem para as conversas.</div>`,
+    card('Provedores', [['Nexus', 'nextrouter.me', 1], ['Groq', 'groq.com', 0], ['OpenRouter', 'só modelos grátis', 0], ['Pollinations', 'modelos que gastam pollen', 0], ['Vercel AI Gateway', 'modelos "-free"', 0], ['LLM7', 'plano turbo', 0], ['tomdacat', 'créditos', 0]].map(k => key(...k)).join('')),
+    card('Outros serviços', key('Exa', 'pesquisa para IAs', 0) + key('Cloudflare Workers AI', 'conta e token', 0) + key('Ollama', 'modelos da nuvem Ollama', 0)),
+  ],
+  servidor: () => [
+    card('Rede local', toggle('Permitir que outros aparelhos da rede usem este servidor', true, 'O iPhone e outros PCs acessam pelo endereço abaixo') + `<div class="flex items-center gap-2 rounded-xl bg-zinc-100 px-3 py-2 font-mono text-xs dark:bg-white/[.06]"><span class="flex-1">http://192.168.0.12:5000</span>${btn('Copiar')}</div>` + text('Porta', '5000')),
+    card('Segurança', toggle('Exigir senha na rede local', true) + text('Senha', '', 'defina uma senha')),
+    card('Estado', `<div class="flex items-center gap-3 text-sm"><span class="h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-500"></span>Servidor rodando · 1 aparelho conectado</div><div class="flex gap-2">${btn('Reiniciar servidor')}${btn('Parar', 'danger')}</div>`),
+  ],
+  app: () => [
+    card('Atualizações', toggle('Atualizar os modelos instalados sozinho', true, 'Uma vez por semana, com o app aberto') + toggle('Avisar quando houver versão nova ao abrir', true) + `<div class="flex items-center justify-between rounded-xl bg-zinc-100 px-3 py-2 text-sm dark:bg-white/[.06]"><span>Versão <b>4.0</b> <span class="text-xs text-zinc-500">(em desenvolvimento)</span></span>${btn('Procurar agora', 'primary')}</div>`),
+    card('Overlay de desempenho', toggle('Mostrar overlay no canto superior direito', true) + toggle('Mostrar o FPS da interface') + select('Estilo', ['Verde', 'Cinza', 'Compacto']) + range('Atualização', 50, 2000, 50, ' ms')),
+    card('Sistema', toggle('Iniciar com o Windows') + toggle('Mostrar ícone na bandeja', true) + select('Aceleração de hardware', ['Automática', 'Ligada', 'Desligada'])),
+    card('Ajuda', `<div class="flex flex-wrap gap-2">${btn('Bug ou sugestão')}${btn('Ver novidades')}${btn('Abrir a pasta de dados')}</div>`, 'Feedback vai direto para o criador'),
+  ],
+};
+
+let cur = 'geral';
+function show(id) {
+  cur = id; $('#q').value = '';
+  $('#title').textContent = TABS.find(t => t[0] === id)[1];
+  const nav = t => `<button data-id="${t[0]}" class="tab flex items-center gap-3 rounded-xl px-3 py-2 text-left transition ${t[0] === id ? 'bg-lume-500/12 font-medium text-lume-500 dark:bg-lume-500/20 dark:text-lume-400' : 'text-zinc-600 hover:bg-zinc-200/60 dark:text-zinc-400 dark:hover:bg-white/[.06]'}">${t[2]}${t[1]}</button>`;
+  $('#nav').innerHTML = TABS.map(nav).join('');
+  $('#tabsm').innerHTML = TABS.map(t => `<button data-id="${t[0]}" class="tab shrink-0 rounded-full px-3 py-1.5 ${t[0] === id ? 'bg-lume-500 text-white' : 'bg-zinc-100 dark:bg-white/[.06]'}">${t[1]}</button>`).join('');
+  $('#pane').innerHTML = `<div class="grid grid-cols-1 gap-4 lg:grid-cols-2 [&>.card:only-child]:lg:col-span-2">${PANES[id]().join('')}</div>`;
+  $('#pane').scrollTop = 0;
+}
+document.addEventListener('click', e => {
+  const t = e.target.closest('.tab'); if (t) show(t.dataset.id);
+  const eye = e.target.closest('.eye'); if (eye) { const i = eye.previousElementSibling; i.type = i.type === 'password' ? 'text' : 'password'; }
+});
+document.addEventListener('input', e => {
+  if (e.target.type === 'range') e.target.closest('label').querySelector('.rv').textContent = e.target.value + (e.target.dataset.u || '');
+  if (e.target.id === 'q') {   // busca: filtra os cartões (em todas as abas se tiver texto)
+    const q = e.target.value.trim().toLowerCase();
+    if (q) { $('#pane').innerHTML = `<div class="grid grid-cols-1 gap-4 lg:grid-cols-2">${Object.values(PANES).flatMap(f => f()).filter(h => h.toLowerCase().includes(q)).join('') || '<p class="text-sm text-zinc-500">Nada encontrado.</p>'}</div>`; $('#title').textContent = 'Resultados'; }
+    else show(cur);
+  }
+});
+$('#theme').onclick = () => document.documentElement.classList.toggle('dark');
+show('geral');
+</script>
+</body>
+</html>
