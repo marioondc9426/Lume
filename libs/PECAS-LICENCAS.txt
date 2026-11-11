@@ -1,0 +1,13 @@
+Conjuntos de pecas do xadrez (libs/chess-sets.js), copiados do Lichess (github.com/lichess-org/lila, public/piece).
+Autoria e licenca de cada um (conforme o COPYING.md do Lichess):
+
+cburnett   Colin M.L. Burnett           GPLv2+
+merida     Armando Hernandez Marroquin  GPLv2+
+chessnut   Alexis Luengas               Apache 2.0
+rhosgfx    RhosGFX                      CC0 1.0
+kosal      Kosal Sen                    CC BY 4.0
+cardinal, fresca, icpieces, gioco, tatiana, staunty, maestro   sadsnake1   CC BY-NC-SA 4.0
+california  Jerry S.                    CC BY-NC-SA 4.0
+caliente    avi                         CC BY-NC-SA 4.0
+
+As de licenca CC BY-NC-SA 4.0 sao de uso nao comercial, com atribuicao e mesma licenca.
