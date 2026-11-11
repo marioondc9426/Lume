@@ -36,7 +36,9 @@ body.chatting #empty { display: none; }
 .sp { flex: 1; }
 .chip { padding: 4px 8px; border-radius: 8px; font-weight: 600; font-size: .9em; transition: background .15s; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chip:hover { background: rgba(255,255,255,.08); } .chip.dim { color: var(--mute); font-weight: 500; }
-.go { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; margin-left: 4px; } .go:hover { filter: brightness(1.1); background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; }
+.go { background: linear-gradient(135deg, var(--accent), var(--accent2), var(--accent)); background-size: 240% 240%; animation: drift 14s ease-in-out infinite; color: #fff; margin-left: 4px; }
+@keyframes drift { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+@media (prefers-reduced-motion: reduce) { .go { animation: none; } } .go:hover { filter: brightness(1.1); color: #fff; }
 .go.stop { background: #d64545; }
 #mic.on { color: #ff6b81; animation: blink 1s infinite; }
 #chips { display: flex; flex-wrap: wrap; gap: 6px; } #chips:not(:empty) { margin-bottom: 8px; }

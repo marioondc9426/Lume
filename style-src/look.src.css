@@ -109,3 +109,16 @@ body[data-look="tw"] .tk-k { color: #e879f9; } body[data-look="tw"] .tk-f { colo
 § #model-options .select-option.selected { @apply shadow-[inset_0_0_0_1px_var(--accent)]; }
 § .size-row { @apply gap-2 px-3 py-2.5; border-top: 1px solid var(--border-color); }
 § .size-label { @apply uppercase text-[.66em] font-semibold tracking-[.09em] text-mute; }
+
+/* ---------- gradientes que se mexem de leve (devagar: 14 a 26 s por ciclo; so onde ja ha degrade; desligam com "Animacoes" off e com movimento reduzido) ---------- */
+@property --lk-gx { syntax: '<percentage>'; inherits: true; initial-value: 50%; }
+@keyframes lkShift { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+@keyframes lkGlow { 0%, 100% { --lk-gx: 36%; } 50% { --lk-gx: 64%; } }
+§:not(.no-anim).chat-empty #hero h1 { background-size: 240% 100%; animation: rise .35s cubic-bezier(.2,.8,.3,1) both, lkShift 16s ease-in-out infinite; }
+§:not(.no-anim) #send-btn:not(.stop) { background-image: linear-gradient(135deg, var(--accent), var(--lk-pop), var(--accent)); background-size: 240% 240%; animation: lkShift 14s ease-in-out infinite; }
+§[data-theme="lume"]:not(.no-anim) #send-btn:not(.stop), §[data-theme="lume"]:not(.no-anim) #sidebar .btn-primary { background-image: var(--grad); background-size: 240% 240%; animation: lkShift 14s ease-in-out infinite; }
+§[data-theme="lume"]:not(.no-anim) .msg.user:nth-last-child(-n+4):not(.noanim) { background-size: 240% 240%; animation: rise .35s cubic-bezier(.2,.8,.3,1) forwards, lkShift 18s ease-in-out infinite; }
+§[data-theme="lume"]:not(.no-anim) .msg.user.noanim:nth-last-child(-n+4) { background-size: 240% 240%; animation: lkShift 18s ease-in-out infinite; }
+§:not([data-glow-off]):not([data-theme="lume"]):not([data-theme="gemini"]):not(.no-anim) #main { --glow: radial-gradient(ellipse 60% 300px at var(--lk-gx) 0, color-mix(in srgb, var(--accent) 20%, transparent), transparent 72%); animation: lkGlow 26s steps(104) infinite; }
+§[data-theme="gemini"]:not([data-glow-off]):not(.no-anim) #main { --glow: radial-gradient(ellipse 62% 48% at var(--lk-gx) 58%, rgba(28,62,150,.55), rgba(19,19,20,0) 72%); animation: lkGlow 26s steps(104) infinite; }
+@media (prefers-reduced-motion: reduce) { § #hero h1, § #send-btn, § #sidebar .btn-primary, § .msg.user, § #main { animation: none !important; } }
