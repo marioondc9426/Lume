@@ -25,7 +25,7 @@ owner.mobileconfig
 accounts/
 trusted_devices.json
 provider_health.json
-
+CHECKLIST.md
 # sons de abertura (copyright de terceiros: ficam so no seu PC)
 sounds/*
 !sounds/LEIA-ME.txt
@@ -45,3 +45,6 @@ gpu_cache.json
 style-src/node_modules/
 style-src/.look.gen.css
 panel_models.json
+
+# lista de conferencia pessoal do dono: so local
+CHECKLIST.md
