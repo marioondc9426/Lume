@@ -4965,10 +4965,25 @@ def tray_show():
     try: window_api._window.show(); window_api._window.restore()
     except Exception as e: log("BANDEJA", f"Nao consegui mostrar a janela: {e}", COLOR_YELLOW)
 
-def tray_quit():
+def quit_app():
+    """Fechar de verdade. O pet e a caixinha (Alt+Espaco) sao janelas escondidas e o pywebview so termina quando TODAS fecham: destruir so a principal fazia a interface sumir e o programa (e o terminal) continuar vivo. Aqui fecha todas e, se mesmo assim o processo nao sair, forca depois de 8 s."""
     tray_stop()
-    try: window_api._window.destroy()
+    def _force():
+        time.sleep(8)
+        try: shutdown_all()
+        except Exception: pass
+        os._exit(0)
+    threading.Thread(target=_force, daemon=True).start()
+    main = window_api._window if window_api else None
+    for w in list(webview.windows):
+        if w is not main:
+            try: w.destroy()
+            except Exception: pass
+    try:
+        if main: main.destroy()
     except Exception: pass
+
+def tray_quit(): quit_app()
 
 class WindowApi:
     def open_feedback(self):
@@ -5036,7 +5051,7 @@ class WindowApi:
         return self._maximized
     def close(self):
         if tray_icon and load_config().get("tray_enabled"): self._window.hide(); return "hidden"   # com a bandeja ligada, fechar so esconde
-        self._window.destroy()
+        quit_app()
 
 class QuickApi:
     """A caixinha do Alt+Espaco: a pagina (quick.html) so pede para esconder ou mudar a altura."""
