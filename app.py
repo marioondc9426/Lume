@@ -1726,6 +1726,10 @@ def stop_ollama():
 
 def shutdown_all():
     """Ao fechar o app: para a geracao, descarrega todos os modelos e encerra o que foi iniciado aqui."""
+    global _fb_proc
+    if _fb_proc and _fb_proc.poll() is None:   # o servidor do feedback que o Lume ligou sozinho
+        try: _fb_proc.terminate()
+        except Exception: pass
     stop_generation_flag.set()
     for ev in list(req_stops.values()): ev.set()
     try: lumemcp and lumemcp.stop_all()   # fecha os servidores MCP
@@ -2821,6 +2825,30 @@ def fetch_model_scores(refresh=False):
         if old: return old
         raise Exception("Nao consegui baixar as notas dos modelos (" + str(getattr(e, "reason", e))[:80] + ").")
 
+_fb_proc = None
+def ensure_feedback_server(url):
+    """O servidor do lume-feedback e do projeto (lume-feedback/server.py). Se o endereco e DESTE PC e nada responde, liga sozinho (escondido) em vez de o dono ter que ligar na mao; fecha junto com o Lume. So rodando do codigo-fonte (no .exe nao existe a pasta)."""
+    global _fb_proc
+    m = re.match(r"^https?://(?:127\.0\.0\.1|localhost)(?::(\d+))?(?:/|$)", url)
+    if not m: return False
+    port = int(m.group(1) or 80)
+    def up():
+        try:
+            with socket.create_connection(("127.0.0.1", port), timeout=0.6): return True
+        except OSError: return False
+    if up(): return True
+    script = os.path.join(RES_DIR, "lume-feedback", "server.py")
+    if FROZEN or not os.path.isfile(script): return False
+    try:
+        _fb_proc = subprocess.Popen([sys.executable, script, "--host", "127.0.0.1", "--port", str(port), "--no-password"], cwd=os.path.dirname(script), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, creationflags=0x08000000 if sys.platform == "win32" else 0)   # 0x08000000 = sem janela
+        log("FEEDBACK", f"Servidor do feedback ligado sozinho em 127.0.0.1:{port}.", COLOR_GREEN)
+    except Exception as e:
+        log("FEEDBACK", f"Nao consegui ligar o servidor do feedback: {e}", COLOR_YELLOW); return False
+    for _ in range(40):
+        time.sleep(0.15)
+        if up(): return True
+    return False
+
 def send_feedback(cfg, d):
     """Repassa o feedback ao servidor configurado em feedback_url. Nunca manda config.json, chaves nem conversas: so o que o usuario escreveu, a imagem que ele anexou e (se marcou) versao/sistema."""
     url = str(cfg.get("feedback_url") or "").strip().rstrip("/")
@@ -2828,6 +2856,7 @@ def send_feedback(cfg, d):
     body = {k: d.get(k) for k in ("category", "message", "contact", "version", "os", "log", "screenshot_b64")}; body["app"] = "Lume"
     headers = {"Content-Type": "application/json", "User-Agent": "lume-app"}
     if cfg.get("feedback_key"): headers["X-Feedback-Key"] = str(cfg["feedback_key"])
+    ensure_feedback_server(url)   # endereco deste PC e desligado: liga o servidor sozinho
     try:
         with urllib.request.urlopen(urllib.request.Request(url + "/api/feedback", data=json.dumps(body).encode("utf-8"), headers=headers), timeout=20) as r: return json.load(r)
     except urllib.error.HTTPError as e:
@@ -3505,6 +3534,13 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                 return self.send_json({"token": tk, "app": "lume"})
             if p == '/api/browser/poll': return self.send_json(lumebrowser.poll(_d.get("token"), _d.get("info")))
             if p == '/api/browser/result': return self.send_json({"ok": bool(lumebrowser.deliver(_d.get("token"), _d.get("id"), _d.get("result")))})
+            if p in ('/api/browser/chat', '/api/browser/panel_info'):   # painel lateral da extensao: conversa direto com os modelos do Lume (so com o token do pareamento; nunca como agente)
+                if not secrets.compare_digest(str(_d.get("token") or ""), lumebrowser.TOKEN): return self.send_json({"error": "token"}, 403)
+                if p == '/api/browser/chat':
+                    _d["agent"] = False; _d.pop("rid", None)
+                    return self.handle_chat(_d, True)
+                tags = ollama_tags() or []
+                return self.send_json({"model": (load_state().get("config") or {}).get("model") or "", "installed": [m["name"] for m in tags], "lang": (load_state().get("config") or {}).get("lang") or ""})
             return self.send_json({"error": "not_found"}, 404)
         quiet = ('/api/chat', '/api/history', '/api/state', '/api/browser/poll', '/api/browser/result')
         if p not in quiet: log("API", f"POST {p}", COLOR_BLUE)

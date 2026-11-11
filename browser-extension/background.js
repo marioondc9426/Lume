@@ -183,7 +183,13 @@ async function loop() {
     } catch (e) { TOKEN = null; lastOk = false; chrome.action.setBadgeText({ text: '' }); await sleep(3000); }
   }
 }
-chrome.runtime.onMessage.addListener((m, s, send) => { if (m && m.cmd === 'status') { hasDebugger().then(d => send({ ok: lastOk, debugger: d })); return true; } return false; });
+chrome.runtime.onMessage.addListener((m, s, send) => {
+  if (m && m.cmd === 'status') { hasDebugger().then(d => send({ ok: lastOk, debugger: d })); return true; }
+  if (m && m.cmd === 'conn') { (async () => { if (!TOKEN) await pair(); send({ ok: lastOk && !!TOKEN, base: BASE, token: TOKEN }); })().catch(() => send({ ok: false })); return true; }   // o painel lateral pega daqui o endereco e o token do Lume
+  return false;
+});
+// Chromium (Chrome, Comet, Edge, Brave...): clicar no icone da extensao abre o painel lateral (sem o popup). Firefox continua com o popup.
+if (chrome.sidePanel && chrome.sidePanel.setPanelBehavior) { try { chrome.action.setPopup({ popup: '' }); chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }); } catch (e) { /* mantem o popup */ } }
 chrome.runtime.onInstalled.addListener(() => { loop(); });
 chrome.runtime.onStartup.addListener(() => { loop(); });
 chrome.alarms.create('lume-keepalive', { periodInMinutes: 0.5 });

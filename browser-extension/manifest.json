@@ -1,11 +1,13 @@
 {
   "manifest_version": 3,
   "name": "Lume - IA no navegador",
-  "version": "1.0",
-  "description": "Deixa a IA do Lume (no seu PC) ler e usar as abas deste navegador quando voce permitir. Conversa so com o Lume em 127.0.0.1.",
-  "permissions": ["tabs", "scripting", "alarms", "storage", "debugger"],
+  "version": "1.1",
+  "description": "Painel lateral do Lume no navegador: converse com a IA do seu PC sem sair da pagina e deixe-a ler e usar as abas quando voce permitir. Conversa so com o Lume em 127.0.0.1.",
+  "icons": { "48": "lume-mark.png", "128": "lume-mark.png" },
+  "permissions": ["tabs", "scripting", "alarms", "storage", "debugger", "sidePanel"],
   "host_permissions": ["<all_urls>"],
   "background": { "service_worker": "background.js", "scripts": ["background.js"] },
-  "action": { "default_title": "Lume", "default_popup": "popup.html" },
+  "action": { "default_title": "Lume", "default_icon": "lume-mark.png", "default_popup": "popup.html" },
+  "side_panel": { "default_path": "sidepanel.html" },
   "browser_specific_settings": { "gecko": { "id": "lume-browser@lume.local", "strict_min_version": "121.0" } }
 }

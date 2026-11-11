@@ -1,5 +1,9 @@
 Lume - IA no navegador
 ======================
+NOVO (1.1): clicar no icone da extensao abre o PAINEL LATERAL do Lume (como o do Claude): conversa com os modelos do seu PC sem sair da pagina,
+com botao + (anexar a pagina ou o trecho selecionado), atalhos (resumir, traduzir...), troca de modelo, esforco (Baixo/Alto), microfone e historico.
+Ele so conversa com o Lume em 127.0.0.1 e nunca age sozinho no navegador. (No Firefox continua o popup antigo.)
+
 Esta extensao liga a IA do Lume (que roda no seu PC) as abas do navegador que voce ja usa, com os seus logins.
 Ela so conversa com o Lume em 127.0.0.1 (o proprio PC). Cada acao da IA (ler pagina, clicar, digitar...) pede a sua permissao no Lume.
 

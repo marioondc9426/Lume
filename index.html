@@ -1108,6 +1108,14 @@
         /* sub-campos dentro de um cartao (configuracoes organizadas) */
         .fg-sub { display: flex; flex-direction: column; gap: 6px; min-width: 0; } .fg-row { display: flex; gap: 10px; flex-wrap: wrap; } .fg-row > .fg-sub { flex: 1 1 120px; }
         #settings-modal .fg-sub > label:not(.toggle-container) { font-size: .8em; font-weight: 500; color: var(--text-muted); }
+
+        /* aba "Outros" do seletor de modelos */
+        .mo-tabs { display: flex; gap: 6px; padding: 2px 10px 8px; border-bottom: 1px solid var(--border-color); }
+        .mo-tab { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; border: 0; background: transparent; color: var(--text-muted); padding: 5px 12px; border-radius: 999px; font: inherit; font-size: .82em; cursor: pointer; transition: background .15s, color .15s; }
+        .mo-tab:hover { background: rgba(128,128,128,.14); color: var(--text-main); }
+        .mo-tab.on { background: color-mix(in srgb, var(--accent) 20%, transparent); color: var(--accent); font-weight: 600; }
+        .mo-tab i { font-style: normal; font-size: .85em; opacity: .7; }
+        .mo-note { padding: 8px 12px; font-size: .76em; color: var(--text-muted); line-height: 1.4; border-bottom: 1px solid var(--border-color); }
     </style>
     <link rel="stylesheet" href="libs/lume-look.css">   <!-- Visual novo (Tailwind): so vale com body[data-look="tw"] -->
     <script src="libs/emoji-shortcodes.js"></script>
@@ -1967,6 +1975,7 @@
             'Resultados: o máximo que a IA pode pedir (1 a 25, padrão 8). Mais resultados deixam tudo mais lento.': 'Results: the most the AI can ask for (1 to 25, default 8). More results slow everything down.',
             'A IA grava e roda sem perguntar, menos o que é perigoso (formatar, apagar pastas do sistema, registro, desligar o PC). Não é garantia: confira o que ela faz.': 'The AI writes and runs without asking, except dangerous things (formatting, deleting system folders, registry, shutting down the PC). Not a guarantee: check what it does.',
             'Pergunta antes e vale por 10 minutos. A IA usa até 3 programas em segundo plano, com um mouse virtual, sem mexer no seu. Jogos e programas de administrador não funcionam. Para parar, mova o mouse para o canto superior esquerdo. O modelo precisa enxergar imagens.': 'Asks first and lasts 10 minutes. The AI uses up to 3 programs in the background with a virtual mouse, without touching yours. Games and admin programs do not work. To stop, move the mouse to the top-left corner. The model must see images.',
+            'Modelos': 'Models', 'Outros': 'Other', 'Modelos que o Lume ainda não reconhece direito (sem logo ou de marca nova). Alguns podem não ser de chat.': 'Models Lume does not recognize well yet (no logo or a new brand). Some may not be chat models.',
             'Minimizar': 'Minimize', 'Maximizar': 'Maximize', 'Fechar': 'Close',
             '📊 Desempenho': '📊 Performance', 'Status: Ocioso': 'Status: Idle', 'Palavras/s: --': 'Words/s: --',
             'Palavras/s': 'Words/s', 'N/D': 'N/A', ' (est.)': ' (est.)',
@@ -2438,8 +2447,12 @@
         const pxDup = m => false;   // Paxsenix mostra todos os seus modelos, mesmo os que outro provedor ja tem
         const noIcon = m => { if (!m.x) return false; if (m._ni === undefined) { try { m._ni = !brandOf(fin(m)); } catch (e) { return false; } } return m._ni; };   // modelos dos provedores extras sem logo da marca nao entram na lista
         const UNWANTED = /celeris|mythomax|isign|ising-|lfm|hermes|north-mini|riva-translate|cosmos-|dots-|grok|(^|[/:-])muse/i;   // modelos que o dono mandou tirar do seletor, venham de qual provedor vier
-        const isAvail = m => m.auto ? !isGuest() : UNWANTED.test(m.id) ? false : guestBlocks(m) ? false : pxDup(m) ? false : noIcon(m) ? false : m.phone ? phoneMode() : (phoneMode() && !m.cloud ? false : (m.groq || m.or || m.cf || m.pol || m.tdc || m.vc || m.l7 || m.x || installed === null || installed.has(m.id)));   // no modo celular os locais do PC saem da lista
+        const isAvailCore = m => m.auto ? !isGuest() : UNWANTED.test(m.id) ? false : guestBlocks(m) ? false : pxDup(m) ? false : m.phone ? phoneMode() : (phoneMode() && !m.cloud ? false : (m.groq || m.or || m.cf || m.pol || m.tdc || m.vc || m.l7 || m.x || installed === null || installed.has(m.id)));   // no modo celular os locais do PC saem da lista
+        const isDynM = m => !!(m.x || m.pol || m.or || m.cf || m.groq || m.tdc || m.vc || m.l7);
+        const isOther = m => isDynM(m) && (m.unk === true || noIcon(m));   // "Outros": modelo que nenhuma regra reconhece (ex.: minimax-h3, que e de video) ou de provedor extra sem logo da marca
+        const isAvail = m => isAvailCore(m) && !isOther(m);
         const availIn = tab => MODELS.filter(m => m.tabs.includes(tab) && isAvail(m));
+        const availOther = tab => MODELS.filter(m => m.tabs.includes(tab) && isAvailCore(m) && isOther(m));
         const pickDefault = list => list.find(m => m.rec && !m.cloud) || list.find(m => !m.cloud && !m.heavy) || list.find(m => !m.cloud) || list[0];
         // ---------- familias: todas as versoes e provedores de uma marca ficam num lugar so ("Qwen 2.5, 3 e 3.5"); a lista de parametros traz "versao, tamanho"
         const XP = Object.fromEntries((window.LUME_PROVIDERS || []).map(p => [p.id, [p.key, p.name]]));   // um lugar so para colocar outro provedor extra: libs/providers.js (guia em libs/PROVIDERS.md)
@@ -2507,7 +2520,7 @@
             if ((m = s.match(/^grok-(\d+(?:\.\d+)?)(?:-(.+))?$/))) return { base: 'Grok', ver: m[1], psize: (m[2] || '').split('-').filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(' ') || 'Base' };
             if (raw === 'openrouter/free') return { base: 'OpenRouter', ver: '', psize: 'Free' };
             const [b, tag] = raw.split(':');
-            return { base: fallbackBase || (prov ? prov[0].toUpperCase() + prov.slice(1) : b), ver: '', psize: prov ? b : (tag || '') };
+            return { base: fallbackBase || (prov ? prov[0].toUpperCase() + prov.slice(1) : b), ver: '', psize: prov ? b : (tag || ''), unk: true };   // unk = nenhuma regra conhece este modelo: vai para a aba "Outros" do seletor
         }
         function finalizeModel(m) {   // base/versao/tamanho (os de lista fixa saem do famName "Qwen 3.5"), grupo da marca e os textos da lista
             if (m.base === undefined) { const x = /^(.*?)\s+(\d[\w.]*)$/.exec(m.famName || ''); m.base = x ? x[1] : (m.famName || ''); m.ver = x ? x[2] : ''; m.psize = m.params; }
@@ -2560,8 +2573,8 @@
             const cmp = { az, fame: (a, b) => fameRank(a[0]) - fameRank(b[0]) || az(a, b), cheap: (a, b) => lo(a) - lo(b) || az(a, b), exp: (a, b) => hi(b) - hi(a) || az(a, b), speed: (a, b) => sp(b) - sp(a) || lat(a) - lat(b) || az(a, b), new: (a, b) => nw(b) - nw(a) || az(a, b) }[mode] || az;
             return arr.sort(cmp);
         }
-        function familiesIn(tab) {   // todas as marcas juntas (locais, nuvem e pagos); a ordem segue config.modelSort (padrao: das mais famosas para as menos); a cor mostra o tipo
-            const map = new Map(); availIn(tab).forEach(m => { fin(m); if (!map.has(m.grp)) map.set(m.grp, []); map.get(m.grp).push(m); });
+        function familiesIn(tab, other) {   // todas as marcas juntas (locais, nuvem e pagos); a ordem segue config.modelSort (padrao: das mais famosas para as menos); a cor mostra o tipo
+            const map = new Map(); (other ? availOther(tab) : availIn(tab)).forEach(m => { fin(m); if (!map.has(m.grp)) map.set(m.grp, []); map.get(m.grp).push(m); });
             map.forEach(ms => ms.sort((a, b) => verKey(a.ver) - verKey(b.ver) || sizeNum(a) - sizeNum(b) || provOrd(a) - provOrd(b) || a.plabel.localeCompare(b.plabel)));
             return new Map(sortFamEntries([...map.entries()], config.modelSort || 'fame').sort((a, b) => (b[0] === 'lume-auto') - (a[0] === 'lume-auto')));   // o Lume Auto fica no topo
         }
@@ -2586,12 +2599,12 @@
         }
         function restoreLastModel() {
             const m = config.model && modelById(config.model);
-            if (!userPicked && m && selectedModel !== config.model && currentTab === 'chat' && (m.tabs || []).includes('chat') && isAvail(m)) selectedModel = config.model;
+            if (!userPicked && m && selectedModel !== config.model && currentTab === 'chat' && (m.tabs || []).includes('chat') && isAvailCore(m)) selectedModel = config.model;
         }
         function ensureSelected() {
             const avail = availIn(currentTab); if (!avail.length) return;
             const cur = modelById(selectedModel);
-            if (!cur || !avail.includes(cur)) { const pick = pickDefault(avail); selectedModel = pick.id; if (!pick.cloud) lastLocalModel = pick.id; }
+            if (!cur || !(avail.includes(cur) || (isOther(cur) && isAvailCore(cur) && cur.tabs.includes(currentTab)))) { const pick = pickDefault(avail); selectedModel = pick.id; if (!pick.cloud) lastLocalModel = pick.id; }
         }
         const tabOf = id => chats[id].tab || 'chat';
 
@@ -2887,7 +2900,7 @@
             return out;
         }
         const modelsSig = () => { let h = 5381; for (const m of MODELS) for (let i = 0; i < m.id.length; i++) h = ((h * 33) ^ m.id.charCodeAt(i)) >>> 0; return MODELS.length + ':' + h; };   // muda quando a lista de modelos muda (assim a atualizacao automatica nao reconstroi nem fecha o seletor sem necessidade)
-        let modelQuery = '';
+        let modelQuery = '', moTab = 'main';   // moTab: 'main' | 'other' (aba "Outros" do seletor)
         function filterModelRows() {   // a busca do seletor em tela cheia: esconde as linhas que nao batem (sem refazer a lista, para o teclado nao fechar)
             const q = modelQuery.trim().toLowerCase();
             document.querySelectorAll('#model-options .select-option[data-q]').forEach(r => { r.style.display = !q || r.dataset.q.includes(q) ? '' : 'none'; });
@@ -2900,18 +2913,26 @@
         function renderModelOptions(onlyIfChanged = false) {
             dedupeModels(); restoreLastModel(); ensureSelected();
             // a lista so e reconstruida quando algo mudou (senao a animacao e o hover "reiniciavam" a cada atualizacao)
-            const sig = JSON.stringify([currentTab, selectedModel, config.modelSort, config.favModels, $('model-select').classList.contains('fs'), Object.entries(loadedModels).map(([k, v]) => [k, v.size]), pendingModel, installed ? [...installed].sort() : null, vramTotalMB, modelsSig()]);
+            const sig = JSON.stringify([currentTab, selectedModel, config.modelSort, config.favModels, moTab, $('model-select').classList.contains('fs'), Object.entries(loadedModels).map(([k, v]) => [k, v.size]), pendingModel, installed ? [...installed].sort() : null, vramTotalMB, modelsSig()]);
             if (onlyIfChanged === true && sig === lastModelSig) return;
             lastModelSig = sig; saveModelsCache();
             const box = $('model-options'); box.innerHTML = '';
-            const fams = familiesIn(currentTab), cur = modelById(selectedModel);
+            const famsMain = familiesIn(currentTab, false), famsOther = familiesIn(currentTab, true), cur = modelById(selectedModel), hasOther = famsOther.size > 0;
+            if (!hasOther) moTab = 'main';
+            const showOther = moTab === 'other', fams = showOther ? famsOther : famsMain, curFams = cur && isOther(cur) ? famsOther : famsMain;
             if (!cur) { const e = document.createElement('div'); e.className = 'select-option'; e.textContent = tr('Nenhum modelo disponível.'); box.appendChild(e); return; }   // nada disponivel nesta aba (ainda): nao quebra a inicializacao
             const fs = $('model-select').classList.contains('fs'), hadSearch = document.activeElement && document.activeElement.id === 'mo-search', favs = new Set(config.favModels || []);
             const tools = document.createElement('div'); tools.className = 'mo-tools';
             if (fs) { const x = document.createElement('button'); x.type = 'button'; x.className = 'mo-x'; x.textContent = '✕'; x.title = tr('Fechar'); x.onclick = e => { e.stopPropagation(); closeModelPicker(); }; tools.appendChild(x); }
-            if (fs) { const q = document.createElement('input'); q.id = 'mo-search'; q.className = 'mo-search'; q.type = 'search'; q.placeholder = tr('Buscar modelo...'); q.value = modelQuery; q.oninput = () => { modelQuery = q.value; filterModelRows(); }; tools.appendChild(q); }
+            { const q = document.createElement('input'); q.id = 'mo-search'; q.className = 'mo-search'; q.type = 'search'; q.placeholder = tr('Buscar modelo...'); q.value = modelQuery; q.oninput = () => { modelQuery = q.value; filterModelRows(); }; tools.appendChild(q); }
             tools.appendChild(miniSelect(SORTS.map(([v, l]) => ({ value: v, label: tr(l) })), config.modelSort || 'fame', v => { config.modelSort = v; saveState(); renderModelOptions(); }, tr('Ordenar')));
             box.appendChild(tools);
+            if (hasOther) {   // abas: os modelos de sempre | os que o Lume ainda nao reconhece (sem logo / marca nova / nao e de chat)
+                const tb = document.createElement('div'); tb.className = 'mo-tabs';
+                [['main', tr('Modelos'), famsMain.size], ['other', tr('Outros'), famsOther.size]].forEach(([k, l, n]) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'mo-tab' + (moTab === k ? ' on' : ''); b.innerHTML = `${esc(l)} <i>${n}</i>`; b.onclick = e => { e.stopPropagation(); moTab = k; renderModelOptions(); }; tb.appendChild(b); });
+                box.appendChild(tb);
+                if (showOther) { const nt = document.createElement('div'); nt.className = 'mo-note'; nt.textContent = tr('Modelos que o Lume ainda não reconhece direito (sem logo ou de marca nova). Alguns podem não ser de chat.'); box.appendChild(nt); }
+            }
             let i = 0; const list = document.createElement('div'); list.className = 'mo-list'; box.appendChild(list);   // 8 linhas visiveis; o resto rola
             const addRow = (fam, sizes) => {
                 const rec = sizes.find(m => m.rec) || sizes[0];
@@ -2942,11 +2963,11 @@
             if (recE.length) { head('Recomendados'); recE.forEach(([g, s]) => addRow(g, s)); }
             if ((favE.length || recE.length) && others.length) head('Todos os modelos');
             others.forEach(([g, s]) => addRow(g, s));
-            if (fs && modelQuery) filterModelRows();
+            if (modelQuery) filterModelRows();
             if (hadSearch) { const q = $('mo-search'); if (q) { q.focus(); q.setSelectionRange(q.value.length, q.value.length); } }
             if (!fams.size) { const e = document.createElement('div'); e.className = 'select-option'; e.textContent = tr('Nenhum modelo disponível.'); box.appendChild(e); }
             // linha de parametros do modelo da familia escolhida
-            const sizes = fams.get(fin(cur).grp) || [];
+            const sizes = curFams.get(fin(cur).grp) || [];
             if (sizes.length) {
                 const row = document.createElement('div'); row.className = 'size-row';
                 const lab = document.createElement('span'); lab.className = 'size-label'; lab.textContent = tr('Parâmetros');
@@ -3037,7 +3058,7 @@
         }
         const apiModelId = m => m.id;   // o que vai para o servidor
         async function selectFamily(fam) {
-            const sizes = familiesIn(currentTab).get(fam); if (!sizes || fin(modelById(selectedModel)).grp === fam) return;
+            const sizes = familiesIn(currentTab, moTab === 'other').get(fam); if (!sizes || fin(modelById(selectedModel)).grp === fam) return;
             const usable = sizes.filter(m => !phoneBlocked(m)); if (!usable.length) return;
             const remembered = usable.find(m => config.famSize && config.famSize[fam] === m.id);
             const pick0 = remembered || usable.find(m => recPick(fam, m)) || usable.find(m => m.rec) || usable.find(m => !m.heavy) || usable[0];
@@ -3249,7 +3270,7 @@
         let openTimer = null;
         function toggleCustomSelect() {
             const sel = $('model-select'), opening = !sel.classList.contains('open');
-            if (opening) { sel.classList.toggle('fs', pickerFull()); modelQuery = ''; }   // tela cheia (padrao no celular; no PC so se ligar nas configuracoes)
+            if (opening) { sel.classList.toggle('fs', pickerFull()); modelQuery = ''; const cm = modelById(selectedModel); moTab = cm && isOther(cm) ? 'other' : 'main'; }   // tela cheia (padrao no celular; no PC so se ligar nas configuracoes)
             sel.classList.toggle('open', opening);
             clearInterval(openTimer);
             if (opening) {
@@ -3258,6 +3279,8 @@
                 if (sel.classList.contains('fs')) renderModelOptions();
                 if (innerWidth > 760 && !sel.classList.contains('fs')) { const r = box.getBoundingClientRect(); if (r.right > innerWidth - 12) { box.style.left = 'auto'; box.style.right = '0'; box.style.transformOrigin = 'bottom right'; } }
                 box.classList.add('anim'); setTimeout(() => box.classList.remove('anim'), 700);   // animacao de entrada so ao abrir
+                if (!sel.classList.contains('fs')) renderModelOptions();
+                setTimeout(() => { const q = $('mo-search'); if (q && innerWidth > 760 && !sel.classList.contains('fs')) q.focus(); }, 80);   // PC: ja abre com a busca ativa
                 refreshLoaded().then(() => renderModelOptions(true));
                 openTimer = setInterval(async () => { await refreshLoaded(); renderModelOptions(true); }, 2000);
             }

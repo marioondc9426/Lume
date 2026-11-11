@@ -97,3 +97,15 @@ body[data-look="tw"] .tk-k { color: #e879f9; } body[data-look="tw"] .tk-f { colo
 § .modal-content :is(input[type="text"], input[type="password"], input[type="number"], textarea):focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--lk-ring); }
 § .btn-secondary { @apply rounded-xl transition duration-150; }
 § .perf-monitor:not(.gray) { @apply rounded-xl shadow-[0_6px_18px_rgba(0,0,0,.35)]; background: color-mix(in srgb, var(--bg-main) 82%, transparent); border-color: rgba(255,255,255,.08); }
+
+/* ---------- menu de modelos redesenhado: busca sempre a mao, abas (Modelos | Outros), linhas como cartoes soltos, rodape de parametros ---------- */
+§ .mo-tools { @apply gap-2 p-2.5; }
+§ .mo-search { @apply h-9 px-3 text-[.88em]; }
+§ .mo-tabs { @apply gap-1.5 px-2.5 pb-2; }
+§ .mo-tab { @apply rounded-full px-3.5 py-1.5; }
+§ .mo-note { @apply px-3.5 py-2.5; }
+§ .mo-list { @apply py-1; }
+§ #model-options .select-option { @apply mx-1.5 my-0.5 gap-3 rounded-xl border-0 px-3 py-2.5; }
+§ #model-options .select-option.selected { @apply shadow-[inset_0_0_0_1px_var(--accent)]; }
+§ .size-row { @apply gap-2 px-3 py-2.5; border-top: 1px solid var(--border-color); }
+§ .size-label { @apply uppercase text-[.66em] font-semibold tracking-[.09em] text-mute; }

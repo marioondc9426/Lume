@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lume</title>
+<link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+<header>
+  <button id="hist" class="ib" title="Conversas anteriores"><svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/></svg></button>
+  <button id="new" class="ib" title="Nova conversa"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></svg></button>
+  <button id="more" class="ib" title="Mais"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg></button>
+</header>
+
+<main id="log">
+  <div id="empty"><img src="lume-mark.png" alt=""><p id="hello">Como posso ajudar você hoje?</p></div>
+  <div id="msgs"></div>
+</main>
+
+<div id="banner" hidden></div>
+
+<section id="composer">
+  <div id="chips"></div>
+  <textarea id="in" rows="1" placeholder="Como posso ajudar você hoje?" spellcheck="false"></textarea>
+  <div class="row">
+    <button id="plus" class="ib" title="Anexar a página"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+    <button id="fast" class="ib" title="Atalhos"><svg viewBox="0 0 24 24"><path d="M13 6l6 6-6 6M5 6l6 6-6 6"/></svg></button>
+    <span class="sp"></span>
+    <button id="model" class="chip" title="Trocar de modelo">Modelo</button>
+    <button id="effort" class="chip dim" title="Quanto o modelo pensa">Baixo</button>
+    <button id="mic" class="ib" title="Falar"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
+    <button id="send" class="ib go" title="Enviar"><svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+  </div>
+</section>
+
+<div id="pop" hidden></div>
+<script src="sidepanel.js"></script>
+</body>
+</html>
