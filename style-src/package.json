@@ -1,0 +1,7 @@
+{
+  "name": "lume-style",
+  "private": true,
+  "description": "Gera libs/lume-look.css (o Visual novo) com o Tailwind. O app usa só o CSS pronto: não precisa de Node nem de internet para rodar.",
+  "scripts": { "build": "tailwindcss -c tailwind.config.js -i look.src.css -o ../libs/lume-look.css --minify", "watch": "tailwindcss -c tailwind.config.js -i look.src.css -o ../libs/lume-look.css --watch" },
+  "devDependencies": { "tailwindcss": "3.4.17" }
+}

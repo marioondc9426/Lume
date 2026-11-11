@@ -7,6 +7,7 @@ Como numerar:
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
 ## v4.0 (em desenvolvimento)
+- **Visual novo feito com Tailwind:** com o toggle ligado (Configurações > Aparência), o acabamento da interface (barra lateral, mensagens, barra de digitar, botões, blocos de código, widgets, seletor de modelos, dropdowns, configurações e janelas) vem de um CSS gerado com o Tailwind (`libs/lume-look.css`, fonte em `style-src/`). Desligado, volta ao visual antigo. As cores seguem o tema escolhido. O app continua funcionando offline: só usa o CSS pronto, sem Node nem CDN.
 - **Configurações organizadas em cartões lógicos:** Chat (Prompt, Contexto, Pesquisa na web, Comportamento), Code (Prompt, Pasta, Permissões e limites, MCP), Aparência (Tema, Fonte, Fundo, Interface, Janela e tamanho, Animações e avisos) e Desempenho (um cartão só). Acabaram os interruptores soltos, cada um num cartão. Os controles de pesquisa na web viraram um cartão só; "Widgets" e "Compactar a conversa" foram para o Chat.
 - **Todas as opções do mascote na aba Pet** (antes só abriam clicando nele): rosto, corpo, comportamento, dicas de erro, segurança do código e o companheiro, com prévia ao vivo.
 - **Dropdown novo:** a lista de opções (idioma, qualidade da busca, tamanhos do seletor de modelos...) agora abre no estilo do Lume, com seta, destaque, teclado (setas, Enter, Esc) e sem ser cortada, em vez da lista cinza do navegador.

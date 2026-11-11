@@ -41,3 +41,6 @@ provider_usage.json
 provider_models_last.json
 provider_follow.json
 gpu_cache.json
+
+style-src/node_modules/
+style-src/.look.gen.css
