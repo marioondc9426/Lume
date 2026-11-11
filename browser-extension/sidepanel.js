@@ -2,7 +2,8 @@
 // Nao executa nada no navegador sozinho: so le a pagina quando voce anexa (botao +) ou usa um atalho.
 const $ = id => document.getElementById(id);
 const store = { get: k => new Promise(r => chrome.storage.local.get(k, o => r(o[k]))), set: (k, v) => new Promise(r => chrome.storage.local.set({ [k]: v }, r)) };
-let conn = { ok: false }, msgs = [], convId = null, busy = false, ctl = null, model = '', think = false, installed = [], attach = [], rec = null;
+let conn = { ok: false }, msgs = [], convId = null, busy = false, ctl = null, model = '', think = false, installed = [], catalog = [], attach = [], rec = null;
+const nameOf = id => { const m = catalog.find(x => x.id === id); return m ? m.name : String(id || '').replace(/^(community|pol|or|vc|l7|tdc|cf|ft|nx)[:/]/i, ''); };
 const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 function md(t) {   // markdown minimo: blocos de codigo, `codigo`, **negrito**, *italico*, paragrafos
   return String(t).split(/```/).map((p, i) => i % 2 ? '<pre><code>' + esc(p.replace(/^[\w+-]*\n/, '')) + '</code></pre>'
@@ -16,11 +17,14 @@ async function connect() {
   conn = await bg({ cmd: 'conn' });
   if (!conn.ok || !conn.base) { banner('Lume não encontrado. Abra o Lume neste PC (porta 8000 a 8010) e tente de novo.'); return false; }
   banner('');
-  try { const i = await (await api('/api/browser/panel_info')).json(); installed = i.installed || []; model = (await store.get('model')) || i.model || installed[0] || ''; } catch (e) { model = (await store.get('model')) || ''; }
+  await refreshInfo(); model = (await store.get('model')) || model || installed[0] || '';
   think = !!(await store.get('think')); paint(); return true;
 }
+async function refreshInfo() {   // modelos: a mesma lista do seletor do Lume (o app avisa o servidor) + os instalados no Ollama
+  try { const i = await (await api('/api/browser/panel_info')).json(); installed = i.installed || []; catalog = i.models || []; if (!model) model = i.model || ''; } catch (e) { /* mantem a ultima lista */ }
+}
 function banner(t) { const b = $('banner'); b.hidden = !t; b.textContent = t || ''; }
-function paint() { $('model').textContent = (model || 'Modelo').replace(/^[a-z0-9]+:/i, '').slice(0, 28); $('effort').textContent = think ? 'Alto' : 'Baixo'; $('effort').classList.toggle('dim', !think); document.body.classList.toggle('chatting', msgs.length > 0); $('send').classList.toggle('stop', busy); $('send').innerHTML = busy ? '<svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>'; }
+function paint() { $('model').textContent = model ? nameOf(model).slice(0, 28) : 'Modelo'; $('effort').textContent = think ? 'Alto' : 'Baixo'; $('effort').classList.toggle('dim', !think); document.body.classList.toggle('chatting', msgs.length > 0); $('send').classList.toggle('stop', busy); $('send').innerHTML = busy ? '<svg viewBox="0 0 24 24"><rect x="7" y="7" width="10" height="10" rx="2"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7"/></svg>'; }
 
 // ---------- conversa ----------
 function bubble(role, text) { const d = document.createElement('div'); d.className = 'm ' + (role === 'user' ? 'u' : 'a'); if (role === 'user') d.textContent = text; else d.innerHTML = md(text); $('msgs').appendChild(d); document.body.classList.add('chatting'); $('log').scrollTop = $('log').scrollHeight; return d; }
@@ -87,16 +91,29 @@ $('fast').onclick = () => openPop($('fast'), p => {
   [['Resumir esta página', 'Resuma esta página em poucos tópicos.', false], ['Pontos principais e dúvidas', 'Liste os pontos principais desta página e o que pode gerar dúvida.', false], ['Traduzir a página', 'Traduza o conteúdo desta página para o português do Brasil.', false], ['Explicar o trecho selecionado', 'Explique de forma simples o trecho anexado.', true]]
     .forEach(([l, q, sel]) => item(p, l, async () => { if (await addPage(sel)) send(q); }));
 });
-$('model').onclick = () => openPop($('model'), p => {
-  const q = document.createElement('input'); q.placeholder = 'Buscar ou digitar o id do modelo...'; p.appendChild(q);
-  const box = document.createElement('div'); p.appendChild(box);
-  const list = () => {
-    box.textContent = ''; const f = q.value.trim().toLowerCase(), all = [...new Set([model, ...installed].filter(Boolean))];
-    head(box, 'No seu PC / em uso'); all.filter(m => !f || m.toLowerCase().includes(f)).forEach(m => item(box, m.replace(/^[a-z0-9]+:/i, ''), async () => { model = m; await store.set('model', m); paint(); }, { on: m === model }));
-    if (f && !all.some(m => m.toLowerCase() === f)) item(box, 'Usar "' + q.value.trim() + '"', async () => { model = q.value.trim(); await store.set('model', model); paint(); });
-  };
-  q.oninput = list; list(); setTimeout(() => q.focus(), 30);
-});
+$('model').onclick = async () => {
+  if (pop.hidden || pop.dataset.for !== 'model') await refreshInfo();
+  openPop($('model'), p => {
+    const q = document.createElement('input'); q.placeholder = 'Buscar modelo ou digitar um id...'; p.appendChild(q);
+    const box = document.createElement('div'); p.appendChild(box);
+    const KIND = { local: 'no PC', cloud: 'grátis', paid: 'pago' };
+    const pick = async id => { model = id; await store.set('model', id); paint(); };
+    const list = () => {
+      box.textContent = ''; const f = q.value.trim().toLowerCase();
+      const all = catalog.length ? catalog : installed.map(id => ({ id, name: id, prov: 'Ollama', kind: 'local' }));
+      const has = id => all.some(m => m.id === id), cur = model && !has(model) ? [{ id: model, name: nameOf(model), prov: 'em uso', kind: '' }] : [];
+      const rows = cur.concat(all).filter(m => !f || (m.name + ' ' + m.id + ' ' + m.prov).toLowerCase().includes(f));
+      const main = rows.filter(m => !m.other), other = rows.filter(m => m.other), MAXR = f ? 120 : 60;
+      const add = (m) => item(box, m.name, () => pick(m.id), { on: m.id === model, small: [m.prov, KIND[m.kind]].filter(Boolean).join(' · ') });
+      if (!rows.length) { const d = document.createElement('div'); d.className = 'st'; d.textContent = catalog.length ? 'Nenhum modelo com esse nome.' : 'Abra o Lume e espere a lista de modelos carregar (ou digite o id do modelo).'; box.appendChild(d); }
+      main.slice(0, MAXR).forEach(add);
+      if (main.length > MAXR) { const d = document.createElement('div'); d.className = 'st'; d.textContent = '+' + (main.length - MAXR) + ' modelos: digite para buscar.'; box.appendChild(d); }
+      if (other.length && f) { head(box, 'Outros'); other.slice(0, 30).forEach(add); }
+      if (f && !all.some(m => m.id.toLowerCase() === f)) item(box, 'Usar "' + q.value.trim() + '"', () => pick(q.value.trim()));
+    };
+    q.oninput = list; list(); setTimeout(() => q.focus(), 30);
+  });
+};
 $('effort').onclick = async () => { think = !think; await store.set('think', think); paint(); };
 $('hist').onclick = async () => { const list = (await store.get('convs')) || []; openPop($('hist'), p => { head(p, 'Conversas anteriores'); if (!list.length) { const d = document.createElement('div'); d.className = 'st'; d.textContent = 'Nenhuma ainda.'; p.appendChild(d); } list.forEach(c => item(p, c.title || 'Conversa', () => openConv(c), { small: new Date(c.t).toLocaleDateString('pt-BR') })); }); };
 $('new').onclick = newChat;

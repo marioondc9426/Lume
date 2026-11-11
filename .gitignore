@@ -44,3 +44,4 @@ gpu_cache.json
 
 style-src/node_modules/
 style-src/.look.gen.css
+panel_models.json

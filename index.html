@@ -2589,9 +2589,18 @@
                 (Array.isArray(arr) ? arr : []).forEach(m => { if (m && m.id && !MODELS.some(x => x.id === m.id)) MODELS.push(Object.assign(m, { _cached: true })); });
             } catch (e) { /* sem cache: a lista vem dos provedores */ }
         }
+        let _pmSig = '';
+        function pushPanelModels() {   // o painel lateral da extensao lista os mesmos modelos que o seletor (so avisa o servidor quando a lista muda)
+            if (!auth.local || isGuest()) return;
+            try {
+                const list = MODELS.filter(m => (m.tabs || []).includes('chat') && !m.auto && !m.phone && isAvailCore(m)).map(m => { fin(m); return { id: m.id, name: m.unk ? String(m.id).replace(/^[a-z0-9]+:/i, '') : (m.short || m.label), prov: providerName(m), kind: kindOf(m), vision: !!m.vision, other: isOther(m) }; });
+                const sig = JSON.stringify(list); if (sig === _pmSig) return; _pmSig = sig;
+                fetch(API + '/api/panel_models', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: sig.length ? JSON.stringify({ models: list }) : '{}' }).catch(() => {});
+            } catch (e) { /* lista ainda nao pronta */ }
+        }
         function saveModelsCache() {   // sem repetir a cada atualizacao
             clearTimeout(modelsCacheTimer);
-            modelsCacheTimer = setTimeout(() => { try { if (!isGuest()) localStorage.setItem(MODELS_CACHE, JSON.stringify(MODELS.filter(IS_CLOUDM))); } catch (e) { /* sem espaco/armazenamento */ } }, 1500);
+            modelsCacheTimer = setTimeout(() => { try { if (!isGuest()) localStorage.setItem(MODELS_CACHE, JSON.stringify(MODELS.filter(IS_CLOUDM))); } catch (e) { /* sem espaco/armazenamento */ } pushPanelModels(); }, 1500);
         }
         function dedupeModels() {   // o que veio do cache some quando a lista nova do provedor chega
             const fresh = new Set(MODELS.filter(m => !m._cached).map(m => m.id));

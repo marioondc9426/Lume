@@ -7,6 +7,7 @@ Como numerar:
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
 ## v4.0 (em desenvolvimento)
+- **Painel da extensão lista os mesmos modelos do Lume** (com nome bonito, provedor e se é grátis/pago/no PC), com busca; antes só mostrava os do Ollama com o nome cortado ("4b", "cloud"). O app avisa o servidor da lista (`/api/panel_models`) sempre que ela muda.
 - **Extensão do navegador com painel lateral** (como o do Claude): clicar no ícone abre um painel com a conversa, logo no centro, caixa de digitar arredondada, botão + (anexar página ou trecho), atalhos, modelo, esforço (Baixo/Alto), microfone e histórico. Conversa com o Lume pelo token do pareamento (rota nova `/api/browser/chat`, sem agente). Versão 1.1; recarregue a extensão no navegador.
 - **Seletor de modelos redesenhado + aba "Outros":** busca sempre à mão no topo, abas "Modelos | Outros" e linhas em cartões. Modelos que nenhuma regra reconhece (ex.: `minimax-h3`, que na verdade é um modelo de vídeo) ou de provedor extra sem logo vão para "Outros"; o resto do app (Lume Auto etc.) continua sem eles.
 - **Enviar feedback não precisa mais ligar o servidor na mão:** se o endereço é deste PC (127.0.0.1) e nada responde, o Lume liga o `lume-feedback/server.py` sozinho (escondido) e desliga junto com ele.

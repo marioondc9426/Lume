@@ -145,6 +145,7 @@ def _owner_dir():
     return d
 OWNER_DIR = _owner_dir()
 HISTORY_FILE = os.path.join(OWNER_DIR, "history.json")  # chats do dono
+PANEL_MODELS_FILE = os.path.join(OWNER_DIR, "panel_models.json")   # lista de modelos que a interface mostra (o painel lateral da extensao usa)
 STATE_FILE = os.path.join(OWNER_DIR, "state.json")      # preferencias da interface + memorias do dono
 STATS_FILE = os.path.join(BASE_DIR, "stats.json")       # uso: tokens/s por modelo, gasto do Exa
 UNDO_DIR = os.path.join(BASE_DIR, "undo")               # copias dos arquivos que a IA sobrescreveu (botao Desfazer)
@@ -2946,7 +2947,7 @@ LOCAL_HOSTS = ("127.0.0.1", "localhost")
 STATIC_PAGES = ("/", "/index.html")
 PAGE_ALIAS = {"/share": "/share.html", "/dashboard": "/dashboard.html", "/feedback": "/feedback.html", "/quick": "/quick.html", "/pet": "/pet.html"}
 # So o proprio PC (janela do app) pode usar estas rotas
-LOCAL_ONLY_POST = ("/api/open_path", "/api/mcp_auto", "/api/mcp_save", "/api/save_config", "/api/save_key", "/api/server_config", "/api/perf_interval",
+LOCAL_ONLY_POST = ("/api/panel_models", "/api/open_path", "/api/mcp_auto", "/api/mcp_save", "/api/save_config", "/api/save_key", "/api/server_config", "/api/perf_interval",
                    "/api/custom_theme", "/api/custom_theme_delete", "/api/account_import", "/api/config_import", "/api/pol_effort_probe", "/api/account/login", "/api/account/logout", "/api/resolve_pending", "/api/export", "/api/ios_profile_save", "/api/undo", "/api/stats_clear", "/api/open_url", "/api/update_apply", "/api/restart_app", "/api/run_code", "/api/run_stop", "/api/tunnel_start", "/api/tunnel_stop", "/api/tunnel_install", "/api/app_options", "/api/model_pull", "/api/model_delete", "/api/models_update_now", "/api/cloudflare_usage_set")
 PUBLIC_POST = ("/api/auth/login", "/api/auth/logout", "/api/guest/register", "/api/guest/code")
 LOGIN_MAX_FAILS, LOGIN_LOCK_SECONDS = 5, 60
@@ -3540,7 +3541,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
                     _d["agent"] = False; _d.pop("rid", None)
                     return self.handle_chat(_d, True)
                 tags = ollama_tags() or []
-                return self.send_json({"model": (load_state().get("config") or {}).get("model") or "", "installed": [m["name"] for m in tags], "lang": (load_state().get("config") or {}).get("lang") or ""})
+                return self.send_json({"model": (load_state().get("config") or {}).get("model") or "", "installed": [m["name"] for m in tags], "lang": (load_state().get("config") or {}).get("lang") or "", "models": _read_json(PANEL_MODELS_FILE, {}).get("models", [])})
             return self.send_json({"error": "not_found"}, 404)
         quiet = ('/api/chat', '/api/history', '/api/state', '/api/browser/poll', '/api/browser/result')
         if p not in quiet: log("API", f"POST {p}", COLOR_BLUE)
@@ -3869,6 +3870,12 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
 
         if p == '/api/chat':
             return self.handle_chat(json.loads(post_data), local)
+        if p == '/api/panel_models':   # a interface avisa quais modelos ela mostra (nome bonito, provedor, tipo): o painel da extensao lista os mesmos
+            try: lst = json.loads(post_data or b"{}").get("models", [])
+            except ValueError: return self.send_json({"error": "json invalido"}, 400)
+            clean = [{"id": str(m.get("id"))[:160], "name": str(m.get("name") or m.get("id"))[:80], "prov": str(m.get("prov") or "").strip(" ·")[:40], "kind": str(m.get("kind") or "")[:8], "vision": bool(m.get("vision")), "other": bool(m.get("other"))} for m in lst[:800] if isinstance(m, dict) and m.get("id")]
+            _write_json(PANEL_MODELS_FILE, {"models": clean})
+            return self.send_json({"ok": True, "n": len(clean)})
 
         self.send_json({"error": "rota desconhecida"}, 404)
 
