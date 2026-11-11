@@ -2514,8 +2514,7 @@ POL_MODELS = [
     ("community/Saauf/minimax-m3.1-flash", {"tabs": "both"}),("community/mikl-shortcuts/ministral-3", {"tabs": "both"}), ("minimax/minimax-m3", {"tabs": "both"}),
     # modelos que ja existiam oficiais: a versao da comunidade (mais barata) vira a padrao e a oficial fica de reserva (o Lume ordena pelo preco)
     ("moonshotai/kimi-k2.6", {"tabs": "both"}), ("moonshotai/kimi-k3", {"tabs": "both", "keep": True}), ("community/vendouple/kimi-k3", {"tabs": "both", "prio": True}),
-    ("community/sonofstrange/gpt-6.1-sol-quest", {"tabs": "both", "keep": True}), ("community/JustScriptzz/gpt-5.6-sol", {"tabs": "both", "keep": True}),
-    ("community/JustScriptzz/claude-opus-4.6", {"tabs": "both"}), ("community/JustScriptzz/gemini-4-argon", {"tabs": "both"}), ("community/JustScriptzz/mistral-large-4", {"tabs": "both"}), ("community/JustScriptzz/gpt-5.6-terra", {"tabs": "both"}),
+    ("community/sonofstrange/gpt-6.1-sol-quest", {"tabs": "both", "keep": True}), ("community/YoannDev90/nvidia-mistral-large-4-1t-a52b:free", {"free": True, "tabs": "both"}),
     ("community/vendouple/qwen-3.8-max", {"tabs": "both"}), ("qwen/qwen3.8-2.4t-a95b", {"tabs": "both", "keep": True}),   # o oficial (mais caro) e o mesmo Qwen 3.8 Max: fica de reserva
     ("community/scriptsnsenses-sys/deepseek-v4-flash-0731", {"free": True, "tabs": "both"}),
     ("mistralai/mistral-large-3", {"tabs": "both"}),
@@ -3538,7 +3537,7 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
             if p in ('/api/browser/chat', '/api/browser/panel_info'):   # painel lateral da extensao: conversa direto com os modelos do Lume (so com o token do pareamento; nunca como agente)
                 if not secrets.compare_digest(str(_d.get("token") or ""), lumebrowser.TOKEN): return self.send_json({"error": "token"}, 403)
                 if p == '/api/browser/chat':
-                    _d["agent"] = False; _d.pop("rid", None)
+                    _d["agent"] = False; _d["no_tools"] = True; _d["search_web"] = False; _d.pop("rid", None)
                     return self.handle_chat(_d, True)
                 tags = ollama_tags() or []
                 return self.send_json({"model": (load_state().get("config") or {}).get("model") or "", "installed": [m["name"] for m in tags], "lang": (load_state().get("config") or {}).get("lang") or "", "models": _read_json(PANEL_MODELS_FILE, {}).get("models", [])})
@@ -4174,9 +4173,10 @@ class AppHandler(http.server.SimpleHTTPRequestHandler):
         def status(text): emit({"status": text})
 
         total_chars = 0
-        web_tool = bool(req_json.get("search_web")) and not agent   # a IA decide quando pesquisar (ferramenta)
-        comp_chat = (not agent) and bool(load_config().get("computer_control")) and computer_supported() and local   # Chat com o controle do computador (ligado nas opcoes); so no PC do dono
-        browser_chat = (not agent) and local and bool(lumebrowser and lumebrowser.connected()) and bool(load_config().get("browser_ai", True))   # Chat com a extensao do navegador conectada
+        no_tools = bool(req_json.get("no_tools"))   # painel lateral da extensao: so conversa, nenhuma ferramenta (nem navegador, nem computador, nem pesquisa)
+        web_tool = bool(req_json.get("search_web")) and not agent and not no_tools   # a IA decide quando pesquisar (ferramenta)
+        comp_chat = (not agent) and not no_tools and bool(load_config().get("computer_control")) and computer_supported() and local   # Chat com o controle do computador (ligado nas opcoes); so no PC do dono
+        browser_chat = (not agent) and not no_tools and local and bool(lumebrowser and lumebrowser.connected()) and bool(load_config().get("browser_ai", True))   # Chat com a extensao do navegador conectada
         use_tools = agent or web_tool or comp_chat or browser_chat; max_steps = max(1, min(200, int(load_config().get("max_agent_steps") or MAX_AGENT_STEPS))) if (agent or comp_chat or browser_chat) else 4
         kw_model = {k: v for k, v in (("agent", ("comp" if (comp_chat or browser_chat) else "web" if web_tool else True) if use_tools else None), ("effort", str(req_json.get("effort") or "") or None)) if v}   # so manda o que foi pedido
         try:

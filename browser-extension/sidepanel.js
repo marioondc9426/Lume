@@ -5,8 +5,9 @@ const store = { get: k => new Promise(r => chrome.storage.local.get(k, o => r(o[
 let conn = { ok: false }, msgs = [], convId = null, busy = false, ctl = null, model = '', think = false, installed = [], catalog = [], attach = [], rec = null;
 const nameOf = id => { const m = catalog.find(x => x.id === id); return m ? m.name : String(id || '').replace(/^(community|pol|or|vc|l7|tdc|cf|ft|nx)[:/]/i, ''); };
 const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+const noTool = t => String(t).replace(/\$\$\s*\[\s*TOOL\s*[:\s][^\]]*\][\s\S]*?(?:\$\$|$)/gi, '\n*[a IA tentou usar uma ferramenta, mas no painel ela não fica disponível]*\n');   // o painel e so conversa: se o modelo escrever uma chamada de ferramenta, vira um aviso em vez do texto cru
 function md(t) {   // markdown minimo: blocos de codigo, `codigo`, **negrito**, *italico*, paragrafos
-  return String(t).split(/```/).map((p, i) => i % 2 ? '<pre><code>' + esc(p.replace(/^[\w+-]*\n/, '')) + '</code></pre>'
+  return noTool(t).split(/```/).map((p, i) => i % 2 ? '<pre><code>' + esc(p.replace(/^[\w+-]*\n/, '')) + '</code></pre>'
     : esc(p).replace(/`([^`\n]+)`/g, '<code>$1</code>').replace(/\*\*([^*\n]+)\*\*/g, '<b>$1</b>').replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<i>$2</i>').split(/\n{2,}/).map(x => x.trim() ? '<p>' + x.replace(/\n/g, '<br>') + '</p>' : '').join('')).join('');
 }
 const bg = m => new Promise(r => { try { chrome.runtime.sendMessage(m, x => r(x || {})); } catch (e) { r({}); } });
@@ -40,7 +41,7 @@ async function send(textArg) {
   const out = bubble('assistant', ''); out.classList.add('dots'); busy = true; ctl = new AbortController(); paint(); let got = '';
   try {
     const sys = 'Voce e o Lume, um assistente num painel lateral do navegador. Responda em portugues do Brasil, direto e claro. Se o usuario anexou uma pagina ou trecho, use-o como contexto.';
-    const res = await api('/api/browser/chat', { model, stream: true, think, search_web: false, agent: false, lang: 'pt', messages: [{ role: 'system', content: sys }].concat(msgs) }, ctl.signal);
+    const res = await api('/api/browser/chat', { model, stream: true, think, search_web: false, agent: false, no_tools: true, lang: 'pt', messages: [{ role: 'system', content: sys }].concat(msgs) }, ctl.signal);
     if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || ('o Lume respondeu ' + res.status)); }
     const rd = res.body.getReader(), dec = new TextDecoder(); let buf = '';
     const one = l => { try { const d = JSON.parse(l); if (d.message && d.message.content) { got += d.message.content; out.classList.remove('dots'); out.innerHTML = md(got); $('log').scrollTop = $('log').scrollHeight; } } catch (e) { /* linha incompleta */ } };

@@ -7,6 +7,8 @@ Como numerar:
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
 ## v4.0 (em desenvolvimento)
+- **Painel lateral da extensão só conversa:** a IA do painel não tem mais nenhuma ferramenta (nem as do navegador, nem as do computador, nem a pesquisa). Antes ela podia chamar `mcp__browser__read_page` e o painel mostrava o texto cru `$$[TOOL: ...]` enquanto o Lume esperava a permissão. Se o modelo ainda escrever uma chamada, aparece um aviso em vez do texto cru. Para a IA ler a página, use o botão + do painel.
+- **Modelos do Pollinations:** entrou `community/YoannDev90/nvidia-mistral-large-4-1t-a52b:free` (grátis); saíram os `community/JustScriptzz/*` (gpt-5.6-sol, claude-opus-4.6, gemini-4-argon, mistral-large-4 e gpt-5.6-terra), que tinham sido tirados do ar.
 - **Painel da extensão lista os mesmos modelos do Lume** (com nome bonito, provedor e se é grátis/pago/no PC), com busca; antes só mostrava os do Ollama com o nome cortado ("4b", "cloud"). O app avisa o servidor da lista (`/api/panel_models`) sempre que ela muda.
 - **Extensão do navegador com painel lateral** (como o do Claude): clicar no ícone abre um painel com a conversa, logo no centro, caixa de digitar arredondada, botão + (anexar página ou trecho), atalhos, modelo, esforço (Baixo/Alto), microfone e histórico. Conversa com o Lume pelo token do pareamento (rota nova `/api/browser/chat`, sem agente). Versão 1.1; recarregue a extensão no navegador.
 - **Seletor de modelos redesenhado + aba "Outros":** busca sempre à mão no topo, abas "Modelos | Outros" e linhas em cartões. Modelos que nenhuma regra reconhece (ex.: `minimax-h3`, que na verdade é um modelo de vídeo) ou de provedor extra sem logo vão para "Outros"; o resto do app (Lume Auto etc.) continua sem eles.
