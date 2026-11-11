@@ -210,42 +210,55 @@
     }
 
     // ---- janela de personalizacao (com previa ao vivo)
-    function openSettings() {
-        if (document.getElementById('lp-modal')) return;
-        const U = window.LumeUI, w = U.modal({ title: 'Mascote', id: 'lp-modal', width: 820, cols: true });
+    // monta as opcoes do mascote em `body` (na janela do mascote ou direto nas Configuracoes > Pet); `foot` = onde ficam os botoes; `putPreview(node)` = onde fica a previa ao vivo
+    function buildSettings(body, foot, putPreview, closeFn, afterRestore) {
+        const U = window.LumeUI;
         const apply = rebuild => { save(); if (rebuild) build(); repaintAll(); if (root) place(); scanAv(); };
         const tog = (sec, label, key, fn) => U.toggle(sec, label, cfg[key], v => { cfg[key] = v; (fn || apply)(); });
         const rng = (key, min, max) => U.range(min, max, cfg[key], v => { cfg[key] = v; apply(); });
         const sel = (key, opts) => U.select(opts, cfg[key], v => { cfg[key] = v; apply(); });
-        U.button(w.foot, T('Ver o meu companheiro'), () => { w.close && w.close(); openProfile(); });
-        const prev = document.createElement('div'); prev.className = 'lp-prev'; w.aside(prev); const pv = make(prev); point(pv, 0, 0);
+        U.button(foot, T('Ver o meu companheiro'), () => { closeFn(); openProfile(); });
+        const prev = document.createElement('div'); prev.className = 'lp-prev'; putPreview(prev); const pv = make(prev); point(pv, 0, 0);
         prev.addEventListener('pointermove', e => { const r = pv.getBoundingClientRect(), dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2), d = Math.hypot(dx, dy) || 1; point(pv, +(dx / d).toFixed(2), +(dy / d).toFixed(2)); });
-        let s = U.section(w.body, 'Onde aparece', { open: true });
+        let s = U.section(body, 'Onde aparece', { open: true });
         tog(s, 'Ao lado das respostas da IA', 'avatar'); tog(s, 'Flutuando na tela', 'on'); tog(s, 'Balões de fala', 'bubble', save);
         U.row(s, 'Tamanho ao lado das respostas', rng('avSize', 22, 56)); U.row(s, 'Tamanho flutuando', rng('size', 40, 140));
-        s = U.section(w.body, 'Rosto', { open: true });
+        s = U.section(body, 'Rosto', { open: true });
         U.row(s, 'Nome', U.text(cfg.name, v => { cfg.name = v || 'Lume'; if (root) root.title = cfg.name; save(); say(T('Oi, eu sou {n}!').replace('{n}', cfg.name)); }, 20));
         U.row(s, 'Expressão', sel('expr', EXPR)); U.row(s, 'Olhos', sel('eyes', [['oval', 'Ovais'], ['round', 'Redondos'], ['wide', 'Grandes'], ['dot', 'Pontinhos']]));
         U.row(s, 'Cor dos olhos', U.color(cfg.eyeColor, v => { cfg.eyeColor = v; apply(); }, ['#ffffff', '#111111', '#ffd166', '#7dd3fc', '#86efac', '#f9a8d4']));
         U.row(s, 'Acessório', sel('acc', ACC_NAMES)); tog(s, 'Bochechas rosadas', 'blush');
-        s = U.section(w.body, 'Corpo', { open: true });
+        s = U.section(body, 'Corpo', { open: true });
         U.row(s, 'Cor', U.color(cfg.color, v => { cfg.color = v; apply(); }, ['#2f8bff', '#ee5a8a', '#8b5cf6', '#22c55e', '#f59e0b', '#ef4444', '#14b8a6', '#9ca3af', '#f5f5f5', '#222222']));
         U.row(s, 'Estilo', sel('style', [['orb', 'Bolha brilhante'], ['led', 'LED de pontinhos']]));
         U.row(s, 'Formato', sel('shape', [['circle', 'Redondo'], ['wide', 'Achatado'], ['square', 'Quadrado arredondado'], ['drop', 'Gota'], ['ghost', 'Fantasminha']]));
         U.row(s, 'Brilho (aura)', rng('glow', 0, 100));
-        s = U.section(w.body, 'Comportamento', { open: true });
+        s = U.section(body, 'Comportamento', { open: true });
         tog(s, 'Olhos seguem o cursor', 'follow', save); tog(s, 'Piscar', 'blinking', save); tog(s, 'Balançar parado', 'bob'); tog(s, 'Reagir (pensar, comemorar, dormir)', 'react');
-        s = U.section(w.body, 'Dicas de erro', { open: true });
+        s = U.section(body, 'Dicas de erro', { open: true });
         tog(s, 'Dar dicas quando acontecer um erro', 'tips', save);
         const opts = [['', 'Automático (um modelo diferente do que falhou)']].concat((window.lumeModels ? lumeModels() : []).map(m => [m.id, (m.label || m.id) + (m.free ? ' · grátis' : '')]));
         U.row(s, 'Modelo do mascote', U.select(opts, cfg.model || '', v => { cfg.model = v; save(); }), 'É o modelo que ele usa para explicar erros que ele nunca viu. A dica fica guardada: o mesmo erro não gasta outro pedido.');
         U.button(s, 'Testar uma dica', () => { const d = document.createElement('div'); d.className = 'msg ai lp-demo'; d.style.cssText = 'position:relative;margin:8px 0'; s.parentNode.appendChild(d); window.lumeTipDemo && window.lumeTipDemo(d); });
-        s = U.section(w.body, 'Segurança do código', { open: true });
+        s = U.section(body, 'Segurança do código', { open: true });
         tog(s, 'Analisar o código antes de rodar (botão Rodar e pedidos de permissão do modo Code)', 'safety', save);
         const sopts = [['', 'Automático (DeepSeek V4 Flash)']].concat((window.lumeModels ? lumeModels().filter(m => !m.auto) : []).map(m => [m.id, (m.label || m.id) + (m.free ? ' · grátis' : '')]));
         U.row(s, 'Modelo que analisa', U.select(sopts, cfg.safetyModel || '', v => { cfg.safetyModel = v; save(); }), 'Ele lê o código e diz se é seguro, pede atenção ou é perigoso. Nenhuma análise é garantia de 100%: se houver dúvida, ela não diz "seguro".');
-        U.button(w.foot, 'Voltar ao canto', () => { cfg.x = cfg.y = null; apply(); });
-        U.button(w.foot, 'Restaurar', () => { cfg = Object.assign({}, DEF); save(); build(); repaintAll(); scanAv(); w.close(); });
+        U.button(foot, 'Voltar ao canto', () => { cfg.x = cfg.y = null; apply(); });
+        U.button(foot, 'Restaurar', () => { cfg = Object.assign({}, DEF); save(); build(); repaintAll(); scanAv(); afterRestore(); });
+    }
+
+    function openSettings() {
+        if (document.getElementById('lp-modal')) return;
+        const U = window.LumeUI, w = U.modal({ title: 'Mascote', id: 'lp-modal', width: 820, cols: true });
+        buildSettings(w.body, w.foot, n => w.aside(n), () => w.close(), () => w.close());
+    }
+    // as mesmas opcoes direto numa pagina (Configuracoes > Pet), sem abrir janela
+    function mountSettings(host) {
+        host.textContent = ''; host.classList.add('lu-embed');
+        const foot = document.createElement('div'); foot.className = 'lu-embed-foot';
+        buildSettings(host, foot, n => { n.classList.add('lu-embed-prev'); host.prepend(n); }, () => {}, () => mountSettings(host));
+        host.appendChild(foot);
     }
 
     // ---- dicas de erro: quando a resposta vem com "[Erro: ...]" o mascote explica e sugere o que fazer.
@@ -351,7 +364,7 @@
         try { showTip(div, await tipFor(err, failedModel), false); } catch (e) { showTip(div, T('Não consegui descobrir o que houve. Tente de novo ou escolha outro modelo.'), false); }
     };
     window.lumeTipDemo = div => { div.innerHTML = '<div class="final-text">[Erro: Provedor X respondeu 599: bad gateway kaboom-42]</div>'; window.lumePetOnReply(div, null); };
-    window.lumePet = { openSettings, openProfile, get config() { return cfg; }, say, setMood: flash, make, point, repaint: repaintAll, reload: () => { cfg = load(); repaintAll(); } };   // make/point/repaint/reload: o pet da area de trabalho (pet.html) desenha o mesmo mascote
+    window.lumePet = { openSettings, mountSettings, openProfile, get config() { return cfg; }, say, setMood: flash, make, point, repaint: repaintAll, reload: () => { cfg = load(); repaintAll(); } };   // make/point/repaint/reload: o pet da area de trabalho (pet.html) desenha o mesmo mascote
     addEventListener('resize', () => { if (root) place(); });
     const start = () => { build(); initAv(); repaintAll(); if (cfg.on) setTimeout(() => say(T('Oi, eu sou {n}!').replace('{n}', cfg.name), 2600), 1800); };
     if (window.__LUME_PET_ONLY) return;   // pet.html (area de trabalho) so desenha o boneco: sem flutuante nem avatares

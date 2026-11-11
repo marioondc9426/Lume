@@ -271,6 +271,7 @@
         .wl-opt.off { opacity: .5; } .wl-opt select { width: auto; padding: 5px 10px; font-size: 0.9em; border-radius: 8px; }
         .wl-more { text-align: center; margin-bottom: 14px; } .wl-more .btn { margin: 0; }
         @media (max-width: 640px) { .wl-grid { grid-template-columns: 1fr; } .wl-card { padding: 20px 16px; } }
+        .pv-more { font-size: .72em; font-weight: 600; line-height: 1; padding: 3px 6px; border-radius: 9px; background: rgba(128,128,128,.2); color: var(--text-muted); white-space: nowrap; }
         .mo-provs { display: inline-flex; justify-content: flex-end; align-items: center; gap: 5px 7px; margin-left: auto; padding-left: 8px; max-width: 46%; flex-shrink: 0; flex-wrap: nowrap; overflow: hidden; } .mo-provs .pv { height: 15px; width: auto; opacity: .9; } .mo-provs .pv-mono { background: var(--text-main); -webkit-mask: var(--m) center / contain no-repeat; mask: var(--m) center / contain no-repeat; } .select-option.selected .pv-mono { background: #fff; } .pv-wrap { position: relative; display: inline-flex; margin-right: 4px; } .pv-plus { position: absolute; right: -7px; bottom: -3px; width: 11px; height: 11px; background: var(--k-local); -webkit-mask: url(icons/plus.png) center / contain no-repeat; mask: url(icons/plus.png) center / contain no-repeat; filter: drop-shadow(0 0 1px #000); }
         .mo-label { flex: 1; display: flex; align-items: center; min-width: 0; overflow: hidden; white-space: nowrap; } .mo-label > * { flex: none; } .mo-label > .mo-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }   /* muitos provedores (ex.: Nemotron): os logos quebram de linha em vez de passar por cima do nome */
         .mo-badge { font-size: 0.75em; padding: 1px 7px; border-radius: 9px; background: rgba(63,185,80,0.2); color: #3fb950; margin-left: 8px; white-space: nowrap; font-weight: normal; }
@@ -1162,6 +1163,27 @@
         body[data-theme="perplexity"][data-look="tw"] .msg.user, body[data-theme="perplexity"][data-look="tw"] .msg.user a { color: var(--on-accent); }
         /* menu lateral: grupos com titulo */
         body[data-ui="modern"] #set-nav .sn-label { text-transform: uppercase; letter-spacing: .09em; font-size: .66em; font-weight: 600; }
+
+        /* ===== dropdown proprio (ver enhanceSelects) ===== */
+        .cs-native { position: absolute !important; width: 1px !important; height: 1px !important; opacity: 0 !important; pointer-events: none !important; overflow: hidden !important; clip: rect(0,0,0,0) !important; margin: 0 !important; padding: 0 !important; border: 0 !important; }
+        .cs-btn { display: flex; align-items: center; justify-content: space-between; gap: 8px; box-sizing: border-box; padding: 9px 12px; background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 10px; font: inherit; font-size: .9em; cursor: pointer; text-align: left; min-width: 0; line-height: 1.3; transition: border-color .15s, box-shadow .15s; }
+        .cs-btn .cs-txt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .cs-btn::after { content: ''; flex: none; width: 7px; height: 7px; border-right: 1.6px solid currentColor; border-bottom: 1.6px solid currentColor; transform: translateY(-2px) rotate(45deg); opacity: .6; transition: transform .18s; }
+        .cs-btn.open::after { transform: translateY(1px) rotate(-135deg); }
+        .cs-btn:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border-color)); }
+        .cs-btn:focus-visible, .cs-btn.open { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); outline: none; }
+        .cs-btn:disabled { opacity: .5; cursor: not-allowed; } .cs-btn[hidden] { display: none; }
+        .cs-pop { position: fixed; z-index: 9000; overflow-y: auto; padding: 5px; background: var(--bg-sidebar); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 14px; box-shadow: 0 22px 54px -14px rgba(0,0,0,.65); animation: csIn .14s ease both; }
+        @keyframes csIn { from { opacity: 0; transform: translateY(-4px) scale(.985); } to { opacity: 1; transform: none; } }
+        .cs-opt { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 9px; font-size: .9em; cursor: pointer; line-height: 1.3; } .cs-opt.hl, .cs-opt:hover { background: rgba(128,128,128,.16); } .cs-opt.on { color: var(--accent); font-weight: 600; } .cs-opt.on::after { content: '\2713'; margin-left: auto; padding-left: 10px; } .cs-opt.dis { opacity: .45; cursor: default; }
+        .cs-grp { padding: 8px 10px 3px; font-size: .68em; text-transform: uppercase; letter-spacing: .09em; color: var(--text-muted); }
+        body.no-anim .cs-pop { animation: none; }
+        .size-row .cs-btn { width: auto; min-width: 84px; padding: 6px 8px; font-size: .85em; border-radius: 8px; }
+        body[data-ui="modern"] #settings-modal #set-general .cs-btn, .lu-card .cs-btn, .lu-embed .cs-btn { width: 100%; border-radius: 12px; }
+
+        /* sub-campos dentro de um cartao (configuracoes organizadas) */
+        .fg-sub { display: flex; flex-direction: column; gap: 6px; min-width: 0; } .fg-row { display: flex; gap: 10px; flex-wrap: wrap; } .fg-row > .fg-sub { flex: 1 1 120px; }
+        #settings-modal .fg-sub > label:not(.toggle-container) { font-size: .8em; font-weight: 500; color: var(--text-muted); }
     </style>
     <script src="libs/emoji-shortcodes.js"></script>
     <script src="libs/providers.js"></script>
@@ -1379,8 +1401,8 @@
         <div class="form-group">
             <label>Idioma / Language</label>
             <select id="opt-lang" onchange="setLang(this.value)"><option value="pt">Português (Brasil)</option><option value="en">English</option></select>
+            <button class="btn btn-secondary host-only" type="button" style="align-self:flex-start" onclick="closeSettings(); showWelcome();">Rever a tela de boas-vindas</button>
         </div>
-        <div class="srv-actions host-only"><button class="btn btn-secondary" onclick="closeSettings(); showWelcome();">Rever a tela de boas-vindas</button></div>
         <div class="form-group" id="voice-stt">
             <label>Microfone</label>
             <select id="opt-stt-model"></select>
@@ -1497,8 +1519,10 @@
                 <option value="4096">4K</option><option value="8192">8K</option><option value="16384">16K</option>
                 <option value="32768">32K</option><option value="65536">64K</option><option value="131072">128K</option><option value="262144">256K</option>
             </select>
+            <span class="hint">Quanto o modelo lembra da conversa. Mais contexto usa mais VRAM e deixa tudo mais lento.</span>
             <label class="toggle-container"><input type="checkbox" id="opt-maxctx" onchange="$('opt-ctx').disabled = this.checked; ctxDivUi()"><div class="toggle-switch"></div> Contexto máximo do modelo</label>
             <label class="toggle-container ctx-sub" id="opt-maxctx-cloud-row" style="display:none;"><input type="checkbox" id="opt-maxctx-cloud" onchange="ctxDivUi()"><div class="toggle-switch"></div> Só nos modelos da nuvem</label>
+            <span class="hint">Cada modelo usa o máximo que suporta e o valor acima é ignorado. Usa MUITA VRAM.</span>
             <div id="ctxdiv-box" style="display:none;">
                 <label class="toggle-container"><input type="checkbox" id="opt-ctxdiv" onchange="ctxDivUi()"><div class="toggle-switch"></div> Dividir o limite de contexto</label>
                 <label class="toggle-container ctx-sub" id="opt-ctxdiv-ai-row"><input type="checkbox" id="opt-ctxdiv-ai"><div class="toggle-switch"></div> Aplicar também à IA</label>
@@ -1510,39 +1534,39 @@
                 </div>
                 <span class="hint" id="ctxdiv-hint"></span>
             </div>
-            <span class="hint">Cada modelo usa o máximo que suporta e o valor acima é ignorado. Usa MUITA VRAM.</span>
-            <span class="hint">Quanto o modelo lembra da conversa. Contextos grandes usam MUITO mais VRAM e deixam tudo mais lento; aumente aos poucos. Cada modelo é limitado ao máximo que suporta (modelos menores podem suportar menos). Trocar o valor recarrega o modelo.</span>
         </div>
-        <label class="toggle-container"><input type="checkbox" id="opt-ctxbar"><div class="toggle-switch"></div> Barra de contexto no topo</label>
-        <label class="toggle-container"><input type="checkbox" id="opt-web"><div class="toggle-switch"></div> Pesquisar na web</label>
-        <div class="form-group host-only">
-            <label>Provedor de pesquisa na web</label>
-            <select id="opt-provider">
-                <option value="auto">Automático</option>
-                <option value="exa">Só Exa</option>
-                <option value="duckduckgo">Só DuckDuckGo</option>
-            </select>
+        <div class="form-group">
+            <label>Pesquisa na web</label>
+            <label class="toggle-container"><input type="checkbox" id="opt-web"><div class="toggle-switch"></div> Pesquisar na web</label>
+            <div class="fg-sub host-only"><label>Provedor</label>
+                <select id="opt-provider">
+                    <option value="auto">Automático</option>
+                    <option value="exa">Só Exa</option>
+                    <option value="duckduckgo">Só DuckDuckGo</option>
+                </select>
+            </div>
+            <div class="fg-sub host-only"><label>Qualidade (Exa)</label>
+                <select id="opt-exatype">
+                    <option value="lite">Rápida</option>
+                    <option value="auto">Equilibrada</option>
+                    <option value="deep-lite">Profunda</option>
+                </select>
+            </div>
+            <div class="fg-row host-only">
+                <div class="fg-sub"><label>Resultados por busca</label><input type="text" id="opt-sresults" inputmode="numeric" maxlength="2"></div>
+                <div class="fg-sub"><label>Buscas pagas por dia</label><input type="text" id="opt-slimit" inputmode="numeric" maxlength="6"></div>
+            </div>
+            <span class="hint host-only">Resultados: o máximo que a IA pode pedir (1 a 25, padrão 8). Mais resultados deixam tudo mais lento.</span>
+            <span class="hint host-only" id="exa-today-hint"></span>
         </div>
-        <div class="form-group host-only">
-            <label>Qualidade da busca do Exa</label>
-            <select id="opt-exatype">
-                <option value="lite">Rápida</option>
-                <option value="auto">Equilibrada</option>
-                <option value="deep-lite">Profunda</option>
-            </select>
+        <div class="form-group">
+            <label>Comportamento</label>
+            <label class="toggle-container"><input type="checkbox" id="opt-ctxbar"><div class="toggle-switch"></div> Barra de contexto no topo</label>
+            <label class="toggle-container"><input type="checkbox" id="opt-star"><div class="toggle-switch"></div> Trocar * por • nas listas</label>
+            <label class="toggle-container"><input type="checkbox" id="opt-autostop"><div class="toggle-switch"></div> Parar o modelo anterior ao trocar</label>
+            <label class="toggle-container"><input type="checkbox" id="opt-widgets" onchange="setWidgets(this.checked)"><div class="toggle-switch"></div> Widgets na conversa</label>
+            <label class="toggle-container"><input type="checkbox" id="opt-autocompact" onchange="setAutoCompact(this.checked)"><div class="toggle-switch"></div> Compactar a conversa sozinho</label>
         </div>
-        <div class="form-group host-only">
-            <label>Máximo de resultados por busca</label>
-            <input type="text" id="opt-sresults" inputmode="numeric" maxlength="2" style="width:90px;">
-            <span class="hint">Máximo de resultados que a IA pode pedir (1 a 25, padrão 8). Mais resultados deixam tudo mais lento.</span>
-        </div>
-        <div class="form-group host-only">
-            <label>Buscas pagas por dia</label>
-            <input type="text" id="opt-slimit" inputmode="numeric" maxlength="6" style="width:110px;">
-            <span class="hint" id="exa-today-hint"></span>
-        </div>
-        <label class="toggle-container"><input type="checkbox" id="opt-star"><div class="toggle-switch"></div> Trocar * por • nas listas</label>
-        <label class="toggle-container"><input type="checkbox" id="opt-autostop"><div class="toggle-switch"></div> Parar o modelo anterior ao trocar</label>
 
         <div class="section-title">Code</div>
         <div class="form-group">
@@ -1555,17 +1579,14 @@
             <span class="hint">Onde a IA lê, escreve arquivos e roda comandos. Sempre pede permissão.</span>
         </div>
         <div class="form-group host-only">
+            <label>Permissões e limites</label>
             <label class="toggle-container"><input type="checkbox" id="opt-autoallow"><div class="toggle-switch"></div> Permitir sem perguntar</label>
-            <span class="hint">Com isso ligado a IA grava arquivos e roda comandos sem o popup, MENOS o que é perigoso: diskpart, format, apagar pastas do sistema ou do seu usuário, mexer no registro, em contas, serviços, boot, desligar o PC, baixar e executar código da internet. Esses são bloqueados de vez (nem perguntam). Não é uma garantia: confira o que a IA faz.</span>
-        </div>
-        <div class="form-group host-only">
-            <label>Ferramentas por resposta</label>
-            <input type="number" id="opt-maxsteps" min="1" max="200" step="1" value="25">
-            <span class="hint">Quantas ferramentas a IA do Code pode chamar numa resposta (1 a 200, padrão 25).</span>
-        </div>
-        <div class="form-group host-only" id="opt-computer-card">
-            <label class="toggle-container" id="opt-computer-row"><input type="checkbox" id="opt-computer"><div class="toggle-switch"></div> Controlar programas (Windows)</label>
-            <span class="hint" id="opt-computer-hint">Pergunta antes da primeira ação e vale por 10 minutos. A IA usa até 3 programas ao mesmo tempo, em segundo plano, com um mouse virtual (uma bolinha) que não mexe no seu mouse nem no seu teclado: você continua usando o PC. Ela vê todos de uma vez, mas controla um por vez. Alguns programas (jogos, os abertos como administrador) não aceitam isso. Para parar tudo, mova o mouse para o canto superior esquerdo da tela. No Chat ela só usa isso quando você pedir. O modelo precisa enxergar imagens.</span>
+            <span class="hint">A IA grava e roda sem perguntar, menos o que é perigoso (formatar, apagar pastas do sistema, registro, desligar o PC). Não é garantia: confira o que ela faz.</span>
+            <div class="fg-sub"><label>Ferramentas por resposta</label><input type="number" id="opt-maxsteps" min="1" max="200" step="1" value="25"><span class="hint">Quantas ferramentas a IA do Code pode chamar numa resposta (1 a 200, padrão 25).</span></div>
+            <div class="fg-sub" id="opt-computer-card">
+                <label class="toggle-container" id="opt-computer-row"><input type="checkbox" id="opt-computer"><div class="toggle-switch"></div> Controlar programas (Windows)</label>
+                <span class="hint" id="opt-computer-hint">Pergunta antes e vale por 10 minutos. A IA usa até 3 programas em segundo plano, com um mouse virtual, sem mexer no seu. Jogos e programas de administrador não funcionam. Para parar, mova o mouse para o canto superior esquerdo. O modelo precisa enxergar imagens.</span>
+            </div>
         </div>
         <button class="mcp-card host-only ios-hide" type="button" onclick="lumeMcp.open()">
             <span class="mcp-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2v6M15 2v6M7 8h10v4a5 5 0 0 1-10 0V8zM12 17v5"/></svg></span>
@@ -1574,36 +1595,6 @@
         </button>
 
         <div class="section-title">Aparência</div>
-        <div class="form-group" id="bgspeed-row"><label>Velocidade do fundo animado (tema Lume) <span id="opt-bgspeed-val"></span></label><input type="range" id="opt-bgspeed" min="0" max="10" step="1" oninput="config.bgSpeed = +this.value; bgDriftStart(); saveState()"><span class="hint">0 deixa o fundo parado.</span></div>
-        <label class="toggle-container"><input type="checkbox" id="opt-anim" onchange="config.animations = this.checked; applyAnim()"><div class="toggle-switch"></div> Animações</label>
-        <label class="toggle-container"><input type="checkbox" id="opt-hidevram" onchange="config.hideVramWarn = this.checked; saveState()"><div class="toggle-switch"></div> Esconder avisos de VRAM</label>
-        <div class="form-group">
-            <label>UI Scaling (<span id="scale-val">1.0</span>x)</label>
-            <input type="range" id="ui-scale" min="0.7" max="1.5" step="0.1" value="1" oninput="updateScale(this.value)">
-        </div>
-        <div class="form-group">
-            <label class="toggle-container"><input type="checkbox" id="opt-themelayout" onchange="config.themeLayout = this.checked; applyBaseTheme(config.theme); saveState();"><div class="toggle-switch"></div> Temas mudam o layout</label>
-            <span class="hint">Cada tema muda também onde ficam o seletor, as configurações e a barra lateral.</span>
-        </div>
-        <div class="form-group">
-            <label class="toggle-container"><input type="checkbox" id="opt-pickfull" onchange="setPickerFull(this.checked)"><div class="toggle-switch"></div> Seletor de modelos em tela cheia</label>
-            <label class="toggle-container"><input type="checkbox" id="opt-widgets" onchange="setWidgets(this.checked)"><div class="toggle-switch"></div> Widgets na conversa</label>
-            <label class="toggle-container"><input type="checkbox" id="opt-autocompact" onchange="setAutoCompact(this.checked)"><div class="toggle-switch"></div> Compactar a conversa sozinho</label>
-            <label class="toggle-container"><input type="checkbox" id="opt-looktw" onchange="setLookTw(this.checked)"><div class="toggle-switch"></div> Visual novo</label>
-            <label class="toggle-container"><input type="checkbox" id="opt-legacy" onchange="setUiLegacy(this.checked)"><div class="toggle-switch"></div> Interface clássica</label>
-            <span class="hint">Ligado volta à interface antiga, só com temas de cor.</span>
-        </div>
-        <div class="form-group host-only">
-            <label>Botões da janela</label>
-            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-                <select id="opt-winbtn" onchange="setWinBtn({ mode: this.value })"><option value="compact">Compactos</option><option value="normal">Padrão do Windows</option><option value="custom">Personalizado</option></select>
-                <span id="winbtn-custom" style="display:none; gap:8px; align-items:center;">
-                    <input type="number" id="opt-wb-w" min="22" max="64" style="width:70px;" title="Largura de cada botão" onchange="setWinBtn({ w: +this.value })">
-                    <select id="opt-wb-r" onchange="setWinBtn({ r: +this.value })"><option value="0">Quadrados</option><option value="9">Arredondados</option><option value="99">Cápsula</option></select>
-                    <input type="color" id="opt-wb-bg" title="Cor de fundo" onchange="setWinBtn({ bg: this.value })">
-                </span>
-            </div>
-        </div>
         <div class="form-group">
             <label>Tema</label>
             <div style="display:flex; gap:8px;">
@@ -1625,29 +1616,60 @@
             <span class="hint">Só aparecem as fontes instaladas no PC. "Outra..." deixa digitar o nome.</span>
         </div>
         <div class="form-group">
-            <label>Imagem de Fundo</label>
-            <div class="file-input-wrapper"><div class="file-input-btn" id="file-btn-text">Escolher Imagem</div><input type="file" id="bg-image-input" accept="image/*" onchange="handleBgImage(event)"></div>
-            <label>Opacidade: <span id="opacity-val">0</span>%</label>
-            <input type="range" id="bg-opacity" min="0" max="100" value="0" oninput="updateBgOpacity(this.value)">
+            <label>Fundo</label>
+            <div class="fg-sub"><label>Imagem</label>
+                <div class="file-input-wrapper"><div class="file-input-btn" id="file-btn-text">Escolher Imagem</div><input type="file" id="bg-image-input" accept="image/*" onchange="handleBgImage(event)"></div>
+            </div>
+            <div class="fg-sub"><label>Opacidade: <span id="opacity-val">0</span>%</label>
+                <input type="range" id="bg-opacity" min="0" max="100" value="0" oninput="updateBgOpacity(this.value)">
+            </div>
+            <div class="fg-sub" id="bgspeed-row"><label>Velocidade do fundo animado (tema Lume) <span id="opt-bgspeed-val"></span></label><input type="range" id="opt-bgspeed" min="0" max="10" step="1" oninput="config.bgSpeed = +this.value; bgDriftStart(); saveState()"><span class="hint">0 deixa o fundo parado.</span></div>
+        </div>
+        <div class="form-group">
+            <label>Interface</label>
+            <label class="toggle-container"><input type="checkbox" id="opt-looktw" onchange="setLookTw(this.checked)"><div class="toggle-switch"></div> Visual novo</label>
+            <label class="toggle-container"><input type="checkbox" id="opt-themelayout" onchange="config.themeLayout = this.checked; applyBaseTheme(config.theme); saveState();"><div class="toggle-switch"></div> Temas mudam o layout</label>
+            <span class="hint">Cada tema muda também onde ficam o seletor, as configurações e a barra lateral.</span>
+            <label class="toggle-container"><input type="checkbox" id="opt-pickfull" onchange="setPickerFull(this.checked)"><div class="toggle-switch"></div> Seletor de modelos em tela cheia</label>
+            <label class="toggle-container"><input type="checkbox" id="opt-legacy" onchange="setUiLegacy(this.checked)"><div class="toggle-switch"></div> Interface clássica</label>
+            <span class="hint">Ligado volta à interface antiga, só com temas de cor.</span>
+        </div>
+        <div class="form-group">
+            <label>Janela e tamanho</label>
+            <div class="fg-sub"><label>UI Scaling (<span id="scale-val">1.0</span>x)</label>
+                <input type="range" id="ui-scale" min="0.7" max="1.5" step="0.1" value="1" oninput="updateScale(this.value)">
+            </div>
+            <div class="fg-sub host-only"><label>Botões da janela</label>
+                <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                    <select id="opt-winbtn" onchange="setWinBtn({ mode: this.value })"><option value="compact">Compactos</option><option value="normal">Padrão do Windows</option><option value="custom">Personalizado</option></select>
+                    <span id="winbtn-custom" style="display:none; gap:8px; align-items:center;">
+                        <input type="number" id="opt-wb-w" min="22" max="64" style="width:70px;" title="Largura de cada botão" onchange="setWinBtn({ w: +this.value })">
+                        <select id="opt-wb-r" onchange="setWinBtn({ r: +this.value })"><option value="0">Quadrados</option><option value="9">Arredondados</option><option value="99">Cápsula</option></select>
+                        <input type="color" id="opt-wb-bg" title="Cor de fundo" onchange="setWinBtn({ bg: this.value })">
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Animações e avisos</label>
+            <label class="toggle-container"><input type="checkbox" id="opt-anim" onchange="config.animations = this.checked; applyAnim()"><div class="toggle-switch"></div> Animações</label>
+            <label class="toggle-container"><input type="checkbox" id="opt-hidevram" onchange="config.hideVramWarn = this.checked; saveState()"><div class="toggle-switch"></div> Esconder avisos de VRAM</label>
         </div>
 
         <div class="section-title">Overlay de desempenho</div>
-        <label class="toggle-container">
-            <input type="checkbox" id="perf-enabled" onchange="setPerfEnabled(this.checked)"><div class="toggle-switch"></div> Mostrar overlay
-        </label>
-        <label class="toggle-container">
-            <input type="checkbox" id="perf-fps" onchange="setPerfFps(this.checked)"><div class="toggle-switch"></div> Mostrar FPS
-        </label>
         <div class="form-group">
-            <label>Estilo</label>
-            <select id="perf-style" onchange="setPerfStyle(this.value)">
-                <option value="default">Colorido</option><option value="gray">Cinza</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label>Atualização: <span id="perf-int-val">50</span> ms</label>
-            <input type="range" id="perf-interval" min="50" max="2000" step="50" value="50" oninput="$('perf-int-val').innerText = this.value" onchange="setPerfInterval(+this.value)">
-            <span class="hint">A GPU só atualiza a cada 100 a 1000 ms; menos que isso não melhora.</span>
+            <label>Overlay</label>
+            <label class="toggle-container"><input type="checkbox" id="perf-enabled" onchange="setPerfEnabled(this.checked)"><div class="toggle-switch"></div> Mostrar overlay</label>
+            <label class="toggle-container"><input type="checkbox" id="perf-fps" onchange="setPerfFps(this.checked)"><div class="toggle-switch"></div> Mostrar FPS</label>
+            <div class="fg-sub"><label>Estilo</label>
+                <select id="perf-style" onchange="setPerfStyle(this.value)">
+                    <option value="default">Colorido</option><option value="gray">Cinza</option>
+                </select>
+            </div>
+            <div class="fg-sub"><label>Atualização: <span id="perf-int-val">50</span> ms</label>
+                <input type="range" id="perf-interval" min="50" max="2000" step="50" value="50" oninput="$('perf-int-val').innerText = this.value" onchange="setPerfInterval(+this.value)">
+                <span class="hint">A GPU só atualiza a cada 100 a 1000 ms; menos que isso não melhora.</span>
+            </div>
         </div>
 
         <div class="section-title host-only ios-hide">Pet</div>
@@ -1737,10 +1759,12 @@
                 <span class="hint" id="srv-port-hint">Vale na próxima vez que o app abrir.</span>
             </div>
 
+            <div id="srv-nearby" style="display:none;">   <!-- so no celular: no PC nao serve para nada -->
             <div class="section-title">Servidores por perto</div>
             <span class="hint">Procura na rede Wi-Fi outros PCs com este app ligado e mostra se pedem senha.</span>
             <div class="srv-actions"><button class="btn btn-secondary" id="srv-scan-btn" onclick="scanServers()">Procurar servidores</button></div>
             <div id="srv-found" class="srv-list"></div>
+            </div>
 
             <!-- aparelho remoto (celular, outro PC) -->
             <div id="srv-client" class="set-pane" style="display:none;">
@@ -2001,6 +2025,23 @@
             'Grudar na borda': 'Snap to edge',
             'O pet só funciona no Windows.': 'The pet only works on Windows.',
             'Mude a aparência do mascote e veja o seu companheiro.': 'Change the mascot look and see your companion.',
+            'Mascote': 'Mascot',
+            'Pesquisa na web': 'Web search',
+            'Provedor': 'Provider',
+            'Qualidade (Exa)': 'Quality (Exa)',
+            'Resultados por busca': 'Results per search',
+            'Comportamento': 'Behavior',
+            'Permissões e limites': 'Permissions and limits',
+            'Fundo': 'Background',
+            'Imagem': 'Image',
+            'Interface': 'Interface',
+            'Janela e tamanho': 'Window and size',
+            'Animações e avisos': 'Animations and warnings',
+            'Overlay': 'Overlay',
+            'Quanto o modelo lembra da conversa. Mais contexto usa mais VRAM e deixa tudo mais lento.': 'How much the model remembers of the chat. More context uses more VRAM and slows everything down.',
+            'Resultados: o máximo que a IA pode pedir (1 a 25, padrão 8). Mais resultados deixam tudo mais lento.': 'Results: the most the AI can ask for (1 to 25, default 8). More results slow everything down.',
+            'A IA grava e roda sem perguntar, menos o que é perigoso (formatar, apagar pastas do sistema, registro, desligar o PC). Não é garantia: confira o que ela faz.': 'The AI writes and runs without asking, except dangerous things (formatting, deleting system folders, registry, shutting down the PC). Not a guarantee: check what it does.',
+            'Pergunta antes e vale por 10 minutos. A IA usa até 3 programas em segundo plano, com um mouse virtual, sem mexer no seu. Jogos e programas de administrador não funcionam. Para parar, mova o mouse para o canto superior esquerdo. O modelo precisa enxergar imagens.': 'Asks first and lasts 10 minutes. The AI uses up to 3 programs in the background with a virtual mouse, without touching yours. Games and admin programs do not work. To stop, move the mouse to the top-left corner. The model must see images.',
             'Minimizar': 'Minimize', 'Maximizar': 'Maximize', 'Fechar': 'Close',
             '📊 Desempenho': '📊 Performance', 'Status: Ocioso': 'Status: Idle', 'Palavras/s: --': 'Words/s: --',
             'Palavras/s': 'Words/s', 'N/D': 'N/A', ' (est.)': ' (est.)',
@@ -2494,7 +2535,7 @@
             let m;
             if ((m = s.match(/^gemma[-\s]?(\d+(?:\.\d+)?)/))) return { base: 'Gemma', ver: m[1], psize: SZ || 'Cloud' };
             if (/^diffusiongemma/.test(s)) { const v = (s.match(/^diffusiongemma-?(\d+(?:\.\d+)?)(?!\d|b|\.)/) || [])[1]; return { base: 'Gemma', ver: v || '', psize: (SZ ? SZ + ' ' : '') + 'Diffusion' }; }   // o 26 de diffusiongemma-26b e o tamanho, nao a versao
-            if ((m = s.match(/^gemini-(\d+(?:\.\d+)?)-?(.*)$/))) return { base: 'Gemini', ver: m[1], psize: (m[2] || '').split('-').filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(' ') || 'Base' };
+            if ((m = s.match(/^gemini-(\d+(?:[.-]\d{1,2}(?!\d))?)-?(.*)$/))) return { base: 'Gemini', ver: m[1].replace('-', '.'), psize: (m[2] || '').split('-').filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1)).join(' ') || 'Base' };
             if ((m = s.match(/^llama-?(\d+(?:\.\d+)?)/))) return { base: 'Llama', ver: m[1], psize: SZ || 'Base' };
             if (/^beam(-free)?$/.test(s)) return { base: 'Beam', ver: '', psize: 'Cloud' };
             if (/^qwq/.test(s)) return { base: 'Qwen', ver: 'QwQ', psize: SZ };
@@ -2883,7 +2924,8 @@
         function provLogos(sizes) {
             const keys = Object.keys(PROV_LOGOS).filter(k => sizes.some(m => provKey(m) === k)); if (!keys.length) return null;
             const box = document.createElement('span'); box.className = 'mo-provs';
-            keys.forEach(k => {
+            const MAXP = 3, shown = keys.slice(0, MAXP), hidden = keys.slice(MAXP);
+            shown.forEach(k => {
                 const L = PROV_LOGOS[k]; let e;
                 if (L.letter) { e = document.createElement('span'); e.className = 'pv'; e.textContent = L.letter; e.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;background:#2f8bff;color:#fff;font:700 .7em Arial,sans-serif;border-radius:50%;aspect-ratio:1'; }
                 else if (L.mono) { e = document.createElement('span'); e.className = 'pv pv-mono'; e.style.aspectRatio = L.ratio || 1; e.style.setProperty('--m', `url("icons/${L.img}")`); }
@@ -2893,6 +2935,7 @@
                 }
                 e.title = L.name; box.appendChild(e);
             });
+            if (hidden.length) { const more = document.createElement('span'); more.className = 'pv-more'; more.textContent = '+' + hidden.length; more.title = hidden.map(k => PROV_LOGOS[k].name).join(', '); box.appendChild(more); }   // so 3 logos; o resto vira "+N" (passe o mouse para ver quais)
             return box;
         }
         function brandEl(b, rec) {
@@ -4899,6 +4942,65 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             renderThemeOptions(); applyBaseTheme(config.theme); saveState();
             refreshSettingsLayout();
         }
+        // ---------- dropdown proprio: no lugar da lista nativa do navegador (cinza, fora do tema, cortada), a lista abre no estilo do Lume; o <select> continua la (escondido) e recebe o valor e o evento "change" ----------
+        const CS_ROOTS = '#settings-modal, #model-select, .lu-ov, .lu-embed';
+        let csPop = null, csCur = null;
+        function csClose() { if (csPop) { csPop.remove(); csPop = null; } if (csCur) { csCur.btn.classList.remove('open'); csCur = null; } }
+        function csPick(sel, i) { sel.selectedIndex = i; sel.dispatchEvent(new Event('input', { bubbles: true })); sel.dispatchEvent(new Event('change', { bubbles: true })); }
+        function csOpen(sel, btn) {
+            csClose();
+            const pop = document.createElement('div'); pop.className = 'cs-pop'; pop.setAttribute('role', 'listbox'); const items = [];
+            const add = o => { const d = document.createElement('div'); d.className = 'cs-opt' + (o.selected ? ' on' : '') + (o.disabled ? ' dis' : ''); d.textContent = o.textContent; d.dataset.i = o.index; d.setAttribute('role', 'option'); if (!o.disabled) d.onclick = () => { csClose(); csPick(sel, o.index); btn.focus(); }; items.push(d); pop.appendChild(d); };
+            [...sel.children].forEach(ch => { if (ch.tagName === 'OPTGROUP') { const g = document.createElement('div'); g.className = 'cs-grp'; g.textContent = ch.label; pop.appendChild(g); [...ch.children].forEach(add); } else if (ch.tagName === 'OPTION') add(ch); });
+            pop.addEventListener('mousedown', e => { e.stopPropagation(); e.preventDefault(); });   // clicar na lista nao fecha o seletor de modelos nem tira o foco
+            document.body.appendChild(pop);
+            const r = btn.getBoundingClientRect(); pop.style.minWidth = Math.max(r.width, 170) + 'px';
+            const below = innerHeight - r.bottom - 10, above = r.top - 10; pop.style.maxHeight = '9999px';
+            const want = Math.min(pop.scrollHeight + 2, 360), up = below < Math.min(want, 220) && above > below;
+            pop.style.maxHeight = Math.max(110, Math.min(want, up ? above : below)) + 'px';
+            pop.style.left = Math.max(8, Math.min(r.left, innerWidth - pop.offsetWidth - 8)) + 'px';
+            pop.style.top = (up ? r.top - pop.offsetHeight - 6 : r.bottom + 6) + 'px';
+            csPop = pop; csCur = { sel, btn, items, hl: Math.max(0, sel.selectedIndex) }; btn.classList.add('open');
+            const on = items.find(d => +d.dataset.i === sel.selectedIndex); if (on) { on.classList.add('hl'); on.scrollIntoView({ block: 'nearest' }); csCur.hl = items.indexOf(on); }
+        }
+        function csMove(d) {
+            if (!csCur) return; const it = csCur.items; if (!it.length) return; let i = csCur.hl;
+            for (let k = 0; k < it.length; k++) { i = (i + d + it.length) % it.length; if (!it[i].classList.contains('dis')) break; }
+            it.forEach(x => x.classList.remove('hl')); it[i].classList.add('hl'); it[i].scrollIntoView({ block: 'nearest' }); csCur.hl = i;
+        }
+        document.addEventListener('mousedown', e => { if (csPop && !csPop.contains(e.target) && !(csCur && csCur.btn.contains(e.target))) csClose(); }, true);
+        document.addEventListener('keydown', e => {
+            if (!csPop) return;
+            if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); const b = csCur.btn; csClose(); b.focus(); }
+            else if (e.key === 'ArrowDown') { e.preventDefault(); csMove(1); } else if (e.key === 'ArrowUp') { e.preventDefault(); csMove(-1); }
+            else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); const c = csCur, d = c.items[c.hl]; csClose(); if (d) csPick(c.sel, +d.dataset.i); c.btn.focus(); }
+            else if (e.key === 'Tab') csClose();
+        }, true);
+        window.addEventListener('resize', csClose); window.addEventListener('scroll', e => { if (csPop && !csPop.contains(e.target)) csClose(); }, true);
+        function enhanceSelects(root) {
+            (root || document).querySelectorAll('select').forEach(sel => {
+                if (sel.dataset.cs || sel.multiple || sel.size > 1 || sel.hasAttribute('data-native') || !sel.closest(CS_ROOTS)) return;
+                sel.dataset.cs = '1';
+                const btn = document.createElement('button'); btn.type = 'button'; btn.className = ('cs-btn ' + sel.className).trim(); btn.style.cssText = sel.style.cssText; btn.setAttribute('aria-haspopup', 'listbox');
+                const txt = document.createElement('span'); txt.className = 'cs-txt'; btn.appendChild(txt);
+                const paint = () => { const o = sel.options[sel.selectedIndex]; txt.textContent = o ? o.textContent : ''; btn.disabled = sel.disabled; btn.hidden = sel.style.display === 'none'; if (sel.title) btn.title = sel.title; };
+                const dv = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value'), di = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'selectedIndex');
+                Object.defineProperty(sel, 'value', { get() { return dv.get.call(this); }, set(v) { dv.set.call(this, v); paint(); }, configurable: true });   // codigo que muda o valor por JS tambem atualiza o botao
+                Object.defineProperty(sel, 'selectedIndex', { get() { return di.get.call(this); }, set(v) { di.set.call(this, v); paint(); }, configurable: true });
+                new MutationObserver(paint).observe(sel, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['disabled', 'style', 'title'] });
+                sel.addEventListener('change', paint);
+                btn.onclick = () => (csCur && csCur.sel === sel) ? csClose() : csOpen(sel, btn);
+                btn.addEventListener('keydown', e => { if (!csPop && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); csOpen(sel, btn); } });
+                sel.classList.add('cs-native'); sel.tabIndex = -1; sel.after(btn); paint();
+            });
+        }
+        function csWatch() {
+            const mo = new MutationObserver(ms => { for (const m of ms) m.addedNodes.forEach(n => { if (n.nodeType !== 1 || (n.classList && n.classList.contains('select-option'))) return; if (n.tagName === 'SELECT') enhanceSelects(n.parentNode); else if (n.querySelector && n.querySelector('select')) enhanceSelects(n); }); });
+            ['settings-modal', 'model-select'].forEach(id => { const e = document.getElementById(id); if (e) mo.observe(e, { childList: true, subtree: true }); });
+            mo.observe(document.body, { childList: true });   // janelas do kit (mascote, xadrez...)
+            enhanceSelects(document);
+        }
+        setTimeout(csWatch, 0);
         function enhanceNumbers() {   // poe - e + nos campos de numero das configuracoes (idempotente)
             document.querySelectorAll('#settings-modal input[type=number]:not([data-ns])').forEach(inp => {
                 inp.dataset.ns = '1'; const w = document.createElement('span'); w.className = 'num-step'; inp.parentNode.insertBefore(w, inp);
@@ -5093,8 +5195,8 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
                 { const sel = document.createElement('select'); [50, 75, 100, 150, 200, 250, 300].forEach(v => sel.add(new Option(v + '%', v))); sel.value = String(ao.pet_size); sel.onchange = () => appOptPost({ pet_size: +sel.value }); c.appendChild(el('span', 'hint', tr('Tamanho do pet'))); c.appendChild(sel); }
                 tg(c, 'Grudar na borda', ao.pet_snap, (on, e) => post({ pet_snap: on }, e, on));
                 { const row = el('div', 'srv-actions'); btn(row, 'Resetar a posição', () => appOptPost({ pet_reset: true })); c.appendChild(row); }
-                c = card('Mascote e companheiro', 'Mude a aparência do mascote e veja o seu companheiro.', petBox);
-                { const row = el('div', 'srv-actions'); btn(row, 'Personalizar o mascote', () => { if (window.lumePet) lumePet.openSettings(); }); btn(row, 'Ver o meu companheiro', () => { if (window.lumePet) lumePet.openProfile(); }); c.appendChild(row); }
+                c = card('Mascote', '', petBox); c.classList.add('set-wide');   // todas as opcoes do mascote aqui mesmo (antes so abriam clicando nele)
+                { const host = el('div'); c.appendChild(host); if (window.lumePet && lumePet.mountSettings) lumePet.mountSettings(host); }
             }
             c = card('Terminal e dados');
             if (ao.quick_available) tg(c, 'Alt+Espaço abre a caixinha rápida', ao.quick_hotkey, (on, e) => post({ quick_hotkey: on }, e, on));
@@ -5758,6 +5860,7 @@ mathbbR ℝ|mathbbN ℕ|mathbbZ ℤ|mathbbQ ℚ|mathbbC ℂ`.split('|').map(x =>
             };
         }
         async function refreshServerTab() {
+            $('srv-nearby').style.display = (window.__LUME_IOS || !auth.local || innerWidth <= 760) ? '' : 'none';   // procurar outros servidores so faz sentido no celular / aparelho remoto
             $('srv-host').style.display = auth.local ? '' : 'none';
             $('srv-client').style.display = auth.local ? 'none' : '';
             $('ios-install').style.display = (!auth.local || auth.root) && isIphone() && !isStandalone() ? '' : 'none';   // tambem para quem entrou como root pelo iPhone

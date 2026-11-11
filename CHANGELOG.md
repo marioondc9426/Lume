@@ -7,6 +7,11 @@ Como numerar:
 - Cada versão ganha uma tag no Git (`v1.0`, `v1.1.01`...).
 
 ## v4.0 (em desenvolvimento)
+- **Configurações organizadas em cartões lógicos:** Chat (Prompt, Contexto, Pesquisa na web, Comportamento), Code (Prompt, Pasta, Permissões e limites, MCP), Aparência (Tema, Fonte, Fundo, Interface, Janela e tamanho, Animações e avisos) e Desempenho (um cartão só). Acabaram os interruptores soltos, cada um num cartão. Os controles de pesquisa na web viraram um cartão só; "Widgets" e "Compactar a conversa" foram para o Chat.
+- **Todas as opções do mascote na aba Pet** (antes só abriam clicando nele): rosto, corpo, comportamento, dicas de erro, segurança do código e o companheiro, com prévia ao vivo.
+- **Dropdown novo:** a lista de opções (idioma, qualidade da busca, tamanhos do seletor de modelos...) agora abre no estilo do Lume, com seta, destaque, teclado (setas, Enter, Esc) e sem ser cortada, em vez da lista cinza do navegador.
+- **Seletor de modelos:** cada linha mostra no máximo 3 logos de provedores e o resto vira "+N" (passe o mouse para ver quais). O Gemini com versão em hífen ("gemini-2-5-flash") aparecia como "2, 5 Flash"; agora é "2.5 Flash".
+- **"Servidores por perto"** só aparece no celular (no PC não servia para nada).
 - **Configurações reorganizadas:** o menu lateral agora tem grupos (Conversa, Visual, Modelos e contas, Sistema) e o **Pet** ganhou uma seção própria (antes ficava escondido dentro de "Aplicativo"). Textos curtos: rótulos e opções diretos ("Automático" em vez de explicar tudo no nome) e dicas de uma frase. Removidas as opções de atualização que apareciam duas vezes.
 - **Textos pretos nas configurações:** campos de número ficavam com letra preta no tema escuro; no tema Perplexity os botões primários e a sua mensagem tinham letra branca sobre ciano (pouco contraste). Corrigido.
 - **Fechar o Lume pelo botão X agora encerra o programa e o terminal.** O pet e a caixinha (Alt+Espaço) são janelas escondidas que seguravam o processo vivo, então só a interface sumia. Agora o X (e "Sair" da bandeja) fecha todas as janelas e, se o processo não sair em 8 s, força.
